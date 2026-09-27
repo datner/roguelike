@@ -5,3 +5,6 @@
 
 /// `BeforeTakeDamage`: flat armor reduction.
 pub const ARMOR: i32 = 100;
+
+/// `AfterHit`: roll the attacker's (and its equipment's) on-hit effects.
+pub const ON_HIT: i32 = 100;

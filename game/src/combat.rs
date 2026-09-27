@@ -7,7 +7,9 @@ use hecs::{Entity, World};
 use rand::RngExt;
 use rand_pcg::Pcg64;
 
-use crate::entity::{Armor, Health, Melee};
+use crate::command::Command;
+use crate::effect::BASIS_POINTS;
+use crate::entity::{Armor, Health, Melee, OnHit};
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
 use crate::state::GameState;
@@ -26,8 +28,36 @@ pub struct Damaged {
     pub amount: i32,
 }
 
+/// Fired at the attacker (and so its equipment) after one of its melee hits
+/// dealt more than 0 damage. Effect damage never fires it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AfterHit {
+    pub attacker: Entity,
+    pub target: Entity,
+    pub amount: i32,
+}
+
 pub fn register(registry: &mut EventRegistry) {
     registry.on(prio::ARMOR, armor_reduces_damage);
+    registry.on(prio::ON_HIT, on_hit_applies_effects);
+}
+
+/// Rolls every entry on the combat stream, even at 0 or 10 000 bp, so the
+/// number of draws per hit doesn't depend on the chances.
+fn on_hit_applies_effects(
+    ctx: &mut Ctx<'_>,
+    on_hit: &OnHit,
+    ev: AfterHit,
+) -> ControlFlow<AfterHit, AfterHit> {
+    for entry in &on_hit.0 {
+        if ctx.rng.random_range(0..BASIS_POINTS) < u64::from(entry.chance_bp) {
+            ctx.out.push(Command::ApplyEffect {
+                target: ev.target,
+                blueprint: entry.effect,
+            });
+        }
+    }
+    ControlFlow::Continue(ev)
 }
 
 fn armor_reduces_damage(
@@ -80,9 +110,11 @@ pub fn preview_damage(state: &GameState, attacker: Entity, target: Entity) -> Op
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::{Command, apply_commands};
-    use crate::entity::{Attachments, Name, Position};
-    use crate::state::tests::bare_state;
+    use crate::command::apply_commands;
+    use crate::command::tests::UNSOURCED;
+    use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
+    use crate::state::MessageLog;
+    use crate::state::tests::{bare_state, test_blueprints};
 
     fn health(state: &GameState, entity: Entity) -> i32 {
         state.world.get::<&Health>(entity).unwrap().current
@@ -111,6 +143,107 @@ mod tests {
         (dummy, armor)
     }
 
+    fn bleed_on_hit(state: &GameState, chance_bp: u32) -> OnHit {
+        OnHit(vec![OnHitEntry {
+            effect: state.blueprints.id("Bleeding").unwrap(),
+            chance_bp,
+        }])
+    }
+
+    /// The player hits for exactly 3 and carries a bleed-on-hit themselves.
+    fn armed_player(state: &mut GameState, chance_bp: u32) {
+        let on_hit = bleed_on_hit(state, chance_bp);
+        let player = state.player;
+        state
+            .world
+            .insert(player, (Melee { min: 3, max: 3 }, on_hit))
+            .unwrap();
+    }
+
+    fn player_hits(state: &mut GameState, target: Entity) {
+        state.commands.push_back(Command::Attack {
+            attacker: state.player,
+            target,
+        });
+        apply_commands(state);
+    }
+
+    fn bleeds(state: &GameState, entity: Entity) -> usize {
+        state
+            .world
+            .get::<&Attachments>(entity)
+            .unwrap()
+            .0
+            .iter()
+            .filter(|&&attached| state.world.satisfies::<&Bleeding>(attached))
+            .count()
+    }
+
+    #[test]
+    fn a_certain_on_hit_applies_bleeding() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 0);
+        armed_player(&mut state, 10_000);
+        player_hits(&mut state, dummy);
+        assert_eq!(bleeds(&state, dummy), 1);
+        assert_eq!(last_log(&state), "The dummy starts bleeding.");
+    }
+
+    #[test]
+    fn a_zero_chance_on_hit_never_applies() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 0);
+        state.world.get::<&mut Health>(dummy).unwrap().current = 1000;
+        armed_player(&mut state, 0);
+        for _ in 0..50 {
+            player_hits(&mut state, dummy);
+        }
+        assert_eq!(bleeds(&state, dummy), 0);
+    }
+
+    #[test]
+    fn a_hit_fully_absorbed_by_armor_applies_nothing() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 3);
+        armed_player(&mut state, 10_000);
+        player_hits(&mut state, dummy);
+        assert_eq!(health(&state, dummy), 10);
+        assert_eq!(bleeds(&state, dummy), 0);
+    }
+
+    #[test]
+    fn on_hit_on_equipment_triggers_for_its_wearers_hits() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 0);
+        let knife = state.world.spawn((bleed_on_hit(&state, 10_000),));
+        let player = state.player;
+        state
+            .world
+            .insert(player, (Melee { min: 3, max: 3 }, Attachments(vec![knife])))
+            .unwrap();
+        player_hits(&mut state, dummy);
+        assert_eq!(bleeds(&state, dummy), 1);
+    }
+
+    /// Returns the log and how many hits made the dummy bleed.
+    fn thirty_coin_flip_hits(seed: u64) -> (MessageLog, usize) {
+        let mut state = GameState::bare(seed, test_blueprints()).unwrap();
+        let (dummy, _) = armored_dummy(&mut state, 0);
+        state.world.get::<&mut Health>(dummy).unwrap().current = 1000;
+        armed_player(&mut state, 5_000);
+        for _ in 0..30 {
+            player_hits(&mut state, dummy);
+        }
+        (state.log.clone(), bleeds(&state, dummy))
+    }
+
+    #[test]
+    fn on_hit_outcomes_are_deterministic_per_seed() {
+        let (log, applied) = thirty_coin_flip_hits(4);
+        assert_eq!(thirty_coin_flip_hits(4), (log, applied));
+        assert!(0 < applied && applied < 30, "{applied} of 30 at 50%");
+    }
+
     #[test]
     fn armor_on_an_attachment_reduces_damage() {
         let mut state = bare_state();
@@ -118,6 +251,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 5,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 7);
@@ -131,6 +265,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 2,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 10);

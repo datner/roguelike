@@ -15,3 +15,9 @@ Blueprint files are named after the blueprint in PascalCase (`Goblin.ron`), may 
 - Adding a monster/item is usually a RON file plus maybe one new part.
 - RON schema changes can break existing data files, so there should be a test that loads and spawns every file in `data/`.
 - Keep the component set small and orthogonal; a new component should be usable by more than one blueprint.
+
+## Addendum (2026-09-28): `BlueprintId` and on-hit dispatch
+
+- Every blueprint reference in data (`inherits`, `equipment`, on-hit effects) is checked at load, against the blueprint that wrote it; a missing name fails loading with an error naming both. Load then assigns each blueprint a `BlueprintId` (index in name order) and resolves references to ids, so the runtime never looks names up and `Command` stays `Copy`.
+- `BlueprintId` is runtime-only: it depends on which files were loaded, so it has no serde derives. Anything persisted stores blueprint names and re-resolves them on load.
+- On-hit effects are a part (`OnHit`), not a weapon feature: after a melee `DealDamage` that deals more than 0, `AfterHit` is fired at the attacker, so its own parts and its equipment's handle it like any event. `DealDamage` carries a `DamageCause`; effect damage never fires `AfterHit`, so effects cannot chain. Rolls use the combat stream, one per entry per hit, and each success applies an independent effect instance.

@@ -4,6 +4,7 @@
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
+use crate::blueprint::BlueprintId;
 use crate::cell::Rgb;
 use crate::time::Tick;
 
@@ -117,4 +118,18 @@ pub struct EffectTarget(pub Entity);
 pub struct Bleeding {
     pub damage: i32,
     pub interval: u64,
+}
+
+/// Effects applied to the victim when the holder, or the creature it is
+/// attached to, lands a melee hit that deals damage. Built from
+/// `ComponentDef::OnHit` at load; not serializable, since it holds ids.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OnHit(pub Vec<OnHitEntry>);
+
+/// Each entry rolls on its own; every success applies a new effect instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OnHitEntry {
+    pub effect: BlueprintId,
+    /// Out of `effect::BASIS_POINTS`.
+    pub chance_bp: u32,
 }

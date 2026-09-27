@@ -14,7 +14,9 @@ pub use map::{Grid, MAP_HEIGHT, MAP_WIDTH, Map, Tile, generate_map, random_seed}
 
 pub mod blueprint;
 
-pub use blueprint::{Blueprint, BlueprintError, Blueprints, ComponentDef};
+pub use blueprint::{
+    Blueprint, BlueprintError, BlueprintId, Blueprints, ComponentDef, OnHitDef, ResolvedBlueprint,
+};
 
 pub mod ai;
 pub mod combat;
@@ -30,12 +32,12 @@ pub mod rng;
 pub mod state;
 pub mod time;
 
-pub use combat::{BeforeTakeDamage, Damaged, preview_damage};
-pub use command::{Command, MAX_COMMANDS_PER_STEP, apply_commands};
+pub use combat::{AfterHit, BeforeTakeDamage, Damaged, preview_damage};
+pub use command::{Command, DamageCause, MAX_COMMANDS_PER_STEP, apply_commands};
 pub use effect::DurationChange;
 pub use entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Dead, Duration, EffectTarget, Energy,
-    Health, Hostile, Melee, Name, Player, Position, SpawnSeq, Speed, Timed,
+    Health, Hostile, Melee, Name, OnHit, OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
 };
 pub use event::{Ctx, EventRegistry};
 pub use grammar::Subject;

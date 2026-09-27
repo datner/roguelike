@@ -215,6 +215,7 @@ mod tests {
     use super::*;
     use crate::combat::Damaged;
     use crate::command::MAX_COMMANDS_PER_STEP;
+    use crate::command::tests::UNSOURCED;
     use crate::cost;
     use crate::entity::{Health, Hostile, Melee, Position};
     use crate::input::{Dir, InputEvent};
@@ -458,6 +459,7 @@ mod tests {
             ctx.out.push(Command::DealDamage {
                 target: ev.target,
                 amount: 1,
+                cause: UNSOURCED,
             });
             ControlFlow::Continue(ev)
         });

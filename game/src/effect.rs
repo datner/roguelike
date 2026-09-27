@@ -5,7 +5,8 @@
 
 use hecs::Entity;
 
-use crate::command::Command;
+use crate::blueprint::BlueprintId;
+use crate::command::{Command, DamageCause};
 use crate::entity::{Attachments, Bleeding, Duration, EffectTarget, Name, Timed};
 use crate::grammar::Subject;
 use crate::state::GameState;
@@ -49,11 +50,11 @@ fn scale(ticks: u64, bp: u32) -> u64 {
 
 /// `ApplyEffect` applier: spawns `blueprint`, starts it now, and attaches it
 /// to `target`.
-pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: &str) {
+pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: BlueprintId) {
     if !state.world.contains(target) {
         return;
     }
-    let effect = match state.spawn(blueprint) {
+    let effect = match state.spawn_id(blueprint) {
         Ok(effect) => effect,
         Err(err) => {
             state.log.push(format!("Error: cannot apply effect: {err}"));
@@ -62,9 +63,10 @@ pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: &st
     };
     let Ok(Duration(duration)) = state.world.remove_one::<Duration>(effect) else {
         let _ = state.world.despawn(effect);
-        state.log.push(format!(
-            "Error: effect blueprint {blueprint:?} has no Duration."
-        ));
+        let name = state.blueprints.by_id(blueprint).map_or("?", |b| &b.name);
+        state
+            .log
+            .push(format!("Error: effect blueprint {name:?} has no Duration."));
         return;
     };
     let timed = Timed {
@@ -88,6 +90,13 @@ pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: &st
     };
     if !attached {
         let _ = state.world.insert_one(target, Attachments(vec![effect]));
+    }
+
+    // The name completes the sentence, as in the expiry message.
+    let name = state.world.get::<&Name>(effect).ok().map(|n| n.0.clone());
+    if let Some(name) = name {
+        let subject = Subject::of(&state.world, target);
+        state.log.push(subject.sentence("start", &name));
     }
 
     let interval = state
@@ -165,6 +174,7 @@ pub(crate) fn bleed_tick(state: &mut GameState, effect: Entity) {
     state.commands.push_back(Command::DealDamage {
         target,
         amount: bleeding.damage,
+        cause: DamageCause::Effect { effect },
     });
     schedule_bleed(state, effect, bleeding.interval);
 }
@@ -186,7 +196,7 @@ mod tests {
     use super::*;
     use crate::command::apply_commands;
     use crate::entity::Name;
-    use crate::entity::{Energy, Health};
+    use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
     use crate::state::tests::bare_state;
     use crate::time::{Step, step};
 
@@ -208,13 +218,8 @@ mod tests {
     }
 
     fn apply_bleeding_to(state: &mut GameState, target: Entity) -> Entity {
-        run(
-            state,
-            Command::ApplyEffect {
-                target,
-                blueprint: "Bleeding".to_string(),
-            },
-        );
+        let blueprint = state.blueprints.id("Bleeding").unwrap();
+        run(state, Command::ApplyEffect { target, blueprint });
         *state
             .world
             .get::<&Attachments>(target)
@@ -273,13 +278,8 @@ mod tests {
         let mut state = quiet_state();
         let target = state.player;
         let entities = state.world.len();
-        run(
-            &mut state,
-            Command::ApplyEffect {
-                target,
-                blueprint: "Rubble".to_string(),
-            },
-        );
+        let blueprint = state.blueprints.id("Rubble").unwrap();
+        run(&mut state, Command::ApplyEffect { target, blueprint });
         assert_eq!(state.world.len(), entities);
         assert_eq!(
             last_log(&state),
@@ -288,20 +288,10 @@ mod tests {
     }
 
     #[test]
-    fn applying_an_unknown_effect_is_an_error() {
+    fn applying_an_effect_is_announced() {
         let mut state = quiet_state();
-        let target = state.player;
-        run(
-            &mut state,
-            Command::ApplyEffect {
-                target,
-                blueprint: "Nope".to_string(),
-            },
-        );
-        assert_eq!(
-            last_log(&state),
-            "Error: cannot apply effect: unknown blueprint \"Nope\""
-        );
+        apply_bleeding(&mut state);
+        assert_eq!(last_log(&state), "You start bleeding.");
     }
 
     #[test]
@@ -477,5 +467,72 @@ mod tests {
         run_until(&mut state, 1000);
         assert_eq!(state.log, log, "orphaned timers are no-ops");
         assert!(state.timers.is_empty());
+    }
+
+    /// A 100-HP dummy, and a player whose every damaging hit (exactly 1)
+    /// makes the victim bleed.
+    fn bleeding_striker() -> (GameState, Entity) {
+        let mut state = quiet_state();
+        let dummy = state.world.spawn((
+            Name("dummy".into()),
+            Health {
+                current: 100,
+                max: 100,
+            },
+        ));
+        let certain_bleed = OnHit(vec![OnHitEntry {
+            effect: state.blueprints.id("Bleeding").unwrap(),
+            chance_bp: 10_000,
+        }]);
+        let player = state.player;
+        state
+            .world
+            .insert(player, (Melee { min: 1, max: 1 }, certain_bleed))
+            .unwrap();
+        (state, dummy)
+    }
+
+    fn player_hits(state: &mut GameState, target: Entity) {
+        let attacker = state.player;
+        run(state, Command::Attack { attacker, target });
+    }
+
+    fn attachments(state: &GameState, entity: Entity) -> Vec<Entity> {
+        state.world.get::<&Attachments>(entity).unwrap().0.clone()
+    }
+
+    #[test]
+    fn each_successful_hit_applies_an_independent_instance() {
+        let (mut state, dummy) = bleeding_striker();
+        player_hits(&mut state, dummy);
+        run_until(&mut state, 200);
+        player_hits(&mut state, dummy);
+
+        let [first, second] = attachments(&state, dummy)[..] else {
+            panic!("expected two bleeds");
+        };
+        assert_eq!(timed(&state, first).start, Tick(0));
+        assert_eq!(timed(&state, second).start, Tick(200));
+
+        run_until(&mut state, 500);
+        assert_eq!(attachments(&state, dummy), [second]);
+        run_until(&mut state, 700);
+        assert!(attachments(&state, dummy).is_empty());
+        // Two hits, then four ticks from each bleed.
+        assert_eq!(state.world.get::<&Health>(dummy).unwrap().current, 90);
+    }
+
+    #[test]
+    fn bleed_damage_does_not_trigger_on_hit_effects() {
+        let (mut state, dummy) = bleeding_striker();
+        // On the victim too, so neither side of a bleed tick may fire it.
+        let on_hit = OnHit::clone(&state.world.get::<&OnHit>(state.player).unwrap());
+        state.world.insert_one(dummy, on_hit).unwrap();
+        player_hits(&mut state, dummy);
+        for tick in 1..=1000 {
+            run_until(&mut state, tick);
+            assert!(attachments(&state, dummy).len() <= 1, "tick {tick}");
+        }
+        assert_eq!(state.world.get::<&Health>(dummy).unwrap().current, 95);
     }
 }

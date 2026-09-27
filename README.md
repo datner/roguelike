@@ -21,7 +21,12 @@ This is a Cargo workspace with two crates:
   - `Blueprints`, loaded from `data/entities/*.ron` (one blueprint per
     file, named by file stem) via serde + RON. Blueprints list
     components, can `inherits` from a parent (resolved at load time), and
-    can carry `equipment` spawned as attached entities.
+    can carry `equipment` spawned as attached entities. Every name a
+    blueprint refers to is validated and resolved to a `BlueprintId` at
+    load; a missing one fails loading.
+  - On-hit effects: an `OnHit` part on a creature or its equipment rolls
+    to apply effects after each melee hit that deals damage. Goblins
+    carry a rusty knife that makes the victim bleed a quarter of the time.
   - An `EventRegistry` of typed handlers per (event, component). Handlers
     read the world, rewrite or stop the event, and emit commands; only
     `apply_commands` mutates the world.

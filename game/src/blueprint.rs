@@ -6,6 +6,10 @@
 //! variant counts as its own field (a child's `Health` replaces the parent's,
 //! other parent components are kept), and `equipment` is a single field
 //! (absent inherits the parent's list, present replaces it, `[]` clears it).
+//!
+//! Every name a blueprint refers to (`inherits`, `equipment`, on-hit effects)
+//! is checked and turned into a `BlueprintId` at load, so a typo fails
+//! loading instead of surfacing mid-game.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -18,8 +22,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Hostile, Melee,
-    Name, Player, Position, Speed,
+    Name, OnHit, OnHitEntry, Player, Position, Speed,
 };
+
+/// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
+/// ids depend on which files were loaded, so it has no serde derives and
+/// anything persisted stores the blueprint's name instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BlueprintId(u32);
 
 /// Every component a blueprint can declare. A child's entry overrides the
 /// parent's entry of the same variant.
@@ -36,6 +46,14 @@ pub enum ComponentDef {
     Hostile,
     Bleeding(Bleeding),
     Duration(Duration),
+    OnHit(Vec<OnHitDef>),
+}
+
+/// An `OnHitEntry` as written in RON: the effect by blueprint name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnHitDef {
+    pub effect: String,
+    pub chance_bp: u32,
 }
 
 impl ComponentDef {
@@ -52,6 +70,8 @@ impl ComponentDef {
             ComponentDef::Hostile => builder.add(Hostile),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
+            // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
+            ComponentDef::OnHit(_) => return,
         };
     }
 }
@@ -73,11 +93,22 @@ impl Blueprint {
     }
 }
 
-/// A set of blueprints with inheritance already flattened: every stored
-/// blueprint has `inherits: None`.
+/// A blueprint after load: inheritance flattened and every reference an id.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedBlueprint {
+    pub name: String,
+    /// Every declared component except `OnHit`, which lives in `on_hit`.
+    pub components: Vec<ComponentDef>,
+    pub on_hit: Option<OnHit>,
+    pub equipment: Vec<BlueprintId>,
+}
+
+/// A loaded, validated set of blueprints.
 #[derive(Debug, Clone, Default)]
 pub struct Blueprints {
-    resolved: BTreeMap<String, Blueprint>,
+    /// Indexed by `BlueprintId`; ids follow name order.
+    resolved: Vec<ResolvedBlueprint>,
+    ids: BTreeMap<String, BlueprintId>,
 }
 
 #[derive(Debug)]
@@ -92,6 +123,10 @@ pub enum BlueprintError {
     UnknownEquipment {
         owner: String,
         item: String,
+    },
+    UnknownEffect {
+        owner: String,
+        effect: String,
     },
     /// Names along the cycle, starting and ending with the same blueprint.
     InheritanceCycle(Vec<String>),
@@ -109,6 +144,12 @@ impl std::fmt::Display for BlueprintError {
             }
             Self::UnknownEquipment { owner, item } => {
                 write!(f, "blueprint {owner:?} is equipped with unknown {item:?}")
+            }
+            Self::UnknownEffect { owner, effect } => {
+                write!(
+                    f,
+                    "blueprint {owner:?} applies unknown effect {effect:?} on hit"
+                )
             }
             Self::InheritanceCycle(path) => write!(f, "inheritance cycle: {}", path.join(" -> ")),
             Self::EquipmentCycle(path) => write!(f, "equipment cycle: {}", path.join(" -> ")),
@@ -147,35 +188,82 @@ impl Blueprints {
         Self::resolve(raw)
     }
 
-    /// Flattens inheritance and checks that every referenced name exists.
+    /// Checks that every referenced name exists, flattens inheritance, and
+    /// assigns ids in name order.
     pub fn resolve(raw: BTreeMap<String, Blueprint>) -> Result<Self, BlueprintError> {
-        let mut resolved = BTreeMap::new();
+        check_references(&raw)?;
+        let mut flat = BTreeMap::new();
         for name in raw.keys() {
-            resolve_one(name, &raw, &mut resolved, &mut Vec::new())?;
+            resolve_one(name, &raw, &mut flat, &mut Vec::new())?;
         }
-        for (owner, blueprint) in &resolved {
-            if let Some(item) = blueprint
-                .equipment()
-                .iter()
-                .find(|item| !resolved.contains_key(*item))
-            {
-                return Err(BlueprintError::UnknownEquipment {
-                    owner: owner.clone(),
-                    item: item.clone(),
-                });
+
+        let ids: BTreeMap<String, BlueprintId> =
+            flat.keys().cloned().zip((0..).map(BlueprintId)).collect();
+        let id_of = |name: &String| {
+            ids.get(name)
+                .copied()
+                .ok_or_else(|| BlueprintError::UnknownBlueprint(name.clone()))
+        };
+        let mut resolved = Vec::with_capacity(flat.len());
+        for (name, blueprint) in flat {
+            let mut components = Vec::with_capacity(blueprint.components.len());
+            let mut on_hit = None;
+            for component in blueprint.components {
+                match component {
+                    ComponentDef::OnHit(entries) => {
+                        let entries = entries
+                            .iter()
+                            .map(|entry| {
+                                Ok(OnHitEntry {
+                                    effect: id_of(&entry.effect)?,
+                                    chance_bp: entry.chance_bp,
+                                })
+                            })
+                            .collect::<Result<_, BlueprintError>>()?;
+                        on_hit = Some(OnHit(entries));
+                    }
+                    other => components.push(other),
+                }
             }
+            let equipment = blueprint
+                .equipment
+                .iter()
+                .flatten()
+                .map(id_of)
+                .collect::<Result<_, _>>()?;
+            resolved.push(ResolvedBlueprint {
+                name,
+                components,
+                on_hit,
+                equipment,
+            });
         }
-        Ok(Self { resolved })
+        Ok(Self { resolved, ids })
     }
 
-    pub fn get(&self, name: &str) -> Option<&Blueprint> {
-        self.resolved.get(name)
+    pub fn id(&self, name: &str) -> Option<BlueprintId> {
+        self.ids.get(name).copied()
+    }
+
+    pub fn by_id(&self, id: BlueprintId) -> Option<&ResolvedBlueprint> {
+        self.resolved.get(id.0 as usize)
+    }
+
+    pub fn get(&self, name: &str) -> Option<&ResolvedBlueprint> {
+        self.by_id(self.id(name)?)
     }
 
     /// Spawns `name`, and each piece of its equipment as a separate entity
     /// listed in the owner's `Attachments`.
     pub fn spawn(&self, world: &mut World, name: &str) -> Result<Entity, BlueprintError> {
-        self.spawn_inner(world, name, &mut Vec::new())
+        let id = self
+            .id(name)
+            .ok_or_else(|| BlueprintError::UnknownBlueprint(name.to_string()))?;
+        self.spawn_id(world, id)
+    }
+
+    pub fn spawn_id(&self, world: &mut World, id: BlueprintId) -> Result<Entity, BlueprintError> {
+        self.spawn_inner(world, id, &mut Vec::new())
     }
 
     pub fn spawn_at(
@@ -194,21 +282,21 @@ impl Blueprints {
     fn spawn_inner(
         &self,
         world: &mut World,
-        name: &str,
-        stack: &mut Vec<String>,
+        id: BlueprintId,
+        stack: &mut Vec<BlueprintId>,
     ) -> Result<Entity, BlueprintError> {
-        if stack.iter().any(|n| n == name) {
-            let mut cycle = stack.clone();
-            cycle.push(name.to_string());
+        let name_of = |id| self.by_id(id).map_or("?", |b| b.name.as_str()).to_string();
+        if stack.contains(&id) {
+            let cycle = stack.iter().chain([&id]).map(|&id| name_of(id)).collect();
             return Err(BlueprintError::EquipmentCycle(cycle));
         }
         let blueprint = self
-            .get(name)
-            .ok_or_else(|| BlueprintError::UnknownBlueprint(name.to_string()))?;
+            .by_id(id)
+            .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
 
-        stack.push(name.to_string());
-        let mut attachments = Vec::with_capacity(blueprint.equipment().len());
-        for item in blueprint.equipment() {
+        stack.push(id);
+        let mut attachments = Vec::with_capacity(blueprint.equipment.len());
+        for &item in &blueprint.equipment {
             attachments.push(self.spawn_inner(world, item, stack)?);
         }
         stack.pop();
@@ -217,11 +305,48 @@ impl Blueprints {
         for component in &blueprint.components {
             component.add_to(&mut builder);
         }
+        if let Some(on_hit) = &blueprint.on_hit {
+            builder.add(on_hit.clone());
+        }
         if !attachments.is_empty() {
             builder.add(Attachments(attachments));
         }
         Ok(world.spawn(builder.build()))
     }
+}
+
+/// Checks equipment and on-hit names as written, before flattening, so the
+/// error names the blueprint that wrote the bad reference rather than a
+/// child that inherited it. `resolve_one` checks `inherits`.
+fn check_references(raw: &BTreeMap<String, Blueprint>) -> Result<(), BlueprintError> {
+    for (owner, blueprint) in raw {
+        if let Some(item) = blueprint
+            .equipment()
+            .iter()
+            .find(|item| !raw.contains_key(*item))
+        {
+            return Err(BlueprintError::UnknownEquipment {
+                owner: owner.clone(),
+                item: item.clone(),
+            });
+        }
+        let effects = blueprint
+            .components
+            .iter()
+            .flat_map(|component| match component {
+                ComponentDef::OnHit(entries) => entries.as_slice(),
+                _ => &[],
+            });
+        for entry in effects {
+            if !raw.contains_key(&entry.effect) {
+                return Err(BlueprintError::UnknownEffect {
+                    owner: owner.clone(),
+                    effect: entry.effect.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 fn resolve_one(
@@ -307,12 +432,14 @@ mod tests {
                 with_equipment(bp(Some("Base"), vec![]), child_equipment),
             ),
         ]);
-        Blueprints::resolve(raw)
-            .unwrap()
+        let blueprints = Blueprints::resolve(raw).unwrap();
+        blueprints
             .get("Child")
             .unwrap()
-            .equipment()
-            .to_vec()
+            .equipment
+            .iter()
+            .map(|&id| blueprints.by_id(id).unwrap().name.clone())
+            .collect()
     }
 
     #[test]
@@ -351,12 +478,21 @@ mod tests {
             "LeatherArmor",
             "Player",
             "Rubble",
+            "RustyKnife",
         ] {
             assert!(blueprints.get(name).is_some(), "missing {name}");
         }
+        let id = |name| blueprints.id(name).unwrap();
         assert_eq!(
-            blueprints.get("Goblin").unwrap().equipment(),
-            ["LeatherArmor"]
+            blueprints.get("Goblin").unwrap().equipment,
+            [id("LeatherArmor"), id("RustyKnife")]
+        );
+        assert_eq!(
+            blueprints.get("RustyKnife").unwrap().on_hit,
+            Some(OnHit(vec![OnHitEntry {
+                effect: id("Bleeding"),
+                chance_bp: 2500,
+            }]))
         );
         assert!(
             blueprints
@@ -401,7 +537,6 @@ mod tests {
         ]);
         let blueprints = Blueprints::resolve(raw).unwrap();
         let child = blueprints.get("Child").unwrap();
-        assert_eq!(child.inherits, None);
         assert_eq!(
             child.components,
             [
@@ -425,13 +560,77 @@ mod tests {
         }
     }
 
+    fn load_error(raw: Vec<(&str, Blueprint)>) -> String {
+        let raw = raw
+            .into_iter()
+            .map(|(name, blueprint)| (name.to_string(), blueprint))
+            .collect();
+        match Blueprints::resolve(raw) {
+            Err(err) => err.to_string(),
+            Ok(_) => panic!("expected a load error"),
+        }
+    }
+
+    fn on_hit(effect: &str) -> ComponentDef {
+        ComponentDef::OnHit(vec![OnHitDef {
+            effect: effect.to_string(),
+            chance_bp: 5000,
+        }])
+    }
+
     #[test]
     fn unknown_parent_is_reported() {
-        let raw = BTreeMap::from([("A".to_string(), bp(Some("Nope"), vec![]))]);
-        assert!(matches!(
-            Blueprints::resolve(raw),
-            Err(BlueprintError::UnknownParent { .. })
-        ));
+        assert_eq!(
+            load_error(vec![("A", bp(Some("Nope"), vec![]))]),
+            r#"blueprint "A" inherits from unknown "Nope""#
+        );
+    }
+
+    /// The parent, which wrote the bad name, is reported, not the child
+    /// that inherited it (which would come first in name order).
+    #[test]
+    fn unknown_equipment_is_reported_on_the_blueprint_that_lists_it() {
+        assert_eq!(
+            load_error(vec![
+                ("Zed", with_equipment(bp(None, vec![]), Some(&["Nope"]))),
+                ("Alpha", bp(Some("Zed"), vec![])),
+            ]),
+            r#"blueprint "Zed" is equipped with unknown "Nope""#
+        );
+    }
+
+    #[test]
+    fn unknown_on_hit_effect_is_reported() {
+        assert_eq!(
+            load_error(vec![
+                ("Zed", bp(None, vec![on_hit("Nope")])),
+                ("Alpha", bp(Some("Zed"), vec![])),
+            ]),
+            r#"blueprint "Zed" applies unknown effect "Nope" on hit"#
+        );
+    }
+
+    #[test]
+    fn on_hit_parses_and_is_spawned_with_resolved_ids() {
+        let def: Blueprint = ron_options()
+            .from_str(r#"(components: [OnHit([(effect: "Cut", chance_bp: 5000)])])"#)
+            .unwrap();
+        assert_eq!(def.components, [on_hit("Cut")]);
+
+        let blueprints = Blueprints::resolve(BTreeMap::from([
+            ("Knife".to_string(), def),
+            ("Cut".to_string(), bp(None, vec![])),
+        ]))
+        .unwrap();
+        let mut world = World::new();
+        let knife = blueprints.spawn(&mut world, "Knife").unwrap();
+        assert_eq!(
+            *world.get::<&OnHit>(knife).unwrap(),
+            OnHit(vec![OnHitEntry {
+                effect: blueprints.id("Cut").unwrap(),
+                chance_bp: 5000,
+            }])
+        );
     }
 
     #[test]
@@ -440,8 +639,9 @@ mod tests {
         let mut world = World::new();
         let goblin = blueprints.spawn(&mut world, "Goblin").unwrap();
         let attachments = world.get::<&Attachments>(goblin).unwrap().0.clone();
-        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments.len(), 2);
         assert!(world.satisfies::<&Armor>(attachments[0]));
+        assert!(world.satisfies::<&OnHit>(attachments[1]));
     }
 
     #[test]

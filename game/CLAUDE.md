@@ -8,10 +8,10 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 - `input.rs` — `InputEvent`, `Dir`: the only input. Frontends translate raw keys into these.
 - `map.rs` — `Tile`, `Grid<T>` (i32 coords, `get` returns `Option`), map generation.
 - `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`).
-- `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears).
+- `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names).
 - `command.rs` — `Command` enum and `apply_commands` (the only place the world is mutated during play). A command whose actor or target is `Dead` is skipped there, in one check; a new variant lists its entities in `Command::participants`.
 - `event.rs` — typed, synchronous event dispatch to part handlers (`EventRegistry::on` / `fire`). Handlers get a `Ctx` with `&World`, the map, the RNG and an output `Vec<Command>` — they never mutate the world.
-- `combat.rs` — damage events (`BeforeTakeDamage`, `Damaged`), the armor handler, and `preview_damage` (dry run on a cloned RNG).
+- `combat.rs` — damage events (`BeforeTakeDamage`, `Damaged`, `AfterHit` on the attacker for damaging melee hits), the armor and `OnHit` handlers, and `preview_damage` (dry run on a cloned RNG).
 - `prio.rs` — every handler priority, in one file, so ordering is reviewable. New handlers get a named constant here, never an inline number. Priorities are unique per event type (`on` panics on a duplicate), so dispatch order never depends on registration order.
 - `rng.rs` — `Rngs` (one `Pcg64` stream per subsystem) and the `stream` id constants.
 - `grammar.rs` — `Subject`: subject–verb agreement for log messages.

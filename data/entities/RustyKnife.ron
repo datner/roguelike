@@ -1,0 +1,8 @@
+// Equipment: melee damage stays on the creature; the knife only adds a
+// chance (out of 10 000) to make each damaging hit bleed.
+(
+    components: [
+        Name("rusty knife"),
+        OnHit([(effect: "Bleeding", chance_bp: 2500)]),
+    ],
+)

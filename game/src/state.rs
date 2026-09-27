@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use hecs::{Entity, World};
 
-use crate::blueprint::{BlueprintError, Blueprints};
+use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
@@ -131,7 +131,15 @@ impl GameState {
     /// on the tick it appears. Use this rather than `Blueprints::spawn`
     /// during play.
     pub fn spawn(&mut self, name: &str) -> Result<Entity, BlueprintError> {
-        let entity = self.blueprints.spawn(&mut self.world, name)?;
+        let id = self
+            .blueprints
+            .id(name)
+            .ok_or_else(|| BlueprintError::UnknownBlueprint(name.to_string()))?;
+        self.spawn_id(id)
+    }
+
+    pub fn spawn_id(&mut self, id: BlueprintId) -> Result<Entity, BlueprintError> {
+        let entity = self.blueprints.spawn_id(&mut self.world, id)?;
         let seq = SpawnSeq(self.next_spawn_seq);
         self.next_spawn_seq += 1;
         // Inserting into an entity spawned just above cannot fail.

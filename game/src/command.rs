@@ -4,7 +4,8 @@ use std::ops::ControlFlow;
 
 use hecs::Entity;
 
-use crate::combat::{BeforeTakeDamage, Damaged, roll_melee};
+use crate::blueprint::BlueprintId;
+use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Health, Position};
@@ -23,8 +24,16 @@ use crate::time;
 /// between two player turns never shares it.
 pub const MAX_COMMANDS_PER_STEP: usize = 1000;
 
+/// Where a hit came from. Only `Melee` hits trigger on-hit effects, so an
+/// effect's own damage can never re-apply effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DamageCause {
+    Melee { attacker: Entity },
+    Effect { effect: Entity },
+}
+
 /// Actions (`TryMove`, `Wait`) cost their actor energy; see `cost::of`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     TryMove(Entity, Dir),
     /// Do nothing for a standard action.
@@ -36,6 +45,7 @@ pub enum Command {
     DealDamage {
         target: Entity,
         amount: i32,
+        cause: DamageCause,
     },
     Die {
         entity: Entity,
@@ -44,7 +54,7 @@ pub enum Command {
     /// now, and attach it to `target`.
     ApplyEffect {
         target: Entity,
-        blueprint: String,
+        blueprint: BlueprintId,
     },
     /// The only way an effect's duration changes (ADR 0006).
     ModifyDuration {
@@ -111,10 +121,14 @@ pub fn apply_commands(state: &mut GameState) {
             Command::TryMove(entity, dir) => try_move(state, entity, dir),
             Command::Wait(_) => {}
             Command::Attack { attacker, target } => attack(state, attacker, target),
-            Command::DealDamage { target, amount } => deal_damage(state, target, amount),
+            Command::DealDamage {
+                target,
+                amount,
+                cause,
+            } => deal_damage(state, target, amount, cause),
             Command::Die { entity } => die(state, entity),
             Command::ApplyEffect { target, blueprint } => {
-                effect::apply_effect(state, target, &blueprint);
+                effect::apply_effect(state, target, blueprint);
             }
             Command::ModifyDuration { effect, change } => {
                 effect::modify_duration(state, effect, change);
@@ -228,13 +242,15 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
 
 fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
     if let Some(amount) = roll_melee(&state.world, &mut state.rngs.combat, attacker) {
-        state
-            .commands
-            .push_back(Command::DealDamage { target, amount });
+        state.commands.push_back(Command::DealDamage {
+            target,
+            amount,
+            cause: DamageCause::Melee { attacker },
+        });
     }
 }
 
-fn deal_damage(state: &mut GameState, target: Entity, amount: i32) {
+fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: DamageCause) {
     if !state.world.satisfies::<&Health>(target) {
         return;
     }
@@ -275,6 +291,17 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32) {
             amount: dealt,
         },
     );
+    if let DamageCause::Melee { attacker } = cause {
+        let _ = dispatch(
+            state,
+            attacker,
+            AfterHit {
+                attacker,
+                target,
+                amount: dealt,
+            },
+        );
+    }
     if remaining <= 0 {
         state.commands.push_back(Command::Die { entity: target });
     }
@@ -304,10 +331,16 @@ fn die(state: &mut GameState, entity: Entity) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::entity::{Melee, Name};
     use crate::state::tests::bare_state;
+
+    /// For damage tests that don't care where the hit came from; an effect
+    /// cause never triggers on-hit effects.
+    pub(crate) const UNSOURCED: DamageCause = DamageCause::Effect {
+        effect: Entity::DANGLING,
+    };
 
     fn last_log(state: &GameState) -> &str {
         state
@@ -395,6 +428,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: rock,
             amount: 5,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(state.log, log_before);
@@ -410,6 +444,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 0,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(state.world.get::<&Health>(dummy).unwrap().current, 3);
@@ -422,6 +457,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: state.player,
             amount: 3,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(last_log(&state), "You take 3 damage.");
@@ -471,6 +507,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: player,
             amount: 5,
+            cause: UNSOURCED,
         });
         apply_commands(&mut state);
         assert_eq!(state.world.get::<&Health>(player).unwrap().current, 20);
