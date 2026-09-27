@@ -55,6 +55,8 @@
             commonArgs
             // {
               inherit cargoArtifacts;
+              # Nothing consumes a check's own target/ archive; skip storing it.
+              doInstallCargoArtifacts = false;
               cargoClippyExtraArgs = "--workspace --all-targets -- -D warnings";
             }
           );
@@ -63,6 +65,8 @@
             commonArgs
             // {
               inherit cargoArtifacts;
+              # Nothing consumes a check's own target/ archive; skip storing it.
+              doInstallCargoArtifacts = false;
               cargoTestExtraArgs = "--workspace";
             }
           );
