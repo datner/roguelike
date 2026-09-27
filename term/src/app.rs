@@ -86,7 +86,7 @@ fn draw(frame: &mut Frame, state: &GameState) {
 mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, Tick};
+    use game::{Blueprints, Tick, apply_commands};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -120,7 +120,12 @@ mod tests {
     fn status_announces_game_over() {
         let mut state = state();
         state.now = Tick(700);
-        state.game_over = true;
-        assert!(screen(&state).contains("You died on turn 7. Press any key to quit."));
+        state.commands.push_back(Command::Die {
+            entity: state.player,
+        });
+        apply_commands(&mut state);
+        let screen = screen(&state);
+        assert!(screen.contains("You died on turn 7. Press any key to quit."));
+        assert!(screen.contains('☺'), "the dead player is still drawn");
     }
 }

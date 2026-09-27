@@ -28,6 +28,11 @@ pub struct BlocksMovement;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Player;
 
+/// Marker component: died but kept in the world (only the player, so the
+/// frontend can still render and report on it). The scheduler skips it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Dead;
+
 /// Bare noun without an article, e.g. "goblin"; `grammar::Subject` adds "the".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]

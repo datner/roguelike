@@ -5,7 +5,7 @@ use hecs::Entity;
 use crate::combat::{BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
-use crate::entity::{Attachments, BlocksMovement, Energy, Health, Position};
+use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Health, Position};
 use crate::event::{Ctx, settle};
 use crate::grammar::{Subject, capitalize};
 use crate::input::Dir;
@@ -14,8 +14,11 @@ use crate::state::GameState;
 use crate::time;
 
 /// Upper bound on commands applied per `apply_commands` call, so a handler
-/// feedback loop degrades into an error message instead of a hang.
-pub const MAX_COMMANDS_PER_TURN: usize = 1000;
+/// feedback loop degrades into an error message instead of a hang. Each
+/// scheduler step (one action, one timer firing, one clock jump) drains the
+/// queue in its own call, so the budget is per step: a crowd of actors
+/// between two player turns never shares it.
+pub const MAX_COMMANDS_PER_STEP: usize = 1000;
 
 /// Actions (`TryMove`, `Wait`) cost their actor energy; see `cost::of`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,11 +60,11 @@ pub enum Command {
 pub fn apply_commands(state: &mut GameState) {
     let mut applied = 0;
     while let Some(command) = state.commands.pop_front() {
-        if applied == MAX_COMMANDS_PER_TURN {
+        if applied == MAX_COMMANDS_PER_STEP {
             let dropped = state.commands.len() + 1;
             state.commands.clear();
             state.log.push(format!(
-                "Error: command limit ({MAX_COMMANDS_PER_TURN}) reached; dropped {dropped} queued commands."
+                "Error: command limit ({MAX_COMMANDS_PER_STEP}) reached; dropped {dropped} queued commands."
             ));
             return;
         }
@@ -111,23 +114,47 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
     }
 }
 
-fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
-    let (dx, dy) = dir.delta();
+/// Screens the player's input before it becomes an action. A move into a
+/// known wall (every wall, until field of view exists) is refused with a
+/// message: nothing is queued, no energy is spent and no time passes.
+/// Returns whether the input was refused.
+pub fn reject_input(state: &mut GameState, command: &Command) -> bool {
+    let &Command::TryMove(entity, dir) = command else {
+        return false;
+    };
+    if !destination(state, entity, dir).is_some_and(|to| is_wall(state, to)) {
+        return false;
+    }
+    log_wall_bump(state, entity);
+    true
+}
 
-    let target = {
-        let Ok(current) = state.world.get::<&Position>(entity) else {
-            return;
-        };
-        (current.x + dx, current.y + dy)
+fn destination(state: &GameState, entity: Entity, dir: Dir) -> Option<(i32, i32)> {
+    let (dx, dy) = dir.delta();
+    let current = state.world.get::<&Position>(entity).ok()?;
+    Some((current.x + dx, current.y + dy))
+}
+
+/// Off-map counts as wall.
+fn is_wall(state: &GameState, (x, y): (i32, i32)) -> bool {
+    !matches!(state.map.get(x, y), Some(Tile::Floor))
+}
+
+fn log_wall_bump(state: &mut GameState, entity: Entity) {
+    let mover = Subject::of(&state.world, entity);
+    state.log.push(mover.sentence("bump", "into a wall"));
+}
+
+fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
+    let Some(target) = destination(state, entity, dir) else {
+        return;
     };
 
-    match state.map.get(target.0, target.1) {
-        None | Some(Tile::Wall) => {
-            let mover = Subject::of(&state.world, entity);
-            state.log.push(mover.sentence("bump", "into a wall"));
-            return;
-        }
-        Some(Tile::Floor) => {}
+    // AI moves still pay for a bump; the player's are screened out by
+    // `reject_input` before they get here.
+    if is_wall(state, target) {
+        log_wall_bump(state, entity);
+        return;
     }
 
     let victim = state
@@ -217,14 +244,18 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32) {
     }
 }
 
+/// The player is marked `Dead` and kept, so the frontend can still show
+/// them; everything else is despawned with its attachments.
 fn die(state: &mut GameState, entity: Entity) {
-    if !state.world.contains(entity) {
+    if !state.world.contains(entity) || state.world.satisfies::<&Dead>(entity) {
         return;
     }
     let dying = Subject::of(&state.world, entity);
     state.log.push(dying.sentence("die", ""));
     if entity == state.player {
         state.game_over = true;
+        let _ = state.world.insert_one(entity, Dead);
+        return;
     }
 
     let mut doomed = vec![entity];
@@ -380,9 +411,26 @@ mod tests {
     }
 
     #[test]
+    fn the_player_dies_once_and_is_kept() {
+        let mut state = bare_state();
+        for _ in 0..2 {
+            state.commands.push_back(Command::Die {
+                entity: state.player,
+            });
+        }
+        apply_commands(&mut state);
+        assert!(state.game_over);
+        assert!(state.world.satisfies::<(&Dead, &Position)>(state.player));
+        assert_eq!(
+            state.log.recent(2).collect::<Vec<_>>(),
+            ["You die.", "Seed: 1"]
+        );
+    }
+
+    #[test]
     fn exceeding_the_command_cap_logs_an_error_and_empties_the_queue() {
         let mut state = bare_state();
-        for _ in 0..MAX_COMMANDS_PER_TURN + 5 {
+        for _ in 0..MAX_COMMANDS_PER_STEP + 5 {
             state.commands.push_back(Command::Die {
                 entity: Entity::DANGLING,
             });
@@ -392,7 +440,7 @@ mod tests {
         assert_eq!(
             last_log(&state),
             format!(
-                "Error: command limit ({MAX_COMMANDS_PER_TURN}) reached; dropped 5 queued commands."
+                "Error: command limit ({MAX_COMMANDS_PER_STEP}) reached; dropped 5 queued commands."
             )
         );
     }
@@ -400,7 +448,7 @@ mod tests {
     #[test]
     fn the_cap_is_not_hit_at_exactly_the_limit() {
         let mut state = bare_state();
-        for _ in 0..MAX_COMMANDS_PER_TURN {
+        for _ in 0..MAX_COMMANDS_PER_STEP {
             state.commands.push_back(Command::Die {
                 entity: Entity::DANGLING,
             });

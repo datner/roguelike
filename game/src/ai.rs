@@ -90,7 +90,7 @@ fn passable(state: &GameState, at: Position) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::Melee;
+    use crate::entity::{Dead, Melee};
     use crate::state::tests::bare_state;
     use crate::time::{Tick, take_turn};
 
@@ -179,7 +179,7 @@ mod tests {
             .unwrap();
         wait(&mut state);
         assert!(state.game_over);
-        assert!(!state.world.contains(state.player));
+        assert!(state.world.satisfies::<&Dead>(state.player));
         assert_eq!(state.log.recent(1).next().unwrap(), "You die.");
 
         let now = state.now;

@@ -30,10 +30,10 @@ pub mod state;
 pub mod time;
 
 pub use combat::{BeforeTakeDamage, Damaged, preview_damage};
-pub use command::{Command, MAX_COMMANDS_PER_TURN, apply_commands};
+pub use command::{Command, MAX_COMMANDS_PER_STEP, apply_commands};
 pub use effect::DurationChange;
 pub use entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, EffectTarget, Energy,
+    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Dead, Duration, EffectTarget, Energy,
     Health, Hostile, Melee, Name, Player, Position, SpawnSeq, Speed, Timed,
 };
 pub use event::{Ctx, EventRegistry};

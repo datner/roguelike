@@ -13,9 +13,9 @@ use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
 use crate::ai;
-use crate::command::{Command, apply_commands};
+use crate::command::{Command, apply_commands, reject_input};
 use crate::cost::TICKS_PER_TURN;
-use crate::entity::{Energy, SpawnSeq, Speed};
+use crate::entity::{Dead, Energy, SpawnSeq, Speed};
 use crate::state::GameState;
 
 #[derive(
@@ -105,9 +105,10 @@ pub(crate) enum Step {
 }
 
 /// Applies the player's action, then runs the world until the player is
-/// ready to act again (or the game ends).
+/// ready to act again (or the game ends). Input refused by
+/// `command::reject_input` does neither.
 pub fn take_turn(state: &mut GameState, command: Command) {
-    if state.game_over {
+    if state.game_over || reject_input(state, &command) {
         return;
     }
     state.commands.push_back(command);
@@ -147,11 +148,13 @@ pub(crate) fn step(state: &mut GameState) -> Step {
     }
 }
 
-/// The ready actor (energy >= 0) that spawned first.
+/// The ready actor (energy >= 0) that spawned first. `Dead` actors are
+/// never scheduled.
 fn next_ready(state: &GameState) -> Option<Entity> {
     state
         .world
         .query::<(Entity, &Energy, &SpawnSeq)>()
+        .without::<&Dead>()
         .iter()
         .filter(|(_, energy, _)| energy.0 >= 0)
         .min_by_key(|&(_, _, seq)| *seq)
@@ -182,6 +185,7 @@ fn ticks_until_next(state: &GameState) -> Option<u64> {
     let actor = state
         .world
         .query::<(&Speed, &Energy)>()
+        .without::<&Dead>()
         .iter()
         .filter(|(speed, _)| speed.0 > 0)
         .map(|(speed, energy)| energy.0.unsigned_abs().div_ceil(u64::from(speed.0)))
@@ -203,9 +207,13 @@ pub(crate) fn advance_clock(state: &mut GameState, ticks: u64) {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::ControlFlow;
+
     use super::*;
+    use crate::combat::Damaged;
+    use crate::command::MAX_COMMANDS_PER_STEP;
     use crate::cost;
-    use crate::entity::{Health, Position};
+    use crate::entity::{Health, Hostile, Melee, Position};
     use crate::input::{Dir, InputEvent};
     use crate::state::tests::{bare_state, test_blueprints};
 
@@ -335,6 +343,143 @@ mod tests {
     fn nothing_scheduled_is_idle() {
         let mut state = unscheduled_player();
         assert_eq!(step(&mut state), Step::Idle);
+    }
+
+    #[test]
+    fn a_dead_player_is_kept_but_never_scheduled() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.commands.push_back(Command::Die { entity: player });
+        apply_commands(&mut state);
+
+        assert!(state.game_over);
+        assert!(state.world.satisfies::<&Dead>(player));
+        assert_eq!(state.world.get::<&Energy>(player).unwrap().0, 0);
+        assert_eq!(next_ready(&state), None);
+        assert_eq!(ticks_until_next(&state), None);
+        assert_eq!(step(&mut state), Step::GameOver);
+
+        let view = crate::state::render_view(&state);
+        assert_eq!(view.get(1, 1).map(|cell| cell.glyph), Some('@'));
+    }
+
+    type ActorState = (Entity, Option<Energy>, Option<Position>, Option<Health>);
+
+    /// Every entity's scheduler-visible state, for before/after comparisons.
+    fn snapshot(state: &GameState) -> Vec<ActorState> {
+        state
+            .world
+            .query::<(Entity, Option<&Energy>, Option<&Position>, Option<&Health>)>()
+            .iter()
+            .map(|(e, energy, pos, health)| (e, energy.copied(), pos.copied(), health.copied()))
+            .collect()
+    }
+
+    #[test]
+    fn walking_into_a_wall_is_refused_without_spending_time() {
+        let mut state = GameState::new(1, test_blueprints()).unwrap();
+        advance(&mut state);
+        let (now, before) = (state.now, snapshot(&state));
+
+        let player = state.player;
+        // (1,1) -> north is (1,0), which generate_map always makes a wall.
+        take_turn(&mut state, Command::TryMove(player, Dir::N));
+
+        assert_eq!(state.now, now);
+        assert_eq!(snapshot(&state), before);
+        assert!(state.commands.is_empty());
+        assert_eq!(
+            state.log.recent(1).next().map(String::as_str),
+            Some("You bump into a wall.")
+        );
+    }
+
+    fn logged_an_error(state: &GameState) -> bool {
+        state.log.recent(usize::MAX).any(|m| m.starts_with("Error"))
+    }
+
+    /// `per_hit` extra no-op commands for every hit landed, to make each
+    /// attack step as long as the test needs.
+    fn pad_hits(state: &mut GameState, per_hit: usize) {
+        state
+            .events
+            .on::<Damaged, Health>(i32::MAX, move |ctx, _, ev| {
+                ctx.out
+                    .extend((0..per_hit).map(|_| Command::Wait(Entity::DANGLING)));
+                ControlFlow::Continue(ev)
+            });
+    }
+
+    #[test]
+    fn a_crowd_acting_between_player_turns_does_not_share_one_budget() {
+        const HOSTILES: u64 = 300;
+        let mut state = bare_state();
+        let player = state.player;
+        state
+            .world
+            .insert_one(
+                player,
+                Health {
+                    current: 1000,
+                    max: 1000,
+                },
+            )
+            .unwrap();
+        // TryMove, Attack, DealDamage and one pad per hostile's action.
+        pad_hits(&mut state, 1);
+        assert!(4 * HOSTILES as usize > MAX_COMMANDS_PER_STEP);
+        for seq in 1..=HOSTILES {
+            state.world.spawn((
+                Position { x: 2, y: 1 },
+                Hostile,
+                Melee { min: 1, max: 1 },
+                Speed(100),
+                Energy(0),
+                SpawnSeq(seq),
+            ));
+        }
+
+        take_turn(&mut state, Command::Wait(player));
+
+        assert!(!logged_an_error(&state));
+        assert_eq!(state.world.get::<&Health>(player).unwrap().current, 700);
+        assert_eq!(step(&mut state), Step::PlayerReady);
+    }
+
+    #[test]
+    fn a_self_feeding_loop_within_one_step_still_hits_the_cap() {
+        let mut state = unscheduled_player();
+        let player = state.player;
+        // Every hit queues another hit: an endless chain inside one action.
+        state.events.on::<Damaged, Health>(i32::MAX, |ctx, _, ev| {
+            ctx.out.push(Command::DealDamage {
+                target: ev.target,
+                amount: 1,
+            });
+            ControlFlow::Continue(ev)
+        });
+        state
+            .world
+            .insert_one(
+                player,
+                Health {
+                    current: i32::MAX,
+                    max: i32::MAX,
+                },
+            )
+            .unwrap();
+        let hostile = state.world.spawn((
+            Position { x: 2, y: 1 },
+            Hostile,
+            Melee { min: 1, max: 1 },
+            Speed(100),
+            Energy(0),
+            SpawnSeq(1),
+        ));
+
+        assert_eq!(step(&mut state), Step::Actor(hostile));
+        assert!(logged_an_error(&state));
+        assert!(state.commands.is_empty());
     }
 
     fn play(seed: u64, script: &[InputEvent]) -> GameState {
