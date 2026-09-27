@@ -15,3 +15,11 @@ pub use map::{generate_map, random_seed, Grid, Tile, MAP_HEIGHT, MAP_WIDTH};
 pub mod blueprint;
 
 pub use blueprint::{load_blueprint, BlueprintError, EntityBlueprint};
+
+pub mod command;
+pub mod entity;
+pub mod state;
+
+pub use command::{apply_commands, Command};
+pub use entity::{Appearance, BlocksMovement, Position};
+pub use state::{render_view, GameState, MessageLog};
