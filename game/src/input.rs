@@ -48,6 +48,15 @@ pub enum InputEvent {
     Quit,
 }
 
+/// What the player chose to do with their turn: the actions among
+/// `InputEvent`s. `take_turn` resolves the actor and the commands, so a
+/// frontend sends intent only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerAction {
+    Move(Dir),
+    Wait,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -13,6 +13,7 @@ Name files `NNNN-kebab-title.md`. Never rewrite an accepted ADR — supersede it
 | [0005](0005-rng-streams.md) | Per-subsystem RNG streams derived from the seed | Accepted |
 | [0006](0006-time-model.md) | Energy scheduling, timer queue, relative durations | Accepted |
 | [0007](0007-fov-and-ai-sight.md) | Symmetric shadowcasting FOV; AI sight reuses the player's view | Accepted |
+| [0008](0008-save-games.md) | Versioned RON saves with index-remapped entities; per-character save on quit | Accepted |
 
 ## Template
 

@@ -3,19 +3,21 @@
 use std::collections::VecDeque;
 
 use hecs::{Entity, World};
+use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Energy, Position, SpawnSeq, Speed};
+use crate::entity::{Appearance, Attachments, Energy, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::fov;
 use crate::map::{Grid, Map, Tile, choose_spawn_position, generate_map};
 use crate::rng::Rngs;
 use crate::time::{Tick, Timers};
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct MessageLog {
     messages: VecDeque<String>,
 }
@@ -35,15 +37,15 @@ impl MessageLog {
 }
 
 pub struct GameState {
-    pub world: World,
+    pub(crate) world: World,
     pub map: Map,
     pub log: MessageLog,
     /// One stream per subsystem (ADR 0005).
     pub rngs: Rngs,
-    pub commands: VecDeque<Command>,
-    pub events: EventRegistry,
+    pub(crate) commands: VecDeque<Command>,
+    pub(crate) events: EventRegistry,
     pub blueprints: Blueprints,
-    pub player: Entity,
+    pub(crate) player: Entity,
     pub seed: u64,
     /// The global clock (ADR 0006).
     pub now: Tick,
@@ -56,7 +58,7 @@ pub struct GameState {
     pub visible: Grid<bool>,
     /// Tiles the player has ever seen. Only their terrain is remembered.
     pub seen: Grid<bool>,
-    next_spawn_seq: u64,
+    pub(crate) next_spawn_seq: u64,
 }
 
 impl GameState {
@@ -98,9 +100,6 @@ impl GameState {
         let map = generate_map(&mut rngs.map);
         let unseen = Grid::new(map.width, map.height, false);
 
-        let mut events = EventRegistry::new();
-        combat::register(&mut events);
-
         let mut log = MessageLog::default();
         log.push(format!("Seed: {seed}"));
 
@@ -110,7 +109,7 @@ impl GameState {
             log,
             rngs,
             commands: VecDeque::new(),
-            events,
+            events: event_registry(),
             blueprints,
             player: Entity::DANGLING,
             seed,
@@ -126,11 +125,12 @@ impl GameState {
         Ok(state)
     }
 
-    /// Spawns a blueprint and registers it with the scheduler: a `SpawnSeq`
-    /// for tie-breaking, and, if it has a `Speed`, `Energy(0)` so it can act
-    /// on the tick it appears. Use this rather than `Blueprints::spawn`
-    /// during play.
-    pub fn spawn(&mut self, name: &str) -> Result<Entity, BlueprintError> {
+    /// Spawns a blueprint and registers it and its equipment with the
+    /// scheduler: a `SpawnSeq` each, for tie-breaking and save order, and,
+    /// for anything with a `Speed`, `Energy(0)` so it can act on the tick it
+    /// appears. These spawn functions are the only way to create entities
+    /// (ADR 0008); clippy rejects `World::spawn` elsewhere in `game`.
+    pub(crate) fn spawn(&mut self, name: &str) -> Result<Entity, BlueprintError> {
         let id = self
             .blueprints
             .id(name)
@@ -138,24 +138,45 @@ impl GameState {
         self.spawn_id(id)
     }
 
-    pub fn spawn_id(&mut self, id: BlueprintId) -> Result<Entity, BlueprintError> {
+    pub(crate) fn spawn_id(&mut self, id: BlueprintId) -> Result<Entity, BlueprintError> {
         let entity = self.blueprints.spawn_id(&mut self.world, id)?;
+        self.register(entity);
+        Ok(entity)
+    }
+
+    /// Owner first, then its equipment depth-first, matching save order.
+    fn register(&mut self, entity: Entity) {
         let seq = SpawnSeq(self.next_spawn_seq);
         self.next_spawn_seq += 1;
-        // Inserting into an entity spawned just above cannot fail.
+        // Inserting into an entity spawned just before cannot fail.
         if self.world.satisfies::<&Speed>(entity) {
             let _ = self.world.insert(entity, (seq, Energy(0)));
         } else {
             let _ = self.world.insert_one(entity, seq);
         }
-        Ok(entity)
+        let carried = self
+            .world
+            .get::<&Attachments>(entity)
+            .map(|attachments| attachments.0.clone())
+            .unwrap_or_default();
+        for item in carried {
+            self.register(item);
+        }
     }
 
-    pub fn spawn_at(&mut self, name: &str, at: Position) -> Result<Entity, BlueprintError> {
+    pub(crate) fn spawn_at(&mut self, name: &str, at: Position) -> Result<Entity, BlueprintError> {
         let entity = self.spawn(name)?;
         let _ = self.world.insert_one(entity, at);
         Ok(entity)
     }
+}
+
+/// Every event handler in the game. Handlers are code, so a loaded save
+/// rebuilds this rather than persisting it.
+pub(crate) fn event_registry() -> EventRegistry {
+    let mut events = EventRegistry::new();
+    combat::register(&mut events);
+    events
 }
 
 /// Visible tiles show terrain and whatever stands there; remembered tiles
@@ -219,7 +240,7 @@ pub(crate) mod tests {
     use crate::entity::{
         Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Melee, Name,
     };
-    use crate::input::Dir;
+    use crate::input::{Dir, PlayerAction};
     use rand::Rng;
 
     fn blueprint(components: Vec<ComponentDef>, equipment: &[&str]) -> Blueprint {
@@ -304,6 +325,7 @@ pub(crate) mod tests {
                     &[],
                 ),
             ),
+            ("Blank".to_string(), blueprint(vec![], &[])),
         ]))
         .expect("test blueprints resolve")
     }
@@ -311,6 +333,18 @@ pub(crate) mod tests {
     /// Map and player only, so tests control every other entity.
     pub(crate) fn bare_state() -> GameState {
         GameState::bare(1, test_blueprints()).unwrap()
+    }
+
+    /// An entity with exactly `components` (plus its `SpawnSeq`), spawned
+    /// through `GameState::spawn` from the empty `Blank` blueprint. A
+    /// `SpawnSeq` in `components` replaces the assigned one.
+    pub(crate) fn spawn_with(
+        state: &mut GameState,
+        components: impl hecs::DynamicBundle,
+    ) -> Entity {
+        let entity = state.spawn("Blank").unwrap();
+        state.world.insert(entity, components).unwrap();
+        entity
     }
 
     fn player_position(state: &GameState) -> Position {
@@ -439,10 +473,7 @@ pub(crate) mod tests {
     #[test]
     fn move_into_blocking_entity_is_blocked_and_logs_a_message() {
         let mut state = bare_state();
-        state
-            .blueprints
-            .spawn_at(&mut state.world, "Rubble", Position { x: 2, y: 1 })
-            .unwrap();
+        state.spawn_at("Rubble", Position { x: 2, y: 1 }).unwrap();
         state
             .commands
             .push_back(Command::TryMove(state.player, Dir::E));
@@ -457,9 +488,8 @@ pub(crate) mod tests {
     #[test]
     fn remembered_terrain_renders_dimmed_without_creatures() {
         let mut state = bare_state();
-        let player = state.player;
         for _ in 0..10 {
-            crate::time::take_turn(&mut state, Command::TryMove(player, Dir::E));
+            crate::time::take_turn(&mut state, PlayerAction::Move(Dir::E));
         }
         assert_eq!(player_position(&state), Position { x: 11, y: 1 });
         // (2, 1) was seen from the start and is now 9 tiles away.

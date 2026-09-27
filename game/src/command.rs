@@ -27,14 +27,14 @@ pub const MAX_COMMANDS_PER_STEP: usize = 1000;
 /// Where a hit came from. Only `Melee` hits trigger on-hit effects, so an
 /// effect's own damage can never re-apply effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DamageCause {
+pub(crate) enum DamageCause {
     Melee { attacker: Entity },
     Effect { effect: Entity },
 }
 
 /// Actions (`TryMove`, `Wait`) cost their actor energy; see `cost::of`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Command {
+pub(crate) enum Command {
     TryMove(Entity, Dir),
     /// Do nothing for a standard action.
     Wait(Entity),
@@ -57,6 +57,13 @@ pub enum Command {
         blueprint: BlueprintId,
     },
     /// The only way an effect's duration changes (ADR 0006).
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "nothing changes durations in play yet; the mechanism is tested"
+        )
+    )]
     ModifyDuration {
         effect: Entity,
         change: DurationChange,
@@ -168,7 +175,7 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 /// wall (any wall, seen or not, for now) is refused with a
 /// message: nothing is queued, no energy is spent and no time passes.
 /// Returns whether the input was refused.
-pub fn reject_input(state: &mut GameState, command: &Command) -> bool {
+pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
     let &Command::TryMove(entity, dir) = command else {
         return false;
     };
@@ -337,7 +344,7 @@ fn die(state: &mut GameState, entity: Entity) {
 pub(crate) mod tests {
     use super::*;
     use crate::entity::{Melee, Name};
-    use crate::state::tests::bare_state;
+    use crate::state::tests::{bare_state, spawn_with};
 
     /// For damage tests that don't care where the hit came from; an effect
     /// cause never triggers on-hit effects.
@@ -358,10 +365,7 @@ pub(crate) mod tests {
     /// exactly `damage`.
     fn facing_goblin(damage: i32) -> (GameState, Entity, Entity) {
         let mut state = bare_state();
-        let goblin = state
-            .blueprints
-            .spawn_at(&mut state.world, "Goblin", Position { x: 2, y: 1 })
-            .unwrap();
+        let goblin = state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
         let armor = state.world.get::<&Attachments>(goblin).unwrap().0[0];
         state
             .world
@@ -426,7 +430,7 @@ pub(crate) mod tests {
     #[test]
     fn damage_to_something_without_health_is_ignored() {
         let mut state = bare_state();
-        let rock = state.world.spawn((Name("rock".into()),));
+        let rock = spawn_with(&mut state, (Name("rock".into()),));
         let log_before = state.log.clone();
         state.commands.push_back(Command::DealDamage {
             target: rock,
@@ -441,9 +445,10 @@ pub(crate) mod tests {
     #[test]
     fn zero_damage_without_armor_leaves_the_target_unharmed() {
         let mut state = bare_state();
-        let dummy = state
-            .world
-            .spawn((Name("dummy".into()), Health { current: 3, max: 3 }));
+        let dummy = spawn_with(
+            &mut state,
+            (Name("dummy".into()), Health { current: 3, max: 3 }),
+        );
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 0,

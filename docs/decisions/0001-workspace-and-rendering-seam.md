@@ -12,4 +12,5 @@ A Cargo workspace with `game` (library: all simulation) and `term` (binary: cros
 ## Consequences
 - A new frontend is a new crate depending on `game`; `game` is untouched.
 - Anything visual (colours, glyphs, highlighting, targeting overlays) must be expressible as `Cell`s or as a new abstract output type in `game` — no reaching for terminal features from simulation code.
+- The frontend sends intent only: `take_turn` takes a `PlayerAction` and `game` resolves the actor and the commands, so `term` never holds a `Command`, an `Entity` or any hecs value (checked by `scripts/check.sh`).
 - `tile_to_screen` in `term` is the one place tile→screen mapping lives, so 2-chars-per-tile later is a one-function change.

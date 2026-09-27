@@ -3,6 +3,7 @@
 //! subsystem never shift another's results.
 
 use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
 
 /// PCG stream ids. Every stream in the game is listed here; never reuse or
 /// renumber one, since that changes every seeded world.
@@ -12,7 +13,7 @@ pub mod stream {
     pub const COMBAT: u128 = 3;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rngs {
     /// Map generation.
     pub map: Pcg64,

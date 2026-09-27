@@ -16,14 +16,14 @@ use crate::state::GameState;
 
 /// Fired at a target before damage is applied; handlers may reduce `amount`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BeforeTakeDamage {
+pub(crate) struct BeforeTakeDamage {
     pub target: Entity,
     pub amount: i32,
 }
 
 /// Notification fired after damage has been applied to `Health`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Damaged {
+pub(crate) struct Damaged {
     pub target: Entity,
     pub amount: i32,
 }
@@ -31,13 +31,13 @@ pub struct Damaged {
 /// Fired at the attacker (and so its equipment) after one of its melee hits
 /// dealt more than 0 damage. Effect damage never fires it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AfterHit {
+pub(crate) struct AfterHit {
     pub attacker: Entity,
     pub target: Entity,
     pub amount: i32,
 }
 
-pub fn register(registry: &mut EventRegistry) {
+pub(crate) fn register(registry: &mut EventRegistry) {
     registry.on(prio::ARMOR, armor_reduces_damage);
     registry.on(prio::ON_HIT, on_hit_applies_effects);
 }
@@ -83,7 +83,14 @@ pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Op
 /// a cloned RNG with commands emitted into a scratch buffer. Leaves the world,
 /// RNG, log and queue untouched. `None` if the attacker has no `Melee` or the
 /// target has no `Health`.
-pub fn preview_damage(state: &GameState, attacker: Entity, target: Entity) -> Option<i32> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "for a future look/target UI; needs an intent-level API before term can use it"
+    )
+)]
+pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity) -> Option<i32> {
     if !state.world.satisfies::<&Health>(target) {
         return None;
     }
@@ -114,7 +121,7 @@ mod tests {
     use crate::command::tests::UNSOURCED;
     use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
     use crate::state::MessageLog;
-    use crate::state::tests::{bare_state, test_blueprints};
+    use crate::state::tests::{bare_state, spawn_with, test_blueprints};
 
     fn health(state: &GameState, entity: Entity) -> i32 {
         state.world.get::<&Health>(entity).unwrap().current
@@ -130,16 +137,19 @@ mod tests {
     }
 
     fn armored_dummy(state: &mut GameState, av: i32) -> (Entity, Entity) {
-        let armor = state.world.spawn((Name("plate".into()), Armor { av }));
-        let dummy = state.world.spawn((
-            Name("dummy".into()),
-            Position { x: 5, y: 5 },
-            Health {
-                current: 10,
-                max: 10,
-            },
-            Attachments(vec![armor]),
-        ));
+        let armor = spawn_with(state, (Name("plate".into()), Armor { av }));
+        let dummy = spawn_with(
+            state,
+            (
+                Name("dummy".into()),
+                Position { x: 5, y: 5 },
+                Health {
+                    current: 10,
+                    max: 10,
+                },
+                Attachments(vec![armor]),
+            ),
+        );
         (dummy, armor)
     }
 
@@ -228,7 +238,8 @@ mod tests {
     fn on_hit_on_equipment_triggers_for_its_wearers_hits() {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 0);
-        let knife = state.world.spawn((bleed_on_hit(&state, 10_000),));
+        let on_hit = bleed_on_hit(&state, 10_000);
+        let knife = spawn_with(&mut state, (on_hit,));
         let player = state.player;
         state
             .world
@@ -321,7 +332,7 @@ mod tests {
     #[test]
     fn preview_needs_melee_and_health() {
         let mut state = bare_state();
-        let rock = state.world.spawn((Name("rock".into()),));
+        let rock = spawn_with(&mut state, (Name("rock".into()),));
         assert_eq!(preview_damage(&state, state.player, rock), None);
         assert_eq!(preview_damage(&state, rock, state.player), None);
     }

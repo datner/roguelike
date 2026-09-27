@@ -104,6 +104,7 @@ mod tests {
     use super::*;
     use crate::entity::{Dead, Melee};
     use crate::fov::{self, RADIUS};
+    use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
     use crate::time::{Tick, take_turn};
 
@@ -123,8 +124,7 @@ mod tests {
     }
 
     fn wait(state: &mut GameState) {
-        let player = state.player;
-        take_turn(state, Command::Wait(player));
+        take_turn(state, PlayerAction::Wait);
     }
 
     #[test]
@@ -184,8 +184,7 @@ mod tests {
 
         // Stepping out from behind the pillar brings the goblin into view
         // before it acts.
-        let player = state.player;
-        take_turn(&mut state, Command::TryMove(player, Dir::SE));
+        take_turn(&mut state, PlayerAction::Move(Dir::SE));
         assert!(can_see_player(&state, goblin));
         assert_eq!(position(&state, goblin), Position { x: 4, y: 2 });
     }

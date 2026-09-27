@@ -5,3 +5,4 @@ edition.workspace = true
 [dependencies]
 game = { path = "../game" }
 ratatui.workspace = true
+directories.workspace = true

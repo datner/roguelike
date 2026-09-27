@@ -19,8 +19,12 @@ use crate::map::Map;
 
 /// What a handler can see and do. The fields are disjoint borrows so a
 /// handler can read the world while drawing from the RNG and emitting commands.
-pub struct Ctx<'a> {
+pub(crate) struct Ctx<'a> {
     pub world: &'a World,
+    #[expect(
+        dead_code,
+        reason = "no handler reads the map yet; part of the handler context"
+    )]
     pub map: &'a Map,
     pub rng: &'a mut Pcg64,
     pub out: &'a mut Vec<Command>,
@@ -46,7 +50,7 @@ fn has_component<C: Component>(world: &World, entity: Entity) -> bool {
 /// registration) and are kept sorted by priority. The `TypeId` map is only
 /// ever used for lookup, never iterated, and registration order never matters.
 #[derive(Default)]
-pub struct EventRegistry {
+pub(crate) struct EventRegistry {
     /// `TypeId::of::<E>()` -> `Vec<Entry<E>>`, sorted by priority.
     handlers: BTreeMap<TypeId, Box<dyn Any>>,
 }
@@ -137,6 +141,10 @@ pub fn settle<E>(flow: ControlFlow<E, E>) -> E {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "dispatch tests on a bare World with test-only components; never a GameState, never saved"
+)]
 mod tests {
     use rand::SeedableRng;
 

@@ -5,7 +5,7 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 ## Module map
 
 - `cell.rs` — `Cell { glyph, fg, bg }`, `Rgb`: the only rendering output.
-- `input.rs` — `InputEvent`, `Dir`: the only input. Frontends translate raw keys into these.
+- `input.rs` — `InputEvent`, `Dir`, `PlayerAction`: the only input. Frontends translate raw keys into these and pass a `PlayerAction` to `take_turn`, which resolves the player entity and commands. Anything taking or returning a hecs type stays `pub(crate)`.
 - `map.rs` — `Tile`, `Grid<T>` (i32 coords, `get` returns `Option`), map generation.
 - `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`).
 - `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names).
@@ -15,11 +15,12 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 - `prio.rs` — every handler priority, in one file, so ordering is reviewable. New handlers get a named constant here, never an inline number. Priorities are unique per event type (`on` panics on a duplicate), so dispatch order never depends on registration order.
 - `rng.rs` — `Rngs` (one `Pcg64` stream per subsystem) and the `stream` id constants.
 - `grammar.rs` — `Subject`: subject–verb agreement for log messages.
-- `state.rs` — `GameState`, `MessageLog`, `render_view` (visible tiles in full, remembered terrain dimmed, the rest blank). `GameState::spawn`/`spawn_at` assign `SpawnSeq` (and `Energy` for anything with `Speed`); use them during play instead of `Blueprints::spawn`.
+- `state.rs` — `GameState`, `MessageLog`, `render_view` (visible tiles in full, remembered terrain dimmed, the rest blank). `GameState::spawn`/`spawn_id`/`spawn_at` are the only way to create entities (clippy bans `World::spawn` in `game`); they assign `SpawnSeq` to the entity and its equipment (and `Energy` to anything with `Speed`). Tests needing an ad-hoc entity use `state::tests::spawn_with`.
 - `time.rs` — `Tick`, the `Timers` queue, and the energy scheduler (`step`, `advance`, `take_turn`). ADR 0006.
 - `cost.rs` — every action's energy cost, and `cost::of`, which charges them in `apply_commands`.
 - `effect.rs` — timed effects: `ApplyEffect`, `ModifyDuration` (`DurationChange`), expiry, bleeding ticks.
 - `fov.rs` — symmetric shadowcasting (`compute`, `RADIUS`) and `update`, which refreshes `GameState.visible`/`seen` once per player turn. ADR 0007.
+- `save.rs` — `to_ron` / `from_ron`: `GameState` to and from a versioned RON string (no file IO). Entities by value with references as save indices; a new component needs a `ComponentKind` and a `SavedComponent` variant, and a format change bumps `SAVE_VERSION`. ADR 0008.
 - `ai.rs` — `decide`: a non-player actor's next `Command` (hostiles that see the player attack or step greedily toward them; others wait). All perception goes through `can_see_player` (ADR 0007).
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.

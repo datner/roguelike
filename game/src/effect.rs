@@ -199,7 +199,7 @@ mod tests {
     use crate::command::apply_commands;
     use crate::entity::Name;
     use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
-    use crate::state::tests::bare_state;
+    use crate::state::tests::{bare_state, spawn_with};
     use crate::time::{Step, step};
 
     /// Bare state with an unscheduled player, so only timers move the clock.
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn applying_an_effect_to_a_despawned_target_does_nothing() {
         let mut state = quiet_state();
-        let target = state.world.spawn((Name("dummy".into()),));
+        let target = spawn_with(&mut state, (Name("dummy".into()),));
         state.world.despawn(target).unwrap();
         let (entities, log) = (state.world.len(), state.log.clone());
         let blueprint = state.blueprints.id("Bleeding").unwrap();
@@ -454,13 +454,16 @@ mod tests {
     #[test]
     fn bleeding_dies_with_its_target() {
         let mut state = quiet_state();
-        let dummy = state.world.spawn((
-            Name("dummy".into()),
-            Health {
-                current: 10,
-                max: 10,
-            },
-        ));
+        let dummy = spawn_with(
+            &mut state,
+            (
+                Name("dummy".into()),
+                Health {
+                    current: 10,
+                    max: 10,
+                },
+            ),
+        );
         let effect = apply_bleeding_to(&mut state, dummy);
         run(&mut state, Command::Die { entity: dummy });
         assert!(!state.world.contains(effect));
@@ -474,13 +477,16 @@ mod tests {
     /// makes the victim bleed.
     fn bleeding_striker() -> (GameState, Entity) {
         let mut state = quiet_state();
-        let dummy = state.world.spawn((
-            Name("dummy".into()),
-            Health {
-                current: 100,
-                max: 100,
-            },
-        ));
+        let dummy = spawn_with(
+            &mut state,
+            (
+                Name("dummy".into()),
+                Health {
+                    current: 100,
+                    max: 100,
+                },
+            ),
+        );
         let certain_bleed = OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp: 10_000,

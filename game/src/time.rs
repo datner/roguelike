@@ -16,6 +16,7 @@ use crate::ai;
 use crate::command::{Command, apply_commands, reject_input};
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{Dead, Energy, SpawnSeq, Speed};
+use crate::input::PlayerAction;
 use crate::state::GameState;
 
 #[derive(
@@ -43,7 +44,7 @@ impl Tick {
 /// current state, never trusted as the source of truth: firing one for an
 /// entity that is gone, or whose deadline moved, does nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Timer {
+pub(crate) enum Timer {
     ExpireEffect(Entity),
     BleedTick(Entity),
 }
@@ -61,12 +62,12 @@ impl Timer {
 /// fire in the order they were scheduled.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Timers {
-    queue: BTreeMap<(Tick, u64), Timer>,
-    next_seq: u64,
+    pub(crate) queue: BTreeMap<(Tick, u64), Timer>,
+    pub(crate) next_seq: u64,
 }
 
 impl Timers {
-    pub fn schedule(&mut self, at: Tick, timer: Timer) {
+    pub(crate) fn schedule(&mut self, at: Tick, timer: Timer) {
         self.queue.insert((at, self.next_seq), timer);
         self.next_seq += 1;
     }
@@ -104,11 +105,16 @@ pub(crate) enum Step {
     Idle,
 }
 
-/// Applies the player's action, recomputes their field of view once it has
-/// fully resolved, then runs the world until the player is ready to act
-/// again (or the game ends). Input refused by `command::reject_input` does
-/// none of that.
-pub fn take_turn(state: &mut GameState, command: Command) {
+/// Applies the player's action as a command for `state.player`, recomputes
+/// their field of view once it has fully resolved, then runs the world until
+/// the player is ready to act again (or the game ends). Input refused by
+/// `command::reject_input` does none of that.
+pub fn take_turn(state: &mut GameState, action: PlayerAction) {
+    let player = state.player;
+    let command = match action {
+        PlayerAction::Move(dir) => Command::TryMove(player, dir),
+        PlayerAction::Wait => Command::Wait(player),
+    };
     if state.game_over || reject_input(state, &command) {
         return;
     }
@@ -219,7 +225,7 @@ mod tests {
     use crate::cost;
     use crate::entity::{Health, Hostile, Melee, Position};
     use crate::input::{Dir, InputEvent};
-    use crate::state::tests::{bare_state, test_blueprints};
+    use crate::state::tests::{bare_state, spawn_with, test_blueprints};
 
     /// A state whose player is not scheduled, so `step` never stops for input.
     fn unscheduled_player() -> GameState {
@@ -229,9 +235,7 @@ mod tests {
     }
 
     fn actor(state: &mut GameState, speed: u32, energy: i64, seq: u64) -> Entity {
-        state
-            .world
-            .spawn((Speed(speed), Energy(energy), SpawnSeq(seq)))
+        spawn_with(state, (Speed(speed), Energy(energy), SpawnSeq(seq)))
     }
 
     fn steps(state: &mut GameState, n: usize) -> Vec<Step> {
@@ -315,8 +319,7 @@ mod tests {
         let mut state = bare_state();
         assert_eq!(step(&mut state), Step::PlayerReady);
 
-        let player = state.player;
-        take_turn(&mut state, Command::Wait(player));
+        take_turn(&mut state, PlayerAction::Wait);
         assert_eq!(state.now, Tick(100));
         assert_eq!(state.now.turn(), 1);
         assert_eq!(state.world.get::<&Energy>(state.player).unwrap().0, 0);
@@ -325,13 +328,16 @@ mod tests {
     #[test]
     fn a_bump_attack_costs_one_standard_action() {
         let mut state = bare_state();
-        let dummy = state.world.spawn((
-            Position { x: 2, y: 1 },
-            Health {
-                current: 100,
-                max: 100,
-            },
-        ));
+        let dummy = spawn_with(
+            &mut state,
+            (
+                Position { x: 2, y: 1 },
+                Health {
+                    current: 100,
+                    max: 100,
+                },
+            ),
+        );
         state
             .commands
             .push_back(Command::TryMove(state.player, Dir::E));
@@ -384,10 +390,8 @@ mod tests {
         let mut state = GameState::new(1, test_blueprints()).unwrap();
         advance(&mut state);
         let (now, before) = (state.now, snapshot(&state));
-
-        let player = state.player;
         // (1,1) -> north is (1,0), which generate_map always makes a wall.
-        take_turn(&mut state, Command::TryMove(player, Dir::N));
+        take_turn(&mut state, PlayerAction::Move(Dir::N));
 
         assert_eq!(state.now, now);
         assert_eq!(snapshot(&state), before);
@@ -433,17 +437,20 @@ mod tests {
         pad_hits(&mut state, 1);
         assert!(4 * HOSTILES as usize > MAX_COMMANDS_PER_STEP);
         for seq in 1..=HOSTILES {
-            state.world.spawn((
-                Position { x: 2, y: 1 },
-                Hostile,
-                Melee { min: 1, max: 1 },
-                Speed(100),
-                Energy(0),
-                SpawnSeq(seq),
-            ));
+            spawn_with(
+                &mut state,
+                (
+                    Position { x: 2, y: 1 },
+                    Hostile,
+                    Melee { min: 1, max: 1 },
+                    Speed(100),
+                    Energy(0),
+                    SpawnSeq(seq),
+                ),
+            );
         }
 
-        take_turn(&mut state, Command::Wait(player));
+        take_turn(&mut state, PlayerAction::Wait);
 
         assert!(!logged_an_error(&state));
         assert_eq!(state.world.get::<&Health>(player).unwrap().current, 700);
@@ -473,14 +480,17 @@ mod tests {
                 },
             )
             .unwrap();
-        let hostile = state.world.spawn((
-            Position { x: 2, y: 1 },
-            Hostile,
-            Melee { min: 1, max: 1 },
-            Speed(100),
-            Energy(0),
-            SpawnSeq(1),
-        ));
+        let hostile = spawn_with(
+            &mut state,
+            (
+                Position { x: 2, y: 1 },
+                Hostile,
+                Melee { min: 1, max: 1 },
+                Speed(100),
+                Energy(0),
+                SpawnSeq(1),
+            ),
+        );
 
         assert_eq!(step(&mut state), Step::Actor(hostile));
         assert!(logged_an_error(&state));
@@ -491,12 +501,12 @@ mod tests {
         let mut state = GameState::new(seed, test_blueprints()).unwrap();
         advance(&mut state);
         for &input in script {
-            let command = match input {
-                InputEvent::Move(dir) => Command::TryMove(state.player, dir),
-                InputEvent::Wait => Command::Wait(state.player),
+            let action = match input {
+                InputEvent::Move(dir) => PlayerAction::Move(dir),
+                InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::Quit => break,
             };
-            take_turn(&mut state, command);
+            take_turn(&mut state, action);
         }
         state
     }

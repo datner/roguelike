@@ -15,7 +15,7 @@ pub struct Subject {
 
 impl Subject {
     /// The player is "you"; anything with a `Name` is "the <name>".
-    pub fn of(world: &World, entity: Entity) -> Self {
+    pub(crate) fn of(world: &World, entity: Entity) -> Self {
         if world.satisfies::<&Player>(entity) {
             return Self::you();
         }
@@ -110,6 +110,10 @@ pub fn capitalize(text: &str) -> String {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "grammar tests on a bare World; never a GameState, never saved"
+)]
 mod tests {
     use super::*;
 

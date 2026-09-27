@@ -2,11 +2,12 @@
 
 use rand::RngExt;
 use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
 
 pub const MAP_WIDTH: i32 = 40;
 pub const MAP_HEIGHT: i32 = 20;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tile {
     Floor,
     Wall,
@@ -52,6 +53,23 @@ impl<T> Grid<T> {
         if let Some(i) = self.index(x, y) {
             self.cells[i] = value;
         }
+    }
+
+    /// Row-major, for saving.
+    pub(crate) fn cells(&self) -> &[T] {
+        &self.cells
+    }
+
+    /// `None` unless `cells` holds exactly `width * height` values.
+    pub(crate) fn from_cells(width: i32, height: i32, cells: Vec<T>) -> Option<Self> {
+        let len = usize::try_from(width)
+            .ok()?
+            .checked_mul(usize::try_from(height).ok()?)?;
+        (cells.len() == len).then_some(Self {
+            width,
+            height,
+            cells,
+        })
     }
 }
 

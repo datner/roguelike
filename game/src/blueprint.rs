@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Hostile, Melee,
-    Name, OnHit, OnHitEntry, Player, Position, Speed,
+    Name, OnHit, OnHitEntry, Player, Speed,
 };
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
@@ -264,17 +264,19 @@ impl Blueprints {
         self.by_id(self.id(name)?)
     }
 
-    /// Spawns `name`, and each piece of its equipment as a separate entity
-    /// listed in the owner's `Attachments`.
-    pub fn spawn(&self, world: &mut World, name: &str) -> Result<Entity, BlueprintError> {
-        let id = self
-            .id(name)
-            .ok_or_else(|| BlueprintError::UnknownBlueprint(name.to_string()))?;
-        self.spawn_id(world, id)
-    }
-
-    /// Equipment cycles are rejected at load, so the recursion ends.
-    pub fn spawn_id(&self, world: &mut World, id: BlueprintId) -> Result<Entity, BlueprintError> {
+    /// Spawns blueprint `id`, and each piece of its equipment as a separate
+    /// entity listed in the owner's `Attachments`. Only for
+    /// `GameState::spawn_id`, which gives them all a `SpawnSeq`. Equipment
+    /// cycles are rejected at load, so the recursion ends.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the blueprint half of GameState::spawn_id, which registers what this creates"
+    )]
+    pub(crate) fn spawn_id(
+        &self,
+        world: &mut World,
+        id: BlueprintId,
+    ) -> Result<Entity, BlueprintError> {
         let blueprint = self
             .by_id(id)
             .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
@@ -295,19 +297,6 @@ impl Blueprints {
             builder.add(Attachments(attachments));
         }
         Ok(world.spawn(builder.build()))
-    }
-
-    pub fn spawn_at(
-        &self,
-        world: &mut World,
-        name: &str,
-        at: Position,
-    ) -> Result<Entity, BlueprintError> {
-        let entity = self.spawn(world, name)?;
-        world
-            .insert_one(entity, at)
-            .expect("entity was just spawned");
-        Ok(entity)
     }
 }
 
@@ -747,7 +736,9 @@ mod tests {
         ]))
         .unwrap();
         let mut world = World::new();
-        let knife = blueprints.spawn(&mut world, "Knife").unwrap();
+        let knife = blueprints
+            .spawn_id(&mut world, blueprints.id("Knife").unwrap())
+            .unwrap();
         assert_eq!(
             *world.get::<&OnHit>(knife).unwrap(),
             OnHit(vec![OnHitEntry {
@@ -761,7 +752,9 @@ mod tests {
     fn equipment_is_spawned_and_attached() {
         let blueprints = Blueprints::load_dir(&data_dir()).unwrap();
         let mut world = World::new();
-        let goblin = blueprints.spawn(&mut world, "Goblin").unwrap();
+        let goblin = blueprints
+            .spawn_id(&mut world, blueprints.id("Goblin").unwrap())
+            .unwrap();
         let attachments = world.get::<&Attachments>(goblin).unwrap().0.clone();
         assert_eq!(attachments.len(), 2);
         assert!(world.satisfies::<&Armor>(attachments[0]));

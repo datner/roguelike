@@ -61,7 +61,7 @@ pub struct Melee {
 /// Entities carried by this one (equipment). Their components take part in
 /// event dispatch to the owner, and they are despawned along with it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Attachments(pub Vec<Entity>);
+pub(crate) struct Attachments(pub Vec<Entity>);
 
 /// Energy gained per tick; `cost::NORMAL_SPEED` is normal. See `time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,7 +111,7 @@ impl Timed {
 /// The entity a timed effect is attached to (it is also listed in the
 /// target's `Attachments`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EffectTarget(pub Entity);
+pub(crate) struct EffectTarget(pub Entity);
 
 /// Effect part: `damage` to the target every `interval` ticks while active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

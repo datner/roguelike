@@ -39,6 +39,20 @@ boundary() {
     echo "term depends on crossterm directly; use ratatui::crossterm instead"
     return 1
   fi
+  # The ECS is game's internals (ADR 0008); term goes through game functions.
+  if cargo tree -p term -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^hecs ' ||
+    grep -rqw hecs term/src; then
+    echo "term refers to hecs; expose what it needs through game instead"
+    return 1
+  fi
+  # term sends intent (`PlayerAction`) only; game resolves actors and commands (ADR 0001).
+  local names
+  names=$(grep -rnwE 'Command|Entity' term/src || true)
+  if [[ -n "$names" ]]; then
+    echo "term names game's Command or Entity; send a PlayerAction instead:"
+    echo "$names"
+    return 1
+  fi
 }
 
 # docs/MAP.md is what sessions orient from, so a stale one misleads.

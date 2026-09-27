@@ -2,7 +2,7 @@
 
 use std::io;
 
-use game::{Command, GameState, InputEvent, render_view, take_turn};
+use game::{GameState, InputEvent, PlayerAction, render_view, take_turn};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -31,11 +31,10 @@ pub fn run(terminal: &mut ratatui::Terminal<Backend>, state: &mut GameState) -> 
                 let Some(input_event) = map_key_event(key) else {
                     continue;
                 };
-                let player = state.player;
                 match input_event {
                     InputEvent::Quit => return Ok(()),
-                    InputEvent::Move(dir) => take_turn(state, Command::TryMove(player, dir)),
-                    InputEvent::Wait => take_turn(state, Command::Wait(player)),
+                    InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
+                    InputEvent::Wait => take_turn(state, PlayerAction::Wait),
                 }
             }
             Event::Resize(_, _) => {}
@@ -88,7 +87,7 @@ fn draw(frame: &mut Frame, state: &GameState) {
 mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, Tick, apply_commands};
+    use game::{Blueprints, Tick};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -122,10 +121,8 @@ mod tests {
     fn status_announces_game_over() {
         let mut state = state();
         state.now = Tick(700);
-        state.commands.push_back(Command::Die {
-            entity: state.player,
-        });
-        apply_commands(&mut state);
+        // What the frontend reads of a death; how dying works is `game`'s.
+        state.game_over = true;
         let screen = screen(&state);
         assert!(screen.contains("You died on turn 7. Press any key to quit."));
         assert!(screen.contains('☺'), "the dead player is still drawn");

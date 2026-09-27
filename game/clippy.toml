@@ -2,6 +2,10 @@
 # Same seed + same inputs must produce the same world.
 # A genuine exception needs #[expect(clippy::..., reason = "...")] at the use site.
 disallowed-methods = [
+  { path = "hecs::World::spawn", reason = "create entities with GameState::spawn/spawn_id/spawn_at, which assign SpawnSeq (ADR 0008)" },
+  { path = "hecs::World::spawn_at", reason = "create entities with GameState::spawn/spawn_id/spawn_at, which assign SpawnSeq (ADR 0008)" },
+  { path = "hecs::World::spawn_batch", reason = "create entities with GameState::spawn/spawn_id/spawn_at, which assign SpawnSeq (ADR 0008)" },
+  { path = "hecs::World::spawn_column_batch", reason = "create entities with GameState::spawn/spawn_id/spawn_at, which assign SpawnSeq (ADR 0008)" },
   { path = "rand::rng", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },
   { path = "rand::random", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },
   { path = "rand::thread_rng", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },

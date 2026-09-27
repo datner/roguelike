@@ -39,12 +39,16 @@ This is a Cargo workspace with two crates:
   - Field of view (ADR 0007): symmetric shadowcasting with a circular
     radius, recomputed each player turn. The view shows what the player
     sees; terrain seen before stays on screen dimmed, without creatures.
+  - Save games (ADR 0008): `save::to_ron` / `save::from_ron` turn a
+    `GameState` into a versioned RON string and back. `game` does no file
+    IO; saving is only allowed between player turns.
 - `term/` — the binary frontend: crossterm (reached only through
   `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
   raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
   clipped custom `MapWidget`, and owns all terminal lifecycle concerns
   (raw mode, alternate screen, Kitty keyboard protocol enhancement when
-  supported, panic-safe restore).
+  supported, panic-safe restore). It also owns save files: one per
+  character, loaded on start and written (atomically) on quit.
 
 A future windowed/tileset frontend would be a new crate depending on
 `game`, with no changes to `game` itself.
@@ -54,8 +58,8 @@ A future windowed/tileset frontend would be a new crate depending on
 - Arrow keys or `hjkl`: move orthogonally.
 - `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE).
 - `.`: wait a turn.
-- `q` or `Esc`: quit.
-- After you die, any key quits.
+- `q` or `Esc`: save and quit.
+- After you die, any key quits without saving; the last save is kept.
 
 Moving, attacking (by moving into a creature), bumping a wall and waiting
 each take one turn. The status bar shows the current turn.
@@ -67,6 +71,12 @@ nix develop --command cargo run -p term
 # or, with a fixed seed:
 nix develop --command cargo run -p term -- --seed 42
 ```
+
+Each character has one save, `<saves>/<name>.ron`. `--character <name>`
+picks it (default `default`); `--saves <dir>` overrides the platform data
+directory. If the save exists it is loaded and `--seed` is ignored;
+otherwise a new game starts. A save that fails to load is left untouched
+and the game exits with an error.
 
 With direnv installed and `direnv allow`'d in this directory, the `nix
 develop` shell activates automatically and you can just run `cargo run -p
