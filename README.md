@@ -18,8 +18,18 @@ This is a Cargo workspace with two crates:
   - A `GameState` holding an `hecs::World`, the tile map, a message log,
     and a seeded RNG, mutated only by draining a `Command` queue
     (`apply_commands`) rather than directly from input handlers.
-  - `EntityBlueprint`, loaded from `data/entities/*.ron` via serde + RON,
-    as the pattern for data-driven content going forward.
+  - `Blueprints`, loaded from `data/entities/*.ron` (one blueprint per
+    file, named by file stem) via serde + RON. Blueprints list
+    components, can `inherits` from a parent (resolved at load time), and
+    can carry `equipment` spawned as attached entities.
+  - An `EventRegistry` of typed handlers per (event, component). Handlers
+    read the world, rewrite or stop the event, and emit commands; only
+    `apply_commands` mutates the world.
+  - Game time (ADR 0006): a global tick clock, energy-based turn order
+    by `Speed`, a timer queue, and timed effects (e.g. bleeding) whose
+    durations are stored relative to their start. `take_turn` applies
+    the player's action and runs the world until the player is ready
+    again. Hostile creatures (goblins) chase and attack the player.
 - `term/` — the binary frontend: crossterm (reached only through
   `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
   raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
@@ -34,8 +44,12 @@ A future windowed/tileset frontend would be a new crate depending on
 
 - Arrow keys or `hjkl`: move orthogonally.
 - `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE).
-- `.`: wait.
+- `.`: wait a turn.
 - `q` or `Esc`: quit.
+- After you die, any key quits.
+
+Moving, attacking (by moving into a creature), bumping a wall and waiting
+each take one turn. The status bar shows the current turn.
 
 ## Running
 
