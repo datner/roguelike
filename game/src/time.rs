@@ -104,14 +104,17 @@ pub(crate) enum Step {
     Idle,
 }
 
-/// Applies the player's action, then runs the world until the player is
-/// ready to act again (or the game ends). Input refused by
-/// `command::reject_input` does neither.
+/// Applies the player's action, recomputes their field of view once it has
+/// fully resolved, then runs the world until the player is ready to act
+/// again (or the game ends). Input refused by `command::reject_input` does
+/// none of that.
 pub fn take_turn(state: &mut GameState, command: Command) {
     if state.game_over || reject_input(state, &command) {
         return;
     }
     state.commands.push_back(command);
+    apply_commands(state);
+    state.commands.push_back(Command::UpdateFov);
     apply_commands(state);
     advance(state);
 }

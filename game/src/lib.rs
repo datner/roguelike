@@ -23,6 +23,7 @@ pub mod cost;
 pub mod effect;
 pub mod entity;
 pub mod event;
+pub mod fov;
 pub mod grammar;
 pub mod prio;
 pub mod rng;

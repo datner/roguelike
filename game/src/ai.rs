@@ -9,13 +9,11 @@ use crate::input::Dir;
 use crate::map::Tile;
 use crate::state::GameState;
 
-/// How far (Chebyshev) a hostile notices the player. There is no field of
-/// view yet, so this sees through walls.
-pub const SIGHT: i32 = 8;
-
+/// A hostile that sees the player attacks when adjacent and otherwise steps
+/// toward them; anything else waits.
 pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
     let wait = Command::Wait(actor);
-    if !state.world.satisfies::<&Hostile>(actor) {
+    if !state.world.satisfies::<&Hostile>(actor) || !can_see_player(state, actor) {
         return wait;
     }
     let (Ok(me), Ok(player)) = (
@@ -25,20 +23,34 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
         return wait;
     };
 
-    let distance = chebyshev(me, player);
-    if distance == 1 {
+    if chebyshev(me, player) == 1 {
         let toward = ((player.x - me.x).signum(), (player.y - me.y).signum());
         return match Dir::ALL.into_iter().find(|dir| dir.delta() == toward) {
             Some(dir) => Command::TryMove(actor, dir),
             None => wait,
         };
     }
-    if distance > SIGHT {
-        return wait;
-    }
     step_toward(state, me, player)
         .map(|dir| Command::TryMove(actor, dir))
         .unwrap_or(wait)
+}
+
+/// Whether `actor` perceives the player.
+///
+/// Assumption: an actor sees the player iff the actor's tile is in the
+/// player's visible set (`GameState::visible`). That is only sound while
+/// all three hold:
+/// - FOV is symmetric (`fov` — Ford's shadowcasting), so "the player sees
+///   me" equals "I see the player";
+/// - lighting is uniform (no darkness makes one side unseen);
+/// - every actor's sight radius equals the player's (`fov::RADIUS`).
+///
+/// Break any of them and this needs the actor's own view. ADR 0007.
+pub(crate) fn can_see_player(state: &GameState, actor: Entity) -> bool {
+    state
+        .world
+        .get::<&Position>(actor)
+        .is_ok_and(|pos| state.visible.get(pos.x, pos.y) == Some(&true))
 }
 
 /// The passable direction that ends closest to `goal` (Chebyshev, then
@@ -91,6 +103,7 @@ fn passable(state: &GameState, at: Position) -> bool {
 mod tests {
     use super::*;
     use crate::entity::{Dead, Melee};
+    use crate::fov::{self, RADIUS};
     use crate::state::tests::bare_state;
     use crate::time::{Tick, take_turn};
 
@@ -133,18 +146,48 @@ mod tests {
 
     #[test]
     fn a_goblin_at_the_edge_of_sight_steps_closer() {
-        let (mut state, goblin) = with_goblin(Position { x: 1 + SIGHT, y: 1 });
+        let (mut state, goblin) = with_goblin(Position {
+            x: 1 + RADIUS,
+            y: 1,
+        });
         wait(&mut state);
-        assert_eq!(position(&state, goblin), Position { x: SIGHT, y: 1 });
+        assert_eq!(position(&state, goblin), Position { x: RADIUS, y: 1 });
     }
 
     #[test]
     fn a_goblin_out_of_range_waits() {
-        let (mut state, goblin) = with_goblin(Position { x: 2 + SIGHT, y: 1 });
+        let (mut state, goblin) = with_goblin(Position {
+            x: 2 + RADIUS,
+            y: 1,
+        });
         assert_eq!(decide(&state, goblin), Command::Wait(goblin));
         wait(&mut state);
-        assert_eq!(position(&state, goblin), Position { x: 2 + SIGHT, y: 1 });
+        assert_eq!(
+            position(&state, goblin),
+            Position {
+                x: 2 + RADIUS,
+                y: 1
+            }
+        );
         assert_eq!(state.now, Tick(100));
+    }
+
+    #[test]
+    fn a_goblin_behind_a_wall_waits_until_it_is_in_view() {
+        let (mut state, goblin) = with_goblin(Position { x: 5, y: 1 });
+        state.map.set(3, 1, Tile::Wall);
+        fov::update(&mut state);
+        assert!(!can_see_player(&state, goblin));
+        assert_eq!(decide(&state, goblin), Command::Wait(goblin));
+        wait(&mut state);
+        assert_eq!(position(&state, goblin), Position { x: 5, y: 1 });
+
+        // Stepping out from behind the pillar brings the goblin into view
+        // before it acts.
+        let player = state.player;
+        take_turn(&mut state, Command::TryMove(player, Dir::SE));
+        assert!(can_see_player(&state, goblin));
+        assert_eq!(position(&state, goblin), Position { x: 4, y: 2 });
     }
 
     #[test]

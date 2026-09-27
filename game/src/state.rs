@@ -8,6 +8,7 @@ use crate::combat;
 use crate::command::Command;
 use crate::entity::{Appearance, Energy, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
+use crate::fov;
 use crate::map::{Grid, Map, Tile, choose_spawn_position, generate_map};
 use crate::rng::Rngs;
 use crate::time::{Tick, Timers};
@@ -47,6 +48,12 @@ pub struct GameState {
     pub timers: Timers,
     /// Set when the player dies; the scheduler stops and input is ignored.
     pub game_over: bool,
+    /// Tiles the player sees now: the visible set, as one flag per tile.
+    /// Recomputed once per player turn (`Command::UpdateFov`), never per
+    /// actor (ADR 0007).
+    pub visible: Grid<bool>,
+    /// Tiles the player has ever seen. Only their terrain is remembered.
+    pub seen: Grid<bool>,
     next_spawn_seq: u64,
 }
 
@@ -87,6 +94,7 @@ impl GameState {
         blueprints: Blueprints,
     ) -> Result<Self, BlueprintError> {
         let map = generate_map(&mut rngs.map);
+        let unseen = Grid::new(map.width, map.height, false);
 
         let mut events = EventRegistry::new();
         combat::register(&mut events);
@@ -107,9 +115,12 @@ impl GameState {
             now: Tick::default(),
             timers: Timers::default(),
             game_over: false,
+            visible: unseen.clone(),
+            seen: unseen,
             next_spawn_seq: 0,
         };
         state.player = state.spawn_at("Player", Position { x: 1, y: 1 })?;
+        fov::update(&mut state);
         Ok(state)
     }
 
@@ -137,6 +148,8 @@ impl GameState {
     }
 }
 
+/// Visible tiles show terrain and whatever stands there; remembered tiles
+/// show dimmed terrain only; never-seen tiles stay blank.
 pub fn render_view(state: &GameState) -> Grid<Cell> {
     let mut grid = Grid::new(
         state.map.width,
@@ -147,9 +160,14 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
             bg: Rgb(0, 0, 0),
         },
     );
+    let flag = |flags: &Grid<bool>, x, y| flags.get(x, y) == Some(&true);
 
     for y in 0..state.map.height {
         for x in 0..state.map.width {
+            let visible = flag(&state.visible, x, y);
+            if !visible && !flag(&state.seen, x, y) {
+                continue;
+            }
             let tile = state.map.get(x, y).copied().unwrap_or(Tile::Wall);
             let (glyph, fg) = match tile {
                 Tile::Floor => ('.', Rgb(90, 90, 90)),
@@ -157,12 +175,15 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
             };
             if let Some(cell) = grid.get_mut(x, y) {
                 cell.glyph = glyph;
-                cell.fg = fg;
+                cell.fg = if visible { fg } else { dim(fg) };
             }
         }
     }
 
     for (pos, appearance) in state.world.query::<(&Position, &Appearance)>().iter() {
+        if !flag(&state.visible, pos.x, pos.y) {
+            continue;
+        }
         if let Some(cell) = grid.get_mut(pos.x, pos.y) {
             cell.glyph = appearance.glyph;
             cell.fg = appearance.fg;
@@ -170,6 +191,11 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
     }
 
     grid
+}
+
+/// Remembered terrain: half brightness.
+fn dim(Rgb(r, g, b): Rgb) -> Rgb {
+    Rgb(r / 2, g / 2, b / 2)
 }
 
 #[cfg(test)]
@@ -416,6 +442,28 @@ pub(crate) mod tests {
             state.log.recent(1).next().map(String::as_str),
             Some("Something blocks your way.")
         );
+    }
+
+    #[test]
+    fn remembered_terrain_renders_dimmed_without_creatures() {
+        let mut state = bare_state();
+        let player = state.player;
+        for _ in 0..10 {
+            crate::time::take_turn(&mut state, Command::TryMove(player, Dir::E));
+        }
+        assert_eq!(player_position(&state), Position { x: 11, y: 1 });
+        // (2, 1) was seen from the start and is now 9 tiles away.
+        assert_eq!(state.visible.get(2, 1), Some(&false));
+        assert_eq!(state.seen.get(2, 1), Some(&true));
+        state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
+
+        let view = render_view(&state);
+        let remembered = view.get(2, 1).unwrap();
+        assert_eq!((remembered.glyph, remembered.fg), ('.', Rgb(45, 45, 45)));
+        let in_view = view.get(10, 1).unwrap();
+        assert_eq!((in_view.glyph, in_view.fg), ('.', Rgb(90, 90, 90)));
+        let never_seen = view.get(38, 18).unwrap();
+        assert_eq!(never_seen.glyph, ' ');
     }
 
     #[test]

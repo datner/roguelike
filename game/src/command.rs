@@ -7,6 +7,7 @@ use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Health, Position};
 use crate::event::{Ctx, settle};
+use crate::fov;
 use crate::grammar::{Subject, capitalize};
 use crate::input::Dir;
 use crate::map::Tile;
@@ -54,6 +55,28 @@ pub enum Command {
     AdvanceClock {
         ticks: u64,
     },
+    /// Scheduler only: recompute the player's field of view and remember
+    /// what it shows. Queued once per player turn (ADR 0007).
+    UpdateFov,
+}
+
+impl Command {
+    /// The entities a command acts for or on. If any of them is `Dead`,
+    /// `apply_commands` skips the command.
+    fn participants(&self) -> [Option<Entity>; 2] {
+        match *self {
+            Command::TryMove(actor, _) | Command::Wait(actor) => [Some(actor), None],
+            Command::Attack { attacker, target } => [Some(attacker), Some(target)],
+            Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
+                [Some(target), None]
+            }
+            Command::Die { entity } => [Some(entity), None],
+            Command::ModifyDuration { effect, .. }
+            | Command::ExpireEffect(effect)
+            | Command::BleedTick(effect) => [Some(effect), None],
+            Command::AdvanceClock { .. } | Command::UpdateFov => [None, None],
+        }
+    }
 }
 
 /// Drains the command queue. This is the only code that mutates the world.
@@ -69,6 +92,16 @@ pub fn apply_commands(state: &mut GameState) {
             return;
         }
         applied += 1;
+        // The one place `Dead` is checked: nothing acts for or on the dead,
+        // so a dying actor's queued follow-ups (damage, attacks) fizzle.
+        if command
+            .participants()
+            .into_iter()
+            .flatten()
+            .any(|entity| state.world.satisfies::<&Dead>(entity))
+        {
+            continue;
+        }
         if let Some((actor, cost)) = cost::of(&command) {
             spend_energy(state, actor, cost);
         }
@@ -87,6 +120,7 @@ pub fn apply_commands(state: &mut GameState) {
             Command::ExpireEffect(effect) => effect::expire_effect(state, effect),
             Command::BleedTick(effect) => effect::bleed_tick(state, effect),
             Command::AdvanceClock { ticks } => time::advance_clock(state, ticks),
+            Command::UpdateFov => fov::update(state),
         }
     }
 }
@@ -115,7 +149,7 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 }
 
 /// Screens the player's input before it becomes an action. A move into a
-/// known wall (every wall, until field of view exists) is refused with a
+/// wall (any wall, seen or not, for now) is refused with a
 /// message: nothing is queued, no energy is spent and no time passes.
 /// Returns whether the input was refused.
 pub fn reject_input(state: &mut GameState, command: &Command) -> bool {
@@ -247,7 +281,7 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32) {
 /// The player is marked `Dead` and kept, so the frontend can still show
 /// them; everything else is despawned with its attachments.
 fn die(state: &mut GameState, entity: Entity) {
-    if !state.world.contains(entity) || state.world.satisfies::<&Dead>(entity) {
+    if !state.world.contains(entity) {
         return;
     }
     let dying = Subject::of(&state.world, entity);
@@ -425,6 +459,42 @@ mod tests {
             state.log.recent(2).collect::<Vec<_>>(),
             ["You die.", "Seed: 1"]
         );
+    }
+
+    #[test]
+    fn damage_queued_after_the_players_death_does_nothing() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.commands.push_back(Command::Die { entity: player });
+        state.commands.push_back(Command::DealDamage {
+            target: player,
+            amount: 5,
+        });
+        apply_commands(&mut state);
+        assert_eq!(state.world.get::<&Health>(player).unwrap().current, 20);
+        assert_eq!(
+            state.log.recent(2).collect::<Vec<_>>(),
+            ["You die.", "Seed: 1"]
+        );
+    }
+
+    #[test]
+    fn an_attack_from_the_dead_player_does_nothing() {
+        let (mut state, goblin, _) = facing_goblin(4);
+        let player = state.player;
+        state.commands.push_back(Command::Die { entity: player });
+        apply_commands(&mut state);
+        let (log, combat) = (state.log.clone(), state.rngs.combat.clone());
+
+        state.commands.push_back(Command::Attack {
+            attacker: player,
+            target: goblin,
+        });
+        apply_commands(&mut state);
+        assert_eq!(state.world.get::<&Health>(goblin).unwrap().current, 8);
+        assert_eq!(state.log, log);
+        assert_eq!(state.rngs.combat, combat, "no damage was rolled");
+        assert!(state.commands.is_empty());
     }
 
     #[test]
