@@ -1,3 +1,5 @@
+//! `Command` and `apply_commands`: the only place the world is mutated during play (ADR 0002).
+
 use std::ops::ControlFlow;
 
 use hecs::Entity;

@@ -1,3 +1,5 @@
+//! Blocking, turn-based event loop and panel layout.
+
 use std::io;
 
 use game::{Command, GameState, InputEvent, render_view, take_turn};

@@ -1,3 +1,5 @@
+//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent`.
+
 use game::{Dir, InputEvent};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 

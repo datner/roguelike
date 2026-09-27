@@ -1,3 +1,5 @@
+//! `GameState`, the message log, and `render_view`, which turns what the player knows into a `Grid<Cell>`.
+
 use std::collections::VecDeque;
 
 use hecs::{Entity, World};

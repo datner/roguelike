@@ -1,3 +1,5 @@
+//! Tiles, the generic `Grid<T>` (out-of-bounds reads are `None`), and map generation.
+
 use rand::RngExt;
 use rand_pcg::Pcg64;
 

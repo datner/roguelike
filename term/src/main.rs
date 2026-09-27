@@ -1,3 +1,5 @@
+//! Terminal frontend entry point: CLI args, blueprint loading, wiring.
+
 use std::path::{Path, PathBuf};
 
 use game::{Blueprints, GameState, random_seed};

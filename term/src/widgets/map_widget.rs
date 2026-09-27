@@ -1,3 +1,5 @@
+//! Draws the game's `Grid<Cell>` into a ratatui buffer.
+
 use game::{Cell, Grid};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

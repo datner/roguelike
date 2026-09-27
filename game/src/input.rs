@@ -1,3 +1,5 @@
+//! The rendering seam's input (ADR 0001): frontends translate raw keys into `InputEvent`.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir {
     N,

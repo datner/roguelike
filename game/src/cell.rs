@@ -1,3 +1,5 @@
+//! The rendering seam's output (ADR 0001): one glyph and its colours per screen cell.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

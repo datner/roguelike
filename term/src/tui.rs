@@ -1,3 +1,5 @@
+//! Terminal init and restore (raw mode, alternate screen, keyboard enhancement, panic hook).
+
 use std::io::{self, Stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
 
