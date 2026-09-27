@@ -1,0 +1,7 @@
+(
+    name: "rubble",
+    glyph: '%',
+    fg: (180, 140, 90),
+    bg: (0, 0, 0),
+    blocks_movement: true,
+)

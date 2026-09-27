@@ -11,3 +11,7 @@ pub use input::{Dir, InputEvent};
 pub mod map;
 
 pub use map::{generate_map, random_seed, Grid, Tile, MAP_HEIGHT, MAP_WIDTH};
+
+pub mod blueprint;
+
+pub use blueprint::{load_blueprint, BlueprintError, EntityBlueprint};
