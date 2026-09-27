@@ -5,9 +5,11 @@
 Tooling comes from the nix flake (direnv loads it). If `cargo` is not on PATH,
 prefix commands with `nix develop --command`.
 
-- **Before saying you're done:** `scripts/check.sh` — fmt, crate-boundary check,
-  clippy `-D warnings`, tests. Quiet on success, prints only the failing step on
-  failure.
+- **Before saying you're done:** `scripts/check.sh` — fmt, code-map freshness,
+  crate-boundary check, clippy `-D warnings`, tests. Quiet on success, prints
+  only the failing step on failure.
+- Code map: `scripts/map.sh` regenerates `docs/MAP.md`; run it after adding,
+  removing or changing a `pub` item or a module's `//!` line.
 - One test: `cargo test -p game <test_name>`
 - Play (humans only): `cargo run -p term -- --seed 42`
 
@@ -22,6 +24,17 @@ ratatui's `TestBackend` for `term` widgets).
   testing, running and git; piping _command output_ into `head`/`tail` is fine.
 - A PreToolUse hook rejects `cat`/`head`/`tail`/`sed`/`awk`/`less` on files. If
   it fires, switch tools; don't hunt for another shell workaround.
+
+## Reading policy
+
+- Orient from the code map below: it lists every module's purpose and `pub`
+  signatures, so don't open a file just to learn what it contains.
+- To find something, Grep first, then Read with offset/limit around the hit.
+- Read a whole file only if you're editing it.
+- Read an ADR only when touching its area; `docs/decisions/README.md` has the
+  one-line index.
+
+@docs/MAP.md
 
 ## Layout
 

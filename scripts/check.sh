@@ -41,7 +41,20 @@ boundary() {
   fi
 }
 
+# docs/MAP.md is what sessions orient from, so a stale one misleads.
+map() {
+  local tmp
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' RETURN
+  scripts/map.sh "$tmp"
+  if ! cmp -s "$tmp" docs/MAP.md; then
+    echo "docs/MAP.md is stale: run scripts/map.sh"
+    return 1
+  fi
+}
+
 run fmt      cargo fmt --all --check
+run map      map
 run boundary boundary
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
 run test     cargo test --workspace --quiet
