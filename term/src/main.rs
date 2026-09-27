@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use game::{load_blueprint, random_seed, EntityBlueprint, GameState};
+use game::{Blueprints, GameState, random_seed};
 
 mod app;
 mod input;
@@ -33,12 +33,16 @@ fn parse_args() -> (Option<u64>, PathBuf) {
     (seed, data_dir)
 }
 
-fn load_rubble_blueprint(data_dir: &Path) -> EntityBlueprint {
-    let path = data_dir.join("entities/rubble.ron");
-    match load_blueprint(&path) {
-        Ok(blueprint) => blueprint,
+fn new_game(seed: u64, data_dir: &Path) -> GameState {
+    let result = Blueprints::load_dir(&data_dir.join("entities"))
+        .and_then(|blueprints| GameState::new(seed, blueprints));
+    match result {
+        Ok(state) => state,
         Err(err) => {
-            eprintln!("Failed to load blueprint at {}: {err}", path.display());
+            eprintln!(
+                "Failed to load blueprints from {}: {err}",
+                data_dir.display()
+            );
             std::process::exit(1);
         }
     }
@@ -48,8 +52,7 @@ fn main() -> std::io::Result<()> {
     let (seed_arg, data_dir) = parse_args();
     let seed = seed_arg.unwrap_or_else(random_seed);
 
-    let blueprint = load_rubble_blueprint(&data_dir);
-    let mut state = GameState::new(seed, blueprint);
+    let mut state = new_game(seed, &data_dir);
 
     let mut terminal = tui::init()?;
     let result = app::run(&mut terminal, &mut state);
