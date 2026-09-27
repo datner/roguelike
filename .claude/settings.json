@@ -51,6 +51,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/limit-source-reads.sh"
+          }
+        ]
       }
     ]
   }
