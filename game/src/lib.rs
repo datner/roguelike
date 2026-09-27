@@ -7,3 +7,7 @@ pub mod input;
 
 pub use cell::{Cell, Rgb};
 pub use input::{Dir, InputEvent};
+
+pub mod map;
+
+pub use map::{generate_map, random_seed, Grid, Tile, MAP_HEIGHT, MAP_WIDTH};
