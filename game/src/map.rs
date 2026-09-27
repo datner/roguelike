@@ -1,14 +1,16 @@
-use rand::{RngExt, SeedableRng};
+use rand::RngExt;
 use rand_pcg::Pcg64;
 
-pub const MAP_WIDTH: i32 = 20;
-pub const MAP_HEIGHT: i32 = 10;
+pub const MAP_WIDTH: i32 = 40;
+pub const MAP_HEIGHT: i32 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tile {
     Floor,
     Wall,
 }
+
+pub type Map = Grid<Tile>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Grid<T> {
@@ -53,10 +55,9 @@ impl<T> Grid<T> {
 
 /// Builds the (currently fixed) starting room: a bordered rectangle with a
 /// short interior wall segment. The layout doesn't vary by seed yet — real
-/// procedural generation is out of scope for this skeleton — but the
-/// function still returns a seeded `Pcg64` so callers (and tests) can
-/// treat map setup as seed-driven from the start.
-pub fn generate_map(seed: u64) -> (Grid<Tile>, Pcg64) {
+/// procedural generation is out of scope for this skeleton — but it already
+/// takes the map stream (`Rngs::map`), the only RNG map generation may use.
+pub fn generate_map(_rng: &mut Pcg64) -> Map {
     let mut grid = Grid::new(MAP_WIDTH, MAP_HEIGHT, Tile::Floor);
 
     for x in 0..MAP_WIDTH {
@@ -71,35 +72,41 @@ pub fn generate_map(seed: u64) -> (Grid<Tile>, Pcg64) {
         grid.set(8, y, Tile::Wall);
     }
 
-    let rng = Pcg64::seed_from_u64(seed);
-    (grid, rng)
+    grid
 }
 
-/// Interior floor tiles that are safe to place a spawned entity on,
-/// excluding the player's fixed starting tile.
-pub fn floor_candidates(grid: &Grid<Tile>) -> Vec<(i32, i32)> {
+/// Floor tiles not listed in `occupied`, in row-major order.
+pub fn floor_candidates(grid: &Map, occupied: &[(i32, i32)]) -> Vec<(i32, i32)> {
     let mut candidates = Vec::new();
-    for y in 1..grid.height - 1 {
-        for x in 1..grid.width - 1 {
-            if grid.get(x, y) != Some(&Tile::Floor) {
-                continue;
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            if grid.get(x, y) == Some(&Tile::Floor) && !occupied.contains(&(x, y)) {
+                candidates.push((x, y));
             }
-            if (x, y) == (1, 1) {
-                continue;
-            }
-            candidates.push((x, y));
         }
     }
     candidates
 }
 
-pub fn choose_obstacle_position(grid: &Grid<Tile>, rng: &mut Pcg64) -> (i32, i32) {
-    let candidates = floor_candidates(grid);
-    let idx = rng.random_range(0..candidates.len());
-    candidates[idx]
+/// A uniformly random free floor tile (one draw from `rng`), or `None` if
+/// every floor tile is occupied.
+pub fn choose_spawn_position(
+    grid: &Map,
+    occupied: &[(i32, i32)],
+    rng: &mut Pcg64,
+) -> Option<(i32, i32)> {
+    let candidates = floor_candidates(grid, occupied);
+    if candidates.is_empty() {
+        return None;
+    }
+    Some(candidates[rng.random_range(0..candidates.len())])
 }
 
 /// A fresh, non-deterministic seed for when the player doesn't pass `--seed`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the one sanctioned entropy source: picks the seed, never used mid-simulation"
+)]
 pub fn random_seed() -> u64 {
     rand::rng().random()
 }
@@ -107,6 +114,7 @@ pub fn random_seed() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rng::Rngs;
 
     #[test]
     fn grid_get_set_respects_bounds() {
@@ -120,17 +128,29 @@ mod tests {
 
     #[test]
     fn same_seed_produces_same_map() {
-        let (grid_a, _) = generate_map(42);
-        let (grid_b, _) = generate_map(42);
+        let grid_a = generate_map(&mut Rngs::new(42).map);
+        let grid_b = generate_map(&mut Rngs::new(42).map);
         assert_eq!(grid_a, grid_b);
     }
 
     #[test]
-    fn same_seed_produces_same_obstacle_position() {
-        let (grid, mut rng_a) = generate_map(7);
-        let (_, mut rng_b) = generate_map(7);
-        let pos_a = choose_obstacle_position(&grid, &mut rng_a);
-        let pos_b = choose_obstacle_position(&grid, &mut rng_b);
+    fn same_seed_produces_same_spawn_position() {
+        let grid = generate_map(&mut Rngs::new(7).map);
+        let pos_a = choose_spawn_position(&grid, &[], &mut Rngs::new(7).spawn);
+        let pos_b = choose_spawn_position(&grid, &[], &mut Rngs::new(7).spawn);
         assert_eq!(pos_a, pos_b);
+    }
+
+    #[test]
+    fn spawn_positions_are_free_floor_tiles() {
+        let grid = generate_map(&mut Rngs::new(1).map);
+        let mut occupied = vec![(1, 1)];
+        let mut rng = Rngs::new(1).spawn;
+        while let Some(pos) = choose_spawn_position(&grid, &occupied, &mut rng) {
+            assert_eq!(grid.get(pos.0, pos.1), Some(&Tile::Floor));
+            assert!(!occupied.contains(&pos));
+            occupied.push(pos);
+        }
+        assert_eq!(occupied.len() - 1, floor_candidates(&grid, &[(1, 1)]).len());
     }
 }

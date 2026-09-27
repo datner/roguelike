@@ -1,0 +1,371 @@
+//! Game time (ADR 0006): the global `Tick` clock, the timer queue, and the
+//! energy scheduler that decides who acts next.
+//!
+//! The scheduler never walks tick by tick: it jumps the clock straight to
+//! the next tick where a timer is due or an actor becomes ready. At one tick,
+//! due timers fire first (in insertion order), then ready actors act in
+//! `SpawnSeq` order. It stops when the player is ready, so the frontend can
+//! ask for input.
+
+use std::collections::BTreeMap;
+
+use hecs::Entity;
+use serde::{Deserialize, Serialize};
+
+use crate::ai;
+use crate::command::{Command, apply_commands};
+use crate::cost::TICKS_PER_TURN;
+use crate::entity::{Energy, SpawnSeq, Speed};
+use crate::state::GameState;
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct Tick(pub u64);
+
+impl Tick {
+    pub fn after(self, ticks: u64) -> Tick {
+        Tick(self.0.saturating_add(ticks))
+    }
+
+    /// Ticks from `earlier` to `self`; 0 if `earlier` is later.
+    pub fn since(self, earlier: Tick) -> u64 {
+        self.0.saturating_sub(earlier.0)
+    }
+
+    /// The turn number shown to the player.
+    pub fn turn(self) -> u64 {
+        self.0 / TICKS_PER_TURN
+    }
+}
+
+/// Something to do at a tick. Timers are idempotent checks against the
+/// current state, never trusted as the source of truth: firing one for an
+/// entity that is gone, or whose deadline moved, does nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Timer {
+    ExpireEffect(Entity),
+    BleedTick(Entity),
+}
+
+impl Timer {
+    fn command(self) -> Command {
+        match self {
+            Timer::ExpireEffect(effect) => Command::ExpireEffect(effect),
+            Timer::BleedTick(effect) => Command::BleedTick(effect),
+        }
+    }
+}
+
+/// Timers keyed by (due tick, insertion seq), so timers due at the same tick
+/// fire in the order they were scheduled.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Timers {
+    queue: BTreeMap<(Tick, u64), Timer>,
+    next_seq: u64,
+}
+
+impl Timers {
+    pub fn schedule(&mut self, at: Tick, timer: Timer) {
+        self.queue.insert((at, self.next_seq), timer);
+        self.next_seq += 1;
+    }
+
+    pub fn next_due(&self) -> Option<Tick> {
+        self.queue.first_key_value().map(|(&(at, _), _)| at)
+    }
+
+    pub fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    fn pop_due(&mut self, now: Tick) -> Option<Timer> {
+        if self.next_due()? > now {
+            return None;
+        }
+        self.queue.pop_first().map(|(_, timer)| timer)
+    }
+}
+
+/// What one scheduler step did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Step {
+    Timer(Timer),
+    Actor(Entity),
+    /// The clock jumped to this tick.
+    Clock(Tick),
+    PlayerReady,
+    GameOver,
+    /// Nothing is scheduled and nobody can ever act.
+    Idle,
+}
+
+/// Applies the player's action, then runs the world until the player is
+/// ready to act again (or the game ends).
+pub fn take_turn(state: &mut GameState, command: Command) {
+    if state.game_over {
+        return;
+    }
+    state.commands.push_back(command);
+    apply_commands(state);
+    advance(state);
+}
+
+/// Runs timers and non-player actors until the player is ready, the game is
+/// over, or nothing is left to happen.
+pub fn advance(state: &mut GameState) {
+    while !matches!(step(state), Step::PlayerReady | Step::GameOver | Step::Idle) {}
+}
+
+pub(crate) fn step(state: &mut GameState) -> Step {
+    if state.game_over {
+        return Step::GameOver;
+    }
+    if let Some(timer) = state.timers.pop_due(state.now) {
+        state.commands.push_back(timer.command());
+        apply_commands(state);
+        return Step::Timer(timer);
+    }
+    if let Some(actor) = next_ready(state) {
+        if actor == state.player {
+            return Step::PlayerReady;
+        }
+        act(state, actor);
+        return Step::Actor(actor);
+    }
+    match ticks_until_next(state) {
+        Some(ticks) => {
+            state.commands.push_back(Command::AdvanceClock { ticks });
+            apply_commands(state);
+            Step::Clock(state.now)
+        }
+        None => Step::Idle,
+    }
+}
+
+/// The ready actor (energy >= 0) that spawned first.
+fn next_ready(state: &GameState) -> Option<Entity> {
+    state
+        .world
+        .query::<(Entity, &Energy, &SpawnSeq)>()
+        .iter()
+        .filter(|(_, energy, _)| energy.0 >= 0)
+        .min_by_key(|&(_, _, seq)| *seq)
+        .map(|(entity, _, _)| entity)
+}
+
+fn energy(state: &GameState, actor: Entity) -> Option<i64> {
+    state.world.get::<&Energy>(actor).ok().map(|e| e.0)
+}
+
+fn act(state: &mut GameState, actor: Entity) {
+    let before = energy(state, actor);
+    let command = ai::decide(state, actor);
+    state.commands.push_back(command);
+    apply_commands(state);
+    // Every AI decision costs energy; if a bug ever breaks that, waiting
+    // keeps the scheduler from spinning on a forever-ready actor.
+    if before.is_some() && energy(state, actor) >= before {
+        state.commands.push_back(Command::Wait(actor));
+        apply_commands(state);
+    }
+}
+
+/// Ticks until the next timer is due or an actor becomes ready. Only called
+/// when nothing is due and nobody is ready now, so the result is > 0.
+fn ticks_until_next(state: &GameState) -> Option<u64> {
+    let timer = state.timers.next_due().map(|at| at.since(state.now));
+    let actor = state
+        .world
+        .query::<(&Speed, &Energy)>()
+        .iter()
+        .filter(|(speed, _)| speed.0 > 0)
+        .map(|(speed, energy)| energy.0.unsigned_abs().div_ceil(u64::from(speed.0)))
+        .min();
+    timer.into_iter().chain(actor).min()
+}
+
+/// `AdvanceClock` applier: moves the clock and grants every actor
+/// `speed × ticks` energy.
+pub(crate) fn advance_clock(state: &mut GameState, ticks: u64) {
+    state.now = state.now.after(ticks);
+    let ticks = i64::try_from(ticks).unwrap_or(i64::MAX);
+    for (speed, energy) in state.world.query_mut::<(&Speed, &mut Energy)>() {
+        energy.0 = energy
+            .0
+            .saturating_add(i64::from(speed.0).saturating_mul(ticks));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cost;
+    use crate::entity::{Health, Position};
+    use crate::input::{Dir, InputEvent};
+    use crate::state::tests::{bare_state, test_blueprints};
+
+    /// A state whose player is not scheduled, so `step` never stops for input.
+    fn unscheduled_player() -> GameState {
+        let mut state = bare_state();
+        state.world.remove_one::<Energy>(state.player).unwrap();
+        state
+    }
+
+    fn actor(state: &mut GameState, speed: u32, energy: i64, seq: u64) -> Entity {
+        state
+            .world
+            .spawn((Speed(speed), Energy(energy), SpawnSeq(seq)))
+    }
+
+    fn steps(state: &mut GameState, n: usize) -> Vec<Step> {
+        (0..n).map(|_| step(state)).collect()
+    }
+
+    fn actors_in_order(state: &mut GameState, n: usize) -> Vec<Entity> {
+        let mut acted = Vec::new();
+        while acted.len() < n {
+            if let Step::Actor(actor) = step(state) {
+                acted.push(actor);
+            }
+        }
+        acted
+    }
+
+    #[test]
+    fn a_double_speed_actor_acts_twice_per_normal_action() {
+        let mut state = unscheduled_player();
+        let fast = actor(&mut state, 200, 0, 1);
+        let slow = actor(&mut state, 100, 0, 2);
+
+        let order = actors_in_order(&mut state, 2 + 3 * 9);
+        assert_eq!(order[..2], [fast, slow], "both ready at tick 0");
+        // After the first round, every slow action is preceded by exactly
+        // two fast ones.
+        for window in order[2..].chunks(3) {
+            assert_eq!(window, [fast, fast, slow]);
+        }
+        assert_eq!(state.now, Tick(900));
+    }
+
+    #[test]
+    fn equally_ready_actors_act_in_spawn_seq_order_not_entity_order() {
+        let mut state = unscheduled_player();
+        let spawned_first = actor(&mut state, 100, 0, 9);
+        let spawned_second = actor(&mut state, 100, 0, 3);
+        assert_eq!(
+            actors_in_order(&mut state, 4),
+            [spawned_second, spawned_first, spawned_second, spawned_first]
+        );
+    }
+
+    #[test]
+    fn the_clock_jumps_straight_to_the_next_ready_actor() {
+        let mut state = unscheduled_player();
+        let slow = actor(&mut state, 30, -cost::STANDARD, 1);
+        // 10 000 energy at 30 per tick: ready after ceil(333.3) ticks.
+        assert_eq!(
+            steps(&mut state, 2),
+            [Step::Clock(Tick(334)), Step::Actor(slow)]
+        );
+    }
+
+    #[test]
+    fn same_tick_timers_fire_in_insertion_order_before_actors() {
+        let mut state = unscheduled_player();
+        let ready_at_100 = actor(&mut state, 100, -cost::STANDARD, 0);
+        let timers = [
+            Timer::BleedTick(Entity::DANGLING),
+            Timer::ExpireEffect(Entity::DANGLING),
+            Timer::BleedTick(Entity::DANGLING),
+        ];
+        for timer in timers {
+            state.timers.schedule(Tick(100), timer);
+        }
+        assert_eq!(
+            steps(&mut state, 5),
+            [
+                Step::Clock(Tick(100)),
+                Step::Timer(timers[0]),
+                Step::Timer(timers[1]),
+                Step::Timer(timers[2]),
+                Step::Actor(ready_at_100),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_scheduler_stops_when_the_player_is_ready() {
+        let mut state = bare_state();
+        assert_eq!(step(&mut state), Step::PlayerReady);
+
+        let player = state.player;
+        take_turn(&mut state, Command::Wait(player));
+        assert_eq!(state.now, Tick(100));
+        assert_eq!(state.now.turn(), 1);
+        assert_eq!(state.world.get::<&Energy>(state.player).unwrap().0, 0);
+    }
+
+    #[test]
+    fn a_bump_attack_costs_one_standard_action() {
+        let mut state = bare_state();
+        let dummy = state.world.spawn((
+            Position { x: 2, y: 1 },
+            Health {
+                current: 100,
+                max: 100,
+            },
+        ));
+        state
+            .commands
+            .push_back(Command::TryMove(state.player, Dir::E));
+        apply_commands(&mut state);
+        assert!(state.world.contains(dummy));
+        assert_eq!(
+            state.world.get::<&Energy>(state.player).unwrap().0,
+            -cost::STANDARD
+        );
+    }
+
+    #[test]
+    fn nothing_scheduled_is_idle() {
+        let mut state = unscheduled_player();
+        assert_eq!(step(&mut state), Step::Idle);
+    }
+
+    fn play(seed: u64, script: &[InputEvent]) -> GameState {
+        let mut state = GameState::new(seed, test_blueprints()).unwrap();
+        advance(&mut state);
+        for &input in script {
+            let command = match input {
+                InputEvent::Move(dir) => Command::TryMove(state.player, dir),
+                InputEvent::Wait => Command::Wait(state.player),
+                InputEvent::Quit => break,
+            };
+            take_turn(&mut state, command);
+        }
+        state
+    }
+
+    #[test]
+    fn replaying_the_same_seed_and_inputs_gives_the_same_game() {
+        let mut script = Vec::new();
+        for _ in 0..6 {
+            script.extend([
+                InputEvent::Move(Dir::E),
+                InputEvent::Move(Dir::SE),
+                InputEvent::Wait,
+                InputEvent::Move(Dir::S),
+            ]);
+        }
+        let a = play(7, &script);
+        let b = play(7, &script);
+        assert_eq!(a.log, b.log);
+        assert_eq!(a.now, b.now);
+        assert!(a.now > Tick(0));
+    }
+}

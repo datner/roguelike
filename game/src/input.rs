@@ -11,6 +11,19 @@ pub enum Dir {
 }
 
 impl Dir {
+    /// Clockwise from north. Wherever a choice among directions must be
+    /// deterministic, ties go to the earlier entry.
+    pub const ALL: [Dir; 8] = [
+        Dir::N,
+        Dir::NE,
+        Dir::E,
+        Dir::SE,
+        Dir::S,
+        Dir::SW,
+        Dir::W,
+        Dir::NW,
+    ];
+
     /// (dx, dy) to add to a position to move one step in this direction.
     pub fn delta(self) -> (i32, i32) {
         match self {

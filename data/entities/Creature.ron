@@ -1,0 +1,9 @@
+(
+    components: [
+        Name("creature"),
+        Appearance(glyph: 'c', fg: (200, 200, 200), bg: (0, 0, 0)),
+        BlocksMovement,
+        Health(current: 10, max: 10),
+        Speed(100),
+    ],
+)

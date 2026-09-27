@@ -1,0 +1,6 @@
+(
+    components: [
+        Name("leather armor"),
+        Armor(av: 1),
+    ],
+)
