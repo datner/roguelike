@@ -291,6 +291,12 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
             amount: dealt,
         },
     );
+    // Death is queued before anything the hit triggers, so a kill shot's
+    // effects on the victim fizzle instead of being announced first.
+    // `AfterHit` still fires, keeping combat-stream draws the same.
+    if remaining <= 0 {
+        state.commands.push_back(Command::Die { entity: target });
+    }
     if let DamageCause::Melee { attacker } = cause {
         let _ = dispatch(
             state,
@@ -301,9 +307,6 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
                 amount: dealt,
             },
         );
-    }
-    if remaining <= 0 {
-        state.commands.push_back(Command::Die { entity: target });
     }
 }
 

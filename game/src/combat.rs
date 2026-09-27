@@ -190,6 +190,19 @@ mod tests {
     }
 
     #[test]
+    fn a_kill_shot_logs_the_death_and_applies_nothing() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 0);
+        state.world.get::<&mut Health>(dummy).unwrap().current = 3;
+        armed_player(&mut state, 10_000);
+        player_hits(&mut state, dummy);
+        assert!(!state.world.contains(dummy));
+        assert_eq!(last_log(&state), "The dummy dies.");
+        assert!(!state.log.recent(10).any(|m| m.contains("bleeding")));
+        assert_eq!(state.world.query::<&Bleeding>().iter().count(), 0);
+    }
+
+    #[test]
     fn a_zero_chance_on_hit_never_applies() {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 0);

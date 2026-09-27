@@ -128,6 +128,10 @@ pub enum BlueprintError {
         owner: String,
         effect: String,
     },
+    EffectWithoutDuration {
+        owner: String,
+        effect: String,
+    },
     /// Names along the cycle, starting and ending with the same blueprint.
     InheritanceCycle(Vec<String>),
     EquipmentCycle(Vec<String>),
@@ -151,6 +155,10 @@ impl std::fmt::Display for BlueprintError {
                     "blueprint {owner:?} applies unknown effect {effect:?} on hit"
                 )
             }
+            Self::EffectWithoutDuration { owner, effect } => write!(
+                f,
+                "blueprint {owner:?} applies effect {effect:?} on hit, which has no Duration"
+            ),
             Self::InheritanceCycle(path) => write!(f, "inheritance cycle: {}", path.join(" -> ")),
             Self::EquipmentCycle(path) => write!(f, "equipment cycle: {}", path.join(" -> ")),
         }
@@ -188,14 +196,16 @@ impl Blueprints {
         Self::resolve(raw)
     }
 
-    /// Checks that every referenced name exists, flattens inheritance, and
-    /// assigns ids in name order.
+    /// Checks that every referenced name exists, flattens inheritance,
+    /// assigns ids in name order, and rejects on-hit effects without a
+    /// `Duration` and equipment cycles, so neither can fail during play.
     pub fn resolve(raw: BTreeMap<String, Blueprint>) -> Result<Self, BlueprintError> {
         check_references(&raw)?;
         let mut flat = BTreeMap::new();
         for name in raw.keys() {
             resolve_one(name, &raw, &mut flat, &mut Vec::new())?;
         }
+        check_effect_durations(&raw, &flat)?;
 
         let ids: BTreeMap<String, BlueprintId> =
             flat.keys().cloned().zip((0..).map(BlueprintId)).collect();
@@ -238,6 +248,7 @@ impl Blueprints {
                 equipment,
             });
         }
+        check_equipment_cycles(&resolved)?;
         Ok(Self { resolved, ids })
     }
 
@@ -262,8 +273,28 @@ impl Blueprints {
         self.spawn_id(world, id)
     }
 
+    /// Equipment cycles are rejected at load, so the recursion ends.
     pub fn spawn_id(&self, world: &mut World, id: BlueprintId) -> Result<Entity, BlueprintError> {
-        self.spawn_inner(world, id, &mut Vec::new())
+        let blueprint = self
+            .by_id(id)
+            .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
+
+        let mut attachments = Vec::with_capacity(blueprint.equipment.len());
+        for &item in &blueprint.equipment {
+            attachments.push(self.spawn_id(world, item)?);
+        }
+
+        let mut builder = EntityBuilder::new();
+        for component in &blueprint.components {
+            component.add_to(&mut builder);
+        }
+        if let Some(on_hit) = &blueprint.on_hit {
+            builder.add(on_hit.clone());
+        }
+        if !attachments.is_empty() {
+            builder.add(Attachments(attachments));
+        }
+        Ok(world.spawn(builder.build()))
     }
 
     pub fn spawn_at(
@@ -278,41 +309,85 @@ impl Blueprints {
             .expect("entity was just spawned");
         Ok(entity)
     }
+}
 
-    fn spawn_inner(
-        &self,
-        world: &mut World,
-        id: BlueprintId,
-        stack: &mut Vec<BlueprintId>,
-    ) -> Result<Entity, BlueprintError> {
-        let name_of = |id| self.by_id(id).map_or("?", |b| b.name.as_str()).to_string();
-        if stack.contains(&id) {
-            let cycle = stack.iter().chain([&id]).map(|&id| name_of(id)).collect();
-            return Err(BlueprintError::EquipmentCycle(cycle));
+/// On-hit effects are applied with `ApplyEffect`, which needs a `Duration`
+/// (possibly inherited, hence checked on `flat`). Reported against the
+/// blueprint that wrote the entry, like `check_references`.
+fn check_effect_durations(
+    raw: &BTreeMap<String, Blueprint>,
+    flat: &BTreeMap<String, Blueprint>,
+) -> Result<(), BlueprintError> {
+    for (owner, blueprint) in raw {
+        let effects = blueprint
+            .components
+            .iter()
+            .flat_map(|component| match component {
+                ComponentDef::OnHit(entries) => entries.as_slice(),
+                _ => &[],
+            });
+        for entry in effects {
+            let has_duration = flat.get(&entry.effect).is_some_and(|effect| {
+                effect
+                    .components
+                    .iter()
+                    .any(|c| matches!(c, ComponentDef::Duration(_)))
+            });
+            if !has_duration {
+                return Err(BlueprintError::EffectWithoutDuration {
+                    owner: owner.clone(),
+                    effect: entry.effect.clone(),
+                });
+            }
         }
-        let blueprint = self
-            .by_id(id)
-            .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
-
-        stack.push(id);
-        let mut attachments = Vec::with_capacity(blueprint.equipment.len());
-        for &item in &blueprint.equipment {
-            attachments.push(self.spawn_inner(world, item, stack)?);
-        }
-        stack.pop();
-
-        let mut builder = EntityBuilder::new();
-        for component in &blueprint.components {
-            component.add_to(&mut builder);
-        }
-        if let Some(on_hit) = &blueprint.on_hit {
-            builder.add(on_hit.clone());
-        }
-        if !attachments.is_empty() {
-            builder.add(Attachments(attachments));
-        }
-        Ok(world.spawn(builder.build()))
     }
+    Ok(())
+}
+
+/// Checked after flattening, since a cycle can run through inherited
+/// equipment lists.
+fn check_equipment_cycles(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mark {
+        New,
+        Open,
+        Done,
+    }
+
+    fn visit(
+        resolved: &[ResolvedBlueprint],
+        id: usize,
+        marks: &mut [Mark],
+        path: &mut Vec<usize>,
+    ) -> Result<(), BlueprintError> {
+        match marks[id] {
+            Mark::Done => return Ok(()),
+            Mark::Open => {
+                let start = path.iter().position(|&p| p == id).unwrap_or_default();
+                let cycle = path[start..]
+                    .iter()
+                    .chain([&id])
+                    .map(|&i| resolved[i].name.clone())
+                    .collect();
+                return Err(BlueprintError::EquipmentCycle(cycle));
+            }
+            Mark::New => {}
+        }
+        marks[id] = Mark::Open;
+        path.push(id);
+        for item in &resolved[id].equipment {
+            visit(resolved, item.0 as usize, marks, path)?;
+        }
+        path.pop();
+        marks[id] = Mark::Done;
+        Ok(())
+    }
+
+    let mut marks = vec![Mark::New; resolved.len()];
+    for id in 0..resolved.len() {
+        visit(resolved, id, &mut marks, &mut Vec::new())?;
+    }
+    Ok(())
 }
 
 /// Checks equipment and on-hit names as written, before flattening, so the
@@ -610,6 +685,55 @@ mod tests {
         );
     }
 
+    fn timed() -> ComponentDef {
+        ComponentDef::Duration(Duration(100))
+    }
+
+    #[test]
+    fn an_on_hit_effect_without_a_duration_is_reported() {
+        assert_eq!(
+            load_error(vec![
+                ("Knife", bp(None, vec![on_hit("Rock")])),
+                ("Rock", bp(None, vec![])),
+            ]),
+            r#"blueprint "Knife" applies effect "Rock" on hit, which has no Duration"#
+        );
+    }
+
+    #[test]
+    fn an_on_hit_effect_may_inherit_its_duration() {
+        let raw = BTreeMap::from([
+            ("Knife".to_string(), bp(None, vec![on_hit("Cut")])),
+            ("Timed".to_string(), bp(None, vec![timed()])),
+            ("Cut".to_string(), bp(Some("Timed"), vec![])),
+        ]);
+        assert!(Blueprints::resolve(raw).is_ok());
+    }
+
+    #[test]
+    fn equipment_cycles_are_reported() {
+        assert_eq!(
+            load_error(vec![
+                ("A", with_equipment(bp(None, vec![]), Some(&["B"]))),
+                ("B", with_equipment(bp(None, vec![]), Some(&["A"]))),
+            ]),
+            "equipment cycle: A -> B -> A"
+        );
+    }
+
+    /// `Holster` only gets `Belt` by inheriting it.
+    #[test]
+    fn equipment_cycles_through_inherited_lists_are_reported() {
+        assert_eq!(
+            load_error(vec![
+                ("Base", with_equipment(bp(None, vec![]), Some(&["Belt"]))),
+                ("Belt", with_equipment(bp(None, vec![]), Some(&["Holster"]))),
+                ("Holster", bp(Some("Base"), vec![])),
+            ]),
+            "equipment cycle: Belt -> Holster -> Belt"
+        );
+    }
+
     #[test]
     fn on_hit_parses_and_is_spawned_with_resolved_ids() {
         let def: Blueprint = ron_options()
@@ -619,7 +743,7 @@ mod tests {
 
         let blueprints = Blueprints::resolve(BTreeMap::from([
             ("Knife".to_string(), def),
-            ("Cut".to_string(), bp(None, vec![])),
+            ("Cut".to_string(), bp(None, vec![timed()])),
         ]))
         .unwrap();
         let mut world = World::new();

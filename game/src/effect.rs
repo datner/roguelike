@@ -49,7 +49,8 @@ fn scale(ticks: u64, bp: u32) -> u64 {
 }
 
 /// `ApplyEffect` applier: spawns `blueprint`, starts it now, and attaches it
-/// to `target`.
+/// to `target`. A target that is gone (e.g. killed by the hit that applied
+/// the effect) is a silent no-op.
 pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: BlueprintId) {
     if !state.world.contains(target) {
         return;
@@ -61,12 +62,13 @@ pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: Blu
             return;
         }
     };
+    // On-hit effects are checked for a `Duration` at load.
+    debug_assert!(
+        state.world.satisfies::<&Duration>(effect),
+        "effect blueprint {blueprint:?} has no Duration"
+    );
     let Ok(Duration(duration)) = state.world.remove_one::<Duration>(effect) else {
         let _ = state.world.despawn(effect);
-        let name = state.blueprints.by_id(blueprint).map_or("?", |b| &b.name);
-        state
-            .log
-            .push(format!("Error: effect blueprint {name:?} has no Duration."));
         return;
     };
     let timed = Timed {
@@ -274,17 +276,16 @@ mod tests {
     }
 
     #[test]
-    fn applying_an_effect_without_a_duration_is_an_error() {
+    fn applying_an_effect_to_a_despawned_target_does_nothing() {
         let mut state = quiet_state();
-        let target = state.player;
-        let entities = state.world.len();
-        let blueprint = state.blueprints.id("Rubble").unwrap();
+        let target = state.world.spawn((Name("dummy".into()),));
+        state.world.despawn(target).unwrap();
+        let (entities, log) = (state.world.len(), state.log.clone());
+        let blueprint = state.blueprints.id("Bleeding").unwrap();
         run(&mut state, Command::ApplyEffect { target, blueprint });
         assert_eq!(state.world.len(), entities);
-        assert_eq!(
-            last_log(&state),
-            "Error: effect blueprint \"Rubble\" has no Duration."
-        );
+        assert_eq!(state.log, log);
+        assert!(state.timers.is_empty());
     }
 
     #[test]
