@@ -1,6 +1,8 @@
 #[allow(dead_code)]
 mod input;
 mod tui;
+#[allow(dead_code)]
+mod widgets;
 
 fn main() -> std::io::Result<()> {
     let _terminal = tui::init()?;
