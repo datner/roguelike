@@ -85,4 +85,14 @@ ratatui's `TestBackend` for `term` widgets).
 1. `scripts/check.sh` passes.
 2. README's Structure/Controls updated if user-visible behaviour changed.
 3. New architectural decision? Add an ADR in `docs/decisions/`.
-4. Report: what changed, what you deliberately left out, suggested follow-ups.
+4. Report, following the rules below.
+
+## Reporting
+
+The user reads the code and asks when something is unclear. Keep reports short and factual.
+
+- Structure: **Changed** (one line per file or area), **Left out** (only if something was deliberately skipped), **Follow-ups** (only if there are any), and **Check** (`scripts/check.sh` result). Leave out empty sections.
+- One line per item. No prose paragraphs, no story of how you got there, no restating the task.
+- Mention a problem you hit only if it's still unresolved or it affects a later decision.
+- Don't explain Rust, the architecture, or the reasoning behind a choice unless it departs from an ADR or from what was asked.
+- No closing summary and no offers of more help.
