@@ -30,12 +30,14 @@
         rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-        # Cargo sources plus data/, which the blueprint tests read at runtime.
+        # Cargo sources plus data/ (read by blueprint tests at runtime) and
+        # clippy.toml files (the determinism lints in game/ rely on them).
         src = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
             (craneLib.fileset.commonCargoSources ./.)
             ./data
+            (lib.fileset.fileFilter (file: file.name == "clippy.toml") ./.)
           ];
         };
 
@@ -73,7 +75,10 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [ rustToolchain ];
+          packages = [
+            rustToolchain
+            pkgs.jq # .claude/hooks/block-bash-file-reads.sh
+          ];
         };
       }
     );

@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 
 [workspace.dependencies]
-hecs = "0.11.1"
+hecs = { version = "0.11.1", features = ["row-serialize"] }
 serde = { version = "1.0.229", features = ["derive"] }
 ron = "0.12.2"
 rand = "0.10.3"

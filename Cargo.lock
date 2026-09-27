@@ -504,6 +504,7 @@ checksum = "d5d61999272074fd54f3eda7afbfa3f781b0d62ddb89be28fdf56bce30e23576"
 dependencies = [
  "foldhash",
  "hashbrown 0.17.1",
+ "serde",
  "spin",
 ]
 

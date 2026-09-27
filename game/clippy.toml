@@ -1,0 +1,14 @@
+# Determinism guard for the simulation crate (ADR 0003).
+# Same seed + same inputs must produce the same world.
+# A genuine exception needs #[expect(clippy::..., reason = "...")] at the use site.
+disallowed-methods = [
+  { path = "rand::rng", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },
+  { path = "rand::random", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },
+  { path = "rand::thread_rng", reason = "non-deterministic; take &mut Pcg64 (a GameState.rngs stream, ADR 0005) instead", allow-invalid = true },
+  { path = "std::time::Instant::now", reason = "simulation must not read the clock; pass time in as input" },
+  { path = "std::time::SystemTime::now", reason = "simulation must not read the clock; pass time in as input" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "iteration order varies per process; use BTreeMap or Vec" },
+  { path = "std::collections::HashSet", reason = "iteration order varies per process; use BTreeSet or Vec" },
+]
