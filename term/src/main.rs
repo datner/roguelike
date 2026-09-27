@@ -1,3 +1,5 @@
+#[allow(dead_code)]
+mod input;
 mod tui;
 
 fn main() -> std::io::Result<()> {
