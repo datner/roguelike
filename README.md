@@ -29,7 +29,11 @@ This is a Cargo workspace with two crates:
     by `Speed`, a timer queue, and timed effects (e.g. bleeding) whose
     durations are stored relative to their start. `take_turn` applies
     the player's action and runs the world until the player is ready
-    again. Hostile creatures (goblins) chase and attack the player.
+    again. Hostile creatures (goblins) chase and attack the player once
+    they can see them.
+  - Field of view (ADR 0007): symmetric shadowcasting with a circular
+    radius, recomputed each player turn. The view shows what the player
+    sees; terrain seen before stays on screen dimmed, without creatures.
 - `term/` — the binary frontend: crossterm (reached only through
   `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
   raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
