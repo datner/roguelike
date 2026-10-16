@@ -2,36 +2,31 @@
 
 Pure library. No terminal/graphics crates, no I/O besides loading data files, no clock, no global RNG.
 
-## Module map
+## Module rules
 
-- `cell.rs` — `Cell { glyph, fg, bg }`, `Rgb`: the only rendering output.
-- `input.rs` — `InputEvent`, `Dir`, `PlayerAction`: the only input. Frontends translate raw keys into these and pass a `PlayerAction` to `take_turn`, which resolves the player entity and commands. Anything taking or returning a hecs type stays `pub(crate)`.
-- `map.rs` — `Tile` (`Tile::is_open` is the one walk/see-through check: floor and exit), `Grid<T>` (i32 coords, `get` returns `Option`), spawn placement. `map::tests::room` is the hand-built 40×20 room tests use instead of the generator.
-- `zone.rs` — zone size, `zone_seed` (SplitMix64 mixing of world seed and zone coords), the cellular-automata cave generator (`CaveParams` from `data/cave.ron`), `start_position`, `place_exit` (farthest floor from the start; no RNG). ADR 0009.
-- `camera.rs` — `Camera`: which world tiles a viewport shows, and the only screen↔world coordinate conversion. ADR 0009.
-- `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`). `Attachments` = in use (parts fire); `Inventory` = carried, inert; `Body` = anatomy, `Equippable` = which part kind an item fits (ADR 0010).
-- `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names). `equipment` entries must fit the owner's `Body` (checked at load; `ResolvedBlueprint::equipped_on`).
-- `command.rs` — `Command` enum and `apply_commands` (the only place the world is mutated during play). `GameState::run(command)` queues one command and applies it; use it unless several commands must share one drain. A command whose actor or target is `Dead` is skipped there, in one check; a new variant lists its entities in `Command::participants`.
-- `event.rs` — typed, synchronous event dispatch to part handlers (`EventRegistry::on` / `fire`). Handlers get a `Ctx` with `&World`, the map, the RNG and an output `Vec<Command>` — they never mutate the world.
-- `combat.rs` — damage events (`BeforeTakeDamage`, `Damaged`, `AfterHit` on the attacker for damaging melee hits), `strike` (wielded `Weapon` or natural `Melee`, plus the wielder's `Stats` modifier; ADR 0011), the armor (melee hits only; effect damage passes) and `OnHit` handlers, and `preview_damage` (dry run on a cloned RNG).
-- `prio.rs` — every handler priority, in one file, so ordering is reviewable. New handlers get a named constant here, never an inline number. Priorities are unique per event type (`on` panics on a duplicate), so dispatch order never depends on registration order.
-- `rng.rs` — `Rngs` (one `Pcg64` stream per subsystem) and the `stream` id constants.
-- `grammar.rs` — `Subject`: subject–verb agreement for log messages.
-- `state.rs` — `GameState`, `MessageLog`, `render_view(state, width, height)` (a viewport-sized grid through the camera; visible tiles in full, remembered terrain and items dimmed, the rest blank). `GameState::spawn(Spawn)` is the only way to create entities (clippy bans `World::spawn` in `game`); it assigns `SpawnSeq` to the entity and its equipment (and `Energy` to anything with `Speed`). Tests build ad-hoc entities with `testkit` (below).
-- `time.rs` — `Tick`, the `Timers` queue, and the energy scheduler (`step`, `advance`, `take_turn`). ADR 0006.
-- `cost.rs` — every action's energy cost, and `cost::of`, which charges them in `apply_commands`.
-- `effect.rs` — timed effects: `ApplyEffect`, `ModifyDuration` (`DurationChange`), expiry, bleeding ticks.
-- `fov.rs` — symmetric shadowcasting (`compute`, `RADIUS`) and `update`, which refreshes `GameState.visible`/`seen`/`remembered_items` once per player turn. ADR 0007.
-- `save.rs` — `to_ron` / `from_ron`: `GameState` to and from a versioned RON string (no file IO). Entities by value with references as save indices; a new component needs a `ComponentKind` and a `SavedComponent` variant, and a format change bumps `SAVE_VERSION`. ADR 0008.
-- `view.rs` — read-only views for frontends (`inventory_view`, `equipment_view`, `character_sheet`, `ItemView`) and `ItemRef`, the item handle frontends pass back in `PlayerAction` (an item's `SpawnSeq`, so no hecs type crosses the seam).
-- `equipment.rs` — body-part fitting (`free_part`), `equipped`, and the `Equip`/`Unequip` handlers with their refusal checks (`plan_equip`, `check_unequip`). Equipped = in `Attachments` with `EquippedOn(part)`. ADR 0010.
-- `holding.rs` — every change to who holds what goes through here (save and event dispatch read the components directly): `attach`/`detach` (`Attachments`), `stow`/`unstow` (`Inventory`), `put_on`/`take_off` (equipped = attached + `EquippedOn`), and the `attached`/`carried` lists.
-- `spawn.rs` — `Spawn`, what `GameState::spawn` creates: a blueprint (`Spawn::blueprint("Goblin")`, `Spawn::id(id)`), extra components (`.with(c)`, `.at(x, y)`) added before registration, and a holder (`.attached_to(owner)`). Describe placement here rather than inserting it after spawning. Test-only parts (`Source::Blank`, `Held::Equipped`/`Carried`, overrides) are `#[cfg(test)]`.
-- `testkit.rs` (tests only) — test methods on `Spawn`: `thing("knife").item().at(3, 1).make(&mut state)` (`.make` unwraps `GameState::spawn`), component shortcuts, `.carried_by`/`.equipped_on`, and `.seq`/`.energy` overrides. Add a method when a component is used by more than one test; `.with(c)` covers the rest.
-- `explore.rs` — `explore_step`: auto-explore as one player move per call (unfound `Item`s the player remembers, then frontier, then the exit; BFS over seen open tiles), halting with a log message when a hostile is visible or nothing is left. `ExploreItems` (on `GameState`, saved) picks what a step that finds items does: walk on, stop, or pick up; `cycle_explore_items` switches it. Items become `Found` via `Command::FindItems`, queued when the player moves.
-- `ai.rs` — `decide`: a non-player actor's next `Command` (hostiles that see the player attack or step greedily toward them; others wait). All perception goes through `can_see_player` (ADR 0007).
+What each module is for is in the index (`docs/MAP.md`); its API is
+`scripts/map.sh --sigs <path>`. This list keeps only the rules the code
+can't show at a glance.
+
+- `input.rs`/`view.rs` — the seam: `term` passes a `PlayerAction` and reads plain views. Anything taking or returning a hecs type stays `pub(crate)`; items cross as `ItemRef` (their `SpawnSeq`).
+- `map.rs` — `Tile::is_open` is the one walk/see-through check. Out-of-bounds `Grid::get` is `None`: treat it as wall. Tests use `map::tests::room` (hand-built 40×20), never the generator.
+- `zone.rs` — `place_exit` uses no RNG; changing the generator's draw order or `data/cave.ron` changes every seeded world (ADR 0009).
+- `entity.rs` — plain data only. `Attachments` = in use (parts fire); `Inventory` = carried, inert; equipped = attached + `EquippedOn` (ADR 0010).
+- `holding.rs` — every change to `Attachments`, `Inventory` or `EquippedOn` goes through here. Save and event dispatch read them directly.
+- `blueprint.rs` — inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Names are validated at load and resolved to runtime-only `BlueprintId`s: never serialize one, persist names. `equipment` must fit the owner's `Body` (checked at load).
+- `spawn.rs`/`state.rs` — `GameState::spawn(Spawn)` is the only way to create entities (clippy bans `World::spawn`); it assigns `SpawnSeq` (and `Energy` to anything with `Speed`). Describe placement and holder on the `Spawn` rather than inserting them afterwards.
+- `command.rs` — the only place the world is mutated during play. `GameState::run(command)` queues and applies one command; push several and apply once only when they must share a drain. Commands involving a `Dead` entity are skipped in one check; a new variant lists its entities in `Command::participants`.
+- `event.rs` — handlers get `&World`, the map, an RNG and an output `Vec<Command>`; they never mutate the world.
+- `prio.rs` — every handler priority, as a named constant (never inline). Unique per event type (`on` panics on a duplicate).
+- `combat.rs` — armor reduces melee hits only; effect damage passes. Damage previews run on a cloned combat stream.
+- `fov.rs` — refreshed once per player turn, never per actor; AI sight reuses it (ADR 0007).
+- `save.rs` — a new component needs a `ComponentKind` and a `SavedComponent` variant (remap any `Entity`/`BlueprintId` both ways); any format change bumps `SAVE_VERSION` (ADR 0008).
+- `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.
+- `ai.rs` — all perception goes through `can_see_player` (ADR 0007).
+- `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.
+
 
 ## Patterns
 
