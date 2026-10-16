@@ -63,6 +63,12 @@ pub struct Melee {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Attachments(pub Vec<Entity>);
 
+/// Items carried but not in use. Kept apart from `Attachments` so their
+/// parts stay inert: a knife in the pack never makes anyone bleed. Despawned
+/// with the carrier.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub(crate) struct Inventory(pub Vec<Entity>);
+
 /// Energy gained per tick; `cost::NORMAL_SPEED` is normal. See `time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]

@@ -8,7 +8,9 @@ use crate::blueprint::BlueprintId;
 use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
-use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Found, Health, Item, Position};
+use crate::entity::{
+    Attachments, BlocksMovement, Dead, Energy, Found, Health, Inventory, Item, Position, SpawnSeq,
+};
 use crate::event::{Ctx, settle};
 use crate::fov;
 use crate::grammar::{Subject, capitalize};
@@ -32,12 +34,20 @@ pub(crate) enum DamageCause {
     Effect { effect: Entity },
 }
 
-/// Actions (`TryMove`, `Wait`) cost their actor energy; see `cost::of`.
+/// Actions (`TryMove`, `Wait`, `PickUp`, `Drop`) cost their actor energy;
+/// see `cost::of`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Command {
     TryMove(Entity, Dir),
     /// Do nothing for a standard action.
     Wait(Entity),
+    /// Take every floor item on the actor's tile into their `Inventory`.
+    PickUp(Entity),
+    /// Put `item` from the actor's `Inventory` down on their tile.
+    Drop {
+        actor: Entity,
+        item: Entity,
+    },
     Attack {
         attacker: Entity,
         target: Entity,
@@ -86,9 +96,11 @@ impl Command {
     /// `apply_commands` skips the command.
     fn participants(&self) -> [Option<Entity>; 2] {
         match *self {
-            Command::TryMove(actor, _) | Command::Wait(actor) | Command::FindItems(actor) => {
-                [Some(actor), None]
-            }
+            Command::TryMove(actor, _)
+            | Command::Wait(actor)
+            | Command::PickUp(actor)
+            | Command::FindItems(actor) => [Some(actor), None],
+            Command::Drop { actor, item } => [Some(actor), Some(item)],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -131,6 +143,8 @@ pub(crate) fn apply_commands(state: &mut GameState) {
         match command {
             Command::TryMove(entity, dir) => try_move(state, entity, dir),
             Command::Wait(_) => {}
+            Command::PickUp(actor) => pick_up(state, actor),
+            Command::Drop { actor, item } => drop_item(state, actor, item),
             Command::Attack { attacker, target } => attack(state, attacker, target),
             Command::DealDamage {
                 target,
@@ -177,17 +191,25 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 }
 
 /// Screens the player's input before it becomes an action. A move into a
-/// wall (any wall, seen or not, for now) is refused with a
-/// message: nothing is queued, no energy is spent and no time passes.
-/// Returns whether the input was refused.
+/// wall (any wall, seen or not, for now) or a pick-up with nothing to take
+/// is refused with a message: nothing is queued, no energy is spent and no
+/// time passes. Returns whether the input was refused.
 pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
-    let &Command::TryMove(entity, dir) = command else {
-        return false;
-    };
-    if !destination(state, entity, dir).is_some_and(|to| is_wall(state, to)) {
-        return false;
+    match *command {
+        Command::TryMove(entity, dir) => {
+            if !destination(state, entity, dir).is_some_and(|to| is_wall(state, to)) {
+                return false;
+            }
+            log_wall_bump(state, entity);
+        }
+        Command::PickUp(entity) => {
+            if !floor_items_under(state, entity).is_empty() {
+                return false;
+            }
+            state.log.push("There is nothing here to pick up.");
+        }
+        _ => return false,
     }
-    log_wall_bump(state, entity);
     true
 }
 
@@ -257,15 +279,9 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
 
 /// Announces each floor item under `finder` the first time they stand on it.
 fn find_items(state: &mut GameState, finder: Entity) {
-    let Some(at) = state.world.get::<&Position>(finder).ok().map(|pos| *pos) else {
-        return;
-    };
-    let new: Vec<Entity> = state
-        .world
-        .query::<(Entity, &Position, &Item, Option<&Found>)>()
-        .iter()
-        .filter(|&(_, pos, _, found)| *pos == at && found.is_none())
-        .map(|(item, ..)| item)
+    let new: Vec<Entity> = floor_items_under(state, finder)
+        .into_iter()
+        .filter(|&item| !state.world.satisfies::<&Found>(item))
         .collect();
     for item in new {
         let what = Subject::of(&state.world, item);
@@ -273,6 +289,58 @@ fn find_items(state: &mut GameState, finder: Entity) {
         state.log.push(message);
         let _ = state.world.insert_one(item, Found);
     }
+}
+
+/// The floor items on `entity`'s tile, in spawn order.
+fn floor_items_under(state: &GameState, entity: Entity) -> Vec<Entity> {
+    let Some(at) = state.world.get::<&Position>(entity).ok().map(|pos| *pos) else {
+        return Vec::new();
+    };
+    let mut items: Vec<(Option<SpawnSeq>, Entity)> = state
+        .world
+        .query::<(Entity, &Position, &Item, Option<&SpawnSeq>)>()
+        .iter()
+        .filter(|&(item, pos, _, _)| *pos == at && item != entity)
+        .map(|(item, _, _, seq)| (seq.copied(), item))
+        .collect();
+    items.sort();
+    items.into_iter().map(|(_, item)| item).collect()
+}
+
+fn pick_up(state: &mut GameState, actor: Entity) {
+    for item in floor_items_under(state, actor) {
+        let what = Subject::of(&state.world, item);
+        let message =
+            Subject::of(&state.world, actor).sentence("pick", &format!("up {}", what.noun()));
+        state.log.push(message);
+        let _ = state.world.remove_one::<Position>(item);
+        if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
+            inventory.0.push(item);
+            continue;
+        }
+        let _ = state.world.insert_one(actor, Inventory(vec![item]));
+    }
+}
+
+fn drop_item(state: &mut GameState, actor: Entity, item: Entity) {
+    let carried = state
+        .world
+        .get::<&Inventory>(actor)
+        .is_ok_and(|inventory| inventory.0.contains(&item));
+    let at = state.world.get::<&Position>(actor).ok().map(|pos| *pos);
+    let (true, Some(at)) = (carried, at) else {
+        let message = Subject::of(&state.world, actor).sentence("do", "not carry that");
+        state.log.push(message);
+        return;
+    };
+    if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
+        inventory.0.retain(|&other| other != item);
+    }
+    // It lands where its dropper stands, so it counts as found.
+    let _ = state.world.insert(item, (at, Found));
+    let what = Subject::of(&state.world, item);
+    let message = Subject::of(&state.world, actor).sentence("drop", what.noun());
+    state.log.push(message);
 }
 
 fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
@@ -364,6 +432,9 @@ fn die(state: &mut GameState, entity: Entity) {
         if let Ok(attachments) = state.world.get::<&Attachments>(next) {
             doomed.extend(attachments.0.iter().copied());
         }
+        if let Ok(inventory) = state.world.get::<&Inventory>(next) {
+            doomed.extend(inventory.0.iter().copied());
+        }
         let _ = state.world.despawn(next);
     }
 }
@@ -417,6 +488,88 @@ pub(crate) mod tests {
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
         spawn_with(state, (Name("knife".into()), Item, Position { x, y }))
+    }
+
+    fn inventory(state: &GameState, entity: Entity) -> Vec<Entity> {
+        state
+            .world
+            .get::<&Inventory>(entity)
+            .map(|inventory| inventory.0.clone())
+            .unwrap_or_default()
+    }
+
+    fn pick_up_here(state: &mut GameState) {
+        state.commands.push_back(Command::PickUp(state.player));
+        apply_commands(state);
+    }
+
+    #[test]
+    fn picking_up_takes_every_item_here_in_spawn_order() {
+        let mut state = bare_state();
+        let first = knife_at(&mut state, 1, 1);
+        let second = knife_at(&mut state, 1, 1);
+        let elsewhere = knife_at(&mut state, 2, 1);
+
+        pick_up_here(&mut state);
+
+        assert_eq!(inventory(&state, state.player), [first, second]);
+        assert!(state.world.get::<&Position>(first).is_err());
+        assert!(state.world.get::<&Position>(elsewhere).is_ok());
+        let log: Vec<&String> = state.log.recent(2).collect();
+        assert_eq!(log, ["You pick up the knife.", "You pick up the knife."]);
+    }
+
+    #[test]
+    fn dropping_puts_the_item_at_your_feet_as_found() {
+        let mut state = bare_state();
+        let knife = knife_at(&mut state, 1, 1);
+        pick_up_here(&mut state);
+        state.commands.push_back(Command::Drop {
+            actor: state.player,
+            item: knife,
+        });
+        apply_commands(&mut state);
+
+        assert!(inventory(&state, state.player).is_empty());
+        assert_eq!(
+            *state.world.get::<&Position>(knife).unwrap(),
+            Position { x: 1, y: 1 }
+        );
+        assert!(state.world.satisfies::<&Found>(knife));
+        assert_eq!(last_log(&state), "You drop the knife.");
+    }
+
+    #[test]
+    fn dropping_what_you_do_not_carry_changes_nothing() {
+        let mut state = bare_state();
+        let knife = knife_at(&mut state, 5, 5);
+        state.commands.push_back(Command::Drop {
+            actor: state.player,
+            item: knife,
+        });
+        apply_commands(&mut state);
+        assert_eq!(
+            *state.world.get::<&Position>(knife).unwrap(),
+            Position { x: 5, y: 5 }
+        );
+        assert_eq!(last_log(&state), "You do not carry that.");
+    }
+
+    #[test]
+    fn a_dying_creature_takes_its_inventory_with_it() {
+        let mut state = bare_state();
+        let knife = spawn_with(&mut state, (Name("knife".into()), Item));
+        let goblin = spawn_with(
+            &mut state,
+            (
+                Name("goblin".into()),
+                Position { x: 3, y: 3 },
+                Inventory(vec![knife]),
+            ),
+        );
+        state.commands.push_back(Command::Die { entity: goblin });
+        apply_commands(&mut state);
+        assert!(!state.world.contains(knife));
     }
 
     #[test]

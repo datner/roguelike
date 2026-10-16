@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Dead, Duration, EffectTarget, Energy,
-    Found, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, Player, Position, SpawnSeq,
-    Speed, Timed,
+    Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit, OnHitEntry, Player, Position,
+    SpawnSeq, Speed, Timed,
 };
 use crate::fov;
 use crate::map::Grid;
@@ -25,7 +25,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 2;
+pub const SAVE_VERSION: u32 = 3;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -168,6 +168,7 @@ enum ComponentKind {
     Armor,
     Melee,
     Attachments,
+    Inventory,
     Speed,
     Energy,
     SpawnSeq,
@@ -182,7 +183,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 21] = [
+    const ALL: [ComponentKind; 22] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -193,6 +194,7 @@ impl ComponentKind {
         Self::Armor,
         Self::Melee,
         Self::Attachments,
+        Self::Inventory,
         Self::Speed,
         Self::Energy,
         Self::SpawnSeq,
@@ -221,6 +223,7 @@ enum SavedComponent {
     Armor(Armor),
     Melee(Melee),
     Attachments(Vec<u32>),
+    Inventory(Vec<u32>),
     Speed(Speed),
     Energy(Energy),
     SpawnSeq(SpawnSeq),
@@ -414,10 +417,13 @@ fn visit(world: &World, entity: Entity, order: &mut Vec<Entity>, visited: &mut B
         return;
     }
     order.push(entity);
-    let carried = world
+    let mut carried = world
         .get::<&Attachments>(entity)
         .map(|attachments| attachments.0.clone())
         .unwrap_or_default();
+    if let Ok(inventory) = world.get::<&Inventory>(entity) {
+        carried.extend(inventory.0.iter().copied());
+    }
     for item in carried {
         visit(world, item, order, visited);
     }
@@ -452,6 +458,12 @@ fn save_component(
         ComponentKind::Melee => copy(entity).map(S::Melee),
         ComponentKind::Attachments => match copy::<Attachments>(entity) {
             Some(Attachments(items)) => Some(S::Attachments(
+                items.into_iter().map(refer).collect::<Result<_, _>>()?,
+            )),
+            None => None,
+        },
+        ComponentKind::Inventory => match copy::<Inventory>(entity) {
+            Some(Inventory(items)) => Some(S::Inventory(
                 items.into_iter().map(refer).collect::<Result<_, _>>()?,
             )),
             None => None,
@@ -508,6 +520,9 @@ fn load_component(
         S::Armor(c) => builder.add(c),
         S::Melee(c) => builder.add(c),
         S::Attachments(items) => builder.add(Attachments(
+            items.into_iter().map(entity).collect::<Result<_, _>>()?,
+        )),
+        S::Inventory(items) => builder.add(Inventory(
             items.into_iter().map(entity).collect::<Result<_, _>>()?,
         )),
         S::Speed(c) => builder.add(c),
@@ -696,6 +711,29 @@ mod tests {
             }
         }
         state.now
+    }
+
+    #[test]
+    fn a_carried_inventory_survives_a_round_trip() {
+        let mut state = bare_state();
+        for name in ["first", "second"] {
+            spawn_with(
+                &mut state,
+                (Name(name.into()), Item, Position { x: 1, y: 1 }),
+            );
+        }
+        take_turn(&mut state, PlayerAction::PickUp);
+        let names = |state: &GameState| -> Vec<String> {
+            crate::view::inventory_view(state)
+                .into_iter()
+                .map(|item| item.name)
+                .collect()
+        };
+        assert_eq!(names(&state), ["first", "second"]);
+
+        let loaded = reload(&state, test_blueprints());
+        assert_eq!(names(&loaded), ["first", "second"]);
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }
 
     #[test]

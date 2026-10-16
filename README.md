@@ -14,7 +14,7 @@ This is a Cargo workspace with two crates:
   - `Cell { glyph, fg, bg }` (with its own `Rgb` type) — the only rendering
     output: `render_view` returns a grid of these exactly the size of the
     frontend's viewport, seen through a camera that follows the player.
-  - `InputEvent` (`Move(Dir)`, `Wait`, `Explore`, `Quit`) — the only input a frontend
+  - `InputEvent` (`Move(Dir)`, `Wait`, `PickUp`, `Explore`, `Quit`) — the only input a frontend
     can send in; raw keys never reach `game`.
   - A `GameState` holding an `hecs::World`, the tile map, a message log,
     and seeded RNG streams, mutated only by draining an internal `Command`
@@ -80,6 +80,8 @@ In game:
 - Arrow keys or `hjkl`: move orthogonally.
 - `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE).
 - `.`: wait a turn.
+- `g` or `,`: pick up everything on your tile (one turn; nothing there costs
+  nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
 - `q` or `Esc`: save and return to the title menu.

@@ -149,6 +149,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::Quit => return Ok(()),
                     InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
                     InputEvent::Wait => take_turn(state, PlayerAction::Wait),
+                    InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state)?,
                 }
             }

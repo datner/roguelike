@@ -1,5 +1,7 @@
 //! The rendering seam's input (ADR 0001): frontends translate raw keys into `InputEvent`.
 
+use crate::view::ItemRef;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir {
     N,
@@ -45,6 +47,7 @@ impl Dir {
 pub enum InputEvent {
     Move(Dir),
     Wait,
+    PickUp,
     /// Repeat `explore::explore_step` until it stops.
     Explore,
     Quit,
@@ -57,6 +60,8 @@ pub enum InputEvent {
 pub enum PlayerAction {
     Move(Dir),
     Wait,
+    PickUp,
+    Drop(ItemRef),
 }
 
 #[cfg(test)]

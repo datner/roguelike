@@ -18,6 +18,7 @@ use crate::cost::TICKS_PER_TURN;
 use crate::entity::{Dead, Energy, SpawnSeq, Speed};
 use crate::input::PlayerAction;
 use crate::state::GameState;
+use crate::view::carried;
 
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -114,6 +115,17 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
     let command = match action {
         PlayerAction::Move(dir) => Command::TryMove(player, dir),
         PlayerAction::Wait => Command::Wait(player),
+        PlayerAction::PickUp => Command::PickUp(player),
+        PlayerAction::Drop(item) => {
+            let Some(item) = item.find(&state.world, &carried(state)) else {
+                state.log.push("You do not carry that.");
+                return;
+            };
+            Command::Drop {
+                actor: player,
+                item,
+            }
+        }
     };
     if state.game_over || reject_input(state, &command) {
         return;
@@ -505,6 +517,7 @@ mod tests {
             let action = match input {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
+                InputEvent::PickUp => PlayerAction::PickUp,
                 InputEvent::Explore => {
                     while crate::explore::explore_step(&mut state) {}
                     continue;

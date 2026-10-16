@@ -40,6 +40,7 @@ pub mod rng;
 pub mod save;
 pub mod state;
 pub mod time;
+pub mod view;
 
 pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
@@ -54,3 +55,4 @@ pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
 pub use state::{GameState, MessageLog, render_view};
 pub use time::{Tick, Timers, advance, take_turn};
+pub use view::{ItemRef, ItemView, inventory_view};
