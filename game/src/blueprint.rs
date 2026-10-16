@@ -22,8 +22,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{
     Ammo, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, CooldownCasting, Duration,
-    Equippable, Health, Hostile, Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
-    Projectile, Quiver, Speed, Spell, SpellDamage, Stats, Throwable, Weapon,
+    Equippable, Health, Hostile, Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry,
+    PartKind, Player, Projectile, Quiver, School, Speed, Spell, SpellDamage, Stats, Throwable,
+    Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -60,6 +61,8 @@ pub enum ComponentDef {
     Spell(Spell),
     SpellDamage(SpellDamage),
     CooldownCasting(CooldownCasting),
+    ManaCasting(ManaCasting),
+    Mana(Mana),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -96,6 +99,8 @@ impl ComponentDef {
             ComponentDef::Spell(c) => builder.add(c),
             ComponentDef::SpellDamage(c) => builder.add(c),
             ComponentDef::CooldownCasting(c) => builder.add(c),
+            ComponentDef::ManaCasting(c) => builder.add(c),
+            ComponentDef::Mana(c) => builder.add(c),
             ComponentDef::Quiver(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
@@ -198,6 +203,11 @@ pub enum BlueprintError {
         owner: String,
         item: String,
     },
+    /// Two of `owner`'s disciplines claim `school`; one must (ADR 0014).
+    SchoolClaimedTwice {
+        owner: String,
+        school: School,
+    },
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -229,6 +239,9 @@ impl std::fmt::Display for BlueprintError {
                     f,
                     "blueprint {owner:?} has no free body part for equipment {item:?}"
                 )
+            }
+            Self::SchoolClaimedTwice { owner, school } => {
+                write!(f, "blueprint {owner:?} has two disciplines for {school:?}")
             }
         }
     }
@@ -275,6 +288,7 @@ impl Blueprints {
             resolve_one(name, &raw, &mut flat, &mut Vec::new())?;
         }
         check_effect_durations(&raw, &flat)?;
+        check_disciplines(&flat)?;
 
         let ids: BTreeMap<String, BlueprintId> =
             flat.keys().cloned().zip((0..).map(BlueprintId)).collect();
@@ -406,6 +420,30 @@ fn check_effect_durations(
                     effect: entry.effect.clone(),
                 });
             }
+        }
+    }
+    Ok(())
+}
+
+/// A school is claimed by one discipline per caster, so which one pays for
+/// a cast never depends on handler order. Checked after flattening: a child
+/// can add a discipline to an inherited one.
+fn check_disciplines(flat: &BTreeMap<String, Blueprint>) -> Result<(), BlueprintError> {
+    for (owner, blueprint) in flat {
+        let mut schools = Vec::new();
+        for component in &blueprint.components {
+            let school = match component {
+                ComponentDef::CooldownCasting(rule) => rule.school,
+                ComponentDef::ManaCasting(rule) => rule.school,
+                _ => continue,
+            };
+            if schools.contains(&school) {
+                return Err(BlueprintError::SchoolClaimedTwice {
+                    owner: owner.clone(),
+                    school,
+                });
+            }
+            schools.push(school);
         }
     }
     Ok(())
@@ -649,6 +687,41 @@ mod tests {
         );
         assert_eq!(fits(vec![two_hands()], vec![], &["Sword"]), refused);
         assert_eq!(fits(vec![], vec![held()], &["Sword"]), refused);
+    }
+
+    #[test]
+    fn two_disciplines_for_one_school_fail_the_load() {
+        use crate::entity::Stat;
+        let cooldown = |school| {
+            ComponentDef::CooldownCasting(CooldownCasting {
+                school,
+                ticks_per_power: 100,
+                stat: Stat::Willpower,
+            })
+        };
+        let mana = |school| {
+            ComponentDef::ManaCasting(ManaCasting {
+                school,
+                mana_per_power: 1,
+                stat: Stat::Intelligence,
+            })
+        };
+        let load = |child: ComponentDef| {
+            Blueprints::resolve(BTreeMap::from([
+                (
+                    "Base".to_string(),
+                    bp(None, vec![cooldown(School::Pyromancy)]),
+                ),
+                ("Mage".to_string(), bp(Some("Base"), vec![child])),
+            ]))
+        };
+        assert!(load(mana(School::Arcane)).is_ok());
+        match load(mana(School::Pyromancy)) {
+            Err(BlueprintError::SchoolClaimedTwice { owner, school }) => {
+                assert_eq!((owner.as_str(), school), ("Mage", School::Pyromancy));
+            }
+            other => panic!("expected SchoolClaimedTwice, got {other:?}"),
+        }
     }
 
     #[test]

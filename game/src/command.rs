@@ -126,6 +126,11 @@ pub(crate) enum Command {
         spell: Entity,
         duration: u64,
     },
+    /// Take `amount` from `caster`'s mana pool.
+    SpendMana {
+        caster: Entity,
+        amount: u32,
+    },
     Attack {
         attacker: Entity,
         target: Entity,
@@ -187,6 +192,7 @@ impl Command {
             | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
             Command::Recharge { spell, .. } => [Some(spell), None],
+            Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -245,6 +251,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
             Command::Cast { actor, spell, at } => spell::cast(state, actor, spell, at),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
+            Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),
             Command::Nock { actor, arrow } => ammo::nock(state, actor, arrow),
             Command::Quiver { actor, arrow } => ammo::quiver(state, actor, arrow),

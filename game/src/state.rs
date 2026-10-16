@@ -124,10 +124,12 @@ impl GameState {
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
     }
 
-    /// The player knows firebolt from the start, under the cooldown
-    /// discipline `Player.ron` gives them (ADR 0014).
+    /// The player knows firebolt and magic missile from the start, under the
+    /// cooldown and mana disciplines `Player.ron` gives them (ADR 0014).
     fn teach_spells(&mut self) -> Result<(), BlueprintError> {
-        self.spawn(Spawn::blueprint("Firebolt").attached_to(self.player))?;
+        for spell in ["Firebolt", "MagicMissile"] {
+            self.spawn(Spawn::blueprint(spell).attached_to(self.player))?;
+        }
         Ok(())
     }
 
@@ -486,11 +488,22 @@ pub(crate) mod tests {
                             range: 7,
                             power: 2,
                         }),
-                        ComponentDef::SpellDamage(SpellDamage {
-                            min: 3,
-                            max: 6,
-                            stat: None,
+                        ComponentDef::SpellDamage(SpellDamage { min: 3, max: 6 }),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "MagicMissile".to_string(),
+                blueprint(
+                    vec![
+                        name("magic missile"),
+                        ComponentDef::Spell(Spell {
+                            school: School::Arcane,
+                            range: 8,
+                            power: 1,
                         }),
+                        ComponentDef::SpellDamage(SpellDamage { min: 2, max: 4 }),
                     ],
                     &[],
                 ),

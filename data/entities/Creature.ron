@@ -5,6 +5,6 @@
         BlocksMovement,
         Health(current: 10, max: 10),
         Speed(100),
-        Stats(strength: 16, agility: 16),
+        Stats(strength: 16, agility: 16, intelligence: 16, willpower: 16),
     ],
 )

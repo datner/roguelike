@@ -24,6 +24,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('e') => Some(InputEvent::Equipment),
         KeyCode::Char('t') => Some(InputEvent::Throw),
         KeyCode::Char('f') => Some(InputEvent::Fire),
+        KeyCode::Char('c') => Some(InputEvent::Cast),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
         _ => None,
     }
@@ -179,6 +180,14 @@ mod tests {
         assert_eq!(
             map_key_event(key(KeyCode::Char('n'))),
             Some(InputEvent::Move(Dir::SE))
+        );
+    }
+
+    #[test]
+    fn c_casts() {
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('c'))),
+            Some(InputEvent::Cast)
         );
     }
 

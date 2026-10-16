@@ -61,6 +61,9 @@ pub enum InputEvent {
     Throw,
     /// Frontend only: fire the wielded launcher. The shot is `PlayerAction::Fire`.
     Fire,
+    /// Frontend only: pick a known spell and aim it. The cast is
+    /// `PlayerAction::Cast`.
+    Cast,
     Quit,
 }
 

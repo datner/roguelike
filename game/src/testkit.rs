@@ -83,8 +83,8 @@ impl Spawn {
         })
     }
 
-    pub(crate) fn spell_damage(self, min: i32, max: i32, stat: Option<Stat>) -> Self {
-        self.with(SpellDamage { min, max, stat })
+    pub(crate) fn spell_damage(self, min: i32, max: i32) -> Self {
+        self.with(SpellDamage { min, max })
     }
 
     pub(crate) fn launcher(self, range: i32, ammo: AmmoKind, stat: Stat) -> Self {
@@ -128,7 +128,11 @@ impl Spawn {
     }
 
     pub(crate) fn stats(self, strength: i32, agility: i32) -> Self {
-        self.with(Stats { strength, agility })
+        self.with(Stats {
+            strength,
+            agility,
+            ..Stats::AVERAGE
+        })
     }
 
     pub(crate) fn hostile(self) -> Self {

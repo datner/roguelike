@@ -1,16 +1,17 @@
-//! Throwing from the keyboard: a small list to pick what to throw, then a
-//! cursor to pick where. Pure state plus drawing, like `overlay`; `app::run`
-//! feeds it keys and takes the turn it returns. What a shot would do comes
-//! from `game::aim`, never worked out here.
+//! Throwing and casting from the keyboard: a small list to pick what to
+//! throw or cast, then a cursor to pick where. Pure state plus drawing, like
+//! `overlay`; `app::run` feeds it keys and takes the turn it returns. What a
+//! shot would do comes from `game::aim`, never worked out here.
 
 use game::camera;
 use game::{
-    Dir, GameState, ItemRef, ItemView, PlayerAction, Rgb, Shot, aim, aim_range, aim_targets,
+    Dir, GameState, ItemRef, ItemView, PlayerAction, Rgb, Shot, SpellView, aim, aim_range,
+    aim_targets,
 };
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
 
 use crate::input::{AimInput, OverlayInput};
@@ -18,7 +19,7 @@ use crate::overlay::item_spans;
 use crate::widgets::color;
 use crate::widgets::map_widget::{tile_to_screen, viewport_tiles};
 
-/// The list of throwables, shown when there is more than one.
+/// A list to pick one throwable or spell from.
 #[derive(Debug, Default)]
 pub struct Chooser {
     selected: usize,
@@ -31,7 +32,8 @@ pub enum ChooserAction {
 }
 
 impl Chooser {
-    pub fn handle(&mut self, input: OverlayInput, items: &[ItemView]) -> Option<ChooserAction> {
+    /// `items` are the listed entries' refs, in the order drawn.
+    pub fn handle(&mut self, input: OverlayInput, items: &[ItemRef]) -> Option<ChooserAction> {
         self.selected = self.selected.min(items.len().saturating_sub(1));
         match input {
             OverlayInput::Up => self.selected = self.selected.saturating_sub(1),
@@ -39,9 +41,7 @@ impl Chooser {
                 self.selected = (self.selected + 1).min(items.len().saturating_sub(1));
             }
             OverlayInput::Select => {
-                return items
-                    .get(self.selected)
-                    .map(|item| ChooserAction::Pick(item.item));
+                return items.get(self.selected).copied().map(ChooserAction::Pick);
             }
             OverlayInput::Close => return Some(ChooserAction::Cancel),
             _ => {}
@@ -50,9 +50,52 @@ impl Chooser {
     }
 }
 
-pub fn draw_chooser(frame: &mut Frame, area: Rect, chooser: &Chooser, items: &[ItemView]) {
-    let height = (items.len() as u16 + 2).min(area.height);
-    let width = 32.min(area.width);
+/// One line per throwable.
+pub fn throwable_lines(items: &[ItemView]) -> Vec<Line<'static>> {
+    items
+        .iter()
+        .map(|item| Line::from(item_spans(item)))
+        .collect()
+}
+
+/// One line per spell: its reach and damage, then, dimmed, its price and
+/// why it can't be cast now, if it can't.
+pub fn spell_lines(spells: &[SpellView]) -> Vec<Line<'static>> {
+    let dim = Style::new().add_modifier(Modifier::DIM);
+    spells
+        .iter()
+        .map(|spell| {
+            let (low, high) = spell.damage;
+            let mut spans = vec![Span::raw(format!(
+                "{}  r{}  {low}-{high}",
+                spell.name, spell.range
+            ))];
+            let costs: Vec<String> = spell
+                .preview
+                .costs
+                .iter()
+                .map(|cost| format!("{} {}", cost.amount, cost.resource))
+                .collect();
+            if !costs.is_empty() {
+                spans.push(Span::styled(format!("  {}", costs.join(", ")), dim));
+            }
+            if let Some(why) = &spell.preview.blocked {
+                spans.push(Span::styled(format!("  {why}"), dim));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+pub fn draw_chooser(
+    frame: &mut Frame,
+    area: Rect,
+    chooser: &Chooser,
+    title: &str,
+    lines: Vec<Line<'static>>,
+) {
+    let height = (lines.len() as u16 + 2).min(area.height);
+    let width = 48.min(area.width);
     let panel = Rect::new(
         area.x + (area.width - width) / 2,
         area.y + (area.height - height) / 2,
@@ -60,9 +103,8 @@ pub fn draw_chooser(frame: &mut Frame, area: Rect, chooser: &Chooser, items: &[I
         height,
     );
     let lines: Vec<Line> = (0..)
-        .zip(items)
-        .map(|(index, item)| {
-            let line = Line::from(item_spans(item));
+        .zip(lines)
+        .map(|(index, line)| {
             if index == chooser.selected {
                 line.patch_style(Style::new().add_modifier(Modifier::REVERSED))
             } else {
@@ -72,7 +114,7 @@ pub fn draw_chooser(frame: &mut Frame, area: Rect, chooser: &Chooser, items: &[I
         .collect();
     frame.render_widget(Clear, panel);
     frame.render_widget(
-        Paragraph::new(lines).block(Block::bordered().title("Throw what?")),
+        Paragraph::new(lines).block(Block::bordered().title(title.to_string())),
         panel,
     );
 }
@@ -131,6 +173,7 @@ fn action(shot: Shot, at: (i32, i32)) -> PlayerAction {
     match shot {
         Shot::Throw(item) => PlayerAction::Throw { item, at },
         Shot::Fire => PlayerAction::Fire { at },
+        Shot::Cast(spell) => PlayerAction::Cast { spell, at },
     }
 }
 
@@ -142,15 +185,21 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
     let verb = match aiming.shot {
         Shot::Throw(_) => "throw",
         Shot::Fire => "fire",
+        Shot::Cast(_) => "cast",
     };
     let keys = format!("Enter: {verb}  Tab: next target  Esc: cancel");
     if let Some(problem) = shot.problem {
         return format!("{problem}  {keys}");
     }
     let kinds: Vec<_> = shot.types.iter().map(game::DamageType::noun).collect();
+    let kinds = if kinds.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", kinds.join("+"))
+    };
     let (low, high) = shot.damage;
     match shot.target {
-        Some(target) => format!("{target}: {low}-{high} {}  {keys}", kinds.join("+")),
+        Some(target) => format!("{target}: {low}-{high}{kinds}  {keys}"),
         None => format!("Lands here  {keys}"),
     }
 }
@@ -224,26 +273,18 @@ mod tests {
         GameState::new(3, blueprints, &cave).unwrap()
     }
 
-    fn item(name: &str, seq: u64) -> ItemView {
-        ItemView {
-            item: ItemRef(game::SpawnSeq(seq)),
-            name: name.to_string(),
-            glyph: '/',
-            fg: Rgb(1, 2, 3),
-            fits: None,
-            ammo: false,
-            note: None,
-        }
+    fn item(seq: u64) -> ItemRef {
+        ItemRef(game::SpawnSeq(seq))
     }
 
     #[test]
     fn the_chooser_picks_the_selected_item_and_cancels() {
-        let items = [item("knife", 1), item("javelin", 2)];
+        let items = [item(1), item(2)];
         let mut chooser = Chooser::default();
         assert_eq!(chooser.handle(OverlayInput::Down, &items), None);
         assert_eq!(
             chooser.handle(OverlayInput::Select, &items),
-            Some(ChooserAction::Pick(items[1].item))
+            Some(ChooserAction::Pick(items[1]))
         );
         assert_eq!(
             chooser.handle(OverlayInput::Close, &items),
@@ -253,14 +294,14 @@ mod tests {
 
     #[test]
     fn the_chooser_stays_inside_the_list() {
-        let items = [item("knife", 1)];
+        let items = [item(1)];
         let mut chooser = Chooser::default();
         chooser.handle(OverlayInput::Down, &items);
         chooser.handle(OverlayInput::Up, &items);
         chooser.handle(OverlayInput::Up, &items);
         assert_eq!(
             chooser.handle(OverlayInput::Select, &items),
-            Some(ChooserAction::Pick(items[0].item))
+            Some(ChooserAction::Pick(items[0]))
         );
     }
 

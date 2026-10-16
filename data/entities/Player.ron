@@ -6,7 +6,12 @@
         Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0)),
         Health(current: 20, max: 20),
         Melee(min: 2, max: 4),
-        CooldownCasting(school: Pyromancy, ticks_per_power: 300),
+        // Sharper of mind and will than the average creature: spells scale
+        // with the stat of the discipline casting them (ADR 0014).
+        Stats(strength: 16, agility: 16, intelligence: 18, willpower: 18),
+        CooldownCasting(school: Pyromancy, ticks_per_power: 300, stat: Willpower),
+        ManaCasting(school: Arcane, mana_per_power: 3, stat: Intelligence),
+        Mana(value: 10, max: 10, regen_ticks: 200),
     ],
     equipment: ["ShortBow", "Quiver"],
 )

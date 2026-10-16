@@ -3,10 +3,12 @@
 //! functions the commands use, so the preview cannot disagree with the shot.
 
 use crate::ammo;
+use crate::combat::Strike;
 use crate::entity::{DamageTypes, Dead, Hostile, Name, Position};
-use crate::ranged::{Ready, check, distance, flight, ready_fire, ready_throw};
+use crate::ranged::{check_range, distance, flight, ready_fire, ready_throw};
+use crate::spell::ready_cast;
 use crate::state::GameState;
-use crate::view::{ItemRef, held, total_armor};
+use crate::view::{ItemRef, held, known_spells, total_armor};
 
 /// What the player is aiming with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +17,15 @@ pub enum Shot {
     Throw(ItemRef),
     /// The wielded launcher, with the arrow it would use.
     Fire,
+    /// A known spell.
+    Cast(ItemRef),
+}
+
+/// How far a shot reaches and what it hits for: the part of a missile's or
+/// a spell's readiness that aiming needs.
+struct Ready {
+    range: i32,
+    strike: Strike,
 }
 
 /// What a shot at one tile would do.
@@ -36,15 +47,27 @@ pub struct Aim {
 
 /// The shot as it would go now, or why it can't; for the player.
 fn ready(state: &GameState, shot: Shot) -> Result<Ready, String> {
-    match shot {
+    let (range, strike) = match shot {
         Shot::Throw(item) => {
             let item = item
                 .find(&state.world, &held(state))
                 .ok_or_else(|| "You do not have that.".to_string())?;
-            ready_throw(state, state.player, item)
+            let ready = ready_throw(state, state.player, item)?;
+            (ready.range, ready.strike)
         }
-        Shot::Fire => ready_fire(state, state.player),
-    }
+        Shot::Fire => {
+            let ready = ready_fire(state, state.player)?;
+            (ready.range, ready.strike)
+        }
+        Shot::Cast(spell) => {
+            let spell = spell
+                .find(&state.world, &known_spells(state))
+                .ok_or_else(|| "You don't know that spell.".to_string())?;
+            let ready = ready_cast(state, state.player, spell)?;
+            (ready.range, ready.strike)
+        }
+    };
+    Ok(Ready { range, strike })
 }
 
 fn origin(state: &GameState) -> Option<(i32, i32)> {
@@ -129,7 +152,7 @@ pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
         target,
         damage: ((low - resisted).max(0), (high - resisted).max(0)),
         types: ready.strike.types,
-        problem: check(state, state.player, &ready, at).err(),
+        problem: check_range(state, state.player, ready.range, at).err(),
     })
 }
 #[cfg(test)]
@@ -267,5 +290,64 @@ mod tests {
         let aim = aim(&state, Shot::Fire, (4, 1)).unwrap();
         assert_eq!((aim.range, aim.damage), (8, (2, 2)));
         assert_eq!(aim.target.as_deref(), Some("goblin"));
+    }
+
+    fn firebolt(state: &mut GameState) -> (Entity, Shot) {
+        use crate::entity::{CooldownCasting, School, Stat};
+        let _ = state.world.insert_one(
+            state.player,
+            CooldownCasting {
+                school: School::Pyromancy,
+                ticks_per_power: 300,
+                stat: Stat::Willpower,
+            },
+        );
+        let spell = thing("firebolt")
+            .spell(School::Pyromancy, 6, 2)
+            .spell_damage(4, 4)
+            .attached_to(state.player)
+            .make(state);
+        (spell, Shot::Cast(ItemRef::of(&state.world, spell).unwrap()))
+    }
+
+    #[test]
+    fn a_cast_aim_agrees_with_the_cast_and_armor_does_not_count() {
+        let mut state = bare_state();
+        let (spell, shot) = firebolt(&mut state);
+        let spell = ItemRef::of(&state.world, spell).unwrap();
+        let near = thing("goblin")
+            .at(3, 1)
+            .health(10)
+            .armor(3)
+            .hostile()
+            .make(&mut state);
+        goblin(&mut state, 5, 1);
+        see_everything(&mut state);
+
+        assert_eq!(aim_targets(&state, shot), [(3, 1), (5, 1)]);
+        let preview = aim(&state, shot, (5, 1)).unwrap();
+        assert_eq!(preview.target.as_deref(), Some("goblin"));
+        assert_eq!(
+            (preview.landing, preview.damage, preview.problem),
+            ((3, 1), (4, 4), None)
+        );
+
+        crate::time::take_turn(
+            &mut state,
+            crate::input::PlayerAction::Cast { spell, at: (5, 1) },
+        );
+        let health = state.world.get::<&crate::entity::Health>(near).unwrap();
+        assert_eq!(health.current, 10 - 4);
+    }
+
+    #[test]
+    fn a_recharging_spell_cannot_be_aimed() {
+        let mut state = bare_state();
+        let (spell, shot) = firebolt(&mut state);
+        see_everything(&mut state);
+        assert!(aim_range(&state, shot).is_some());
+        crate::spell::recharge(&mut state, spell, 600);
+        assert_eq!(aim_range(&state, shot), None);
+        assert!(aim_targets(&state, shot).is_empty());
     }
 }

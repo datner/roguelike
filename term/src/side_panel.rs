@@ -91,6 +91,12 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
         dim("HP "),
         Span::raw(format!("{}/{}", sheet.health, sheet.max_health)),
     ])];
+    if let Some((mana, max)) = sheet.mana {
+        lines.push(Line::from(vec![
+            dim("MP "),
+            Span::raw(format!("{mana}/{max}")),
+        ]));
+    }
     if let Some(stats) = sheet.stats {
         let stat = |label: &str, which| {
             vec![
@@ -102,10 +108,14 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
                 )),
             ]
         };
-        let mut row = stat("STR", Stat::Strength);
-        row.push(Span::raw("  "));
-        row.extend(stat("AGI", Stat::Agility));
-        lines.push(Line::from(row));
+        let pair = |left: (&str, Stat), right: (&str, Stat)| {
+            let mut row = stat(left.0, left.1);
+            row.push(Span::raw("  "));
+            row.extend(stat(right.0, right.1));
+            Line::from(row)
+        };
+        lines.push(pair(("STR", Stat::Strength), ("AGI", Stat::Agility)));
+        lines.push(pair(("INT", Stat::Intelligence), ("WIL", Stat::Willpower)));
     }
     let damage = sheet
         .damage
@@ -218,7 +228,9 @@ mod tests {
         let screen = screen(&state, WIDTH);
         assert!(screen.contains("hero"), "{screen}");
         assert!(screen.contains("HP 20/20"));
+        assert!(screen.contains("MP 10/10"), "{screen}");
         assert!(screen.contains("STR 16 (+0)"));
+        assert!(screen.contains("INT 18 (+1)  WIL 18 (+1)"), "{screen}");
         assert!(screen.contains("Armor S0 B0 P0"));
         assert!(screen.contains("Dmg 2-4 blunt"), "{screen}");
         assert!(screen.contains("Wielding bare hands"));

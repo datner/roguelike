@@ -168,6 +168,8 @@ pub struct Melee {
 pub enum Stat {
     Strength,
     Agility,
+    Intelligence,
+    Willpower,
 }
 
 /// A creature's attribute scores. 16 is average: see `Stats::modifier`.
@@ -175,13 +177,25 @@ pub enum Stat {
 pub struct Stats {
     pub strength: i32,
     pub agility: i32,
+    pub intelligence: i32,
+    pub willpower: i32,
 }
 
 impl Stats {
+    /// Every score 16: no modifier anywhere.
+    pub const AVERAGE: Self = Self {
+        strength: 16,
+        agility: 16,
+        intelligence: 16,
+        willpower: 16,
+    };
+
     pub fn score(self, stat: Stat) -> i32 {
         match stat {
             Stat::Strength => self.strength,
             Stat::Agility => self.agility,
+            Stat::Intelligence => self.intelligence,
+            Stat::Willpower => self.willpower,
         }
     }
 
@@ -209,6 +223,7 @@ pub struct Throwable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum School {
     Pyromancy,
+    Arcane,
 }
 
 /// Spell part: a spell a creature knows, held in its `Attachments`. `power`
@@ -221,12 +236,12 @@ pub struct Spell {
 }
 
 /// Spell part: hits the first creature on the line for `min..=max` plus the
-/// caster's `stat` modifier, if it scales with one. Untyped, so armor does not resist it.
+/// caster's modifier for the stat of the discipline casting it. Untyped, so
+/// armor does not resist it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellDamage {
     pub min: i32,
     pub max: i32,
-    pub stat: Option<Stat>,
 }
 
 /// A spell that was just cast and cannot be cast again until `Timed` ends.
@@ -235,11 +250,63 @@ pub struct SpellDamage {
 pub struct Recharging(pub Timed);
 
 /// Caster part, the cooldown discipline: spells of `school` cost no resource,
-/// they recharge for `power * ticks_per_power` after each cast.
+/// they recharge for `power * ticks_per_power` after each cast, and scale
+/// with `stat`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CooldownCasting {
     pub school: School,
     pub ticks_per_power: u64,
+    pub stat: Stat,
+}
+
+/// Caster part, the mana discipline: spells of `school` cost
+/// `power * mana_per_power` from the caster's `Mana`, and scale with `stat`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManaCasting {
+    pub school: School,
+    pub mana_per_power: u32,
+    pub stat: Stat,
+}
+
+/// Caster part: a mana pool. `value` was the pool at `as_of`; it regains a
+/// point every `regen_ticks` ticks since, up to `max`, computed on read so no
+/// timer runs per tick (ADR 0006). `regen_ticks` 0 never regains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Mana {
+    pub value: u32,
+    pub max: u32,
+    #[serde(default)]
+    pub as_of: Tick,
+    pub regen_ticks: u64,
+}
+
+impl Mana {
+    fn regained(self, now: Tick) -> u64 {
+        now.since(self.as_of)
+            .checked_div(self.regen_ticks)
+            .unwrap_or(0)
+    }
+
+    pub fn current(self, now: Tick) -> u32 {
+        let regained = u32::try_from(self.regained(now)).unwrap_or(u32::MAX);
+        self.value.saturating_add(regained).min(self.max)
+    }
+
+    /// The pool after spending `amount` at `now`. Progress toward the next
+    /// point carries over, unless the pool was full and so not regaining.
+    pub fn spend(self, amount: u32, now: Tick) -> Self {
+        let current = self.current(now);
+        let as_of = if current == self.max {
+            now
+        } else {
+            self.as_of.after(self.regained(now) * self.regen_ticks)
+        };
+        Self {
+            value: current.saturating_sub(amount),
+            as_of,
+            ..self
+        }
+    }
 }
 
 /// What a launcher shoots and a quiver holds.

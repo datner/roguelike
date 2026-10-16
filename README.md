@@ -30,7 +30,7 @@ This is a Cargo workspace with two crates:
     ones sit on a body part of the creature's anatomy (`Body`, Qud-style,
     from data) and their parts take effect. `inventory_view` and
     `equipment_view` give frontends plain data, with `ItemRef` handles.
-  - Stats and weapons (ADR 0011): creatures have Strength and Agility; a
+  - Stats and weapons (ADR 0011): creatures have Strength, Agility, Intelligence and Willpower; a
     hit rolls the wielded weapon's dice (or natural melee) plus the
     modifier of the stat that weapon uses. `character_sheet` sums it up.
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
@@ -41,6 +41,12 @@ This is a Cargo workspace with two crates:
     wall. `aim` previews a shot for frontends. A quiver holds arrows and
     supplies the bow; a nocked arrow overrides it. You start with a short
     bow and 12 arrows.
+  - Spells (ADR 0014): a spell is a part attached to its caster; how it is
+    paid for, and which stat it scales with, is the caster's discipline for
+    its school. You start knowing firebolt (pyromancy: a recharge, scales
+    with Willpower) and magic missile (arcane: mana that regenerates over
+    time, scales with Intelligence). `spells` lists them for frontends with
+    what each cast would cost.
   - Auto-explore: `explore_step` walks the player, one turn at a time,
     to the nearest unfound item they know of, then to unexplored ground,
     then to the exit, stopping as soon as a hostile is in view.
@@ -124,6 +130,9 @@ In game:
   in your pack is nocked first (one turn), then `f` again aims. Arrows that
   miss land intact; ones that hit may break. Arrows you pick up fill your
   quiver first.
+- `c`: cast a spell you know (one turn). A list shows each spell's range,
+  damage and price (firebolt: a 6-turn recharge; magic missile: 3 mana,
+  shown as MP in the side panel), and why it can't be cast now, if so; `Enter` picks one and aiming works as for `t`. Spells ignore armor.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

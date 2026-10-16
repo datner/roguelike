@@ -11,3 +11,8 @@ pub const ON_HIT: i32 = 100;
 
 /// `CheckCast` and `PayCost`: the cooldown discipline.
 pub const COOLDOWN: i32 = 100;
+
+/// `CheckCast` and `PayCost`: the mana discipline. After cooldowns, though
+/// the order only decides whose refusal is reported: a school is claimed by
+/// one discipline (checked at blueprint load).
+pub const MANA: i32 = 200;

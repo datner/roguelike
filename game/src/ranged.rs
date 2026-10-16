@@ -691,6 +691,7 @@ mod tests {
                 crate::entity::Stats {
                     strength: 16,
                     agility: 20,
+                    ..crate::entity::Stats::AVERAGE
                 },
             )
             .unwrap();

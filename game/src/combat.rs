@@ -264,6 +264,7 @@ mod tests {
             Stats {
                 strength,
                 agility: 16,
+                ..Stats::AVERAGE
             }
             .modifier(Stat::Strength)
         };

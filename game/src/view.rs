@@ -6,11 +6,12 @@ use hecs::{Entity, World};
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
+    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Mana, Name, PartKind,
     Quiver, SpawnSeq, Speed, Spell, Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
+use crate::spell;
 use crate::state::GameState;
 
 /// A frontend's handle on an item: its `SpawnSeq`, which is unique, stable
@@ -130,6 +131,8 @@ pub fn equipment_view(state: &GameState) -> Vec<PartView> {
 pub struct CharacterSheet {
     pub health: i32,
     pub max_health: i32,
+    /// Current and maximum mana, read from the timestamps; `None` without a pool.
+    pub mana: Option<(u32, u32)>,
     pub stats: Option<Stats>,
     /// Resistance per kind of damage: the player's own plus everything equipped.
     pub armor: Armor,
@@ -153,6 +156,10 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
     CharacterSheet {
         health,
         max_health,
+        mana: world
+            .get::<&Mana>(player)
+            .ok()
+            .map(|mana| (mana.current(state.now), mana.max)),
         stats: world.get::<&Stats>(player).ok().map(|stats| *stats),
         armor,
         damage: strike.map(Strike::range),
@@ -184,6 +191,57 @@ pub(crate) fn known_spells(state: &GameState) -> Vec<Entity> {
     holding::attached(&state.world, state.player)
         .into_iter()
         .filter(|&spell| state.world.satisfies::<&Spell>(spell))
+        .collect()
+}
+
+/// One price a cast takes, as the discipline that takes it describes it:
+/// "2 mana", "6 turn recharge".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CostLine {
+    pub resource: String,
+    pub amount: u64,
+}
+
+/// What casting a spell now would take, or why it can't be cast. Built from
+/// the disciplines' `CheckCast` answers, so a new way to pay needs no
+/// frontend change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CastPreview {
+    pub costs: Vec<CostLine>,
+    pub blocked: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellView {
+    pub spell: ItemRef,
+    /// Bare noun, e.g. "firebolt".
+    pub name: String,
+    pub range: i32,
+    /// Damage range before the target's defences.
+    pub damage: (i32, i32),
+    pub preview: CastPreview,
+}
+
+/// The spells the player knows, in the order they were learned.
+pub fn spells(state: &GameState) -> Vec<SpellView> {
+    let world = &state.world;
+    known_spells(state)
+        .into_iter()
+        .filter_map(|spell| {
+            let (ready, blocked) = spell::inspect_cast(state, state.player, spell).ok()?;
+            Some(SpellView {
+                spell: ItemRef::of(world, spell)?,
+                name: world
+                    .get::<&Name>(spell)
+                    .map_or_else(|_| "spell".to_string(), |name| name.0.clone()),
+                range: ready.range,
+                damage: ready.strike.range(),
+                preview: CastPreview {
+                    costs: ready.costs,
+                    blocked,
+                },
+            })
+        })
         .collect()
 }
 
@@ -275,6 +333,7 @@ mod tests {
                 Stats {
                     strength: 18,
                     agility: 20,
+                    ..Stats::AVERAGE
                 },
             )
             .unwrap();

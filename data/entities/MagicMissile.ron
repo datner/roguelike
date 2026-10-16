@@ -1,0 +1,11 @@
+// A known spell of the Arcane school (ADR 0014): a cheap, long bolt. The
+// player pays for it in mana (`ManaCasting` in `Player.ron`), not by
+// waiting for a recharge like firebolt.
+(
+    components: [
+        Name("magic missile"),
+        Appearance(glyph: '*', fg: (160, 120, 255), bg: (0, 0, 0)),
+        Spell(school: Arcane, range: 8, power: 1),
+        SpellDamage(min: 2, max: 4),
+    ],
+)

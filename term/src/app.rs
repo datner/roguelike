@@ -7,7 +7,7 @@ use std::time::Duration;
 use game::{
     Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
     cycle_explore_items, equipment_view, explore_step, fire_step, inventory_view, random_seed,
-    render_view, take_trails, take_turn, throwables,
+    render_view, spells, take_trails, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -167,10 +167,35 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                         let Some(input) = map_overlay_key(key) else {
                             continue;
                         };
-                        match chooser.handle(input, &throwables(state)) {
+                        let items: Vec<_> = throwables(state).iter().map(|i| i.item).collect();
+                        match chooser.handle(input, &items) {
                             Some(ChooserAction::Cancel) => modal = None,
                             Some(ChooserAction::Pick(item)) => {
                                 modal = Aiming::new(state, Shot::Throw(item)).map(Modal::Aim);
+                            }
+                            None => {}
+                        }
+                    }
+                    Some(Modal::ChooseSpell(chooser)) => {
+                        let Some(input) = map_overlay_key(key) else {
+                            continue;
+                        };
+                        let listed = spells(state);
+                        let refs: Vec<_> = listed.iter().map(|spell| spell.spell).collect();
+                        match chooser.handle(input, &refs) {
+                            Some(ChooserAction::Cancel) => modal = None,
+                            Some(ChooserAction::Pick(spell)) => {
+                                // A spell that can't be cast keeps the list up,
+                                // with the reason in the log.
+                                if let Some(aiming) = Aiming::new(state, Shot::Cast(spell)) {
+                                    modal = Some(Modal::Aim(aiming));
+                                } else if let Some(why) = listed
+                                    .into_iter()
+                                    .find(|listed| listed.spell == spell)
+                                    .and_then(|listed| listed.preview.blocked)
+                                {
+                                    state.log.push(why);
+                                }
                             }
                             None => {}
                         }
@@ -221,6 +246,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                     }
                     InputEvent::Throw => modal = start_throw(state),
                     InputEvent::Fire => modal = start_fire(state),
+                    InputEvent::Cast => modal = start_cast(state),
                 }
             }
             Event::Resize(_, _) => {}
@@ -235,6 +261,8 @@ enum Modal {
     Overlay(Overlay),
     /// Picking what to throw.
     Choose(Chooser),
+    /// Picking a spell to cast.
+    ChooseSpell(Chooser),
     Aim(Aiming),
     /// A missile mid-flight: drawn for one frame by `animate`, takes no keys.
     Flight(Flying),
@@ -268,6 +296,16 @@ fn start_throw(state: &mut GameState) -> Option<Modal> {
         1 => Aiming::new(state, Shot::Throw(options.remove(0).item)).map(Modal::Aim),
         _ => Some(Modal::Choose(Chooser::default())),
     }
+}
+
+/// The spell list, even for one spell, since it shows what each costs or why
+/// it can't be cast; a log line if the player knows none.
+fn start_cast(state: &mut GameState) -> Option<Modal> {
+    if spells(state).is_empty() {
+        state.log.push("You know no spells.");
+        return None;
+    }
+    Some(Modal::ChooseSpell(Chooser::default()))
 }
 
 /// Time a missile spends on each tile it crosses.
@@ -375,7 +413,12 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
             overlay::draw(frame, chunks[0], overlay, &contents);
         }
         Some(Modal::Choose(chooser)) => {
-            targeting::draw_chooser(frame, chunks[0], chooser, &throwables(state));
+            let lines = targeting::throwable_lines(&throwables(state));
+            targeting::draw_chooser(frame, chunks[0], chooser, "Throw what?", lines);
+        }
+        Some(Modal::ChooseSpell(chooser)) => {
+            let lines = targeting::spell_lines(&spells(state));
+            targeting::draw_chooser(frame, chunks[0], chooser, "Cast what?", lines);
         }
         Some(Modal::Aim(aiming)) => targeting::draw_aim(frame, chunks[0], state, aiming),
         Some(Modal::Flight(flying)) => targeting::draw_missile(frame, chunks[0], state, *flying),
@@ -465,6 +508,41 @@ mod tests {
             .map(|at| buffer.cell(at).unwrap().symbol())
             .collect();
         assert!(status.contains("Enter: fire"), "{status}");
+    }
+
+    fn drawn(state: &GameState, modal: &Modal) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, state, "hero", Some(modal)))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        buffer.content().iter().map(|cell| cell.symbol()).collect()
+    }
+
+    #[test]
+    fn the_spell_list_shows_each_spell_with_its_disciplines_price() {
+        let mut state = state();
+        let modal = start_cast(&mut state).unwrap();
+        let screen = drawn(&state, &modal);
+        assert!(screen.contains("Cast what?"), "{screen}");
+        // Willpower 18 and Intelligence 18: +1 each.
+        assert!(
+            screen.contains("firebolt  r7  4-7  6 turn recharge"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("magic missile  r8  3-5  3 mana"),
+            "{screen}"
+        );
+    }
+
+    #[test]
+    fn aiming_a_spell_says_cast_in_the_status_bar() {
+        let state = state();
+        let firebolt = spells(&state)[0].spell;
+        let aiming = Aiming::new(&state, Shot::Cast(firebolt)).unwrap();
+        let screen = drawn(&state, &Modal::Aim(aiming));
+        assert!(screen.contains("Enter: cast"), "{screen}");
     }
 
     #[test]

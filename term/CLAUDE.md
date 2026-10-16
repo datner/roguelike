@@ -11,7 +11,7 @@ What each module is for is in the index (`docs/MAP.md`); its API is
 - `saves.rs` — rename never overwrites; a save that failed to load is never overwritten; no save after death. ADR 0008.
 - `tui.rs` — every terminal mode you enable must be undone on restore, including on panic.
 - `input.rs` — the only place keys are bound; update README "Controls" when bindings change.
-- `targeting.rs` — the throw chooser and aiming cursor: pure state like `overlay.rs`; what a shot does is `game::aim`.
+- `targeting.rs` — the throw/spell chooser and aiming cursor: pure state like `overlay.rs`; what a shot does is `game::aim`, what a spell costs is `game::spells` (never name a resource here).
 - `app.rs` — turn-based, no tick timer; auto-explore only polls briefly between its steps so a key can interrupt.
 - `side_panel.rs` — a new panel is a `Panel` variant plus its place in `PANELS`.
 - `widgets/` — `color` is the one `game::Rgb` → ratatui conversion; `map_widget.rs` is the single tile↔screen mapping on the `term` side. Which world tiles are shown is `game`'s camera.

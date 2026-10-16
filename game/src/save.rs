@@ -16,8 +16,9 @@ use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
     Ammo, Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, CooldownCasting, Dead,
     Duration, EffectTarget, Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory,
-    Item, Launcher, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver,
-    Recharging, SpawnSeq, Speed, Spell, SpellDamage, Stats, Throwable, Timed, Weapon,
+    Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position,
+    Projectile, Quiver, Recharging, SpawnSeq, Speed, Spell, SpellDamage, Stats, Throwable, Timed,
+    Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -27,7 +28,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 11;
+pub const SAVE_VERSION: u32 = 12;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -193,6 +194,8 @@ enum ComponentKind {
     SpellDamage,
     Recharging,
     CooldownCasting,
+    ManaCasting,
+    Mana,
     Duration,
     Timed,
     EffectTarget,
@@ -201,7 +204,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 36] = [
+    const ALL: [ComponentKind; 38] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -233,6 +236,8 @@ impl ComponentKind {
         Self::SpellDamage,
         Self::Recharging,
         Self::CooldownCasting,
+        Self::ManaCasting,
+        Self::Mana,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -276,6 +281,8 @@ enum SavedComponent {
     SpellDamage(SpellDamage),
     Recharging(Recharging),
     CooldownCasting(CooldownCasting),
+    ManaCasting(ManaCasting),
+    Mana(Mana),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -542,6 +549,8 @@ fn save_component(
         ComponentKind::SpellDamage => copy(entity).map(S::SpellDamage),
         ComponentKind::Recharging => copy(entity).map(S::Recharging),
         ComponentKind::CooldownCasting => copy(entity).map(S::CooldownCasting),
+        ComponentKind::ManaCasting => copy(entity).map(S::ManaCasting),
+        ComponentKind::Mana => copy(entity).map(S::Mana),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -613,6 +622,8 @@ fn load_component(
         S::SpellDamage(c) => builder.add(c),
         S::Recharging(c) => builder.add(c),
         S::CooldownCasting(c) => builder.add(c),
+        S::ManaCasting(c) => builder.add(c),
+        S::Mana(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
@@ -898,11 +909,12 @@ mod tests {
             CooldownCasting {
                 school: crate::entity::School::Pyromancy,
                 ticks_per_power: 300,
+                stat: crate::entity::Stat::Willpower,
             },
         );
         let spell = thing("firebolt")
             .spell(crate::entity::School::Pyromancy, 6, 2)
-            .spell_damage(3, 3, None)
+            .spell_damage(3, 3)
             .attached_to(player)
             .make(&mut state);
         crate::spell::recharge(&mut state, spell, 600);
@@ -916,6 +928,36 @@ mod tests {
             crate::spell::check_cast(&loaded, loaded.player, known[0], (3, 1)),
             Err("Your firebolt is not ready.".to_string())
         );
+    }
+
+    #[test]
+    fn a_part_spent_mana_pool_and_its_discipline_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let rule = ManaCasting {
+            school: crate::entity::School::Arcane,
+            mana_per_power: 3,
+            stat: crate::entity::Stat::Intelligence,
+        };
+        let pool = Mana {
+            value: 10,
+            max: 10,
+            as_of: Tick::default(),
+            regen_ticks: 200,
+        };
+        let _ = state.world.insert(player, (rule, pool));
+        state.now = state.now.after(1_000);
+        crate::spell::spend_mana(&mut state, player, 4);
+        state.now = state.now.after(250);
+
+        let loaded = reload(&state, test_blueprints());
+        let mana = *loaded.world.get::<&Mana>(loaded.player).unwrap();
+        assert_eq!(
+            *loaded.world.get::<&ManaCasting>(loaded.player).unwrap(),
+            rule
+        );
+        assert_eq!(mana, *state.world.get::<&Mana>(player).unwrap());
+        assert_eq!(mana.current(loaded.now), 7);
     }
 
     #[test]

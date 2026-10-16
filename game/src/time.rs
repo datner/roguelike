@@ -556,7 +556,8 @@ mod tests {
                 InputEvent::Inventory
                 | InputEvent::Equipment
                 | InputEvent::Throw
-                | InputEvent::Fire => continue,
+                | InputEvent::Fire
+                | InputEvent::Cast => continue,
                 InputEvent::CycleExploreItems => {
                     crate::explore::cycle_explore_items(&mut state);
                     continue;
