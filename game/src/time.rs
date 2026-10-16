@@ -269,7 +269,7 @@ mod tests {
     }
 
     fn actor(state: &mut GameState, speed: u32, energy: i64, seq: u64) -> Entity {
-        blank().speed(speed).energy(energy).seq(seq).spawn(state)
+        blank().speed(speed).energy(energy).seq(seq).make(state)
     }
 
     fn steps(state: &mut GameState, n: usize) -> Vec<Step> {
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn a_bump_attack_costs_one_standard_action() {
         let mut state = bare_state();
-        let dummy = blank().at(2, 1).health(100).spawn(&mut state);
+        let dummy = blank().at(2, 1).health(100).make(&mut state);
         state.run(Command::TryMove(state.player, Dir::E));
         assert!(state.world.contains(dummy));
         assert_eq!(
@@ -460,7 +460,7 @@ mod tests {
                 .hostile()
                 .melee(1, 1)
                 .speed(100)
-                .spawn(&mut state);
+                .make(&mut state);
         }
 
         take_turn(&mut state, PlayerAction::Wait);
@@ -498,7 +498,7 @@ mod tests {
             .hostile()
             .melee(1, 1)
             .speed(100)
-            .spawn(&mut state);
+            .make(&mut state);
 
         assert_eq!(step(&mut state), Step::Actor(hostile));
         assert!(logged_an_error(&state));

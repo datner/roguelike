@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn applying_an_effect_to_a_despawned_target_does_nothing() {
         let mut state = quiet_state();
-        let target = thing("dummy").spawn(&mut state);
+        let target = thing("dummy").make(&mut state);
         state.world.despawn(target).unwrap();
         let (entities, log) = (state.world.len(), state.log.clone());
         let blueprint = state.blueprints.id("Bleeding").unwrap();
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn bleeding_dies_with_its_target() {
         let mut state = quiet_state();
-        let dummy = thing("dummy").health(10).spawn(&mut state);
+        let dummy = thing("dummy").health(10).make(&mut state);
         let effect = apply_bleeding_to(&mut state, dummy);
         state.run(Command::Die { entity: dummy });
         assert!(!state.world.contains(effect));
@@ -437,7 +437,7 @@ mod tests {
     /// makes the victim bleed.
     fn bleeding_striker() -> (GameState, Entity) {
         let mut state = quiet_state();
-        let dummy = thing("dummy").health(100).spawn(&mut state);
+        let dummy = thing("dummy").health(100).make(&mut state);
         let certain_bleed = OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp: 10_000,

@@ -141,7 +141,7 @@ mod tests {
             Some(part) => item.fits(part),
             None => item,
         }
-        .spawn(state)
+        .make(state)
     }
 
     fn equip_cmd(state: &mut GameState, item: Entity, part: Option<u32>) {
@@ -214,7 +214,7 @@ mod tests {
         let rock = carry(&mut state, "rock", None);
         let boots = carry(&mut state, "boots", Some(PartKind::Feet));
         let knife = carry(&mut state, "knife", Some(PartKind::Hand));
-        let floor = thing("helm").item().spawn(&mut state);
+        let floor = thing("helm").item().make(&mut state);
         let player = state.player;
         let plan = |state: &GameState, item, part| plan_equip(state, player, item, part);
 

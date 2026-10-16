@@ -158,7 +158,7 @@ mod tests {
             .look('/', Rgb(1, 2, 3))
             .item()
             .at(x, y)
-            .spawn(state)
+            .make(state)
     }
 
     #[test]
@@ -228,13 +228,13 @@ mod tests {
             .at(1, 1)
             .fits(PartKind::Hand)
             .weapon(1, 3, Stat::Agility)
-            .spawn(&mut state);
+            .make(&mut state);
         let mail = thing("mail")
             .item()
             .at(1, 1)
             .fits(PartKind::Body)
             .armor(2)
-            .spawn(&mut state);
+            .make(&mut state);
         take_turn(&mut state, PlayerAction::PickUp);
         for item in [blade, mail] {
             let item = ItemRef::of(&state.world, item).unwrap();

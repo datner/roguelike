@@ -225,7 +225,7 @@ mod tests {
             .look('/', Rgb(200, 200, 200))
             .item()
             .at(at.0, at.1)
-            .spawn(state);
+            .make(state);
         crate::fov::update(state);
         knife
     }
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn a_hostile_in_view_stops_it_before_any_time_passes() {
         let mut state = bare_state();
-        thing("goblin").hostile().at(3, 1).spawn(&mut state);
+        thing("goblin").hostile().at(3, 1).make(&mut state);
         let now = state.now;
 
         assert!(!explore_step(&mut state));

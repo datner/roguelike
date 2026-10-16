@@ -25,7 +25,7 @@ pub(crate) fn blank() -> Spawn {
 
 impl Spawn {
     /// `GameState::spawn`, unwrapped: a test's spawn failing is a test bug.
-    pub(crate) fn spawn(self, state: &mut GameState) -> Entity {
+    pub(crate) fn make(self, state: &mut GameState) -> Entity {
         state.spawn(self).expect("test spawn")
     }
 

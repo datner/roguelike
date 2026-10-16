@@ -754,7 +754,7 @@ mod tests {
     fn a_carried_inventory_survives_a_round_trip() {
         let mut state = bare_state();
         for name in ["first", "second"] {
-            thing(name).item().at(1, 1).spawn(&mut state);
+            thing(name).item().at(1, 1).make(&mut state);
         }
         take_turn(&mut state, PlayerAction::PickUp);
         let names = |state: &GameState| -> Vec<String> {
@@ -775,8 +775,8 @@ mod tests {
     #[test]
     fn found_and_unfound_floor_items_survive_a_round_trip() {
         let mut state = bare_state();
-        thing("found").item().found().at(4, 4).spawn(&mut state);
-        thing("unfound").item().at(5, 4).spawn(&mut state);
+        thing("found").item().found().at(4, 4).make(&mut state);
+        thing("unfound").item().at(5, 4).make(&mut state);
         state.map.set(6, 4, Tile::Exit);
 
         let loaded = reload(&state, test_blueprints());
@@ -870,7 +870,7 @@ mod tests {
     #[test]
     fn an_entity_without_a_spawn_seq_fails_the_save() {
         let mut state = bare_state();
-        let rock = thing("rock").spawn(&mut state);
+        let rock = thing("rock").make(&mut state);
         // Stands in for an entity created outside `GameState::spawn`.
         state.world.remove_one::<SpawnSeq>(rock).unwrap();
         let err = to_ron(&state).err().unwrap();

@@ -193,7 +193,7 @@ mod tests {
 
     /// A fighter with natural 2-4 `Melee` and the given scores.
     fn fighter(state: &mut GameState, strength: i32, agility: i32) -> Entity {
-        blank().melee(2, 4).stats(strength, agility).spawn(state)
+        blank().melee(2, 4).stats(strength, agility).make(state)
     }
 
     fn knife() -> Spawn {
@@ -212,7 +212,7 @@ mod tests {
     fn an_equipped_weapon_replaces_natural_melee_and_uses_its_stat() {
         let mut state = bare_state();
         let nimble = fighter(&mut state, 10, 20);
-        let blade = knife().equipped_on(nimble, 2).spawn(&mut state);
+        let blade = knife().equipped_on(nimble, 2).make(&mut state);
 
         let strike = strike(&state.world, nimble).unwrap();
         assert_eq!((strike.range(), strike.weapon), ((3, 5), Some(blade)));
@@ -227,7 +227,7 @@ mod tests {
     fn a_carried_weapon_is_not_used() {
         let mut state = bare_state();
         let fighter = fighter(&mut state, 16, 20);
-        knife().carried_by(fighter).spawn(&mut state);
+        knife().carried_by(fighter).make(&mut state);
         assert_eq!(strike(&state.world, fighter).unwrap().weapon, None);
     }
 
@@ -245,8 +245,8 @@ mod tests {
     }
 
     fn armored_dummy(state: &mut GameState, av: i32) -> (Entity, Entity) {
-        let dummy = thing("dummy").at(5, 5).health(10).spawn(state);
-        let armor = thing("plate").armor(av).attached_to(dummy).spawn(state);
+        let dummy = thing("dummy").at(5, 5).health(10).make(state);
+        let armor = thing("plate").armor(av).attached_to(dummy).make(state);
         (dummy, armor)
     }
 
@@ -332,7 +332,7 @@ mod tests {
         let (dummy, _) = armored_dummy(&mut state, 0);
         let on_hit = bleed_on_hit(&state, 10_000);
         let player = state.player;
-        blank().with(on_hit).attached_to(player).spawn(&mut state);
+        blank().with(on_hit).attached_to(player).make(&mut state);
         state
             .world
             .insert_one(player, Melee { min: 3, max: 3 })
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn preview_needs_melee_and_health() {
         let mut state = bare_state();
-        let rock = thing("rock").spawn(&mut state);
+        let rock = thing("rock").make(&mut state);
         assert_eq!(preview_damage(&state, state.player, rock), None);
         assert_eq!(preview_damage(&state, rock, state.player), None);
     }

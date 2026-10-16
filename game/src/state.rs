@@ -688,7 +688,7 @@ pub(crate) mod tests {
             .look('/', Rgb(200, 100, 50))
             .item()
             .at(x, y)
-            .spawn(state)
+            .make(state)
     }
 
     #[test]

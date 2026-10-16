@@ -515,7 +515,7 @@ pub(crate) mod tests {
     }
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
-        thing("knife").item().at(x, y).spawn(state)
+        thing("knife").item().at(x, y).make(state)
     }
 
     fn inventory(state: &GameState, entity: Entity) -> Vec<Entity> {
@@ -579,8 +579,8 @@ pub(crate) mod tests {
     #[test]
     fn a_dying_creature_takes_its_inventory_with_it() {
         let mut state = bare_state();
-        let goblin = thing("goblin").at(3, 3).spawn(&mut state);
-        let knife = thing("knife").item().carried_by(goblin).spawn(&mut state);
+        let goblin = thing("goblin").at(3, 3).make(&mut state);
+        let knife = thing("knife").item().carried_by(goblin).make(&mut state);
         state.run(Command::Die { entity: goblin });
         assert!(!state.world.contains(knife));
     }
@@ -606,7 +606,7 @@ pub(crate) mod tests {
     fn only_the_player_finds_items() {
         let mut state = bare_state();
         let knife = knife_at(&mut state, 3, 1);
-        let walker = thing("goblin").at(2, 1).spawn(&mut state);
+        let walker = thing("goblin").at(2, 1).make(&mut state);
         state.run(Command::TryMove(walker, Dir::E));
         assert_eq!(
             *state.world.get::<&Position>(walker).unwrap(),
@@ -658,7 +658,7 @@ pub(crate) mod tests {
     #[test]
     fn damage_to_something_without_health_is_ignored() {
         let mut state = bare_state();
-        let rock = thing("rock").spawn(&mut state);
+        let rock = thing("rock").make(&mut state);
         let log_before = state.log.clone();
         state.run(Command::DealDamage {
             target: rock,
@@ -672,7 +672,7 @@ pub(crate) mod tests {
     #[test]
     fn zero_damage_without_armor_leaves_the_target_unharmed() {
         let mut state = bare_state();
-        let dummy = thing("dummy").health(3).spawn(&mut state);
+        let dummy = thing("dummy").health(3).make(&mut state);
         state.run(Command::DealDamage {
             target: dummy,
             amount: 0,
