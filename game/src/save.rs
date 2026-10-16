@@ -26,7 +26,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 6;
+pub const SAVE_VERSION: u32 = 7;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -122,6 +122,7 @@ struct Save {
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
+    remembered_items: SavedGrid<Option<Appearance>>,
     log: MessageLog,
     timers: SavedTimers,
     entities: Vec<Vec<SavedComponent>>,
@@ -309,6 +310,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
+        remembered_items: saved_grid(&state.remembered_items),
         log: state.log.clone(),
         timers: SavedTimers {
             next_seq: state.timers.next_seq,
@@ -378,6 +380,9 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
     if (seen.width, seen.height) != (map.width, map.height) {
         return Err(LoadError::BadGrid("seen"));
     }
+    let remembered_items = load_grid(save.remembered_items)
+        .filter(|grid| (grid.width, grid.height) == (map.width, map.height))
+        .ok_or(LoadError::BadGrid("remembered_items"))?;
     let visible = Grid::new(map.width, map.height, false);
 
     let mut state = GameState {
@@ -398,6 +403,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         game_over: save.game_over,
         visible,
         seen,
+        remembered_items,
         next_spawn_seq: save.next_spawn_seq,
         explore_items: save.explore_items,
     };

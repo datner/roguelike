@@ -5,7 +5,7 @@
 
 use std::ops::RangeInclusive;
 
-use crate::entity::Position;
+use crate::entity::{Appearance, Item, Position, SpawnSeq};
 use crate::map::{Grid, Map, Tile};
 use crate::state::GameState;
 
@@ -13,8 +13,9 @@ use crate::state::GameState;
 /// the viewer is at most `RADIUS²`, so the view is a circle, not a square.
 pub const RADIUS: i32 = 8;
 
-/// Recomputes `state.visible` from the player's position and adds it to
-/// `state.seen`. A player without a position sees nothing.
+/// Recomputes `state.visible` from the player's position, adds it to
+/// `state.seen`, and re-remembers the items on every visible tile. A player
+/// without a position sees nothing.
 pub(crate) fn update(state: &mut GameState) {
     let origin = state
         .world
@@ -29,8 +30,21 @@ pub(crate) fn update(state: &mut GameState) {
         for x in 0..state.map.width {
             if state.visible.get(x, y) == Some(&true) {
                 state.seen.set(x, y, true);
+                state.remembered_items.set(x, y, None);
             }
         }
+    }
+    // Highest `SpawnSeq` wins a shared tile, like the newest item on top.
+    let mut in_view: Vec<(SpawnSeq, Position, Appearance)> = state
+        .world
+        .query::<(&Position, &Appearance, &SpawnSeq, &Item)>()
+        .iter()
+        .filter(|(pos, ..)| state.visible.get(pos.x, pos.y) == Some(&true))
+        .map(|(pos, look, seq, _)| (*seq, *pos, look.clone()))
+        .collect();
+    in_view.sort_by_key(|(seq, ..)| *seq);
+    for (_, pos, look) in in_view {
+        state.remembered_items.set(pos.x, pos.y, Some(look));
     }
 }
 

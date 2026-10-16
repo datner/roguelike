@@ -112,7 +112,13 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
         .world
         .query::<(&Position, &Item, Option<&Found>)>()
         .iter()
-        .filter(|(pos, _, found)| found.is_none() && flag(&state.seen, pos.x, pos.y))
+        .filter(|(pos, _, found)| {
+            found.is_none()
+                && state
+                    .remembered_items
+                    .get(pos.x, pos.y)
+                    .is_some_and(Option::is_some)
+        })
         .map(|(pos, _, _)| (pos.x, pos.y))
         .collect();
     let targets: [&dyn Fn((i32, i32)) -> bool; 3] = [
@@ -208,14 +214,28 @@ fn paths_from(state: &GameState, from: Position) -> Paths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::Name;
+    use crate::cell::Rgb;
+    use crate::entity::{Appearance, Name};
     use crate::state::tests::{bare_state, spawn_with};
 
+    /// Spawned after the starting view, so the view is refreshed to let the
+    /// player remember it.
     fn item(state: &mut GameState, at: (i32, i32)) -> Entity {
-        spawn_with(
+        let knife = spawn_with(
             state,
-            (Name("knife".into()), Item, Position { x: at.0, y: at.1 }),
-        )
+            (
+                Name("knife".into()),
+                Appearance {
+                    glyph: '/',
+                    fg: Rgb(200, 200, 200),
+                    bg: Rgb(0, 0, 0),
+                },
+                Item,
+                Position { x: at.0, y: at.1 },
+            ),
+        );
+        crate::fov::update(state);
+        knife
     }
 
     fn at(state: &GameState) -> (i32, i32) {

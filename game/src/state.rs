@@ -71,8 +71,12 @@ pub struct GameState {
     /// Recomputed once per player turn (`Command::UpdateFov`), never per
     /// actor (ADR 0007).
     pub visible: Grid<bool>,
-    /// Tiles the player has ever seen. Only their terrain is remembered.
+    /// Tiles the player has ever seen; their terrain is remembered.
     pub seen: Grid<bool>,
+    /// The item last seen on each tile, drawn dimmed while out of view.
+    /// Refreshed only for visible tiles, so it goes stale like the
+    /// player's memory would.
+    pub remembered_items: Grid<Option<Appearance>>,
     pub(crate) next_spawn_seq: u64,
     /// What auto-explore does on reaching a floor item. A player setting,
     /// but it decides actions, so it is game state and saved.
@@ -178,6 +182,7 @@ impl GameState {
         blueprints: Blueprints,
     ) -> Result<Self, BlueprintError> {
         let unseen = Grid::new(map.width, map.height, false);
+        let no_items = Grid::new(map.width, map.height, None);
 
         let mut log = MessageLog::default();
         log.push(format!("Seed: {seed}"));
@@ -197,6 +202,7 @@ impl GameState {
             game_over: false,
             visible: unseen.clone(),
             seen: unseen,
+            remembered_items: no_items,
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
         };
@@ -261,8 +267,8 @@ pub(crate) fn event_registry() -> EventRegistry {
 
 /// A `width` × `height` view through the camera following the player
 /// (`camera::camera`). Visible tiles show terrain and whatever stands there;
-/// remembered tiles show dimmed terrain only; never-seen tiles and padding
-/// outside the zone stay blank.
+/// remembered tiles show the terrain and the item last seen there, dimmed;
+/// never-seen tiles and padding outside the zone stay blank.
 pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
     let camera = camera(state, width, height);
     let mut grid = Grid::new(
@@ -289,6 +295,12 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
                 Tile::Wall => ('#', Rgb(140, 140, 140)),
                 Tile::Exit => ('>', Rgb(240, 220, 80)),
             };
+            let remembered = state
+                .remembered_items
+                .get(x, y)
+                .and_then(Option::as_ref)
+                .filter(|_| !visible);
+            let (glyph, fg) = remembered.map_or((glyph, fg), |look| (look.glyph, look.fg));
             if let Some(cell) = grid.get_mut(screen_x, screen_y) {
                 cell.glyph = glyph;
                 cell.fg = if visible { fg } else { dim(fg) };
@@ -681,6 +693,67 @@ pub(crate) mod tests {
         assert_eq!((in_view.glyph, in_view.fg), ('.', Rgb(90, 90, 90)));
         let never_seen = view.get(38, 18).unwrap();
         assert_eq!(never_seen.glyph, ' ');
+    }
+
+    fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
+        spawn_with(
+            state,
+            (
+                Name("knife".into()),
+                Appearance {
+                    glyph: '/',
+                    fg: Rgb(200, 100, 50),
+                    bg: Rgb(0, 0, 0),
+                },
+                Item,
+                Position { x, y },
+            ),
+        )
+    }
+
+    #[test]
+    fn items_seen_are_remembered_dimmed_out_of_view() {
+        let mut state = bare_state();
+        knife_at(&mut state, 2, 1);
+        // Spawned after the starting view; it is seen on the first turn.
+        for _ in 0..10 {
+            crate::time::take_turn(&mut state, PlayerAction::Move(Dir::E));
+        }
+        assert_eq!(state.visible.get(2, 1), Some(&false));
+
+        let remembered = *render_view(&state, 40, 20).get(2, 1).unwrap();
+        assert_eq!((remembered.glyph, remembered.fg), ('/', Rgb(100, 50, 25)));
+    }
+
+    #[test]
+    fn item_memory_is_only_updated_by_seeing_the_tile() {
+        let mut state = bare_state();
+        let knife = knife_at(&mut state, 2, 1);
+        for _ in 0..10 {
+            crate::time::take_turn(&mut state, PlayerAction::Move(Dir::E));
+        }
+        // Moved out of view: the old spot is still remembered, the new one
+        // unknown.
+        state
+            .world
+            .insert_one(knife, Position { x: 2, y: 2 })
+            .unwrap();
+        crate::time::take_turn(&mut state, PlayerAction::Wait);
+        let view = render_view(&state, 40, 20);
+        assert_eq!(view.get(2, 1).map(|cell| cell.glyph), Some('/'));
+        assert_eq!(view.get(2, 2).map(|cell| cell.glyph), Some('.'));
+
+        // Seeing the tiles again corrects the memory.
+        for _ in 0..10 {
+            crate::time::take_turn(&mut state, PlayerAction::Move(Dir::W));
+        }
+        assert_eq!(state.remembered_items.get(2, 1), Some(&None));
+        assert!(
+            state
+                .remembered_items
+                .get(2, 2)
+                .is_some_and(Option::is_some)
+        );
     }
 
     #[test]
