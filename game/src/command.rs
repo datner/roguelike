@@ -388,9 +388,17 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
         return;
     }
 
-    let dealt = settle(dispatch(state, target, BeforeTakeDamage { target, amount }))
-        .amount
-        .max(0);
+    let dealt = settle(dispatch(
+        state,
+        target,
+        BeforeTakeDamage {
+            target,
+            amount,
+            cause,
+        },
+    ))
+    .amount
+    .max(0);
     let victim = Subject::of(&state.world, target);
     if dealt == 0 {
         state.log.push(if amount > 0 {
@@ -479,6 +487,11 @@ pub(crate) mod tests {
     /// cause never triggers on-hit effects.
     pub(crate) const UNSOURCED: DamageCause = DamageCause::Effect {
         effect: Entity::DANGLING,
+    };
+
+    /// A melee hit from nobody, for tests about armor.
+    pub(crate) const BLOW: DamageCause = DamageCause::Melee {
+        attacker: Entity::DANGLING,
     };
 
     fn last_log(state: &GameState) -> &str {

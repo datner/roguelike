@@ -7,7 +7,7 @@ use hecs::{Entity, World};
 use rand::RngExt;
 use rand_pcg::Pcg64;
 
-use crate::command::Command;
+use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{Armor, Health, Melee, OnHit, Stat, Stats, Weapon};
 use crate::equipment::equipped;
@@ -20,6 +20,7 @@ use crate::state::GameState;
 pub(crate) struct BeforeTakeDamage {
     pub target: Entity,
     pub amount: i32,
+    pub cause: DamageCause,
 }
 
 /// Notification fired after damage has been applied to `Health`.
@@ -61,11 +62,16 @@ fn on_hit_applies_effects(
     ControlFlow::Continue(ev)
 }
 
+/// Armor stops blows, not what is already inside: effect damage such as
+/// bleeding passes through.
 fn armor_reduces_damage(
     _ctx: &mut Ctx<'_>,
     armor: &Armor,
     mut ev: BeforeTakeDamage,
 ) -> ControlFlow<BeforeTakeDamage, BeforeTakeDamage> {
+    if !matches!(ev.cause, DamageCause::Melee { .. }) {
+        return ControlFlow::Continue(ev);
+    }
     ev.amount = (ev.amount - armor.av).max(0);
     if ev.amount == 0 {
         ControlFlow::Break(ev)
@@ -156,6 +162,7 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
         BeforeTakeDamage {
             target,
             amount: raw,
+            cause: DamageCause::Melee { attacker },
         },
     ));
     Some(ev.amount.max(0))
@@ -165,7 +172,7 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
 mod tests {
     use super::*;
     use crate::command::apply_commands;
-    use crate::command::tests::UNSOURCED;
+    use crate::command::tests::{BLOW, UNSOURCED};
     use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
     use crate::entity::{EquippedOn, Inventory};
     use crate::state::MessageLog;
@@ -407,7 +414,7 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 5,
-            cause: UNSOURCED,
+            cause: BLOW,
         });
         apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 7);
@@ -421,11 +428,25 @@ mod tests {
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 2,
-            cause: UNSOURCED,
+            cause: BLOW,
         });
         apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 10);
         assert_eq!(last_log(&state), "The dummy's armor absorbs the blow.");
+    }
+
+    #[test]
+    fn armor_does_not_reduce_effect_damage() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 2);
+        state.commands.push_back(Command::DealDamage {
+            target: dummy,
+            amount: 1,
+            cause: UNSOURCED,
+        });
+        apply_commands(&mut state);
+        assert_eq!(health(&state, dummy), 9);
+        assert_eq!(last_log(&state), "The dummy takes 1 damage.");
     }
 
     #[test]

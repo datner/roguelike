@@ -144,7 +144,7 @@ pub(crate) fn unequip(state: &mut GameState, actor: Entity, item: Entity) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::tests::UNSOURCED;
+    use crate::command::tests::BLOW;
     use crate::command::{Command, apply_commands};
     use crate::entity::{Armor, Health, Item, Name};
     use crate::input::PlayerAction;
@@ -335,7 +335,7 @@ mod tests {
             state.commands.push_back(Command::DealDamage {
                 target: state.player,
                 amount: 3,
-                cause: UNSOURCED,
+                cause: BLOW,
             });
             apply_commands(state);
             before - state.world.get::<&Health>(state.player).unwrap().current
