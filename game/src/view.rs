@@ -4,7 +4,10 @@
 use hecs::{Entity, World};
 
 use crate::cell::Rgb;
-use crate::entity::{Appearance, Body, Equippable, Inventory, Name, PartKind, SpawnSeq};
+use crate::combat::{Strike, strike};
+use crate::entity::{
+    Appearance, Armor, Body, Equippable, Health, Inventory, Name, PartKind, SpawnSeq, Speed, Stats,
+};
 use crate::equipment::equipped;
 use crate::state::GameState;
 
@@ -95,6 +98,47 @@ pub fn equipment_view(state: &GameState) -> Vec<PartView> {
         .collect()
 }
 
+/// The player's numbers, for a character panel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharacterSheet {
+    pub health: i32,
+    pub max_health: i32,
+    pub stats: Option<Stats>,
+    /// Armor value: the player's own plus everything equipped.
+    pub av: i32,
+    /// Melee damage before armor, stat bonus included; `None` if unable.
+    pub damage: Option<(i32, i32)>,
+    /// What melee hits are made with, if not bare-handed.
+    pub wielding: Option<String>,
+    pub speed: u32,
+}
+
+pub fn character_sheet(state: &GameState) -> CharacterSheet {
+    let world = &state.world;
+    let player = state.player;
+    let (health, max_health) = world
+        .get::<&Health>(player)
+        .map_or((0, 0), |h| (h.current, h.max));
+    let armor = |entity| world.get::<&Armor>(entity).map_or(0, |armor| armor.av);
+    let av = armor(player)
+        + equipped(world, player)
+            .into_iter()
+            .map(|(item, _)| armor(item))
+            .sum::<i32>();
+    let strike = strike(world, player);
+    CharacterSheet {
+        health,
+        max_health,
+        stats: world.get::<&Stats>(player).ok().map(|stats| *stats),
+        av,
+        damage: strike.map(Strike::range),
+        wielding: strike
+            .and_then(|strike| strike.weapon)
+            .and_then(|weapon| world.get::<&Name>(weapon).ok().map(|name| name.0.clone())),
+        speed: world.get::<&Speed>(player).map_or(0, |speed| speed.0),
+    }
+}
+
 pub(crate) fn carried(state: &GameState) -> Vec<Entity> {
     state
         .world
@@ -166,6 +210,74 @@ mod tests {
             state.log.recent(1).next().map(String::as_str),
             Some("There is nothing here to pick up.")
         );
+    }
+
+    #[test]
+    fn the_character_sheet_combines_stats_and_equipment() {
+        use crate::entity::{Equippable, PartKind, Stat, Weapon};
+
+        let mut state = bare_state();
+        let player = state.player;
+        state
+            .world
+            .insert_one(
+                player,
+                Stats {
+                    strength: 18,
+                    agility: 20,
+                },
+            )
+            .unwrap();
+        let sheet = character_sheet(&state);
+        assert_eq!(
+            (sheet.health, sheet.max_health, sheet.av, sheet.speed),
+            (20, 20, 0, 100)
+        );
+        // Test player: natural 2-4, +1 Strength.
+        assert_eq!((sheet.damage, sheet.wielding), (Some((3, 5)), None));
+
+        let blade = knife_at(&mut state, 1, 1);
+        state
+            .world
+            .insert(
+                blade,
+                (
+                    Equippable {
+                        part: PartKind::Hand,
+                    },
+                    Weapon {
+                        min: 1,
+                        max: 3,
+                        stat: Stat::Agility,
+                    },
+                ),
+            )
+            .unwrap();
+        let mail = knife_at(&mut state, 1, 1);
+        state
+            .world
+            .insert(
+                mail,
+                (
+                    Name("mail".into()),
+                    Equippable {
+                        part: PartKind::Body,
+                    },
+                    Armor { av: 2 },
+                ),
+            )
+            .unwrap();
+        take_turn(&mut state, PlayerAction::PickUp);
+        for item in [blade, mail] {
+            let item = ItemRef::of(&state.world, item).unwrap();
+            take_turn(&mut state, PlayerAction::Equip { item, part: None });
+        }
+
+        let sheet = character_sheet(&state);
+        assert_eq!(sheet.av, 2);
+        // Knife 1-3, +2 Agility.
+        assert_eq!(sheet.damage, Some((3, 5)));
+        assert_eq!(sheet.wielding.as_deref(), Some("knife"));
     }
 
     #[test]

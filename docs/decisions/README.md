@@ -16,6 +16,7 @@ Name files `NNNN-kebab-title.md`. Never rewrite an accepted ADR — supersede it
 | [0008](0008-save-games.md) | Versioned RON saves with index-remapped entities; per-character save on quit | Accepted |
 | [0009](0009-zones-and-camera.md) | Fixed-size zones larger than the screen, per-zone seeds, camera in `game` | Accepted |
 | [0010](0010-inventory-equipment-body-parts.md) | Inventory vs equipped items; Qud-style body parts; item views for frontends | Accepted |
+| [0011](0011-stats-and-weapons.md) | Creature stats meet weapon attributes in one `strike` rule | Accepted |
 
 ## Template
 

@@ -57,4 +57,6 @@ pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
 pub use state::{GameState, MessageLog, render_view};
 pub use time::{Tick, Timers, advance, take_turn};
-pub use view::{ItemRef, ItemView, PartView, equipment_view, inventory_view};
+pub use view::{
+    CharacterSheet, ItemRef, ItemView, PartView, character_sheet, equipment_view, inventory_view,
+};

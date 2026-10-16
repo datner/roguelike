@@ -16,7 +16,7 @@ use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration, EffectTarget,
     Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit,
-    OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
+    OnHitEntry, Player, Position, SpawnSeq, Speed, Stats, Timed, Weapon,
 };
 use crate::fov;
 use crate::map::Grid;
@@ -25,7 +25,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 4;
+pub const SAVE_VERSION: u32 = 5;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -178,6 +178,8 @@ enum ComponentKind {
     Body,
     Equippable,
     EquippedOn,
+    Stats,
+    Weapon,
     Duration,
     Timed,
     EffectTarget,
@@ -186,7 +188,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 25] = [
+    const ALL: [ComponentKind; 27] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -207,6 +209,8 @@ impl ComponentKind {
         Self::Body,
         Self::Equippable,
         Self::EquippedOn,
+        Self::Stats,
+        Self::Weapon,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -239,6 +243,8 @@ enum SavedComponent {
     Body(Body),
     Equippable(Equippable),
     EquippedOn(EquippedOn),
+    Stats(Stats),
+    Weapon(Weapon),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -486,6 +492,8 @@ fn save_component(
         ComponentKind::Body => copy(entity).map(S::Body),
         ComponentKind::Equippable => copy(entity).map(S::Equippable),
         ComponentKind::EquippedOn => copy(entity).map(S::EquippedOn),
+        ComponentKind::Stats => copy(entity).map(S::Stats),
+        ComponentKind::Weapon => copy(entity).map(S::Weapon),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -546,6 +554,8 @@ fn load_component(
         S::Body(c) => builder.add(c),
         S::Equippable(c) => builder.add(c),
         S::EquippedOn(c) => builder.add(c),
+        S::Stats(c) => builder.add(c),
+        S::Weapon(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),

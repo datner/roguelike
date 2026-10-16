@@ -51,11 +51,49 @@ pub struct Armor {
     pub av: i32,
 }
 
-/// Inclusive melee damage range.
+/// Inclusive natural (unarmed) melee damage range, boosted by Strength.
+/// An equipped `Weapon` replaces it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Melee {
     pub min: i32,
     pub max: i32,
+}
+
+/// A creature attribute an item can draw on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Stat {
+    Strength,
+    Agility,
+}
+
+/// A creature's attribute scores. 16 is average: see `Stats::modifier`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stats {
+    pub strength: i32,
+    pub agility: i32,
+}
+
+impl Stats {
+    pub fn score(self, stat: Stat) -> i32 {
+        match stat {
+            Stat::Strength => self.strength,
+            Stat::Agility => self.agility,
+        }
+    }
+
+    /// Qud's bonus: +1 per 2 points above 16, -1 per 2 below (rounded down).
+    pub fn modifier(self, stat: Stat) -> i32 {
+        (self.score(stat) - 16).div_euclid(2)
+    }
+}
+
+/// Item part: when equipped, melee hits roll this instead of the wielder's
+/// natural `Melee`, plus the wielder's `stat` modifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Weapon {
+    pub min: i32,
+    pub max: i32,
+    pub stat: Stat,
 }
 
 /// Entities carried by this one (equipment). Their components take part in

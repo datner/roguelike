@@ -9,7 +9,8 @@ use rand_pcg::Pcg64;
 
 use crate::command::Command;
 use crate::effect::BASIS_POINTS;
-use crate::entity::{Armor, Health, Melee, OnHit};
+use crate::entity::{Armor, Health, Melee, OnHit, Stat, Stats, Weapon};
+use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
 use crate::state::GameState;
@@ -73,10 +74,56 @@ fn armor_reduces_damage(
     }
 }
 
-/// Raw damage from `attacker`'s `Melee`, or `None` if it can't attack.
+/// How `attacker` hits in melee: the dice and the stat bonus added to them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Strike {
+    pub min: i32,
+    pub max: i32,
+    pub bonus: i32,
+    /// The equipped weapon used, if not natural `Melee`.
+    pub weapon: Option<Entity>,
+}
+
+impl Strike {
+    /// Lowest and highest damage before armor; never negative.
+    pub fn range(self) -> (i32, i32) {
+        let max = self.max.max(self.min);
+        ((self.min + self.bonus).max(0), (max + self.bonus).max(0))
+    }
+}
+
+/// The equipped `Weapon` on the lowest-numbered body part, else natural
+/// `Melee` (a Strength weapon); `None` if `attacker` has neither. The
+/// wielder's `Stats` modifier for the weapon's stat is the bonus.
+pub(crate) fn strike(world: &World, attacker: Entity) -> Option<Strike> {
+    let mut worn = equipped(world, attacker);
+    worn.sort_by_key(|&(_, part)| part);
+    let wielded = worn.into_iter().find_map(|(item, _)| {
+        let weapon = *world.get::<&Weapon>(item).ok()?;
+        Some((weapon.min, weapon.max, weapon.stat, Some(item)))
+    });
+    let natural = || {
+        let melee = *world.get::<&Melee>(attacker).ok()?;
+        Some((melee.min, melee.max, Stat::Strength, None))
+    };
+    let (min, max, stat, weapon) = wielded.or_else(natural)?;
+    let bonus = world
+        .get::<&Stats>(attacker)
+        .map_or(0, |stats| stats.modifier(stat));
+    Some(Strike {
+        min,
+        max,
+        bonus,
+        weapon,
+    })
+}
+
+/// Raw damage of one of `attacker`'s melee hits (see `strike`), or `None`
+/// if it can't attack. Always exactly one draw from `rng`.
 pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Option<i32> {
-    let melee = *world.get::<&Melee>(attacker).ok()?;
-    Some(rng.random_range(melee.min..=melee.max.max(melee.min)))
+    let strike = strike(world, attacker)?;
+    let roll = rng.random_range(strike.min..=strike.max.max(strike.min));
+    Some((roll + strike.bonus).max(0))
 }
 
 /// Damage the next real `Attack { attacker, target }` would deal, computed on
@@ -120,8 +167,93 @@ mod tests {
     use crate::command::apply_commands;
     use crate::command::tests::UNSOURCED;
     use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
+    use crate::entity::{EquippedOn, Inventory};
     use crate::state::MessageLog;
     use crate::state::tests::{bare_state, bare_state_seeded, spawn_with};
+
+    #[test]
+    fn stat_modifiers_follow_qud() {
+        let modifier = |strength| {
+            Stats {
+                strength,
+                agility: 16,
+            }
+            .modifier(Stat::Strength)
+        };
+        let table: Vec<i32> = [12, 13, 14, 15, 16, 17, 18, 19, 20].map(modifier).to_vec();
+        assert_eq!(table, [-2, -2, -1, -1, 0, 0, 1, 1, 2]);
+    }
+
+    /// A fighter with natural 2-4 `Melee` and the given scores.
+    fn fighter(state: &mut GameState, strength: i32, agility: i32) -> Entity {
+        spawn_with(
+            state,
+            (Melee { min: 2, max: 4 }, Stats { strength, agility }),
+        )
+    }
+
+    fn knife(state: &mut GameState) -> Entity {
+        spawn_with(
+            state,
+            (
+                Name("knife".into()),
+                Weapon {
+                    min: 1,
+                    max: 3,
+                    stat: Stat::Agility,
+                },
+            ),
+        )
+    }
+
+    #[test]
+    fn bare_hands_add_strength_to_natural_melee() {
+        let mut state = bare_state();
+        let strong = fighter(&mut state, 20, 10);
+        let strike = strike(&state.world, strong).unwrap();
+        assert_eq!((strike.range(), strike.weapon), ((4, 6), None));
+    }
+
+    #[test]
+    fn an_equipped_weapon_replaces_natural_melee_and_uses_its_stat() {
+        let mut state = bare_state();
+        let nimble = fighter(&mut state, 10, 20);
+        let blade = knife(&mut state);
+        state.world.insert_one(blade, EquippedOn(2)).unwrap();
+        state
+            .world
+            .insert_one(nimble, Attachments(vec![blade]))
+            .unwrap();
+
+        let strike = strike(&state.world, nimble).unwrap();
+        assert_eq!((strike.range(), strike.weapon), ((3, 5), Some(blade)));
+        let mut rng = state.rngs.combat.clone();
+        for _ in 0..50 {
+            let damage = roll_melee(&state.world, &mut rng, nimble).unwrap();
+            assert!((3..=5).contains(&damage), "{damage}");
+        }
+    }
+
+    #[test]
+    fn a_carried_weapon_is_not_used() {
+        let mut state = bare_state();
+        let fighter = fighter(&mut state, 16, 20);
+        let blade = knife(&mut state);
+        state
+            .world
+            .insert_one(fighter, Inventory(vec![blade]))
+            .unwrap();
+        assert_eq!(strike(&state.world, fighter).unwrap().weapon, None);
+    }
+
+    #[test]
+    fn a_weak_hit_never_heals() {
+        let mut state = bare_state();
+        let feeble = fighter(&mut state, 4, 16);
+        assert_eq!(strike(&state.world, feeble).unwrap().range(), (0, 0));
+        let mut rng = state.rngs.combat.clone();
+        assert_eq!(roll_melee(&state.world, &mut rng, feeble), Some(0));
+    }
 
     fn health(state: &GameState, entity: Entity) -> i32 {
         state.world.get::<&Health>(entity).unwrap().current

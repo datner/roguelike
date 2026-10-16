@@ -30,6 +30,9 @@ This is a Cargo workspace with two crates:
     ones sit on a body part of the creature's anatomy (`Body`, Qud-style,
     from data) and their parts take effect. `inventory_view` and
     `equipment_view` give frontends plain data, with `ItemRef` handles.
+  - Stats and weapons (ADR 0011): creatures have Strength and Agility; a
+    hit rolls the wielded weapon's dice (or natural melee) plus the
+    modifier of the stat that weapon uses. `character_sheet` sums it up.
   - Auto-explore: `explore_step` walks the player, one turn at a time,
     to the nearest unfound item they know of, then to unexplored ground,
     then to the exit, stopping as soon as a hostile is in view.
