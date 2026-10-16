@@ -1,7 +1,0 @@
-(
-    components: [
-        Name("rubble"),
-        Appearance(glyph: '%', fg: (180, 140, 90), bg: (0, 0, 0)),
-        BlocksMovement,
-    ],
-)

@@ -9,7 +9,7 @@ Thin shell around `game`. **No game rules here.** If you're about to decide what
 - `tui.rs` — terminal init/restore, Kitty keyboard enhancement, panic hook. Every mode you enable must be undone in `restore()`, including on panic.
 - `input.rs` — `KeyEvent` → `game::InputEvent`. Only place keys are bound; update README "Controls" when bindings change.
 - `app.rs` — blocking event loop (turn-based: no tick timer) and panel layout.
-- `widgets/map_widget.rs` — renders `Grid<Cell>`. `tile_to_screen` is the single place that maps tile coords to screen coords; keep it that way.
+- `widgets/map_widget.rs` — renders `Grid<Cell>`. `tile_to_screen` is the single place that maps tile coords to screen coords, and `viewport_tiles` its inverse for the panel size passed to `render_view`; keep it that way. The camera (which world tiles are shown) is `game::camera`.
 
 ## Rules
 

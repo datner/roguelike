@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use game::{Blueprints, GameState, random_seed};
+use game::{Blueprints, CaveParams, GameState, random_seed};
 
 mod app;
 mod input;
@@ -80,8 +80,11 @@ fn start(args: &Args, save_path: &Path) -> Result<GameState, String> {
             Ok(*state)
         }
         Loaded::New(blueprints) => {
+            let cave = CaveParams::load(&args.data_dir.join("cave.ron"))
+                .map_err(|err| format!("Failed to load cave parameters: {err}"))?;
             let seed = args.seed.unwrap_or_else(random_seed);
-            GameState::new(seed, blueprints).map_err(|err| format!("Failed to start a game: {err}"))
+            GameState::new(seed, blueprints, &cave)
+                .map_err(|err| format!("Failed to start a game: {err}"))
         }
     }
 }

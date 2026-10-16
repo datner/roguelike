@@ -1,6 +1,7 @@
 //! Per-subsystem RNG streams (ADR 0005). Each subsystem draws only from its
-//! own `Pcg64` stream, all derived from the world seed, so extra draws in one
-//! subsystem never shift another's results.
+//! own `Pcg64` stream, so extra draws in one subsystem never shift another's
+//! results. Streams about a place (map, spawn) come from its zone seed
+//! (ADR 0009); the rest from the world seed.
 
 use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,8 @@ pub mod stream {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rngs {
-    /// Map generation.
+    /// Map changes. Generation itself runs on per-attempt streams
+    /// (`zone::generate_cave`); this continues the accepted one.
     pub map: Pcg64,
     /// Choosing where (and later, what) to spawn.
     pub spawn: Pcg64,
@@ -24,12 +26,12 @@ pub struct Rngs {
 }
 
 impl Rngs {
-    pub fn new(seed: u64) -> Self {
-        let state = u128::from(seed);
+    pub fn new(world_seed: u64, zone_seed: u64) -> Self {
+        let (world, zone) = (u128::from(world_seed), u128::from(zone_seed));
         Self {
-            map: Pcg64::new(state, stream::MAP),
-            spawn: Pcg64::new(state, stream::SPAWN),
-            combat: Pcg64::new(state, stream::COMBAT),
+            map: Pcg64::new(zone, stream::MAP),
+            spawn: Pcg64::new(zone, stream::SPAWN),
+            combat: Pcg64::new(world, stream::COMBAT),
         }
     }
 }
@@ -42,12 +44,12 @@ mod tests {
 
     #[test]
     fn same_seed_gives_identical_streams() {
-        assert_eq!(Rngs::new(5), Rngs::new(5));
+        assert_eq!(Rngs::new(5, 5), Rngs::new(5, 5));
     }
 
     #[test]
     fn streams_are_distinct_and_independent() {
-        let fresh = Rngs::new(5);
+        let fresh = Rngs::new(5, 5);
         assert_ne!(fresh.map, fresh.spawn);
         assert_ne!(fresh.spawn, fresh.combat);
 

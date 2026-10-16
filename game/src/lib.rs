@@ -10,7 +10,13 @@ pub use input::{Dir, InputEvent, PlayerAction};
 
 pub mod map;
 
-pub use map::{Grid, MAP_HEIGHT, MAP_WIDTH, Map, Tile, generate_map, random_seed};
+pub use map::{Grid, Map, Tile, random_seed};
+
+pub mod zone;
+
+pub use zone::{
+    CaveParams, CaveParamsError, ZONE_HEIGHT, ZONE_WIDTH, ZoneCoord, generate_cave, zone_seed,
+};
 
 pub mod blueprint;
 
@@ -19,6 +25,7 @@ pub use blueprint::{
 };
 
 pub mod ai;
+pub mod camera;
 pub mod combat;
 pub mod command;
 pub mod cost;
@@ -33,7 +40,8 @@ pub mod save;
 pub mod state;
 pub mod time;
 
-pub use command::{MAX_COMMANDS_PER_STEP, apply_commands};
+pub use camera::{Camera, camera};
+pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;
 pub use entity::{
     Appearance, Armor, Bleeding, BlocksMovement, Dead, Duration, Energy, Health, Hostile, Melee,

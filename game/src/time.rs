@@ -226,6 +226,7 @@ mod tests {
     use crate::entity::{Health, Hostile, Melee, Position};
     use crate::input::{Dir, InputEvent};
     use crate::state::tests::{bare_state, spawn_with, test_blueprints};
+    use crate::zone::tests::test_cave;
 
     /// A state whose player is not scheduled, so `step` never stops for input.
     fn unscheduled_player() -> GameState {
@@ -369,7 +370,7 @@ mod tests {
         assert_eq!(ticks_until_next(&state), None);
         assert_eq!(step(&mut state), Step::GameOver);
 
-        let view = crate::state::render_view(&state);
+        let view = crate::state::render_view(&state, 40, 20);
         assert_eq!(view.get(1, 1).map(|cell| cell.glyph), Some('@'));
     }
 
@@ -387,10 +388,10 @@ mod tests {
 
     #[test]
     fn walking_into_a_wall_is_refused_without_spending_time() {
-        let mut state = GameState::new(1, test_blueprints()).unwrap();
+        let mut state = bare_state();
         advance(&mut state);
         let (now, before) = (state.now, snapshot(&state));
-        // (1,1) -> north is (1,0), which generate_map always makes a wall.
+        // (1,1) -> north is (1,0), a wall in the test room.
         take_turn(&mut state, PlayerAction::Move(Dir::N));
 
         assert_eq!(state.now, now);
@@ -498,7 +499,7 @@ mod tests {
     }
 
     fn play(seed: u64, script: &[InputEvent]) -> GameState {
-        let mut state = GameState::new(seed, test_blueprints()).unwrap();
+        let mut state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
         advance(&mut state);
         for &input in script {
             let action = match input {

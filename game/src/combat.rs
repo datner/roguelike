@@ -121,7 +121,7 @@ mod tests {
     use crate::command::tests::UNSOURCED;
     use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
     use crate::state::MessageLog;
-    use crate::state::tests::{bare_state, spawn_with, test_blueprints};
+    use crate::state::tests::{bare_state, bare_state_seeded, spawn_with};
 
     fn health(state: &GameState, entity: Entity) -> i32 {
         state.world.get::<&Health>(entity).unwrap().current
@@ -251,7 +251,7 @@ mod tests {
 
     /// Returns the log and how many hits made the dummy bleed.
     fn thirty_coin_flip_hits(seed: u64) -> (MessageLog, usize) {
-        let mut state = GameState::bare(seed, test_blueprints()).unwrap();
+        let mut state = bare_state_seeded(seed);
         let (dummy, _) = armored_dummy(&mut state, 0);
         state.world.get::<&mut Health>(dummy).unwrap().current = 1000;
         armed_player(&mut state, 5_000);

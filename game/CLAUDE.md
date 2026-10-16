@@ -6,7 +6,9 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 
 - `cell.rs` — `Cell { glyph, fg, bg }`, `Rgb`: the only rendering output.
 - `input.rs` — `InputEvent`, `Dir`, `PlayerAction`: the only input. Frontends translate raw keys into these and pass a `PlayerAction` to `take_turn`, which resolves the player entity and commands. Anything taking or returning a hecs type stays `pub(crate)`.
-- `map.rs` — `Tile`, `Grid<T>` (i32 coords, `get` returns `Option`), map generation.
+- `map.rs` — `Tile`, `Grid<T>` (i32 coords, `get` returns `Option`), spawn placement. `map::tests::room` is the hand-built 40×20 room tests use instead of the generator.
+- `zone.rs` — zone size, `zone_seed` (SplitMix64 mixing of world seed and zone coords), the cellular-automata cave generator (`CaveParams` from `data/cave.ron`), `start_position`. ADR 0009.
+- `camera.rs` — `Camera`: which world tiles a viewport shows, and the only screen↔world coordinate conversion. ADR 0009.
 - `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`).
 - `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names).
 - `command.rs` — `Command` enum and `apply_commands` (the only place the world is mutated during play). A command whose actor or target is `Dead` is skipped there, in one check; a new variant lists its entities in `Command::participants`.
@@ -15,7 +17,7 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 - `prio.rs` — every handler priority, in one file, so ordering is reviewable. New handlers get a named constant here, never an inline number. Priorities are unique per event type (`on` panics on a duplicate), so dispatch order never depends on registration order.
 - `rng.rs` — `Rngs` (one `Pcg64` stream per subsystem) and the `stream` id constants.
 - `grammar.rs` — `Subject`: subject–verb agreement for log messages.
-- `state.rs` — `GameState`, `MessageLog`, `render_view` (visible tiles in full, remembered terrain dimmed, the rest blank). `GameState::spawn`/`spawn_id`/`spawn_at` are the only way to create entities (clippy bans `World::spawn` in `game`); they assign `SpawnSeq` to the entity and its equipment (and `Energy` to anything with `Speed`). Tests needing an ad-hoc entity use `state::tests::spawn_with`.
+- `state.rs` — `GameState`, `MessageLog`, `render_view(state, width, height)` (a viewport-sized grid through the camera; visible tiles in full, remembered terrain dimmed, the rest blank). `GameState::spawn`/`spawn_id`/`spawn_at` are the only way to create entities (clippy bans `World::spawn` in `game`); they assign `SpawnSeq` to the entity and its equipment (and `Energy` to anything with `Speed`). Tests needing an ad-hoc entity use `state::tests::spawn_with`.
 - `time.rs` — `Tick`, the `Timers` queue, and the energy scheduler (`step`, `advance`, `take_turn`). ADR 0006.
 - `cost.rs` — every action's energy cost, and `cost::of`, which charges them in `apply_commands`.
 - `effect.rs` — timed effects: `ApplyEffect`, `ModifyDuration` (`DurationChange`), expiry, bleeding ticks.
@@ -46,12 +48,12 @@ Everything a frontend needs is re-exported from `lib.rs`; keep that list current
 The standard shape — build a state from a seed, queue commands, apply, assert:
 
 ```rust
-let mut state = bare_state(); // state::tests: GameState::bare(1, test_blueprints()), player only
+let mut state = bare_state(); // state::tests: the hand-built room, player at (1, 1) only
 state.commands.push_back(Command::TryMove(state.player, Dir::E));
 apply_commands(&mut state);
 assert_eq!(*state.world.get::<&Position>(state.player).unwrap(), Position { x: 2, y: 1 });
 ```
 
 - Every new `Command` gets tests for its success path and each blocked/failure path (including the log message).
-- New generation code gets a same-seed-same-result test.
+- New generation code gets a same-seed-same-result test. Tests not about generation use `bare_state` / `map::tests::room`, never a generated zone.
 - Build blueprints inline in tests unless the test is specifically about loading `data/`.

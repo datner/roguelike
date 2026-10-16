@@ -1,11 +1,8 @@
-//! Tiles, the generic `Grid<T>` (out-of-bounds reads are `None`), and map generation.
+//! Tiles, the generic `Grid<T>` (out-of-bounds reads are `None`), and spawn placement.
 
 use rand::RngExt;
 use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
-
-pub const MAP_WIDTH: i32 = 40;
-pub const MAP_HEIGHT: i32 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tile {
@@ -73,28 +70,6 @@ impl<T> Grid<T> {
     }
 }
 
-/// Builds the (currently fixed) starting room: a bordered rectangle with a
-/// short interior wall segment. The layout doesn't vary by seed yet — real
-/// procedural generation is out of scope for this skeleton — but it already
-/// takes the map stream (`Rngs::map`), the only RNG map generation may use.
-pub fn generate_map(_rng: &mut Pcg64) -> Map {
-    let mut grid = Grid::new(MAP_WIDTH, MAP_HEIGHT, Tile::Floor);
-
-    for x in 0..MAP_WIDTH {
-        grid.set(x, 0, Tile::Wall);
-        grid.set(x, MAP_HEIGHT - 1, Tile::Wall);
-    }
-    for y in 0..MAP_HEIGHT {
-        grid.set(0, y, Tile::Wall);
-        grid.set(MAP_WIDTH - 1, y, Tile::Wall);
-    }
-    for y in 3..6 {
-        grid.set(8, y, Tile::Wall);
-    }
-
-    grid
-}
-
 /// Floor tiles not listed in `occupied`, in row-major order.
 pub fn floor_candidates(grid: &Map, occupied: &[(i32, i32)]) -> Vec<(i32, i32)> {
     let mut candidates = Vec::new();
@@ -108,14 +83,20 @@ pub fn floor_candidates(grid: &Map, occupied: &[(i32, i32)]) -> Vec<(i32, i32)> 
     candidates
 }
 
-/// A uniformly random free floor tile (one draw from `rng`), or `None` if
-/// every floor tile is occupied.
+/// A uniformly random free floor tile at least `min_distance` steps
+/// (Chebyshev, as things move) from `away_from`, using one draw from `rng`;
+/// `None` if there is no such tile.
 pub fn choose_spawn_position(
     grid: &Map,
     occupied: &[(i32, i32)],
+    away_from: (i32, i32),
+    min_distance: i32,
     rng: &mut Pcg64,
 ) -> Option<(i32, i32)> {
-    let candidates = floor_candidates(grid, occupied);
+    let candidates: Vec<(i32, i32)> = floor_candidates(grid, occupied)
+        .into_iter()
+        .filter(|&(x, y)| (x - away_from.0).abs().max((y - away_from.1).abs()) >= min_distance)
+        .collect();
     if candidates.is_empty() {
         return None;
     }
@@ -132,9 +113,29 @@ pub fn random_seed() -> u64 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::rng::Rngs;
+
+    /// A hand-built 40×20 room: walled border and a short interior wall at
+    /// x = 8, y = 3..6. Tests that aren't about generation use this, so
+    /// generator tuning can't break them.
+    pub(crate) fn room() -> Map {
+        let (width, height) = (40, 20);
+        let mut grid = Grid::new(width, height, Tile::Floor);
+        for x in 0..width {
+            grid.set(x, 0, Tile::Wall);
+            grid.set(x, height - 1, Tile::Wall);
+        }
+        for y in 0..height {
+            grid.set(0, y, Tile::Wall);
+            grid.set(width - 1, y, Tile::Wall);
+        }
+        for y in 3..6 {
+            grid.set(8, y, Tile::Wall);
+        }
+        grid
+    }
 
     #[test]
     fn grid_get_set_respects_bounds() {
@@ -147,30 +148,28 @@ mod tests {
     }
 
     #[test]
-    fn same_seed_produces_same_map() {
-        let grid_a = generate_map(&mut Rngs::new(42).map);
-        let grid_b = generate_map(&mut Rngs::new(42).map);
-        assert_eq!(grid_a, grid_b);
-    }
-
-    #[test]
     fn same_seed_produces_same_spawn_position() {
-        let grid = generate_map(&mut Rngs::new(7).map);
-        let pos_a = choose_spawn_position(&grid, &[], &mut Rngs::new(7).spawn);
-        let pos_b = choose_spawn_position(&grid, &[], &mut Rngs::new(7).spawn);
+        let grid = room();
+        let pos_a = choose_spawn_position(&grid, &[], (1, 1), 0, &mut Rngs::new(7, 7).spawn);
+        let pos_b = choose_spawn_position(&grid, &[], (1, 1), 0, &mut Rngs::new(7, 7).spawn);
         assert_eq!(pos_a, pos_b);
     }
 
     #[test]
-    fn spawn_positions_are_free_floor_tiles() {
-        let grid = generate_map(&mut Rngs::new(1).map);
+    fn spawn_positions_are_free_floor_tiles_far_enough_away() {
+        let grid = room();
         let mut occupied = vec![(1, 1)];
-        let mut rng = Rngs::new(1).spawn;
-        while let Some(pos) = choose_spawn_position(&grid, &occupied, &mut rng) {
+        let mut rng = Rngs::new(1, 1).spawn;
+        while let Some(pos) = choose_spawn_position(&grid, &occupied, (1, 1), 10, &mut rng) {
             assert_eq!(grid.get(pos.0, pos.1), Some(&Tile::Floor));
             assert!(!occupied.contains(&pos));
+            assert!(pos.0 >= 11 || pos.1 >= 11, "{pos:?} is too close");
             occupied.push(pos);
         }
-        assert_eq!(occupied.len() - 1, floor_candidates(&grid, &[(1, 1)]).len());
+        let far = floor_candidates(&grid, &[])
+            .into_iter()
+            .filter(|&(x, y)| x >= 11 || y >= 11)
+            .count();
+        assert_eq!(occupied.len() - 1, far);
     }
 }

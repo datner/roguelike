@@ -546,12 +546,23 @@ mod tests {
     use super::*;
     use crate::command::{Command, apply_commands};
     use crate::input::{Dir, PlayerAction};
+    use crate::map::Tile;
+    use crate::state::GOBLINS;
     use crate::state::tests::{bare_state, spawn_with, test_blueprints};
     use crate::time::{Step, step, take_turn};
+    use crate::zone::CaveParams;
 
     fn data_blueprints() -> Blueprints {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/entities");
         Blueprints::load_dir(&dir).unwrap()
+    }
+
+    fn data_cave() -> CaveParams {
+        CaveParams::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/cave.ron")).unwrap()
+    }
+
+    fn new_game(seed: u64) -> GameState {
+        GameState::new(seed, data_blueprints(), &data_cave()).unwrap()
     }
 
     fn reload(state: &GameState, blueprints: Blueprints) -> GameState {
@@ -567,16 +578,26 @@ mod tests {
             .map(|(entity, _)| entity)
     }
 
-    /// Steps toward the goblin (attacking once adjacent), or waits once it
-    /// is dead. Decided from the state, so both runs issue the same inputs.
+    fn goblins(state: &GameState) -> Vec<Position> {
+        state
+            .world
+            .query::<(&Name, &Position)>()
+            .without::<&Dead>()
+            .iter()
+            .filter(|(name, _)| name.0 == "goblin")
+            .map(|(_, pos)| *pos)
+            .collect()
+    }
+
+    /// Steps along a shortest path to the nearest goblin (attacking once
+    /// adjacent), or waits. Decided from the state, so both runs issue the
+    /// same inputs.
     fn scripted_turn(state: &mut GameState) {
-        let player = state.player;
-        let toward = goblin(state).and_then(|goblin| {
-            let at = *state.world.get::<&Position>(goblin).ok()?;
-            let from = *state.world.get::<&Position>(player).ok()?;
-            let step = ((at.x - from.x).signum(), (at.y - from.y).signum());
-            Dir::ALL.into_iter().find(|dir| dir.delta() == step)
-        });
+        let toward = state
+            .world
+            .get::<&Position>(state.player)
+            .ok()
+            .and_then(|from| first_step((from.x, from.y), state, &goblins(state)));
         let action = match toward {
             Some(dir) => PlayerAction::Move(dir),
             None => PlayerAction::Wait,
@@ -584,15 +605,49 @@ mod tests {
         take_turn(state, action);
     }
 
+    /// Breadth-first over floor from `from` until a goblin tile; the first
+    /// step of that path.
+    fn first_step(from: (i32, i32), state: &GameState, goblins: &[Position]) -> Option<Dir> {
+        let map = &state.map;
+        let mut first: Grid<Option<Dir>> = Grid::new(map.width, map.height, None);
+        let mut queue = std::collections::VecDeque::new();
+        for dir in Dir::ALL {
+            let (dx, dy) = dir.delta();
+            let next = (from.0 + dx, from.1 + dy);
+            if map.get(next.0, next.1) == Some(&Tile::Floor) {
+                first.set(next.0, next.1, Some(dir));
+                queue.push_back(next);
+            }
+        }
+        while let Some((x, y)) = queue.pop_front() {
+            let dir = first.get(x, y).copied().flatten()?;
+            if goblins.contains(&Position { x, y }) {
+                return Some(dir);
+            }
+            for next_dir in Dir::ALL {
+                let (dx, dy) = next_dir.delta();
+                let next = (x + dx, y + dy);
+                if next != from
+                    && map.get(next.0, next.1) == Some(&Tile::Floor)
+                    && first.get(next.0, next.1) == Some(&None)
+                {
+                    first.set(next.0, next.1, Some(dir));
+                    queue.push_back(next);
+                }
+            }
+        }
+        None
+    }
+
     #[test]
     fn a_reloaded_game_continues_exactly_like_an_uninterrupted_one() {
-        let (n, m) = (10, 40);
-        let mut uninterrupted = GameState::new(42, data_blueprints()).unwrap();
+        let (n, m) = (20, 130);
+        let mut uninterrupted = new_game(42);
         for _ in 0..n + m {
             scripted_turn(&mut uninterrupted);
         }
 
-        let mut first = GameState::new(42, data_blueprints()).unwrap();
+        let mut first = new_game(42);
         for _ in 0..n {
             scripted_turn(&mut first);
         }
@@ -602,7 +657,7 @@ mod tests {
         }
 
         assert!(
-            goblin(&uninterrupted).is_none(),
+            goblins(&uninterrupted).len() < GOBLINS,
             "the script reaches combat"
         );
         assert_eq!(to_ron(&resumed).unwrap(), to_ron(&uninterrupted).unwrap());
@@ -612,7 +667,7 @@ mod tests {
 
     #[test]
     fn saving_a_loaded_game_reproduces_the_save() {
-        let mut state = GameState::new(7, data_blueprints()).unwrap();
+        let mut state = new_game(7);
         for _ in 0..3 {
             scripted_turn(&mut state);
         }
@@ -694,7 +749,7 @@ mod tests {
 
     #[test]
     fn a_save_naming_an_unknown_blueprint_is_refused() {
-        let saved = to_ron(&GameState::new(1, data_blueprints()).unwrap()).unwrap();
+        let saved = to_ron(&new_game(1)).unwrap();
         assert!(
             saved.contains("\"Bleeding\""),
             "the goblin's knife is saved"

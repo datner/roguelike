@@ -13,6 +13,12 @@ pub fn tile_to_screen(x: i32, y: i32) -> (i32, i32) {
     (x, y)
 }
 
+/// How many whole tiles fit in `area`: `tile_to_screen`'s inverse, applied
+/// to a size. This is what `game::render_view` is asked for.
+pub fn viewport_tiles(area: Rect) -> (i32, i32) {
+    (i32::from(area.width), i32::from(area.height))
+}
+
 pub struct MapWidget<'a> {
     grid: &'a Grid<Cell>,
 }

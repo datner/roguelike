@@ -99,7 +99,7 @@ impl Command {
 }
 
 /// Drains the command queue. This is the only code that mutates the world.
-pub fn apply_commands(state: &mut GameState) {
+pub(crate) fn apply_commands(state: &mut GameState) {
     let mut applied = 0;
     while let Some(command) = state.commands.pop_front() {
         if applied == MAX_COMMANDS_PER_STEP {

@@ -541,7 +541,6 @@ mod tests {
             "Goblin",
             "LeatherArmor",
             "Player",
-            "Rubble",
             "RustyKnife",
         ] {
             assert!(blueprints.get(name).is_some(), "missing {name}");

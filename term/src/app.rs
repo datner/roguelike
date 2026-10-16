@@ -11,7 +11,7 @@ use ratatui::widgets::{Block, Paragraph};
 
 use crate::input::map_key_event;
 use crate::tui::Backend;
-use crate::widgets::map_widget::MapWidget;
+use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
 /// Blocks on `event::read()` and redraws after every event (including
 /// resize) — no tick loop: `game::take_turn` runs the world until the
@@ -55,7 +55,8 @@ fn draw(frame: &mut Frame, state: &GameState) {
     )
     .split(frame.area());
 
-    let view = render_view(state);
+    let (width, height) = viewport_tiles(chunks[0]);
+    let view = render_view(state, width, height);
     frame.render_widget(MapWidget::new(&view), chunks[0]);
 
     let mut log_lines: Vec<Line> = state
@@ -87,27 +88,44 @@ fn draw(frame: &mut Frame, state: &GameState) {
 mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, Tick};
+    use game::{Blueprints, CaveParams, Tick};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
     use super::*;
 
     fn state() -> GameState {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/entities");
-        GameState::new(3, Blueprints::load_dir(&dir).unwrap()).unwrap()
+        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let blueprints = Blueprints::load_dir(&data.join("entities")).unwrap();
+        let cave = CaveParams::load(&data.join("cave.ron")).unwrap();
+        GameState::new(3, blueprints, &cave).unwrap()
+    }
+
+    /// 60×30: a 60×20 map panel above the 7-row log and 3-row status.
+    fn rows(state: &GameState) -> Vec<String> {
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal.draw(|frame| draw(frame, state)).unwrap();
+        let buffer = terminal.backend().buffer();
+        buffer
+            .content()
+            .chunks(usize::from(buffer.area.width))
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+            .collect()
     }
 
     fn screen(state: &GameState) -> String {
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal.draw(|frame| draw(frame, state)).unwrap();
-        terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect()
+        rows(state).concat()
+    }
+
+    #[test]
+    fn the_map_panel_shows_the_viewport_around_the_player() {
+        let state = state();
+        let rows = rows(&state);
+        // The player starts mid-zone, so the camera centres on them.
+        assert_eq!(rows[10].chars().nth(30), Some('☺'));
+        let panel: String = rows[..20].concat();
+        assert_eq!(panel.matches('☺').count(), 1);
+        assert!(panel.contains('#') && panel.contains('.'));
     }
 
     #[test]

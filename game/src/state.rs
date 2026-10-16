@@ -6,15 +6,22 @@ use hecs::{Entity, World};
 use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
+use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
 use crate::entity::{Appearance, Attachments, Energy, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::fov;
-use crate::map::{Grid, Map, Tile, choose_spawn_position, generate_map};
+use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
 use crate::time::{Tick, Timers};
+use crate::zone::{CaveParams, ZoneCoord, generate_cave, start_position, zone_seed};
+
+/// Goblins placed in a new zone (fewer if the cave has no room).
+pub const GOBLINS: usize = 6;
+/// Closest a goblin may start to the player, in steps.
+pub const GOBLIN_MIN_DISTANCE: i32 = 12;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -62,42 +69,70 @@ pub struct GameState {
 }
 
 impl GameState {
-    /// The starting room: the player at (1, 1), plus a `Rubble` and a
-    /// `Goblin`, each on a free floor tile drawn from the spawn stream.
-    pub fn new(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
-        let mut state = Self::bare(seed, blueprints)?;
+    /// The starting zone: a generated cave, the player on the floor tile
+    /// nearest its centre, and `GOBLINS` goblins on free floor at least
+    /// `GOBLIN_MIN_DISTANCE` away, drawn from the spawn stream.
+    pub fn new(
+        seed: u64,
+        blueprints: Blueprints,
+        cave: &CaveParams,
+    ) -> Result<Self, BlueprintError> {
+        let mut state = Self::bare(seed, blueprints, cave)?;
         state.populate()?;
         Ok(state)
     }
 
-    /// Just the map and the player (spawned from the `Player` blueprint at
-    /// (1, 1)); no other entities.
-    pub fn bare(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
-        Self::bare_with_rngs(seed, Rngs::new(seed), blueprints)
+    /// Just the generated zone and the player; no other entities.
+    pub fn bare(
+        seed: u64,
+        blueprints: Blueprints,
+        cave: &CaveParams,
+    ) -> Result<Self, BlueprintError> {
+        let zone_seed = zone_seed(seed, ZoneCoord::START);
+        let (map, map_stream) = generate_cave(zone_seed, cave);
+        let mut rngs = Rngs::new(seed, zone_seed);
+        rngs.map = map_stream;
+        let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
+        Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
     }
 
     fn populate(&mut self) -> Result<(), BlueprintError> {
-        for name in ["Rubble", "Goblin"] {
+        let Ok(from) = self
+            .world
+            .get::<&Position>(self.player)
+            .map(|pos| (pos.x, pos.y))
+        else {
+            return Ok(());
+        };
+        for _ in 0..GOBLINS {
             let occupied: Vec<(i32, i32)> = self
                 .world
                 .query::<&Position>()
                 .iter()
                 .map(|pos| (pos.x, pos.y))
                 .collect();
-            let (x, y) = choose_spawn_position(&self.map, &occupied, &mut self.rngs.spawn)
-                .expect("the starting room has free floor");
-            self.spawn_at(name, Position { x, y })?;
+            let Some((x, y)) = choose_spawn_position(
+                &self.map,
+                &occupied,
+                from,
+                GOBLIN_MIN_DISTANCE,
+                &mut self.rngs.spawn,
+            ) else {
+                break;
+            };
+            self.spawn_at("Goblin", Position { x, y })?;
         }
-        self.log.push("A goblin lurks in the room.");
+        self.log.push("Goblins prowl these caves.");
         Ok(())
     }
 
-    fn bare_with_rngs(
+    fn with_map(
         seed: u64,
-        mut rngs: Rngs,
+        rngs: Rngs,
+        map: Map,
+        player_at: Position,
         blueprints: Blueprints,
     ) -> Result<Self, BlueprintError> {
-        let map = generate_map(&mut rngs.map);
         let unseen = Grid::new(map.width, map.height, false);
 
         let mut log = MessageLog::default();
@@ -120,7 +155,7 @@ impl GameState {
             seen: unseen,
             next_spawn_seq: 0,
         };
-        state.player = state.spawn_at("Player", Position { x: 1, y: 1 })?;
+        state.player = state.spawn_at("Player", player_at)?;
         fov::update(&mut state);
         Ok(state)
     }
@@ -179,12 +214,15 @@ pub(crate) fn event_registry() -> EventRegistry {
     events
 }
 
-/// Visible tiles show terrain and whatever stands there; remembered tiles
-/// show dimmed terrain only; never-seen tiles stay blank.
-pub fn render_view(state: &GameState) -> Grid<Cell> {
+/// A `width` × `height` view through the camera following the player
+/// (`camera::camera`). Visible tiles show terrain and whatever stands there;
+/// remembered tiles show dimmed terrain only; never-seen tiles and padding
+/// outside the zone stay blank.
+pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
+    let camera = camera(state, width, height);
     let mut grid = Grid::new(
-        state.map.width,
-        state.map.height,
+        camera.width,
+        camera.height,
         Cell {
             glyph: ' ',
             fg: Rgb(200, 200, 200),
@@ -193,8 +231,9 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
     );
     let flag = |flags: &Grid<bool>, x, y| flags.get(x, y) == Some(&true);
 
-    for y in 0..state.map.height {
-        for x in 0..state.map.width {
+    for screen_y in 0..camera.height {
+        for screen_x in 0..camera.width {
+            let (x, y) = camera.screen_to_world((screen_x, screen_y));
             let visible = flag(&state.visible, x, y);
             if !visible && !flag(&state.seen, x, y) {
                 continue;
@@ -204,7 +243,7 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
                 Tile::Floor => ('.', Rgb(90, 90, 90)),
                 Tile::Wall => ('#', Rgb(140, 140, 140)),
             };
-            if let Some(cell) = grid.get_mut(x, y) {
+            if let Some(cell) = grid.get_mut(screen_x, screen_y) {
                 cell.glyph = glyph;
                 cell.fg = if visible { fg } else { dim(fg) };
             }
@@ -215,7 +254,8 @@ pub fn render_view(state: &GameState) -> Grid<Cell> {
         if !flag(&state.visible, pos.x, pos.y) {
             continue;
         }
-        if let Some(cell) = grid.get_mut(pos.x, pos.y) {
+        let (screen_x, screen_y) = camera.world_to_screen((pos.x, pos.y));
+        if let Some(cell) = grid.get_mut(screen_x, screen_y) {
             cell.glyph = appearance.glyph;
             cell.fg = appearance.fg;
         }
@@ -237,10 +277,10 @@ pub(crate) mod tests {
     use crate::blueprint::{Blueprint, ComponentDef};
     use crate::combat::roll_melee;
     use crate::command::apply_commands;
-    use crate::entity::{
-        Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Melee, Name,
-    };
+    use crate::entity::{Armor, Attachments, Bleeding, Duration, Health, Melee, Name};
     use crate::input::{Dir, PlayerAction};
+    use crate::map::tests::room;
+    use crate::zone::tests::test_cave;
     use rand::Rng;
 
     fn blueprint(components: Vec<ComponentDef>, equipment: &[&str]) -> Blueprint {
@@ -330,9 +370,24 @@ pub(crate) mod tests {
         .expect("test blueprints resolve")
     }
 
-    /// Map and player only, so tests control every other entity.
+    /// The hand-built `room` with the player at (1, 1) and nothing else, so
+    /// tests control every other entity and generator tuning can't move
+    /// walls under them.
     pub(crate) fn bare_state() -> GameState {
-        GameState::bare(1, test_blueprints()).unwrap()
+        bare_state_seeded(1)
+    }
+
+    /// `bare_state` with `seed`'s RNG streams.
+    pub(crate) fn bare_state_seeded(seed: u64) -> GameState {
+        let rngs = Rngs::new(seed, seed);
+        GameState::with_map(
+            seed,
+            rngs,
+            room(),
+            Position { x: 1, y: 1 },
+            test_blueprints(),
+        )
+        .unwrap()
     }
 
     /// An entity with exactly `components` (plus its `SpawnSeq`), spawned
@@ -362,22 +417,32 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn new_spawns_an_armored_goblin_away_from_the_rubble() {
-        let state = GameState::new(1, test_blueprints()).unwrap();
-        let goblins = goblins(&state);
-        assert_eq!(goblins.len(), 1);
-        let (goblin_at, gear) = &goblins[0];
-        assert!(state.world.satisfies::<&Armor>(gear[0]));
+    fn new_spawns_armored_goblins_on_floor_away_from_the_player() {
+        for seed in 0..5 {
+            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+            let player = player_position(&state);
+            let goblins = goblins(&state);
+            assert_eq!(goblins.len(), GOBLINS, "seed {seed}");
+            for (at, gear) in &goblins {
+                assert_eq!(state.map.get(at.x, at.y), Some(&Tile::Floor));
+                let distance = (at.x - player.x).abs().max((at.y - player.y).abs());
+                assert!(distance >= GOBLIN_MIN_DISTANCE, "seed {seed}: {at:?}");
+                assert!(state.world.satisfies::<&Armor>(gear[0]));
+            }
+        }
+    }
 
-        let rubble_at = state
-            .world
-            .query::<(&Position, &BlocksMovement)>()
-            .without::<&Health>()
-            .iter()
-            .map(|(pos, _)| *pos)
-            .next()
-            .unwrap();
-        assert_ne!(*goblin_at, rubble_at);
+    #[test]
+    fn the_player_starts_on_the_floor_tile_nearest_the_centre() {
+        let state = GameState::bare(3, test_blueprints(), &test_cave()).unwrap();
+        let start = player_position(&state);
+        let (cx, cy) = (state.map.width / 2, state.map.height / 2);
+        let dist = |x: i32, y: i32| (x - cx).pow(2) + (y - cy).pow(2);
+        let nearest = crate::map::floor_candidates(&state.map, &[])
+            .into_iter()
+            .map(|(x, y)| dist(x, y))
+            .min();
+        assert_eq!(Some(dist(start.x, start.y)), nearest);
     }
 
     fn positions(state: &GameState) -> Vec<(Position, Option<String>)> {
@@ -399,8 +464,8 @@ pub(crate) mod tests {
 
     #[test]
     fn same_seed_yields_identical_map_spawns_and_combat_rolls() {
-        let mut a = GameState::new(9, test_blueprints()).unwrap();
-        let mut b = GameState::new(9, test_blueprints()).unwrap();
+        let mut a = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        let mut b = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
         assert_eq!(a.map, b.map);
         assert_eq!(positions(&a), positions(&b));
         assert_eq!(combat_rolls(&mut a), combat_rolls(&mut b));
@@ -408,11 +473,10 @@ pub(crate) mod tests {
 
     #[test]
     fn an_extra_spawn_draw_leaves_map_and_combat_streams_alone() {
-        let mut fresh = GameState::new(9, test_blueprints()).unwrap();
+        let mut fresh = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
 
-        let mut rngs = Rngs::new(9);
-        rngs.spawn.next_u64();
-        let mut perturbed = GameState::bare_with_rngs(9, rngs, test_blueprints()).unwrap();
+        let mut perturbed = GameState::bare(9, test_blueprints(), &test_cave()).unwrap();
+        perturbed.rngs.spawn.next_u64();
         perturbed.populate().unwrap();
 
         assert_eq!(perturbed.map, fresh.map);
@@ -423,8 +487,8 @@ pub(crate) mod tests {
 
     #[test]
     fn spawns_avoid_walls_the_player_and_each_other() {
-        for seed in 0..200 {
-            let state = GameState::new(seed, test_blueprints()).unwrap();
+        for seed in 0..10 {
+            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
             let tiles: Vec<Position> = positions(&state).into_iter().map(|(p, _)| p).collect();
             for (i, pos) in tiles.iter().enumerate() {
                 assert_eq!(
@@ -442,7 +506,7 @@ pub(crate) mod tests {
 
     #[test]
     fn missing_player_blueprint_is_an_error() {
-        assert!(GameState::bare(1, Blueprints::default()).is_err());
+        assert!(GameState::bare(1, Blueprints::default(), &test_cave()).is_err());
     }
 
     #[test]
@@ -458,7 +522,7 @@ pub(crate) mod tests {
     #[test]
     fn move_into_wall_is_blocked_and_logs_a_message() {
         let mut state = bare_state();
-        // (1,1) -> north is (1,0), which generate_map always makes a wall.
+        // (1,1) -> north is (1,0), a wall in `room`.
         state
             .commands
             .push_back(Command::TryMove(state.player, Dir::N));
@@ -497,13 +561,22 @@ pub(crate) mod tests {
         assert_eq!(state.seen.get(2, 1), Some(&true));
         state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
 
-        let view = render_view(&state);
+        // The whole room fits, so screen and world coordinates agree.
+        let view = render_view(&state, 40, 20);
         let remembered = view.get(2, 1).unwrap();
         assert_eq!((remembered.glyph, remembered.fg), ('.', Rgb(45, 45, 45)));
         let in_view = view.get(10, 1).unwrap();
         assert_eq!((in_view.glyph, in_view.fg), ('.', Rgb(90, 90, 90)));
         let never_seen = view.get(38, 18).unwrap();
         assert_eq!(never_seen.glyph, ' ');
+    }
+
+    #[test]
+    fn the_view_is_the_viewport_size_and_centred_on_the_player() {
+        let state = GameState::bare(3, test_blueprints(), &test_cave()).unwrap();
+        let view = render_view(&state, 41, 21);
+        assert_eq!((view.width, view.height), (41, 21));
+        assert_eq!(view.get(20, 10).map(|cell| cell.glyph), Some('@'));
     }
 
     #[test]

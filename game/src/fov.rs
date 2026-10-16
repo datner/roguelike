@@ -172,21 +172,22 @@ mod tests {
     use rand::RngExt;
 
     use super::*;
-    use crate::map::{MAP_HEIGHT, MAP_WIDTH, floor_candidates, generate_map};
+    use crate::map::floor_candidates;
+    use crate::map::tests::room;
     use crate::rng::Rngs;
 
     fn sees(view: &Grid<bool>, (x, y): (i32, i32)) -> bool {
         view.get(x, y) == Some(&true)
     }
 
-    /// The generated room with interior walls scattered from the seed's
-    /// map stream, so each seed gives different shadows.
+    /// The test room with interior walls scattered from the seed's map
+    /// stream, so each seed gives different shadows.
     fn scattered_map(seed: u64) -> Map {
-        let mut rngs = Rngs::new(seed);
-        let mut map = generate_map(&mut rngs.map);
+        let mut rng = Rngs::new(seed, seed).map;
+        let mut map = room();
         for _ in 0..80 {
-            let x = rngs.map.random_range(1..MAP_WIDTH - 1);
-            let y = rngs.map.random_range(1..MAP_HEIGHT - 1);
+            let x = rng.random_range(1..map.width - 1);
+            let y = rng.random_range(1..map.height - 1);
             map.set(x, y, Tile::Wall);
         }
         map
