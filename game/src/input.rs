@@ -52,8 +52,10 @@ pub enum InputEvent {
     Explore,
     /// `explore::cycle_explore_items`: what auto-explore does at items.
     CycleExploreItems,
-    /// Frontend only, like `Quit`: open the inventory view. No game effect.
+    /// Frontend only, like `Quit`: open the inventory or equipment view. No
+    /// game effect.
     Inventory,
+    Equipment,
     Quit,
 }
 

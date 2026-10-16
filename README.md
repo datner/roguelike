@@ -91,9 +91,15 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
-- `i`: inventory (a panel over the map): `j`/`k` or arrows select, `Enter`
-  equips, `d` drops, `Esc`/`q`/`i` closes. Equipping and dropping take a
-  turn each.
+- `i` / `e`: the inventory / equipment panel over the map. `Tab` switches
+  views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
+  view's key again also closes).
+  - Inventory: `Enter` equips on the first part that fits, `d` drops.
+  - Equipment: one row per body part. `Enter` on a filled part unequips;
+    on an empty one it lists what you carry that fits, and `Enter` equips
+    it there (`Esc` backs out).
+  - Equipping, unequipping and dropping take a turn each; the panel stays
+    open.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

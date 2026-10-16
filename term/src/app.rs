@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use game::{
-    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, cycle_explore_items, explore_step,
-    inventory_view, random_seed, render_view, take_turn,
+    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, cycle_explore_items,
+    equipment_view, explore_step, inventory_view, random_seed, render_view, take_turn,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -16,7 +16,7 @@ use ratatui::widgets::{Block, Paragraph};
 
 use crate::input::{map_key_event, map_menu_key, map_overlay_key};
 use crate::menu::{self, Action, Menu};
-use crate::overlay::{self, Contents, Overlay, OverlayAction};
+use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
 use crate::saves::{self, Loaded};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
@@ -147,9 +147,10 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                 let Some(input) = map_overlay_key(key) else {
                     continue;
                 };
-                let inventory = inventory_view(state);
+                let (inventory, equipment) = (inventory_view(state), equipment_view(state));
                 let contents = Contents {
                     inventory: &inventory,
+                    equipment: &equipment,
                 };
                 match overlay.as_mut().and_then(|o| o.handle(input, &contents)) {
                     Some(OverlayAction::Close) => overlay = None,
@@ -171,7 +172,8 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state)?,
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
-                    InputEvent::Inventory => overlay = Some(Overlay::default()),
+                    InputEvent::Inventory => overlay = Some(Overlay::new(Tab::Inventory)),
+                    InputEvent::Equipment => overlay = Some(Overlay::new(Tab::Equipment)),
                 }
             }
             Event::Resize(_, _) => {}
@@ -248,9 +250,10 @@ fn draw(frame: &mut Frame, state: &GameState, overlay: Option<&Overlay>) {
     );
 
     if let Some(overlay) = overlay {
-        let inventory = inventory_view(state);
+        let (inventory, equipment) = (inventory_view(state), equipment_view(state));
         let contents = Contents {
             inventory: &inventory,
+            equipment: &equipment,
         };
         overlay::draw(frame, chunks[0], overlay, &contents);
     }
@@ -305,7 +308,7 @@ mod tests {
         let state = state();
         let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
         terminal
-            .draw(|frame| draw(frame, &state, Some(&Overlay::default())))
+            .draw(|frame| draw(frame, &state, Some(&Overlay::new(Tab::Inventory))))
             .unwrap();
         let rows: Vec<String> = {
             let buffer = terminal.backend().buffer();

@@ -21,6 +21,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('i') => Some(InputEvent::Inventory),
+        KeyCode::Char('e') => Some(InputEvent::Equipment),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
         _ => None,
     }
@@ -34,6 +35,11 @@ pub enum OverlayInput {
     Select,
     Drop,
     Close,
+    /// Show the inventory view, or close if it is showing.
+    Inventory,
+    /// Show the equipment view, or close if it is showing.
+    Equipment,
+    SwitchTab,
 }
 
 pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
@@ -45,7 +51,10 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Down | KeyCode::Char('j') => Some(OverlayInput::Down),
         KeyCode::Enter => Some(OverlayInput::Select),
         KeyCode::Char('d') => Some(OverlayInput::Drop),
-        KeyCode::Esc | KeyCode::Char('q' | 'i') => Some(OverlayInput::Close),
+        KeyCode::Esc | KeyCode::Char('q') => Some(OverlayInput::Close),
+        KeyCode::Char('i') => Some(OverlayInput::Inventory),
+        KeyCode::Char('e') => Some(OverlayInput::Equipment),
+        KeyCode::Tab => Some(OverlayInput::SwitchTab),
         _ => None,
     }
 }
@@ -164,12 +173,24 @@ mod tests {
     }
 
     #[test]
-    fn i_opens_the_inventory_and_closes_it_again() {
+    fn i_and_e_open_the_panel_and_its_keys_navigate() {
         assert_eq!(
             map_key_event(key(KeyCode::Char('i'))),
             Some(InputEvent::Inventory)
         );
-        for code in [KeyCode::Char('i'), KeyCode::Esc, KeyCode::Char('q')] {
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('e'))),
+            Some(InputEvent::Equipment)
+        );
+        assert_eq!(
+            map_overlay_key(key(KeyCode::Char('i'))),
+            Some(OverlayInput::Inventory)
+        );
+        assert_eq!(
+            map_overlay_key(key(KeyCode::Tab)),
+            Some(OverlayInput::SwitchTab)
+        );
+        for code in [KeyCode::Esc, KeyCode::Char('q')] {
             assert_eq!(map_overlay_key(key(code)), Some(OverlayInput::Close));
         }
         assert_eq!(
