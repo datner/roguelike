@@ -1,4 +1,4 @@
-//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent`.
+//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent` or a `MenuInput`.
 
 use game::{Dir, InputEvent};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
@@ -18,6 +18,39 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('n') => Some(InputEvent::Move(Dir::SE)),
         KeyCode::Char('.') => Some(InputEvent::Wait),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
+        _ => None,
+    }
+}
+
+/// Title-menu input. Menus are a frontend concern, so this never reaches `game`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuInput {
+    Up,
+    Down,
+    Select,
+    Back,
+    Delete,
+    Rename,
+    Char(char),
+    Backspace,
+}
+
+/// `typing` is true while a text field has focus: every printable key is
+/// then text, so `j` or `q` type a letter instead of navigating.
+pub fn map_menu_key(key: KeyEvent, typing: bool) -> Option<MenuInput> {
+    if key.kind == KeyEventKind::Release {
+        return None;
+    }
+    match key.code {
+        KeyCode::Enter => Some(MenuInput::Select),
+        KeyCode::Esc => Some(MenuInput::Back),
+        KeyCode::Backspace if typing => Some(MenuInput::Backspace),
+        KeyCode::Char(c) if typing => Some(MenuInput::Char(c)),
+        KeyCode::Up | KeyCode::Char('k') => Some(MenuInput::Up),
+        KeyCode::Down | KeyCode::Char('j') => Some(MenuInput::Down),
+        KeyCode::Char('q') => Some(MenuInput::Back),
+        KeyCode::Char('d') | KeyCode::Delete => Some(MenuInput::Delete),
+        KeyCode::Char('r') => Some(MenuInput::Rename),
         _ => None,
     }
 }
@@ -85,5 +118,20 @@ mod tests {
         let mut release = key(KeyCode::Char('h'));
         release.kind = KeyEventKind::Release;
         assert_eq!(map_key_event(release), None);
+    }
+
+    #[test]
+    fn menu_letters_navigate_unless_typing() {
+        let j = key(KeyCode::Char('j'));
+        assert_eq!(map_menu_key(j, false), Some(MenuInput::Down));
+        assert_eq!(map_menu_key(j, true), Some(MenuInput::Char('j')));
+        let q = key(KeyCode::Char('q'));
+        assert_eq!(map_menu_key(q, false), Some(MenuInput::Back));
+        assert_eq!(map_menu_key(q, true), Some(MenuInput::Char('q')));
+        assert_eq!(map_menu_key(key(KeyCode::Esc), true), Some(MenuInput::Back));
+        assert_eq!(
+            map_menu_key(key(KeyCode::Enter), true),
+            Some(MenuInput::Select)
+        );
     }
 }

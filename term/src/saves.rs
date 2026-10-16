@@ -1,4 +1,4 @@
-//! Save files: one per character, loaded at start and written on quit.
+//! Save files: one per character, listed and managed from the title menu, written on quit.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -50,6 +50,52 @@ pub fn save_on_quit(path: &Path, state: &GameState) -> Result<bool, String> {
     write_atomic(path, text.as_bytes())
         .map_err(|err| format!("cannot write {}: {err}", path.display()))?;
     Ok(true)
+}
+
+/// The characters with a save in `dir`, most recently saved first, so the
+/// head is the one "Continue" resumes. A missing directory has no saves.
+pub fn list(dir: &Path) -> Result<Vec<String>, String> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(err) => return Err(format!("cannot list {}: {err}", dir.display())),
+    };
+    let mut saves = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("cannot list {}: {err}", dir.display()))?;
+        let file = entry.path();
+        if file.extension().is_none_or(|ext| ext != "ron") {
+            continue;
+        }
+        let Some(name) = file.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        if path(dir, name).is_err() {
+            continue;
+        }
+        let modified = entry.metadata().and_then(|meta| meta.modified()).ok();
+        saves.push((modified, name.to_string()));
+    }
+    saves.sort_by(|(a_time, a_name), (b_time, b_name)| {
+        b_time.cmp(a_time).then_with(|| a_name.cmp(b_name))
+    });
+    Ok(saves.into_iter().map(|(_, name)| name).collect())
+}
+
+pub fn delete(dir: &Path, character: &str) -> Result<(), String> {
+    let file = path(dir, character)?;
+    fs::remove_file(&file).map_err(|err| format!("cannot delete {}: {err}", file.display()))
+}
+
+/// Refuses to overwrite: renaming onto an existing character would lose
+/// that character's save.
+pub fn rename(dir: &Path, from: &str, to: &str) -> Result<(), String> {
+    let source = path(dir, from)?;
+    let target = path(dir, to)?;
+    if target.exists() {
+        return Err(format!("a save named {to:?} already exists"));
+    }
+    fs::rename(&source, &target).map_err(|err| format!("cannot rename {}: {err}", source.display()))
 }
 
 /// Writes a temp file next to `path`, then renames it over `path`, so a
@@ -191,5 +237,60 @@ mod tests {
         for bad in ["", "../hero", "a/b", ".hidden"] {
             assert!(path(dir, bad).is_err(), "{bad:?}");
         }
+    }
+
+    fn touch(file: &Path, secs_after_epoch: u64) {
+        fs::write(file, "save").unwrap();
+        let time = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs_after_epoch);
+        File::options()
+            .write(true)
+            .open(file)
+            .unwrap()
+            .set_modified(time)
+            .unwrap();
+    }
+
+    #[test]
+    fn saves_are_listed_most_recent_first() {
+        let dir = temp_dir("list");
+        touch(&dir.join("old.ron"), 100);
+        touch(&dir.join("new.ron"), 300);
+        touch(&dir.join("mid.ron"), 200);
+        touch(&dir.join("new.ron.tmp"), 400);
+        touch(&dir.join(".hidden.ron"), 400);
+        touch(&dir.join("notes.txt"), 400);
+
+        assert_eq!(
+            list(&dir),
+            Ok(vec!["new".into(), "mid".into(), "old".into()])
+        );
+        assert_eq!(list(&dir.join("missing")), Ok(Vec::new()));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn deleting_removes_only_that_save() {
+        let dir = temp_dir("delete");
+        touch(&dir.join("hero.ron"), 100);
+        touch(&dir.join("other.ron"), 100);
+
+        assert_eq!(delete(&dir, "hero"), Ok(()));
+        assert_eq!(files(&dir), ["other.ron"]);
+        assert!(delete(&dir, "hero").is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn renaming_never_overwrites_another_save() {
+        let dir = temp_dir("rename");
+        touch(&dir.join("hero.ron"), 100);
+        touch(&dir.join("other.ron"), 100);
+
+        assert!(rename(&dir, "hero", "other").is_err());
+        assert!(rename(&dir, "hero", "../escape").is_err());
+        assert_eq!(files(&dir), ["hero.ron", "other.ron"]);
+        assert_eq!(rename(&dir, "hero", "champion"), Ok(()));
+        assert_eq!(files(&dir), ["champion.ron", "other.ron"]);
+        fs::remove_dir_all(dir).unwrap();
     }
 }

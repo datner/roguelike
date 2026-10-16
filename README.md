@@ -53,19 +53,31 @@ This is a Cargo workspace with two crates:
   raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
   clipped custom `MapWidget`, and owns all terminal lifecycle concerns
   (raw mode, alternate screen, Kitty keyboard protocol enhancement when
-  supported, panic-safe restore). It also owns save files: one per
-  character, loaded on start and written (atomically) on quit.
+  supported, panic-safe restore). It also owns the title menu and save
+  files: one per character, loaded from the menu and written (atomically)
+  on quit.
 
 A future windowed/tileset frontend would be a new crate depending on
 `game`, with no changes to `game` itself.
 
 ## Controls
 
+Title menu (New game, Continue, Load):
+
+- Arrow keys or `j`/`k`: select; `Enter`: choose; `Esc` or `q`: back/quit.
+- New game asks for a character name (letters, digits, `-`, `_`).
+- Continue resumes the most recently saved character.
+- Load lists saves, newest first: `Enter` loads, `r` renames, `d` deletes
+  (with confirmation).
+
+In game:
+
 - Arrow keys or `hjkl`: move orthogonally.
 - `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE).
 - `.`: wait a turn.
-- `q` or `Esc`: save and quit.
-- After you die, any key quits without saving; the last save is kept.
+- `q` or `Esc`: save and return to the title menu.
+- After you die, any key returns to the title without saving; the last save
+  is kept.
 
 Moving, attacking (by moving into a creature), bumping a wall and waiting
 each take one turn. The status bar shows the current turn.
@@ -78,11 +90,12 @@ nix develop --command cargo run -p term
 nix develop --command cargo run -p term -- --seed 42
 ```
 
-Each character has one save, `<saves>/<name>.ron`. `--character <name>`
-picks it (default `default`); `--saves <dir>` overrides the platform data
-directory. If the save exists it is loaded and `--seed` is ignored;
-otherwise a new game starts. A save that fails to load is left untouched
-and the game exits with an error.
+Each character has one save, `<saves>/<name>.ron`. The game opens on the
+title menu; `--character <name>` skips it and plays that character
+straight away (quitting still returns to the menu). `--saves <dir>`
+overrides the platform data directory. `--seed` applies to new games only.
+A save that fails to load is left untouched and the error is shown in the
+menu.
 
 With direnv installed and `direnv allow`'d in this directory, the `nix
 develop` shell activates automatically and you can just run `cargo run -p

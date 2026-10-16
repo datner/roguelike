@@ -1,22 +1,135 @@
-//! Blocking, turn-based event loop and panel layout.
+//! The title-menu session, and the blocking, turn-based game loop and panel layout.
 
 use std::io;
+use std::path::{Path, PathBuf};
 
-use game::{GameState, InputEvent, PlayerAction, render_view, take_turn};
+use game::{
+    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, random_seed, render_view,
+    take_turn,
+};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::input::map_key_event;
+use crate::input::{map_key_event, map_menu_key};
+use crate::menu::{self, Action, Menu};
+use crate::saves::{self, Loaded};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
+
+type Term = ratatui::Terminal<Backend>;
+
+pub struct Setup {
+    pub data_dir: PathBuf,
+    pub saves_dir: PathBuf,
+    /// Seed for new games; loaded games keep their own.
+    pub seed: Option<u64>,
+}
+
+/// Shows the title menu until it quits, performing its actions; quitting a
+/// game saves it and returns here. `first` runs before the menu is shown.
+pub fn session(terminal: &mut Term, setup: &Setup, first: Option<Action>) -> io::Result<()> {
+    let mut menu = Menu::new(Vec::new());
+    refresh(&mut menu, &setup.saves_dir);
+    let mut pending = first;
+    loop {
+        let action = match pending.take() {
+            Some(action) => action,
+            None => {
+                terminal.draw(|frame| menu::draw(frame, &menu))?;
+                let Event::Key(key) = event::read()? else {
+                    continue;
+                };
+                let Some(action) = map_menu_key(key, menu.typing()).and_then(|i| menu.handle(i))
+                else {
+                    continue;
+                };
+                action
+            }
+        };
+        let dir = &setup.saves_dir;
+        let outcome = match action {
+            Action::Quit => return Ok(()),
+            Action::Play(character) => play(terminal, setup, &character)?,
+            Action::Delete(character) => {
+                saves::delete(dir, &character).map(|()| format!("Deleted {character}."))
+            }
+            Action::Rename { from, to } => {
+                saves::rename(dir, &from, &to).map(|()| format!("Renamed {from} to {to}."))
+            }
+        };
+        let (Ok(message) | Err(message)) = outcome;
+        menu.show(message);
+        refresh(&mut menu, dir);
+    }
+}
+
+fn refresh(menu: &mut Menu, dir: &Path) {
+    match saves::list(dir) {
+        Ok(list) => menu.set_saves(list),
+        Err(err) => menu.show(err),
+    }
+}
+
+/// Plays `character` until they quit or die, then saves. The outer error
+/// is the terminal's; the inner one is a message for the menu.
+fn play(terminal: &mut Term, setup: &Setup, character: &str) -> io::Result<Result<String, String>> {
+    let path = match saves::path(&setup.saves_dir, character) {
+        Ok(path) => path,
+        Err(err) => return Ok(Err(err)),
+    };
+    let mut state = match start(setup, character, &path) {
+        Ok(state) => state,
+        Err(err) => return Ok(Err(err)),
+    };
+    let ran = run(terminal, &mut state);
+    // Saved even if the terminal failed, so the run isn't lost.
+    let saved = saves::save_on_quit(&path, &state);
+    ran?;
+    Ok(saved.map(|saved| {
+        if saved {
+            format!("Saved {character}.")
+        } else {
+            format!("{character} died on turn {}.", state.now.turn())
+        }
+    }))
+}
+
+/// The character's saved game, or a new one if it has no save yet.
+fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, String> {
+    let entities = setup.data_dir.join("entities");
+    let blueprints = Blueprints::load_dir(&entities).map_err(|err| {
+        format!(
+            "Failed to load blueprints from {}: {err}",
+            setup.data_dir.display()
+        )
+    })?;
+    match saves::load(save_path, blueprints)? {
+        Loaded::Saved(mut state) => {
+            state.log.push(format!("Welcome back, {character}."));
+            if setup.seed.is_some() {
+                state
+                    .log
+                    .push(format!("--seed ignored: continuing seed {}.", state.seed));
+            }
+            Ok(*state)
+        }
+        Loaded::New(blueprints) => {
+            let cave = CaveParams::load(&setup.data_dir.join("cave.ron"))
+                .map_err(|err| format!("Failed to load cave parameters: {err}"))?;
+            let seed = setup.seed.unwrap_or_else(random_seed);
+            GameState::new(seed, blueprints, &cave)
+                .map_err(|err| format!("Failed to start a game: {err}"))
+        }
+    }
+}
 
 /// Blocks on `event::read()` and redraws after every event (including
 /// resize) — no tick loop: `game::take_turn` runs the world until the
 /// player is ready again.
-pub fn run(terminal: &mut ratatui::Terminal<Backend>, state: &mut GameState) -> io::Result<()> {
+pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
     terminal.draw(|frame| draw(frame, state))?;
 
     loop {
@@ -72,7 +185,7 @@ fn draw(frame: &mut Frame, state: &GameState) {
 
     let status = if state.game_over {
         format!(
-            "You died on turn {}. Press any key to quit.",
+            "You died on turn {}. Press any key to return to the title.",
             state.now.turn()
         )
     } else {
@@ -142,7 +255,7 @@ mod tests {
         // What the frontend reads of a death; how dying works is `game`'s.
         state.game_over = true;
         let screen = screen(&state);
-        assert!(screen.contains("You died on turn 7. Press any key to quit."));
+        assert!(screen.contains("You died on turn 7. Press any key to return to the title."));
         assert!(screen.contains('☺'), "the dead player is still drawn");
     }
 }
