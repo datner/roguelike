@@ -63,6 +63,54 @@ pub struct Melee {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Attachments(pub Vec<Entity>);
 
+/// What a body part is, which decides what can be equipped on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum PartKind {
+    Head,
+    Body,
+    Back,
+    Hand,
+    Feet,
+}
+
+impl PartKind {
+    /// For messages: "You have no hand to equip the knife on."
+    pub fn noun(self) -> &'static str {
+        match self {
+            PartKind::Head => "head",
+            PartKind::Body => "body",
+            PartKind::Back => "back",
+            PartKind::Hand => "hand",
+            PartKind::Feet => "feet",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BodyPart {
+    pub kind: PartKind,
+    /// "left hand"; several parts may share a kind but not a name.
+    pub name: String,
+}
+
+/// A creature's anatomy (Qud-style): each part holds at most one equipped
+/// item. Parts are referred to by index, so the list never changes order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Body(pub Vec<BodyPart>);
+
+/// Item part: it can be equipped on a body part of this kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Equippable {
+    pub part: PartKind,
+}
+
+/// On an equipped item: the index of the owner's `Body` part it occupies.
+/// The item is also in the owner's `Attachments`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct EquippedOn(pub u32);
+
 /// Items carried but not in use. Kept apart from `Attachments` so their
 /// parts stay inert: a knife in the pack never makes anyone bleed. Despawned
 /// with the carrier.

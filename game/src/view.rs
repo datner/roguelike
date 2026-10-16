@@ -4,7 +4,8 @@
 use hecs::{Entity, World};
 
 use crate::cell::Rgb;
-use crate::entity::{Appearance, Inventory, Name, SpawnSeq};
+use crate::entity::{Appearance, Body, Equippable, Inventory, Name, PartKind, SpawnSeq};
+use crate::equipment::equipped;
 use crate::state::GameState;
 
 /// A frontend's handle on an item: its `SpawnSeq`, which is unique, stable
@@ -33,6 +34,8 @@ pub struct ItemView {
     pub name: String,
     pub glyph: char,
     pub fg: Rgb,
+    /// The kind of body part it can be equipped on, if any.
+    pub fits: Option<PartKind>,
 }
 
 impl ItemView {
@@ -48,6 +51,7 @@ impl ItemView {
             name,
             glyph,
             fg,
+            fits: world.get::<&Equippable>(item).ok().map(|e| e.part),
         })
     }
 }
@@ -57,6 +61,37 @@ pub fn inventory_view(state: &GameState) -> Vec<ItemView> {
     carried(state)
         .into_iter()
         .filter_map(|item| ItemView::of(&state.world, item))
+        .collect()
+}
+
+/// One of the player's body parts and what is equipped on it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartView {
+    /// Pass back as `PlayerAction::Equip { part: Some(index), .. }`.
+    pub index: u32,
+    pub name: String,
+    pub kind: PartKind,
+    pub item: Option<ItemView>,
+}
+
+/// The player's body parts in anatomy order, equipped or empty.
+pub fn equipment_view(state: &GameState) -> Vec<PartView> {
+    let world = &state.world;
+    let Ok(body) = world.get::<&Body>(state.player) else {
+        return Vec::new();
+    };
+    let worn = equipped(world, state.player);
+    (0..)
+        .zip(&body.0)
+        .map(|(index, part)| PartView {
+            index,
+            name: part.name.clone(),
+            kind: part.kind,
+            item: worn
+                .iter()
+                .find(|&&(_, at)| at == index)
+                .and_then(|&(item, _)| ItemView::of(world, item)),
+        })
         .collect()
 }
 

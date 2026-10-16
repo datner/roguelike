@@ -5,6 +5,7 @@
         Name("rusty knife"),
         Appearance(glyph: '/', fg: (170, 110, 70), bg: (0, 0, 0)),
         Item,
+        Equippable(part: Hand),
         OnHit([(effect: "Bleeding", chance_bp: 2500)]),
     ],
 )

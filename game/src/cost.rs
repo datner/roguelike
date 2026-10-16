@@ -19,6 +19,8 @@ pub const MOVE: i64 = STANDARD;
 pub const WAIT: i64 = STANDARD;
 pub const PICK_UP: i64 = STANDARD;
 pub const DROP: i64 = STANDARD;
+pub const EQUIP: i64 = STANDARD;
+pub const UNEQUIP: i64 = STANDARD;
 
 /// The actor that pays for `command`, and how much. `None` for commands that
 /// are consequences of an action (`Attack` from a bump, damage, death…)
@@ -29,6 +31,8 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::Wait(actor) => Some((actor, WAIT)),
         Command::PickUp(actor) => Some((actor, PICK_UP)),
         Command::Drop { actor, .. } => Some((actor, DROP)),
+        Command::Equip { actor, .. } => Some((actor, EQUIP)),
+        Command::Unequip { actor, .. } => Some((actor, UNEQUIP)),
         _ => None,
     }
 }

@@ -26,6 +26,10 @@ This is a Cargo workspace with two crates:
     fair distance away. The exit (`>`) sits on the floor farthest from the
     start, and a few items (any blueprint with an `Item` part) lie on the
     floor; stepping on one finds it.
+  - Inventory and equipment (ADR 0010): carried items are inert; equipped
+    ones sit on a body part of the creature's anatomy (`Body`, Qud-style,
+    from data) and their parts take effect. `inventory_view` and
+    `equipment_view` give frontends plain data, with `ItemRef` handles.
   - Auto-explore: `explore_step` walks the player, one turn at a time,
     to the nearest unfound item they know of, then to unexplored ground,
     then to the exit, stopping as soon as a hostile is in view.

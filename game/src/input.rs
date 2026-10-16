@@ -62,6 +62,12 @@ pub enum PlayerAction {
     Wait,
     PickUp,
     Drop(ItemRef),
+    /// `part` indexes `equipment_view`; `None` picks the first that fits.
+    Equip {
+        item: ItemRef,
+        part: Option<u32>,
+    },
+    Unequip(ItemRef),
 }
 
 #[cfg(test)]

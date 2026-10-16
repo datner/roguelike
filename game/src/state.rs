@@ -324,7 +324,10 @@ pub(crate) mod tests {
     use crate::blueprint::{Blueprint, ComponentDef};
     use crate::combat::roll_melee;
     use crate::command::apply_commands;
-    use crate::entity::{Armor, Attachments, Bleeding, Duration, Found, Health, Melee, Name};
+    use crate::entity::{
+        Armor, Attachments, Bleeding, BodyPart, Duration, Equippable, Found, Health, Melee, Name,
+        PartKind,
+    };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
     use crate::zone::tests::test_cave;
@@ -346,6 +349,20 @@ pub(crate) mod tests {
         })
     }
 
+    /// Head, body, two hands: enough anatomy for the test items.
+    pub(crate) fn test_body() -> ComponentDef {
+        let part = |kind, name: &str| BodyPart {
+            kind,
+            name: name.to_string(),
+        };
+        ComponentDef::Body(vec![
+            part(PartKind::Head, "head"),
+            part(PartKind::Body, "body"),
+            part(PartKind::Hand, "right hand"),
+            part(PartKind::Hand, "left hand"),
+        ])
+    }
+
     /// Player: 20 HP, 2-4 melee. Goblin: 8 HP wearing 1-AV armor, hostile.
     /// Both normal speed. Bleeding: 1 damage every 100 ticks for 500 ticks.
     pub(crate) fn test_blueprints() -> Blueprints {
@@ -357,6 +374,7 @@ pub(crate) mod tests {
                     vec![
                         name("player"),
                         ComponentDef::Player,
+                        test_body(),
                         look('@'),
                         ComponentDef::BlocksMovement,
                         ComponentDef::Health(Health {
@@ -381,6 +399,7 @@ pub(crate) mod tests {
                 blueprint(
                     vec![
                         name("goblin"),
+                        test_body(),
                         look('g'),
                         ComponentDef::BlocksMovement,
                         ComponentDef::Health(Health { current: 8, max: 8 }),
@@ -412,6 +431,9 @@ pub(crate) mod tests {
                         name("leather armor"),
                         look('['),
                         ComponentDef::Item,
+                        ComponentDef::Equippable(Equippable {
+                            part: PartKind::Body,
+                        }),
                         ComponentDef::Armor(Armor { av: 1 }),
                     ],
                     &[],

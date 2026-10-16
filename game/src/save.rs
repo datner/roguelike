@@ -14,9 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Dead, Duration, EffectTarget, Energy,
-    Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit, OnHitEntry, Player, Position,
-    SpawnSeq, Speed, Timed,
+    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration, EffectTarget,
+    Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit,
+    OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
 };
 use crate::fov;
 use crate::map::Grid;
@@ -25,7 +25,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 3;
+pub const SAVE_VERSION: u32 = 4;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -175,6 +175,9 @@ enum ComponentKind {
     Hostile,
     Item,
     Found,
+    Body,
+    Equippable,
+    EquippedOn,
     Duration,
     Timed,
     EffectTarget,
@@ -183,7 +186,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 22] = [
+    const ALL: [ComponentKind; 25] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -201,6 +204,9 @@ impl ComponentKind {
         Self::Hostile,
         Self::Item,
         Self::Found,
+        Self::Body,
+        Self::Equippable,
+        Self::EquippedOn,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -230,6 +236,9 @@ enum SavedComponent {
     Hostile,
     Item,
     Found,
+    Body(Body),
+    Equippable(Equippable),
+    EquippedOn(EquippedOn),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -474,6 +483,9 @@ fn save_component(
         ComponentKind::Hostile => marker::<Hostile>(entity, S::Hostile),
         ComponentKind::Item => marker::<Item>(entity, S::Item),
         ComponentKind::Found => marker::<Found>(entity, S::Found),
+        ComponentKind::Body => copy(entity).map(S::Body),
+        ComponentKind::Equippable => copy(entity).map(S::Equippable),
+        ComponentKind::EquippedOn => copy(entity).map(S::EquippedOn),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -531,6 +543,9 @@ fn load_component(
         S::Hostile => builder.add(Hostile),
         S::Item => builder.add(Item),
         S::Found => builder.add(Found),
+        S::Body(c) => builder.add(c),
+        S::Equippable(c) => builder.add(c),
+        S::EquippedOn(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),

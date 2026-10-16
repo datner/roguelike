@@ -1,5 +1,5 @@
 (
-    inherits: "Creature",
+    inherits: "Humanoid",
     components: [
         Name("goblin"),
         Appearance(glyph: 'g', fg: (90, 200, 90), bg: (0, 0, 0)),

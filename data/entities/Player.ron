@@ -1,5 +1,5 @@
 (
-    inherits: "Creature",
+    inherits: "Humanoid",
     components: [
         Name("player"),
         Player,

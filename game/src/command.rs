@@ -11,6 +11,7 @@ use crate::effect::{self, DurationChange};
 use crate::entity::{
     Attachments, BlocksMovement, Dead, Energy, Found, Health, Inventory, Item, Position, SpawnSeq,
 };
+use crate::equipment;
 use crate::event::{Ctx, settle};
 use crate::fov;
 use crate::grammar::{Subject, capitalize};
@@ -34,7 +35,8 @@ pub(crate) enum DamageCause {
     Effect { effect: Entity },
 }
 
-/// Actions (`TryMove`, `Wait`, `PickUp`, `Drop`) cost their actor energy;
+/// Actions (`TryMove`, `Wait`, `PickUp`, `Drop`, `Equip`, `Unequip`) cost
+/// their actor energy;
 /// see `cost::of`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Command {
@@ -45,6 +47,18 @@ pub(crate) enum Command {
     PickUp(Entity),
     /// Put `item` from the actor's `Inventory` down on their tile.
     Drop {
+        actor: Entity,
+        item: Entity,
+    },
+    /// Move `item` from the actor's `Inventory` onto a body part: `part`,
+    /// or the first that fits. Whatever was there goes back to the inventory.
+    Equip {
+        actor: Entity,
+        item: Entity,
+        part: Option<u32>,
+    },
+    /// Move an equipped `item` back into the actor's `Inventory`.
+    Unequip {
         actor: Entity,
         item: Entity,
     },
@@ -100,7 +114,9 @@ impl Command {
             | Command::Wait(actor)
             | Command::PickUp(actor)
             | Command::FindItems(actor) => [Some(actor), None],
-            Command::Drop { actor, item } => [Some(actor), Some(item)],
+            Command::Drop { actor, item }
+            | Command::Equip { actor, item, .. }
+            | Command::Unequip { actor, item } => [Some(actor), Some(item)],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -145,6 +161,8 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Wait(_) => {}
             Command::PickUp(actor) => pick_up(state, actor),
             Command::Drop { actor, item } => drop_item(state, actor, item),
+            Command::Equip { actor, item, part } => equipment::equip(state, actor, item, part),
+            Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
             Command::Attack { attacker, target } => attack(state, attacker, target),
             Command::DealDamage {
                 target,
@@ -191,8 +209,8 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 }
 
 /// Screens the player's input before it becomes an action. A move into a
-/// wall (any wall, seen or not, for now) or a pick-up with nothing to take
-/// is refused with a message: nothing is queued, no energy is spent and no
+/// wall (any wall, seen or not, for now), a pick-up with nothing to take,
+/// or an equip or unequip that can't happen is refused with a message: nothing is queued, no energy is spent and no
 /// time passes. Returns whether the input was refused.
 pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
     match *command {
@@ -207,6 +225,18 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
                 return false;
             }
             state.log.push("There is nothing here to pick up.");
+        }
+        Command::Equip { actor, item, part } => {
+            let Err(message) = equipment::plan_equip(state, actor, item, part) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Unequip { actor, item } => {
+            let Err(message) = equipment::check_unequip(state, actor, item) else {
+                return false;
+            };
+            state.log.push(message);
         }
         _ => return false,
     }

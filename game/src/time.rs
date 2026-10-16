@@ -16,6 +16,7 @@ use crate::ai;
 use crate::command::{Command, apply_commands, reject_input};
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{Dead, Energy, SpawnSeq, Speed};
+use crate::equipment::equipped;
 use crate::input::PlayerAction;
 use crate::state::GameState;
 use crate::view::carried;
@@ -122,6 +123,31 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 return;
             };
             Command::Drop {
+                actor: player,
+                item,
+            }
+        }
+        PlayerAction::Equip { item, part } => {
+            let Some(item) = item.find(&state.world, &carried(state)) else {
+                state.log.push("You do not carry that.");
+                return;
+            };
+            Command::Equip {
+                actor: player,
+                item,
+                part,
+            }
+        }
+        PlayerAction::Unequip(item) => {
+            let worn: Vec<_> = equipped(&state.world, player)
+                .into_iter()
+                .map(|(item, _)| item)
+                .collect();
+            let Some(item) = item.find(&state.world, &worn) else {
+                state.log.push("You do not have that equipped.");
+                return;
+            };
+            Command::Unequip {
                 actor: player,
                 item,
             }

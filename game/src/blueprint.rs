@@ -21,9 +21,10 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Hostile, Item,
-    Melee, Name, OnHit, OnHitEntry, Player, Speed,
+    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable,
+    EquippedOn, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed,
 };
+use crate::equipment::free_part;
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -45,6 +46,8 @@ pub enum ComponentDef {
     Speed(Speed),
     Hostile,
     Item,
+    Body(Vec<BodyPart>),
+    Equippable(Equippable),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -70,6 +73,8 @@ impl ComponentDef {
             ComponentDef::Speed(c) => builder.add(c),
             ComponentDef::Hostile => builder.add(Hostile),
             ComponentDef::Item => builder.add(Item),
+            ComponentDef::Body(parts) => builder.add(Body(parts)),
+            ComponentDef::Equippable(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
@@ -103,6 +108,27 @@ pub struct ResolvedBlueprint {
     pub components: Vec<ComponentDef>,
     pub on_hit: Option<OnHit>,
     pub equipment: Vec<BlueprintId>,
+    /// The `Body` part each `equipment` entry is spawned on, index for index.
+    pub equipped_on: Vec<u32>,
+}
+
+impl ResolvedBlueprint {
+    pub fn body(&self) -> &[BodyPart] {
+        self.components
+            .iter()
+            .find_map(|c| match c {
+                ComponentDef::Body(parts) => Some(parts.as_slice()),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn equippable(&self) -> Option<PartKind> {
+        self.components.iter().find_map(|c| match c {
+            ComponentDef::Equippable(e) => Some(e.part),
+            _ => None,
+        })
+    }
 }
 
 /// A loaded, validated set of blueprints.
@@ -137,6 +163,11 @@ pub enum BlueprintError {
     /// Names along the cycle, starting and ending with the same blueprint.
     InheritanceCycle(Vec<String>),
     EquipmentCycle(Vec<String>),
+    /// `item` can't be equipped, or `owner`'s `Body` has no free part for it.
+    EquipmentDoesNotFit {
+        owner: String,
+        item: String,
+    },
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -163,6 +194,12 @@ impl std::fmt::Display for BlueprintError {
             ),
             Self::InheritanceCycle(path) => write!(f, "inheritance cycle: {}", path.join(" -> ")),
             Self::EquipmentCycle(path) => write!(f, "equipment cycle: {}", path.join(" -> ")),
+            Self::EquipmentDoesNotFit { owner, item } => {
+                write!(
+                    f,
+                    "blueprint {owner:?} has no free body part for equipment {item:?}"
+                )
+            }
         }
     }
 }
@@ -248,9 +285,11 @@ impl Blueprints {
                 components,
                 on_hit,
                 equipment,
+                equipped_on: Vec::new(),
             });
         }
         check_equipment_cycles(&resolved)?;
+        fit_equipment(&mut resolved)?;
         Ok(Self { resolved, ids })
     }
 
@@ -277,7 +316,7 @@ impl Blueprints {
     }
 
     /// Spawns blueprint `id`, and each piece of its equipment as a separate
-    /// entity listed in the owner's `Attachments`. Only for
+    /// entity listed in the owner's `Attachments` (on its body part). Only for
     /// `GameState::spawn_id`, which gives them all a `SpawnSeq`. Equipment
     /// cycles are rejected at load, so the recursion ends.
     #[expect(
@@ -294,8 +333,10 @@ impl Blueprints {
             .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
 
         let mut attachments = Vec::with_capacity(blueprint.equipment.len());
-        for &item in &blueprint.equipment {
-            attachments.push(self.spawn_id(world, item)?);
+        for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
+            let item = self.spawn_id(world, item)?;
+            let _ = world.insert_one(item, EquippedOn(part));
+            attachments.push(item);
         }
 
         let mut builder = EntityBuilder::new();
@@ -347,6 +388,27 @@ fn check_effect_durations(
 
 /// Checked after flattening, since a cycle can run through inherited
 /// equipment lists.
+/// Puts each blueprint's equipment on the first free body part that fits,
+/// in list order, so spawning can never fail to place it.
+fn fit_equipment(resolved: &mut [ResolvedBlueprint]) -> Result<(), BlueprintError> {
+    for owner in 0..resolved.len() {
+        let mut parts = Vec::with_capacity(resolved[owner].equipment.len());
+        for &item in &resolved[owner].equipment {
+            let item = &resolved[item.0 as usize];
+            let part = item
+                .equippable()
+                .and_then(|kind| free_part(resolved[owner].body(), &parts, kind))
+                .ok_or_else(|| BlueprintError::EquipmentDoesNotFit {
+                    owner: resolved[owner].name.clone(),
+                    item: item.name.clone(),
+                })?;
+            parts.push(part);
+        }
+        resolved[owner].equipped_on = parts;
+    }
+    Ok(())
+}
+
 fn check_equipment_cycles(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
     #[derive(Clone, Copy, PartialEq)]
     enum Mark {
@@ -495,13 +557,30 @@ mod tests {
     }
 
     /// `Base` carries a sword; `Child` sets `equipment` to `child_equipment`.
+    fn held() -> ComponentDef {
+        ComponentDef::Equippable(Equippable {
+            part: PartKind::Hand,
+        })
+    }
+
+    fn two_hands() -> ComponentDef {
+        ComponentDef::Body(
+            ["right hand", "left hand"]
+                .map(|name| BodyPart {
+                    kind: PartKind::Hand,
+                    name: name.to_string(),
+                })
+                .to_vec(),
+        )
+    }
+
     fn resolve_child_equipment(child_equipment: Option<&[&str]>) -> Vec<String> {
         let raw = BTreeMap::from([
-            ("Sword".to_string(), bp(None, vec![])),
-            ("Shield".to_string(), bp(None, vec![])),
+            ("Sword".to_string(), bp(None, vec![held()])),
+            ("Shield".to_string(), bp(None, vec![held()])),
             (
                 "Base".to_string(),
-                with_equipment(bp(None, vec![]), Some(&["Sword"])),
+                with_equipment(bp(None, vec![two_hands()]), Some(&["Sword"])),
             ),
             (
                 "Child".to_string(),
@@ -516,6 +595,35 @@ mod tests {
             .iter()
             .map(|&id| blueprints.by_id(id).unwrap().name.clone())
             .collect()
+    }
+
+    #[test]
+    fn equipment_that_does_not_fit_fails_the_load() {
+        let fits = |owner: Vec<ComponentDef>, item: Vec<ComponentDef>, gear: &[&str]| {
+            let raw = BTreeMap::from([
+                ("Sword".to_string(), bp(None, item)),
+                (
+                    "Owner".to_string(),
+                    with_equipment(bp(None, owner), Some(gear)),
+                ),
+            ]);
+            match Blueprints::resolve(raw) {
+                Ok(_) => Ok(()),
+                Err(BlueprintError::EquipmentDoesNotFit { owner, item }) => Err((owner, item)),
+                Err(other) => panic!("unexpected {other}"),
+            }
+        };
+        let refused = Err(("Owner".to_string(), "Sword".to_string()));
+        assert_eq!(
+            fits(vec![two_hands()], vec![held()], &["Sword", "Sword"]),
+            Ok(())
+        );
+        assert_eq!(
+            fits(vec![two_hands()], vec![held()], &["Sword"; 3]),
+            refused
+        );
+        assert_eq!(fits(vec![two_hands()], vec![], &["Sword"]), refused);
+        assert_eq!(fits(vec![], vec![held()], &["Sword"]), refused);
     }
 
     #[test]
