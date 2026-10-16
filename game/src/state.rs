@@ -86,6 +86,9 @@ pub struct GameState {
     /// What auto-explore does on reaching a floor item. A player setting,
     /// but it decides actions, so it is game state and saved.
     pub explore_items: ExploreItems,
+    /// Missiles launched since the frontend last took them, for animation
+    /// only: never read by the simulation, never saved (ADR 0013).
+    pub(crate) trails: Vec<crate::ranged::Trail>,
 }
 
 impl GameState {
@@ -225,6 +228,7 @@ impl GameState {
             remembered_items: no_items,
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
+            trails: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
         state.stock_quivers()?;

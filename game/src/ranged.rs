@@ -6,10 +6,11 @@ use hecs::Entity;
 use rand::RngExt;
 
 use crate::ammo;
+use crate::cell::Rgb;
 use crate::combat::{Strike, fire_strike, roll_strike, throw_strike};
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
-use crate::entity::{Dead, EquippedOn, Found, Health, Position, Throwable};
+use crate::entity::{Appearance, Dead, EquippedOn, Found, Health, Position, Throwable};
 use crate::equipment;
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
@@ -96,6 +97,20 @@ pub(crate) fn flight(
         landing,
         hit: None,
     }
+}
+
+/// A missile's flight, left for the frontend to animate: how it looks and the
+/// tiles it crossed. The world has already moved on by the time it is read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trail {
+    pub glyph: char,
+    pub fg: Rgb,
+    pub path: Vec<(i32, i32)>,
+}
+
+/// The flights since the last call, oldest first.
+pub fn take_trails(state: &mut GameState) -> Vec<Trail> {
+    std::mem::take(&mut state.trails)
 }
 
 /// A missile ready to leave the shooter: what flies, how it hurts and how
@@ -230,6 +245,17 @@ fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
     };
     let item = ready.missile;
     let flight = flight(state, actor, from, at, ready.range);
+    if !flight.path.is_empty() {
+        let (glyph, fg) = state
+            .world
+            .get::<&Appearance>(item)
+            .map_or(('*', Rgb(220, 220, 220)), |look| (look.glyph, look.fg));
+        state.trails.push(Trail {
+            glyph,
+            fg,
+            path: flight.path.clone(),
+        });
+    }
 
     match ready.container {
         Some(container) => holding::unstow(&mut state.world, container, item),
@@ -281,6 +307,7 @@ fn land(state: &mut GameState, item: Entity, (x, y): (i32, i32)) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cell::Rgb;
     use crate::entity::{AmmoKind, Armor, DamageType, OnHit, OnHitEntry, Stat};
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
@@ -400,6 +427,43 @@ mod tests {
                 "You throw the throwing knife at the goblin."
             ]
         );
+    }
+
+    #[test]
+    fn a_launch_leaves_a_trail_for_the_frontend_once() {
+        let mut state = bare_state();
+        let knife = knife(&mut state);
+        state
+            .world
+            .insert_one(
+                knife,
+                crate::entity::Appearance {
+                    glyph: '\\',
+                    fg: Rgb(1, 2, 3),
+                    bg: Rgb(0, 0, 0),
+                },
+            )
+            .unwrap();
+        throw_at(&mut state, knife, (4, 1));
+        let trails = take_trails(&mut state);
+        assert_eq!(
+            trails,
+            [Trail {
+                glyph: '\\',
+                fg: Rgb(1, 2, 3),
+                path: vec![(2, 1), (3, 1), (4, 1)],
+            }]
+        );
+        assert!(take_trails(&mut state).is_empty());
+    }
+
+    #[test]
+    fn a_missile_that_goes_nowhere_leaves_no_trail() {
+        let mut state = bare_state();
+        let knife = knife(&mut state);
+        state.map.set(2, 1, Tile::Wall);
+        throw_at(&mut state, knife, (5, 1));
+        assert!(take_trails(&mut state).is_empty());
     }
 
     #[test]

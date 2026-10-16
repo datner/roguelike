@@ -7,7 +7,7 @@ use std::time::Duration;
 use game::{
     Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
     cycle_explore_items, equipment_view, explore_step, fire_step, inventory_view, random_seed,
-    render_view, take_turn, throwables,
+    render_view, take_trails, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -20,7 +20,7 @@ use crate::menu::{self, Action, Menu};
 use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
 use crate::saves::{self, Loaded};
 use crate::side_panel;
-use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction};
+use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction, Flying};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
@@ -175,6 +175,8 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                             None => {}
                         }
                     }
+                    // Only ever on screen for one frame, between keys.
+                    Some(Modal::Flight(_)) => {}
                     Some(Modal::Aim(aiming)) => {
                         let Some(input) = map_aim_key(key) else {
                             continue;
@@ -186,6 +188,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                                 // up, with the reason in the log, so it can be nudged.
                                 let before = state.now;
                                 take_turn(state, action);
+                                animate(terminal, state, character)?;
                                 if state.now != before || state.game_over {
                                     modal = None;
                                 }
@@ -233,6 +236,8 @@ enum Modal {
     /// Picking what to throw.
     Choose(Chooser),
     Aim(Aiming),
+    /// A missile mid-flight: drawn for one frame by `animate`, takes no keys.
+    Flight(Flying),
 }
 
 /// Pressing fire: aim if an arrow is ready, nock one first (a turn) if only
@@ -263,6 +268,29 @@ fn start_throw(state: &mut GameState) -> Option<Modal> {
         1 => Aiming::new(state, Shot::Throw(options.remove(0).item)).map(Modal::Aim),
         _ => Some(Modal::Choose(Chooser::default())),
     }
+}
+
+/// Time a missile spends on each tile it crosses.
+const MISSILE_STEP_DELAY: Duration = Duration::from_millis(40);
+
+/// Plays back the flights the last action launched, a frame per tile. The
+/// world has already resolved the shot, so this is only a picture of how it
+/// got there; any key press cuts it short.
+fn animate(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
+    for trail in take_trails(state) {
+        for &at in &trail.path {
+            let flying = Flying {
+                glyph: trail.glyph,
+                fg: trail.fg,
+                at,
+            };
+            terminal.draw(|frame| draw(frame, state, character, Some(&Modal::Flight(flying))))?;
+            if key_pressed_within(MISSILE_STEP_DELAY)? {
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Pause between auto-explore steps, so the walk is visible and a key
@@ -350,6 +378,7 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
             targeting::draw_chooser(frame, chunks[0], chooser, &throwables(state));
         }
         Some(Modal::Aim(aiming)) => targeting::draw_aim(frame, chunks[0], state, aiming),
+        Some(Modal::Flight(flying)) => targeting::draw_missile(frame, chunks[0], state, *flying),
         None => {}
     }
 }
@@ -436,6 +465,26 @@ mod tests {
             .map(|at| buffer.cell(at).unwrap().symbol())
             .collect();
         assert!(status.contains("Enter: fire"), "{status}");
+    }
+
+    #[test]
+    fn a_flying_missile_is_drawn_on_its_tile() {
+        let state = state();
+        let (origin, _) = game::aim_range(&state, Shot::Fire).unwrap();
+        let flying = Flying {
+            glyph: '\\',
+            fg: game::Rgb(1, 2, 3),
+            at: origin,
+        };
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Flight(flying))))
+            .unwrap();
+        // The camera centres on the player.
+        assert_eq!(
+            terminal.backend().buffer().cell((30, 10)).unwrap().symbol(),
+            "\\"
+        );
     }
 
     #[test]

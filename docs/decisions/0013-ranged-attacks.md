@@ -49,6 +49,14 @@ or the rendering seam.
   loose arrow first (a turn); a second press aims.
 - The player starts with a short bow and a quiver of 12 arrows.
 
+### Animation
+
+- The shot resolves instantly. `launch` also leaves a `Trail` (glyph, colour,
+  tiles crossed) in a transient `GameState` list that `take_trails` drains;
+  it is never read by the simulation and never saved. `term` replays it a
+  frame per tile (`app::animate`), so a key press cuts it short and the
+  world shown underneath is already the after-state.
+
 ## Consequences
 
 - Thrown items are not lost: they land as found floor items and can be

@@ -118,6 +118,7 @@ In game:
   or `Space` throws, `Esc`/`q` cancels. The path is marked and the status
   bar shows the damage after armor; the missile hits the first creature on
   the line and lands there (or before a wall), ready to pick up again.
+  The missile is animated flying; any key skips it.
 - `f`: fire the bow you wield, with the nocked arrow, else the next one
   from your quiver; aiming works as for `t`. With neither, a loose arrow
   in your pack is nocked first (one turn), then `f` again aims. Arrows that

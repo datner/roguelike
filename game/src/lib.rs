@@ -63,6 +63,7 @@ pub use entity::{
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;
+pub use ranged::{Trail, take_trails};
 pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
 pub use state::{GameState, MessageLog, render_view};

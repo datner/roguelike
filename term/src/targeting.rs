@@ -185,6 +185,30 @@ pub fn draw_aim(frame: &mut Frame, map: Rect, state: &GameState, aiming: &Aiming
     mark(aiming.cursor, Style::new().add_modifier(Modifier::REVERSED));
 }
 
+/// One frame of a missile's flight: its glyph at one world tile.
+#[derive(Debug, Clone, Copy)]
+pub struct Flying {
+    pub glyph: char,
+    pub fg: Rgb,
+    pub at: (i32, i32),
+}
+
+/// Draws the flying missile over the already-drawn map.
+pub fn draw_missile(frame: &mut Frame, map: Rect, state: &GameState, flying: Flying) {
+    let (width, height) = viewport_tiles(map);
+    let (x, y) = camera(state, width, height).world_to_screen(flying.at);
+    let (x, y) = tile_to_screen(x, y);
+    if !(0..width).contains(&x) || !(0..height).contains(&y) {
+        return;
+    }
+    if let Some(cell) = frame
+        .buffer_mut()
+        .cell_mut((map.x + x as u16, map.y + y as u16))
+    {
+        cell.set_char(flying.glyph).set_fg(color(flying.fg));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;

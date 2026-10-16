@@ -402,6 +402,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
     let visible = Grid::new(map.width, map.height, false);
 
     let mut state = GameState {
+        trails: Vec::new(),
         world,
         map,
         log: save.log,
