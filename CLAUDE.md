@@ -49,6 +49,8 @@ ratatui's `TestBackend` for `term` widgets).
 - `game/` — library: all simulation and logic. See `game/CLAUDE.md`.
 - `term/` — binary: crossterm + ratatui frontend. See `term/CLAUDE.md`.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
+- `docs/vision.md` — where the game is going (pillars, character systems, camp,
+  legacy). Read before designing a new system; `docs/plans/` hold build plans.
 - `docs/decisions/` — short ADRs explaining _why_ things are the way they are.
   Read the relevant one before changing an invariant below.
 
