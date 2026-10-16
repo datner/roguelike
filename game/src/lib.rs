@@ -70,9 +70,10 @@ pub use grammar::Subject;
 pub use ranged::{Trail, take_trails};
 pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
+pub use skill::{Domain, SkillBook, SkillDef};
 pub use state::{GameState, MessageLog, render_view};
 pub use time::{Tick, Timers, advance, take_turn};
 pub use view::{
-    CastPreview, CharacterSheet, CostLine, ItemRef, ItemView, PartView, SpellView, character_sheet,
-    equipment_view, inventory_view, spells, throwables,
+    CastPreview, CharacterSheet, CostLine, ItemRef, ItemView, PartView, SkillView, SpellView,
+    character_sheet, equipment_view, inventory_view, skills, spells, throwables,
 };

@@ -22,6 +22,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('i') => Some(InputEvent::Inventory),
         KeyCode::Char('e') => Some(InputEvent::Equipment),
+        KeyCode::Char('s') => Some(InputEvent::Skills),
         KeyCode::Char('t') => Some(InputEvent::Throw),
         KeyCode::Char('f') => Some(InputEvent::Fire),
         KeyCode::Char('c') => Some(InputEvent::Cast),
@@ -46,6 +47,8 @@ pub enum OverlayInput {
     Inventory,
     /// Show the equipment view, or close if it is showing.
     Equipment,
+    /// Show the skills view, or close if it is showing.
+    Skills,
     SwitchTab,
 }
 
@@ -63,6 +66,7 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Esc | KeyCode::Char('q') => Some(OverlayInput::Close),
         KeyCode::Char('i') => Some(OverlayInput::Inventory),
         KeyCode::Char('e') => Some(OverlayInput::Equipment),
+        KeyCode::Char('s') => Some(OverlayInput::Skills),
         KeyCode::Tab => Some(OverlayInput::SwitchTab),
         _ => None,
     }
@@ -224,6 +228,14 @@ mod tests {
 
     #[test]
     fn i_and_e_open_the_panel_and_its_keys_navigate() {
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('s'))),
+            Some(InputEvent::Skills)
+        );
+        assert_eq!(
+            map_overlay_key(key(KeyCode::Char('s'))),
+            Some(OverlayInput::Skills)
+        );
         assert_eq!(
             map_key_event(key(KeyCode::Char('i'))),
             Some(InputEvent::Inventory)

@@ -557,6 +557,7 @@ mod tests {
                 InputEvent::PickUp => PlayerAction::PickUp,
                 InputEvent::Inventory
                 | InputEvent::Equipment
+                | InputEvent::Skills
                 | InputEvent::Throw
                 | InputEvent::Fire
                 | InputEvent::Cast => continue,

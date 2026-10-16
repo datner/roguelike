@@ -220,3 +220,7 @@ listing what changed, what was left out, and follow-ups.
   `AfterHit.graze`; `PerfectDodge` and `Deflected` events (no handlers); skills Dodge, Poise,
   Deflection; `Strike.accuracy`; `skill::after_blow`; `Buckler.ron`; test-only `SureHits`.
   `SAVE_VERSION` 20. Not shown in `term` yet: there is no melee target view to show odds in.
+- **2**: `view::skills` → `SkillView { name, domain, level, xp, next }`; `ItemView.trains` (what the
+  item `Trains` plus its weapon's damage-kind skills, `skill::of_item`); `InputEvent::Skills` / `s`;
+  overlay `Tab::Skills` (grouped by domain; `Tab` cycles inventory → equipment → skills); item rows
+  say "trains …".

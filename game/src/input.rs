@@ -52,10 +52,11 @@ pub enum InputEvent {
     Explore,
     /// `explore::cycle_explore_items`: what auto-explore does at items.
     CycleExploreItems,
-    /// Frontend only, like `Quit`: open the inventory or equipment view. No
-    /// game effect.
+    /// Frontend only, like `Quit`: open the inventory, equipment or skills
+    /// view. No game effect.
     Inventory,
     Equipment,
+    Skills,
     /// Frontend only: pick a throwable and aim it. The throw itself is
     /// `PlayerAction::Throw`.
     Throw,

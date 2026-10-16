@@ -7,7 +7,7 @@ use std::time::Duration;
 use game::{
     Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
     cycle_explore_items, equipment_view, explore_step, fire_step, inventory_view, random_seed,
-    render_view, spells, take_trails, take_turn, throwables,
+    render_view, skills, spells, take_trails, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -151,10 +151,12 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                         let Some(input) = map_overlay_key(key) else {
                             continue;
                         };
-                        let (inventory, equipment) = (inventory_view(state), equipment_view(state));
+                        let (inventory, equipment, skills) =
+                            (inventory_view(state), equipment_view(state), skills(state));
                         let contents = Contents {
                             inventory: &inventory,
                             equipment: &equipment,
+                            skills: &skills,
                         };
                         match overlay.handle(input, &contents) {
                             Some(OverlayAction::Close) => modal = None,
@@ -243,6 +245,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                     InputEvent::Equipment => {
                         modal = Some(Modal::Overlay(Overlay::new(Tab::Equipment)))
                     }
+                    InputEvent::Skills => modal = Some(Modal::Overlay(Overlay::new(Tab::Skills))),
                     InputEvent::Throw => modal = start_throw(state),
                     InputEvent::Fire => modal = start_fire(state),
                     InputEvent::Cast => modal = start_cast(state),
@@ -404,10 +407,12 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
 
     match modal {
         Some(Modal::Overlay(overlay)) => {
-            let (inventory, equipment) = (inventory_view(state), equipment_view(state));
+            let (inventory, equipment, skills) =
+                (inventory_view(state), equipment_view(state), skills(state));
             let contents = Contents {
                 inventory: &inventory,
                 equipment: &equipment,
+                skills: &skills,
             };
             overlay::draw(frame, chunks[0], overlay, &contents);
         }

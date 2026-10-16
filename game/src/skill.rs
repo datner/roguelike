@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::BlueprintError;
 use crate::combat::{AttackOdds, CERTAIN, Outcome, Strike};
-use crate::entity::{DamageType, Familiarity, Learner, Name, Skills, Trains};
+use crate::entity::{DamageType, Familiarity, Learner, Name, Skills, Trains, Weapon};
 use crate::grammar::{Subject, capitalize};
 use crate::state::GameState;
 
@@ -208,6 +208,22 @@ pub(crate) fn melee(world: &World, book: &SkillBook, strike: &Strike) -> Vec<Ski
         None => skills.push(core.unarmed),
     }
     skills.extend(strike.types.iter().filter_map(|kind| core.of_damage(kind)));
+    skills.sort();
+    skills.dedup();
+    skills
+}
+
+/// The skills wielding `item` trains beyond the action's own: what it
+/// `Trains`, and one per kind of damage its `Weapon` deals. For showing on
+/// the item; `melee` decides for a real strike.
+pub(crate) fn of_item(world: &World, book: &SkillBook, item: Entity) -> Vec<SkillId> {
+    let mut skills = world
+        .get::<&Trains>(item)
+        .map(|trains| trains.0.clone())
+        .unwrap_or_default();
+    if let (Some(core), Ok(weapon)) = (book.core, world.get::<&Weapon>(item)) {
+        skills.extend(weapon.types.iter().filter_map(|kind| core.of_damage(kind)));
+    }
     skills.sort();
     skills.dedup();
     skills

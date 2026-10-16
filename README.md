@@ -124,15 +124,18 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
-- `i` / `e`: the inventory / equipment panel over the map. `Tab` switches
-  views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
+- `i` / `e` / `s`: the inventory / equipment / skills panel over the map.
+  `Tab` cycles views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
   view's key again also closes).
   - Inventory: `Enter` equips on the first part that fits, `d` drops.
     On an arrow: `n` nocks it on your bow (a turn, and it overrides the
     quiver: use it for special arrows), `v` puts it in your quiver.
+    Item rows say which skills using the item trains.
   - Equipment: one row per body part. `Enter` on a filled part unequips;
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).
+  - Skills: what you have learned, by domain, with each level and the XP
+    toward the next.
   - Equipping, unequipping and dropping take a turn each; the panel stays
     open.
 - `t`: throw something (carried or equipped; one turn). A list appears if

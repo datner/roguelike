@@ -8,10 +8,11 @@ use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
     Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
-    Quiver, Scroll, Shape, SpawnSeq, Speed, Spell, Stats, Throwable,
+    Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
+use crate::skill::{self, Domain, SkillId};
 use crate::spell;
 use crate::state::GameState;
 
@@ -49,6 +50,8 @@ pub struct ItemView {
     /// What it holds, to show beside the name: a quiver's arrows, a bow's
     /// nocked arrow.
     pub note: Option<String>,
+    /// The skills using it trains, by name (ADR 0017), in skill-file order.
+    pub trains: Vec<String>,
 }
 
 /// A quiver's load or a launcher's nocked arrow, for display.
@@ -69,7 +72,9 @@ fn note(world: &World, item: Entity) -> Option<String> {
 }
 
 impl ItemView {
-    fn of(world: &World, item: Entity) -> Option<Self> {
+    fn of(state: &GameState, item: Entity) -> Option<Self> {
+        let world = &state.world;
+        let book = state.blueprints.skills();
         let name = world
             .get::<&Name>(item)
             .map_or_else(|_| "thing".to_string(), |n| n.0.clone());
@@ -84,6 +89,10 @@ impl ItemView {
             fits: world.get::<&Equippable>(item).ok().map(|e| e.part),
             ammo: world.satisfies::<&Ammo>(item),
             note: note(world, item),
+            trains: skill::of_item(world, book, item)
+                .into_iter()
+                .filter_map(|id| book.get(id).map(|def| def.name.clone()))
+                .collect(),
         })
     }
 }
@@ -92,7 +101,7 @@ impl ItemView {
 pub fn inventory_view(state: &GameState) -> Vec<ItemView> {
     carried(state)
         .into_iter()
-        .filter_map(|item| ItemView::of(&state.world, item))
+        .filter_map(|item| ItemView::of(state, item))
         .collect()
 }
 
@@ -122,7 +131,7 @@ pub fn equipment_view(state: &GameState) -> Vec<PartView> {
             item: worn
                 .iter()
                 .find(|&&(_, at)| at == index)
-                .and_then(|&(item, _)| ItemView::of(world, item)),
+                .and_then(|&(item, _)| ItemView::of(state, item)),
         })
         .collect()
 }
@@ -275,12 +284,51 @@ pub fn spells(state: &GameState) -> Vec<SpellView> {
         .collect()
 }
 
+/// One skill the player has, for a skills panel (ADR 0017).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillView {
+    pub name: String,
+    pub domain: Domain,
+    pub level: u32,
+    pub xp: u32,
+    /// Total XP the next level needs; `None` at the highest level.
+    pub next: Option<u32>,
+}
+
+/// The skills the player has any XP in, by domain, then in skill-file
+/// order.
+pub fn skills(state: &GameState) -> Vec<SkillView> {
+    let book = state.blueprints.skills();
+    let Ok(learned) = state.world.get::<&Skills>(state.player) else {
+        return Vec::new();
+    };
+    let mut views: Vec<(Domain, SkillId, SkillView)> = learned
+        .0
+        .iter()
+        .filter(|&&(_, xp)| xp > 0)
+        .filter_map(|&(id, xp)| {
+            let def = book.get(id)?;
+            let level = skill::level(xp);
+            let view = SkillView {
+                name: def.name.clone(),
+                domain: def.domain,
+                level,
+                xp,
+                next: (level < skill::MAX_LEVEL).then(|| skill::xp_for(level + 1)),
+            };
+            Some((def.domain, id, view))
+        })
+        .collect();
+    views.sort_by_key(|&(domain, id, _)| (domain, id));
+    views.into_iter().map(|(_, _, view)| view).collect()
+}
+
 /// What the player could throw right now.
 pub fn throwables(state: &GameState) -> Vec<ItemView> {
     held(state)
         .into_iter()
         .filter(|&item| state.world.satisfies::<&Throwable>(item))
-        .filter_map(|item| ItemView::of(&state.world, item))
+        .filter_map(|item| ItemView::of(state, item))
         .collect()
 }
 
@@ -299,7 +347,38 @@ pub(crate) fn total_armor(world: &World, entity: Entity) -> Armor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entity::{Stat, Trains};
     use crate::input::PlayerAction;
+
+    #[test]
+    fn skills_list_those_with_xp_by_domain_and_items_list_what_they_train() {
+        let mut state = bare_state();
+        let book = state.blueprints.skills();
+        let id = |name| book.id(name).unwrap();
+        let (dodge, dagger, melee) = (id("Dodge"), id("Dagger"), id("Melee"));
+        let player = state.player;
+        let learned = Skills(vec![(melee, 0), (dagger, skill::xp_for(2) + 5), (dodge, 1)]);
+        state.world.insert_one(player, learned).unwrap();
+        let shown: Vec<(String, Domain, u32, u32, Option<u32>)> = skills(&state)
+            .into_iter()
+            .map(|s| (s.name, s.domain, s.level, s.xp, s.next))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("Dagger".into(), Domain::Martial, 2, 205, Some(450)),
+                ("Dodge".into(), Domain::Defence, 0, 1, Some(50)),
+            ]
+        );
+
+        thing("knife")
+            .item()
+            .weapon(1, 3, Stat::Agility)
+            .with(Trains(vec![dagger]))
+            .carried_by(player)
+            .make(&mut state);
+        assert_eq!(inventory_view(&state)[0].trains, ["Slash", "Dagger"]);
+    }
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, thing};
     use crate::time::take_turn;
