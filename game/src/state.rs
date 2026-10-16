@@ -349,7 +349,6 @@ pub(crate) mod tests {
     use super::*;
     use crate::blueprint::{Blueprint, ComponentDef};
     use crate::combat::roll_melee;
-    use crate::command::apply_commands;
     use crate::entity::{
         Armor, Attachments, Bleeding, BodyPart, Duration, Equippable, Found, Health, Melee, Name,
         PartKind,
@@ -633,10 +632,7 @@ pub(crate) mod tests {
     #[test]
     fn move_onto_open_floor_succeeds() {
         let mut state = bare_state();
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::E));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(state.player, Dir::E));
         assert_eq!(player_position(&state), Position { x: 2, y: 1 });
     }
 
@@ -644,10 +640,7 @@ pub(crate) mod tests {
     fn move_into_wall_is_blocked_and_logs_a_message() {
         let mut state = bare_state();
         // (1,1) -> north is (1,0), a wall in `room`.
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::N));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(state.player, Dir::N));
         assert_eq!(player_position(&state), Position { x: 1, y: 1 });
         assert_eq!(
             state.log.recent(1).next().map(String::as_str),
@@ -659,10 +652,7 @@ pub(crate) mod tests {
     fn move_into_blocking_entity_is_blocked_and_logs_a_message() {
         let mut state = bare_state();
         state.spawn_at("Rubble", Position { x: 2, y: 1 }).unwrap();
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::E));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(state.player, Dir::E));
         assert_eq!(player_position(&state), Position { x: 1, y: 1 });
         assert_eq!(
             state.log.recent(1).next().map(String::as_str),
@@ -756,10 +746,7 @@ pub(crate) mod tests {
     #[test]
     fn diagonal_move_succeeds() {
         let mut state = bare_state();
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::SE));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(state.player, Dir::SE));
         assert_eq!(player_position(&state), Position { x: 2, y: 2 });
     }
 }

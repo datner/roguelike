@@ -11,7 +11,7 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 - `camera.rs` — `Camera`: which world tiles a viewport shows, and the only screen↔world coordinate conversion. ADR 0009.
 - `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`). `Attachments` = in use (parts fire); `Inventory` = carried, inert; `Body` = anatomy, `Equippable` = which part kind an item fits (ADR 0010).
 - `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names). `equipment` entries must fit the owner's `Body` (checked at load; `ResolvedBlueprint::equipped_on`).
-- `command.rs` — `Command` enum and `apply_commands` (the only place the world is mutated during play). A command whose actor or target is `Dead` is skipped there, in one check; a new variant lists its entities in `Command::participants`.
+- `command.rs` — `Command` enum and `apply_commands` (the only place the world is mutated during play). `GameState::run(command)` queues one command and applies it; use it unless several commands must share one drain. A command whose actor or target is `Dead` is skipped there, in one check; a new variant lists its entities in `Command::participants`.
 - `event.rs` — typed, synchronous event dispatch to part handlers (`EventRegistry::on` / `fire`). Handlers get a `Ctx` with `&World`, the map, the RNG and an output `Vec<Command>` — they never mutate the world.
 - `combat.rs` — damage events (`BeforeTakeDamage`, `Damaged`, `AfterHit` on the attacker for damaging melee hits), `strike` (wielded `Weapon` or natural `Melee`, plus the wielder's `Stats` modifier; ADR 0011), the armor (melee hits only; effect damage passes) and `OnHit` handlers, and `preview_damage` (dry run on a cloned RNG).
 - `prio.rs` — every handler priority, in one file, so ordering is reviewable. New handlers get a named constant here, never an inline number. Priorities are unique per event type (`on` panics on a duplicate), so dispatch order never depends on registration order.
@@ -54,8 +54,7 @@ The standard shape — build a state from a seed, queue commands, apply, assert:
 
 ```rust
 let mut state = bare_state(); // state::tests: the hand-built room, player at (1, 1) only
-state.commands.push_back(Command::TryMove(state.player, Dir::E));
-apply_commands(&mut state);
+state.run(Command::TryMove(state.player, Dir::E)); // queue + apply_commands
 assert_eq!(*state.world.get::<&Position>(state.player).unwrap(), Position { x: 2, y: 1 });
 ```
 

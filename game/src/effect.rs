@@ -186,7 +186,6 @@ fn timed_target(state: &GameState, effect: Entity) -> Option<(Timed, Entity)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::apply_commands;
     use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
     use crate::state::tests::bare_state;
     use crate::testkit::thing;
@@ -199,11 +198,6 @@ mod tests {
         state
     }
 
-    fn run(state: &mut GameState, command: Command) {
-        state.commands.push_back(command);
-        apply_commands(state);
-    }
-
     fn apply_bleeding(state: &mut GameState) -> Entity {
         let target = state.player;
         apply_bleeding_to(state, target)
@@ -211,7 +205,7 @@ mod tests {
 
     fn apply_bleeding_to(state: &mut GameState, target: Entity) -> Entity {
         let blueprint = state.blueprints.id("Bleeding").unwrap();
-        run(state, Command::ApplyEffect { target, blueprint });
+        state.run(Command::ApplyEffect { target, blueprint });
         *holding::attached(&state.world, target).last().unwrap()
     }
 
@@ -225,7 +219,7 @@ mod tests {
     }
 
     fn modify(state: &mut GameState, effect: Entity, change: DurationChange) {
-        run(state, Command::ModifyDuration { effect, change });
+        state.run(Command::ModifyDuration { effect, change });
     }
 
     fn timed(state: &GameState, effect: Entity) -> Timed {
@@ -266,7 +260,7 @@ mod tests {
         state.world.despawn(target).unwrap();
         let (entities, log) = (state.world.len(), state.log.clone());
         let blueprint = state.blueprints.id("Bleeding").unwrap();
-        run(&mut state, Command::ApplyEffect { target, blueprint });
+        state.run(Command::ApplyEffect { target, blueprint });
         assert_eq!(state.world.len(), entities);
         assert_eq!(state.log, log);
         assert!(state.timers.is_empty());
@@ -433,7 +427,7 @@ mod tests {
         let mut state = quiet_state();
         let dummy = thing("dummy").health(10).spawn(&mut state);
         let effect = apply_bleeding_to(&mut state, dummy);
-        run(&mut state, Command::Die { entity: dummy });
+        state.run(Command::Die { entity: dummy });
         assert!(!state.world.contains(effect));
         let log = state.log.clone();
         run_until(&mut state, 1000);
@@ -460,7 +454,7 @@ mod tests {
 
     fn player_hits(state: &mut GameState, target: Entity) {
         let attacker = state.player;
-        run(state, Command::Attack { attacker, target });
+        state.run(Command::Attack { attacker, target });
     }
 
     fn attachments(state: &GameState, entity: Entity) -> Vec<Entity> {

@@ -171,7 +171,6 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::apply_commands;
     use crate::command::tests::{BLOW, UNSOURCED};
     use crate::entity::{Bleeding, OnHitEntry};
     use crate::state::MessageLog;
@@ -277,11 +276,10 @@ mod tests {
     }
 
     fn player_hits(state: &mut GameState, target: Entity) {
-        state.commands.push_back(Command::Attack {
+        state.run(Command::Attack {
             attacker: state.player,
             target,
         });
-        apply_commands(state);
     }
 
     fn bleeds(state: &GameState, entity: Entity) -> usize {
@@ -374,12 +372,11 @@ mod tests {
     fn armor_on_an_attachment_reduces_damage() {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 2);
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: dummy,
             amount: 5,
             cause: BLOW,
         });
-        apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 7);
         assert_eq!(last_log(&state), "The dummy takes 3 damage (2 blocked).");
     }
@@ -388,12 +385,11 @@ mod tests {
     fn fully_absorbed_damage_leaves_health_unchanged() {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 2);
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: dummy,
             amount: 2,
             cause: BLOW,
         });
-        apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 10);
         assert_eq!(last_log(&state), "The dummy's armor absorbs the blow.");
     }
@@ -402,12 +398,11 @@ mod tests {
     fn armor_does_not_reduce_effect_damage() {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 2);
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: dummy,
             amount: 1,
             cause: UNSOURCED,
         });
-        apply_commands(&mut state);
         assert_eq!(health(&state, dummy), 9);
         assert_eq!(last_log(&state), "The dummy takes 1 damage.");
     }
@@ -436,11 +431,10 @@ mod tests {
             assert_eq!(state.world.len(), entities_before);
             assert_eq!(health(&state, dummy), health_before);
 
-            state.commands.push_back(Command::Attack {
+            state.run(Command::Attack {
                 attacker: state.player,
                 target: dummy,
             });
-            apply_commands(&mut state);
             assert_eq!(health_before - health(&state, dummy), preview);
         }
     }

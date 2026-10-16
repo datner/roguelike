@@ -124,8 +124,8 @@ pub(crate) fn unequip(state: &mut GameState, actor: Entity, item: Entity) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::Command;
     use crate::command::tests::BLOW;
-    use crate::command::{Command, apply_commands};
     use crate::entity::{Armor, Health};
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
@@ -144,12 +144,11 @@ mod tests {
     }
 
     fn equip_cmd(state: &mut GameState, item: Entity, part: Option<u32>) {
-        state.commands.push_back(Command::Equip {
+        state.run(Command::Equip {
             actor: state.player,
             item,
             part,
         });
-        apply_commands(state);
     }
 
     fn last_log(state: &GameState) -> &str {
@@ -249,11 +248,10 @@ mod tests {
         let mut state = bare_state();
         let knife = carry(&mut state, "knife", Some(PartKind::Hand));
         equip_cmd(&mut state, knife, None);
-        state.commands.push_back(Command::Unequip {
+        state.run(Command::Unequip {
             actor: state.player,
             item: knife,
         });
-        apply_commands(&mut state);
 
         assert_eq!(last_log(&state), "You unequip the knife.");
         assert!(equipped(&state.world, state.player).is_empty());
@@ -305,12 +303,11 @@ mod tests {
         state.world.insert_one(armor, Armor { av: 1 }).unwrap();
         let hit = |state: &mut GameState| {
             let before = state.world.get::<&Health>(state.player).unwrap().current;
-            state.commands.push_back(Command::DealDamage {
+            state.run(Command::DealDamage {
                 target: state.player,
                 amount: 3,
                 cause: BLOW,
             });
-            apply_commands(state);
             before - state.world.get::<&Health>(state.player).unwrap().current
         };
 

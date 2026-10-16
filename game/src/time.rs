@@ -13,7 +13,7 @@ use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
 use crate::ai;
-use crate::command::{Command, apply_commands, reject_input};
+use crate::command::{Command, reject_input};
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{Dead, Energy, SpawnSeq, Speed};
 use crate::equipment::equipped;
@@ -156,10 +156,8 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
     if state.game_over || reject_input(state, &command) {
         return;
     }
-    state.commands.push_back(command);
-    apply_commands(state);
-    state.commands.push_back(Command::UpdateFov);
-    apply_commands(state);
+    state.run(command);
+    state.run(Command::UpdateFov);
     advance(state);
 }
 
@@ -174,8 +172,7 @@ pub(crate) fn step(state: &mut GameState) -> Step {
         return Step::GameOver;
     }
     if let Some(timer) = state.timers.pop_due(state.now) {
-        state.commands.push_back(timer.command());
-        apply_commands(state);
+        state.run(timer.command());
         return Step::Timer(timer);
     }
     if let Some(actor) = next_ready(state) {
@@ -187,8 +184,7 @@ pub(crate) fn step(state: &mut GameState) -> Step {
     }
     match ticks_until_next(state) {
         Some(ticks) => {
-            state.commands.push_back(Command::AdvanceClock { ticks });
-            apply_commands(state);
+            state.run(Command::AdvanceClock { ticks });
             Step::Clock(state.now)
         }
         None => Step::Idle,
@@ -215,13 +211,11 @@ fn energy(state: &GameState, actor: Entity) -> Option<i64> {
 fn act(state: &mut GameState, actor: Entity) {
     let before = energy(state, actor);
     let command = ai::decide(state, actor);
-    state.commands.push_back(command);
-    apply_commands(state);
+    state.run(command);
     // Every AI decision costs energy; if a bug ever breaks that, waiting
     // keeps the scheduler from spinning on a forever-ready actor.
     if before.is_some() && energy(state, actor) >= before {
-        state.commands.push_back(Command::Wait(actor));
-        apply_commands(state);
+        state.run(Command::Wait(actor));
     }
 }
 
@@ -369,10 +363,7 @@ mod tests {
     fn a_bump_attack_costs_one_standard_action() {
         let mut state = bare_state();
         let dummy = blank().at(2, 1).health(100).spawn(&mut state);
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::E));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(state.player, Dir::E));
         assert!(state.world.contains(dummy));
         assert_eq!(
             state.world.get::<&Energy>(state.player).unwrap().0,
@@ -390,8 +381,7 @@ mod tests {
     fn a_dead_player_is_kept_but_never_scheduled() {
         let mut state = bare_state();
         let player = state.player;
-        state.commands.push_back(Command::Die { entity: player });
-        apply_commands(&mut state);
+        state.run(Command::Die { entity: player });
 
         assert!(state.game_over);
         assert!(state.world.satisfies::<&Dead>(player));

@@ -129,6 +129,15 @@ impl Command {
     }
 }
 
+impl GameState {
+    /// Queues `command` and applies it with everything it triggers. A
+    /// method, so arguments may read `self` (`state.run(Wait(state.player))`).
+    pub(crate) fn run(&mut self, command: Command) {
+        self.commands.push_back(command);
+        apply_commands(self);
+    }
+}
+
 /// Drains the command queue. This is the only code that mutates the world.
 pub(crate) fn apply_commands(state: &mut GameState) {
     let mut applied = 0;
@@ -510,10 +519,7 @@ pub(crate) mod tests {
     }
 
     fn bump_east(state: &mut GameState) {
-        state
-            .commands
-            .push_back(Command::TryMove(state.player, Dir::E));
-        apply_commands(state);
+        state.run(Command::TryMove(state.player, Dir::E));
     }
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
@@ -525,8 +531,7 @@ pub(crate) mod tests {
     }
 
     fn pick_up_here(state: &mut GameState) {
-        state.commands.push_back(Command::PickUp(state.player));
-        apply_commands(state);
+        state.run(Command::PickUp(state.player));
     }
 
     #[test]
@@ -550,11 +555,10 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let knife = knife_at(&mut state, 1, 1);
         pick_up_here(&mut state);
-        state.commands.push_back(Command::Drop {
+        state.run(Command::Drop {
             actor: state.player,
             item: knife,
         });
-        apply_commands(&mut state);
 
         assert!(inventory(&state, state.player).is_empty());
         assert_eq!(
@@ -569,11 +573,10 @@ pub(crate) mod tests {
     fn dropping_what_you_do_not_carry_changes_nothing() {
         let mut state = bare_state();
         let knife = knife_at(&mut state, 5, 5);
-        state.commands.push_back(Command::Drop {
+        state.run(Command::Drop {
             actor: state.player,
             item: knife,
         });
-        apply_commands(&mut state);
         assert_eq!(
             *state.world.get::<&Position>(knife).unwrap(),
             Position { x: 5, y: 5 }
@@ -586,8 +589,7 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let goblin = thing("goblin").at(3, 3).spawn(&mut state);
         let knife = thing("knife").item().carried_by(goblin).spawn(&mut state);
-        state.commands.push_back(Command::Die { entity: goblin });
-        apply_commands(&mut state);
+        state.run(Command::Die { entity: goblin });
         assert!(!state.world.contains(knife));
     }
 
@@ -600,8 +602,7 @@ pub(crate) mod tests {
         assert_eq!(last_log(&state), "You find the knife.");
 
         state.log.push("marker");
-        state.commands.push_back(Command::FindItems(state.player));
-        apply_commands(&mut state);
+        state.run(Command::FindItems(state.player));
         assert_eq!(
             last_log(&state),
             "marker",
@@ -614,8 +615,7 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let knife = knife_at(&mut state, 3, 1);
         let walker = thing("goblin").at(2, 1).spawn(&mut state);
-        state.commands.push_back(Command::TryMove(walker, Dir::E));
-        apply_commands(&mut state);
+        state.run(Command::TryMove(walker, Dir::E));
         assert_eq!(
             *state.world.get::<&Position>(walker).unwrap(),
             Position { x: 3, y: 1 }
@@ -668,12 +668,11 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let rock = thing("rock").spawn(&mut state);
         let log_before = state.log.clone();
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: rock,
             amount: 5,
             cause: UNSOURCED,
         });
-        apply_commands(&mut state);
         assert_eq!(state.log, log_before);
         assert!(state.world.contains(rock));
     }
@@ -682,12 +681,11 @@ pub(crate) mod tests {
     fn zero_damage_without_armor_leaves_the_target_unharmed() {
         let mut state = bare_state();
         let dummy = thing("dummy").health(3).spawn(&mut state);
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: dummy,
             amount: 0,
             cause: UNSOURCED,
         });
-        apply_commands(&mut state);
         assert_eq!(state.world.get::<&Health>(dummy).unwrap().current, 3);
         assert_eq!(last_log(&state), "The dummy is unharmed.");
     }
@@ -695,18 +693,16 @@ pub(crate) mod tests {
     #[test]
     fn messages_about_the_player_use_the_second_person() {
         let mut state = bare_state();
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: state.player,
             amount: 3,
             cause: UNSOURCED,
         });
-        apply_commands(&mut state);
         assert_eq!(last_log(&state), "You take 3 damage.");
 
-        state.commands.push_back(Command::Die {
+        state.run(Command::Die {
             entity: state.player,
         });
-        apply_commands(&mut state);
         assert_eq!(last_log(&state), "You die.");
     }
 
@@ -714,8 +710,7 @@ pub(crate) mod tests {
     fn dying_twice_is_harmless() {
         let (mut state, goblin, _) = facing_goblin(1);
         state.commands.push_back(Command::Die { entity: goblin });
-        state.commands.push_back(Command::Die { entity: goblin });
-        apply_commands(&mut state);
+        state.run(Command::Die { entity: goblin });
         assert!(!state.world.contains(goblin));
         assert_eq!(
             state.log.recent(2).collect::<Vec<_>>(),
@@ -745,12 +740,11 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let player = state.player;
         state.commands.push_back(Command::Die { entity: player });
-        state.commands.push_back(Command::DealDamage {
+        state.run(Command::DealDamage {
             target: player,
             amount: 5,
             cause: UNSOURCED,
         });
-        apply_commands(&mut state);
         assert_eq!(state.world.get::<&Health>(player).unwrap().current, 20);
         assert_eq!(
             state.log.recent(2).collect::<Vec<_>>(),
@@ -762,15 +756,13 @@ pub(crate) mod tests {
     fn an_attack_from_the_dead_player_does_nothing() {
         let (mut state, goblin, _) = facing_goblin(4);
         let player = state.player;
-        state.commands.push_back(Command::Die { entity: player });
-        apply_commands(&mut state);
+        state.run(Command::Die { entity: player });
         let (log, combat) = (state.log.clone(), state.rngs.combat.clone());
 
-        state.commands.push_back(Command::Attack {
+        state.run(Command::Attack {
             attacker: player,
             target: goblin,
         });
-        apply_commands(&mut state);
         assert_eq!(state.world.get::<&Health>(goblin).unwrap().current, 8);
         assert_eq!(state.log, log);
         assert_eq!(state.rngs.combat, combat, "no damage was rolled");

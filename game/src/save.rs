@@ -605,7 +605,7 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-    use crate::command::{Command, apply_commands};
+    use crate::command::Command;
     use crate::input::{Dir, PlayerAction};
     use crate::map::Tile;
     use crate::state::GOBLINS;
@@ -797,11 +797,10 @@ mod tests {
         let mut state = bare_state();
         let goblin_entity = state.spawn_at("Goblin", Position { x: 12, y: 10 }).unwrap();
         let blueprint = state.blueprints.id("Bleeding").unwrap();
-        state.commands.push_back(Command::ApplyEffect {
+        state.run(Command::ApplyEffect {
             target: goblin_entity,
             blueprint,
         });
-        apply_commands(&mut state);
         take_turn(&mut state, PlayerAction::Wait);
 
         let mut resumed = reload(&state, test_blueprints());
@@ -923,10 +922,9 @@ mod tests {
             target: goblin_entity,
             blueprint,
         });
-        state.commands.push_back(Command::Die {
+        state.run(Command::Die {
             entity: goblin_entity,
         });
-        apply_commands(&mut state);
         let queued = state.timers.len();
         assert!(queued > 0);
 
