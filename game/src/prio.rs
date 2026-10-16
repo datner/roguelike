@@ -8,3 +8,6 @@ pub const ARMOR: i32 = 100;
 
 /// `AfterHit`: roll the attacker's (and its equipment's) on-hit effects.
 pub const ON_HIT: i32 = 100;
+
+/// `CheckCast` and `PayCost`: the cooldown discipline.
+pub const COOLDOWN: i32 = 100;

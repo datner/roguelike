@@ -186,13 +186,23 @@ pub(crate) fn check(
     ready: &Ready,
     at: (i32, i32),
 ) -> Result<(), String> {
+    check_range(state, actor, ready.range, at)
+}
+
+/// `check` for anything that reaches `range` tiles, a spell as well as a missile.
+pub(crate) fn check_range(
+    state: &GameState,
+    actor: Entity,
+    range: i32,
+    at: (i32, i32),
+) -> Result<(), String> {
     let Some(from) = position(state, actor) else {
         return Err("You can't aim from nowhere.".to_string());
     };
     if from == at {
         return Err("You can't aim at yourself.".to_string());
     }
-    if distance(from, at) > ready.range {
+    if distance(from, at) > range {
         return Err("That is out of range.".to_string());
     }
     if actor == state.player && !state.visible.get(at.0, at.1).copied().unwrap_or(false) {
@@ -201,7 +211,7 @@ pub(crate) fn check(
     Ok(())
 }
 
-fn position(state: &GameState, entity: Entity) -> Option<(i32, i32)> {
+pub(crate) fn position(state: &GameState, entity: Entity) -> Option<(i32, i32)> {
     let at = state.world.get::<&Position>(entity).ok()?;
     Some((at.x, at.y))
 }

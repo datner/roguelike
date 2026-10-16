@@ -204,6 +204,44 @@ pub struct Throwable {
     pub types: DamageTypes,
 }
 
+/// Which kind of magic a spell is. A caster's discipline for the school
+/// decides what casting it costs (ADR 0014).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum School {
+    Pyromancy,
+}
+
+/// Spell part: a spell a creature knows, held in its `Attachments`. `power`
+/// is an abstract magnitude; each discipline converts it into its own cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Spell {
+    pub school: School,
+    pub range: i32,
+    pub power: i32,
+}
+
+/// Spell part: hits the first creature on the line for `min..=max` plus the
+/// caster's `stat` modifier, if it scales with one. Untyped, so armor does not resist it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellDamage {
+    pub min: i32,
+    pub max: i32,
+    pub stat: Option<Stat>,
+}
+
+/// A spell that was just cast and cannot be cast again until `Timed` ends.
+/// Read from the timestamps, never from a timer (ADR 0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Recharging(pub Timed);
+
+/// Caster part, the cooldown discipline: spells of `school` cost no resource,
+/// they recharge for `power * ticks_per_power` after each cast.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CooldownCasting {
+    pub school: School,
+    pub ticks_per_power: u64,
+}
+
 /// What a launcher shoots and a quiver holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AmmoKind {

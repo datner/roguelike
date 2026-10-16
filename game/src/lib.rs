@@ -44,6 +44,7 @@ pub mod ranged;
 pub mod rng;
 pub mod save;
 pub mod spawn;
+pub mod spell;
 pub mod state;
 pub mod time;
 pub mod view;

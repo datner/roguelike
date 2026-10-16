@@ -7,7 +7,7 @@ use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
     Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
-    Quiver, SpawnSeq, Speed, Stats, Throwable,
+    Quiver, SpawnSeq, Speed, Spell, Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -177,6 +177,14 @@ pub(crate) fn held(state: &GameState) -> Vec<Entity> {
             .map(|(item, _)| item),
     );
     held
+}
+
+/// The spells the player knows, in the order they were learned.
+pub(crate) fn known_spells(state: &GameState) -> Vec<Entity> {
+    holding::attached(&state.world, state.player)
+        .into_iter()
+        .filter(|&spell| state.world.satisfies::<&Spell>(spell))
+        .collect()
 }
 
 /// What the player could throw right now.

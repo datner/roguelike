@@ -19,6 +19,7 @@ use crate::holding;
 use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
 use crate::spawn::{Held, Source, Spawn};
+use crate::spell;
 use crate::time::{Tick, Timers};
 use crate::zone::{CaveParams, ZoneCoord, generate_cave, place_exit, start_position, zone_seed};
 
@@ -102,6 +103,7 @@ impl GameState {
         cave: &CaveParams,
     ) -> Result<Self, BlueprintError> {
         let mut state = Self::bare(seed, blueprints, cave)?;
+        state.teach_spells()?;
         state.populate()?;
         Ok(state)
     }
@@ -120,6 +122,13 @@ impl GameState {
         let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
         place_exit(&mut map, (x, y));
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
+    }
+
+    /// The player knows firebolt from the start, under the cooldown
+    /// discipline `Player.ron` gives them (ADR 0014).
+    fn teach_spells(&mut self) -> Result<(), BlueprintError> {
+        self.spawn(Spawn::blueprint("Firebolt").attached_to(self.player))?;
+        Ok(())
     }
 
     /// Arrows in the player's quiver at the start: a bow is no use without,
@@ -301,6 +310,7 @@ impl GameState {
 pub(crate) fn event_registry() -> EventRegistry {
     let mut events = EventRegistry::new();
     combat::register(&mut events);
+    spell::register(&mut events);
     events
 }
 
@@ -381,7 +391,7 @@ pub(crate) mod tests {
     use crate::combat::roll_melee;
     use crate::entity::{
         Armor, Attachments, Bleeding, BodyPart, Duration, Equippable, Found, Health, Melee, Name,
-        PartKind,
+        PartKind, School, Spell, SpellDamage,
     };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
@@ -464,6 +474,25 @@ pub(crate) mod tests {
                         ComponentDef::Hostile,
                     ],
                     &["LeatherArmor"],
+                ),
+            ),
+            (
+                "Firebolt".to_string(),
+                blueprint(
+                    vec![
+                        name("firebolt"),
+                        ComponentDef::Spell(Spell {
+                            school: School::Pyromancy,
+                            range: 7,
+                            power: 2,
+                        }),
+                        ComponentDef::SpellDamage(SpellDamage {
+                            min: 3,
+                            max: 6,
+                            stat: None,
+                        }),
+                    ],
+                    &[],
                 ),
             ),
             (

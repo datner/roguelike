@@ -20,6 +20,7 @@ use crate::holding;
 use crate::input::Dir;
 use crate::map::Tile;
 use crate::ranged;
+use crate::spell;
 use crate::state::GameState;
 use crate::time;
 
@@ -44,6 +45,10 @@ pub(crate) enum DamageCause {
         attacker: Entity,
         types: DamageTypes,
     },
+    /// A spell: untyped, so armor passes it, and not an `AfterHit` source.
+    Spell {
+        caster: Entity,
+    },
     Effect {
         effect: Entity,
     },
@@ -54,7 +59,7 @@ impl DamageCause {
     pub(crate) fn types(self) -> DamageTypes {
         match self {
             Self::Melee { types, .. } | Self::Ranged { types, .. } => types,
-            Self::Effect { .. } => DamageTypes::default(),
+            Self::Effect { .. } | Self::Spell { .. } => DamageTypes::default(),
         }
     }
 }
@@ -109,6 +114,17 @@ pub(crate) enum Command {
     Quiver {
         actor: Entity,
         arrow: Entity,
+    },
+    /// Cast `spell`, which `actor` knows, at the tile `at` (ADR 0014).
+    Cast {
+        actor: Entity,
+        spell: Entity,
+        at: (i32, i32),
+    },
+    /// Start `spell`'s recharge: it cannot be cast for `duration` ticks.
+    Recharge {
+        spell: Entity,
+        duration: u64,
     },
     Attack {
         attacker: Entity,
@@ -169,6 +185,8 @@ impl Command {
             | Command::Throw { actor, item, .. }
             | Command::Nock { actor, arrow: item }
             | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
+            Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
+            Command::Recharge { spell, .. } => [Some(spell), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -225,6 +243,8 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Equip { actor, item, part } => equipment::equip(state, actor, item, part),
             Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
+            Command::Cast { actor, spell, at } => spell::cast(state, actor, spell, at),
+            Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),
             Command::Nock { actor, arrow } => ammo::nock(state, actor, arrow),
             Command::Quiver { actor, arrow } => ammo::quiver(state, actor, arrow),
@@ -251,7 +271,11 @@ pub(crate) fn apply_commands(state: &mut GameState) {
 }
 
 /// Fires `ev` at `target` and queues whatever commands the handlers emitted.
-fn dispatch<E: 'static>(state: &mut GameState, target: Entity, ev: E) -> ControlFlow<E, E> {
+pub(crate) fn dispatch<E: 'static>(
+    state: &mut GameState,
+    target: Entity,
+    ev: E,
+) -> ControlFlow<E, E> {
     let mut out = Vec::new();
     let mut ctx = Ctx {
         world: &state.world,
@@ -305,6 +329,12 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         }
         Command::Throw { actor, item, at } => {
             let Err(message) = ranged::check_throw(state, actor, item, at) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Cast { actor, spell, at } => {
+            let Err(message) = spell::check_cast(state, actor, spell, at) else {
                 return false;
             };
             state.log.push(message);

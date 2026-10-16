@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
-    Ammo, Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration,
-    EffectTarget, Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item,
-    Launcher, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver, SpawnSeq,
-    Speed, Stats, Throwable, Timed, Weapon,
+    Ammo, Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, CooldownCasting, Dead,
+    Duration, EffectTarget, Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory,
+    Item, Launcher, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver,
+    Recharging, SpawnSeq, Speed, Spell, SpellDamage, Stats, Throwable, Timed, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -27,7 +27,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 10;
+pub const SAVE_VERSION: u32 = 11;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -189,6 +189,10 @@ enum ComponentKind {
     Projectile,
     Launcher,
     Quiver,
+    Spell,
+    SpellDamage,
+    Recharging,
+    CooldownCasting,
     Duration,
     Timed,
     EffectTarget,
@@ -197,7 +201,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 32] = [
+    const ALL: [ComponentKind; 36] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -225,6 +229,10 @@ impl ComponentKind {
         Self::Projectile,
         Self::Launcher,
         Self::Quiver,
+        Self::Spell,
+        Self::SpellDamage,
+        Self::Recharging,
+        Self::CooldownCasting,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -264,6 +272,10 @@ enum SavedComponent {
     Projectile(Projectile),
     Launcher(Launcher),
     Quiver(Quiver),
+    Spell(Spell),
+    SpellDamage(SpellDamage),
+    Recharging(Recharging),
+    CooldownCasting(CooldownCasting),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -526,6 +538,10 @@ fn save_component(
         ComponentKind::Projectile => copy(entity).map(S::Projectile),
         ComponentKind::Launcher => copy(entity).map(S::Launcher),
         ComponentKind::Quiver => copy(entity).map(S::Quiver),
+        ComponentKind::Spell => copy(entity).map(S::Spell),
+        ComponentKind::SpellDamage => copy(entity).map(S::SpellDamage),
+        ComponentKind::Recharging => copy(entity).map(S::Recharging),
+        ComponentKind::CooldownCasting => copy(entity).map(S::CooldownCasting),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -593,6 +609,10 @@ fn load_component(
         S::Projectile(c) => builder.add(c),
         S::Launcher(c) => builder.add(c),
         S::Quiver(c) => builder.add(c),
+        S::Spell(c) => builder.add(c),
+        S::SpellDamage(c) => builder.add(c),
+        S::Recharging(c) => builder.add(c),
+        S::CooldownCasting(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
@@ -867,6 +887,35 @@ mod tests {
         let loaded = reload(&state, test_blueprints());
         let carried = crate::holding::carried(&loaded.world, loaded.player);
         assert_eq!(*loaded.world.get::<&Throwable>(carried[0]).unwrap(), before);
+    }
+
+    #[test]
+    fn a_recharging_spell_and_its_discipline_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let _ = state.world.insert_one(
+            player,
+            CooldownCasting {
+                school: crate::entity::School::Pyromancy,
+                ticks_per_power: 300,
+            },
+        );
+        let spell = thing("firebolt")
+            .spell(crate::entity::School::Pyromancy, 6, 2)
+            .spell_damage(3, 3, None)
+            .attached_to(player)
+            .make(&mut state);
+        crate::spell::recharge(&mut state, spell, 600);
+
+        let loaded = reload(&state, test_blueprints());
+        let known = crate::view::known_spells(&loaded);
+        assert_eq!(known.len(), 1);
+        let recharging = *loaded.world.get::<&Recharging>(known[0]).unwrap();
+        assert_eq!(recharging.0.duration, 600);
+        assert_eq!(
+            crate::spell::check_cast(&loaded, loaded.player, known[0], (3, 1)),
+            Err("Your firebolt is not ready.".to_string())
+        );
     }
 
     #[test]

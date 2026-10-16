@@ -8,8 +8,8 @@ use hecs::Entity;
 use crate::cell::Rgb;
 use crate::entity::{
     Ammo, AmmoKind, Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health,
-    Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, SpawnSeq, Speed, Stat,
-    Stats, Throwable, Weapon,
+    Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, School, SpawnSeq, Speed,
+    Spell, SpellDamage, Stat, Stats, Throwable, Weapon,
 };
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
@@ -73,6 +73,18 @@ impl Spawn {
             stat,
             types: DamageTypes::of(types),
         })
+    }
+
+    pub(crate) fn spell(self, school: School, range: i32, power: i32) -> Self {
+        self.with(Spell {
+            school,
+            range,
+            power,
+        })
+    }
+
+    pub(crate) fn spell_damage(self, min: i32, max: i32, stat: Option<Stat>) -> Self {
+        self.with(SpellDamage { min, max, stat })
     }
 
     pub(crate) fn launcher(self, range: i32, ammo: AmmoKind, stat: Stat) -> Self {

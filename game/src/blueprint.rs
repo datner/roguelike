@@ -21,9 +21,9 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Ammo, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable,
-    Health, Hostile, Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Projectile,
-    Quiver, Speed, Stats, Throwable, Weapon,
+    Ammo, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, CooldownCasting, Duration,
+    Equippable, Health, Hostile, Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
+    Projectile, Quiver, Speed, Spell, SpellDamage, Stats, Throwable, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -57,6 +57,9 @@ pub enum ComponentDef {
     Projectile(Projectile),
     Launcher(Launcher),
     Quiver(Quiver),
+    Spell(Spell),
+    SpellDamage(SpellDamage),
+    CooldownCasting(CooldownCasting),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -90,6 +93,9 @@ impl ComponentDef {
             ComponentDef::Ammo(c) => builder.add(c),
             ComponentDef::Projectile(c) => builder.add(c),
             ComponentDef::Launcher(c) => builder.add(c),
+            ComponentDef::Spell(c) => builder.add(c),
+            ComponentDef::SpellDamage(c) => builder.add(c),
+            ComponentDef::CooldownCasting(c) => builder.add(c),
             ComponentDef::Quiver(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),

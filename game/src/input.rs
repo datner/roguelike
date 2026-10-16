@@ -92,6 +92,11 @@ pub enum PlayerAction {
     Nock(ItemRef),
     /// Put carried ammunition in an equipped quiver.
     Quiver(ItemRef),
+    /// Cast a known spell at a map tile (ADR 0014).
+    Cast {
+        spell: ItemRef,
+        at: (i32, i32),
+    },
 }
 
 #[cfg(test)]
