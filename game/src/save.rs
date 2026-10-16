@@ -29,7 +29,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 17;
+pub const SAVE_VERSION: u32 = 18;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1103,6 +1103,11 @@ mod tests {
             max: 10,
             as_of: Tick::default(),
             regen_ticks: 200,
+            growth: vec![crate::entity::ManaGrowth {
+                stat: crate::entity::Stat::Willpower,
+                max: 1,
+                regen_bp: 2_000,
+            }],
         };
         let _ = state.world.insert(player, (rule, pool));
         state.now = state.now.after(1_000);
@@ -1110,13 +1115,14 @@ mod tests {
         state.now = state.now.after(250);
 
         let loaded = reload(&state, test_blueprints());
-        let mana = *loaded.world.get::<&Mana>(loaded.player).unwrap();
+        let (mana, rates) = crate::spell::pool(&loaded.world, loaded.player).unwrap();
         assert_eq!(
             *loaded.world.get::<&ManaCasting>(loaded.player).unwrap(),
             rule
         );
         assert_eq!(mana, *state.world.get::<&Mana>(player).unwrap());
-        assert_eq!(mana.current(loaded.now), 7);
+        assert_eq!(mana.growth.len(), 1);
+        assert_eq!(mana.current(rates, loaded.now), 7);
     }
 
     #[test]

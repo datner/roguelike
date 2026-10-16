@@ -11,7 +11,18 @@
         Stats(strength: 16, agility: 16, intelligence: 18, willpower: 18),
         CooldownCasting(school: Pyromancy, ticks_per_power: 300, stat: Willpower),
         ManaCasting(school: Arcane, mana_per_power: 3, stat: Intelligence),
-        Mana(value: 10, max: 10, regen_ticks: 200),
+        // A base of 10 mana, a point per 2 turns. Intelligence deepens it (+3 a
+        // modifier point, a little faster); Willpower quickens it (+20% pace a
+        // point, a little deeper). A value above the maximum starts it full.
+        Mana(
+            value: 1000,
+            max: 10,
+            regen_ticks: 200,
+            growth: [
+                (stat: Intelligence, max: 3, regen_bp: 500),
+                (stat: Willpower, max: 1, regen_bp: 2000),
+            ],
+        ),
         SummonLimit(max: 2),
         // Armor gets in the way: 5% per point worn, 1% less per point of
         // Willpower modifier. Unarmored, casting never fizzles.

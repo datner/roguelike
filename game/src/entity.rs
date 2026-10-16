@@ -449,43 +449,99 @@ pub struct Fizzle {
     pub stat: Stat,
 }
 
+/// How one stat grows a mana pool, per point of the caster's modifier for
+/// it: `max` more capacity and `regen_bp` faster regeneration (10 000 =
+/// twice the pace). A negative modifier shrinks both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManaGrowth {
+    pub stat: Stat,
+    #[serde(default)]
+    pub max: i32,
+    #[serde(default)]
+    pub regen_bp: i32,
+}
+
+/// A pool's size and pace for one caster: its base grown by their stats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ManaRates {
+    pub max: u32,
+    /// Ticks per point regained; 0 never regains.
+    pub regen_ticks: u64,
+}
+
+/// However poor the stats, regeneration keeps a quarter of its base pace.
+const SLOWEST_PACE_BP: i64 = 2_500;
+const BASE_PACE_BP: i64 = 10_000;
+
 /// Caster part: a mana pool. `value` was the pool at `as_of`; it regains a
 /// point every `regen_ticks` ticks since, up to `max`, computed on read so no
-/// timer runs per tick (ADR 0006). `regen_ticks` 0 never regains.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// timer runs per tick (ADR 0006). `max` and `regen_ticks` are the base,
+/// which `growth` scales by the caster's stats (`rates`). A `value` above
+/// the maximum reads as full, so a blueprint can start a pool full whatever
+/// the stats.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mana {
     pub value: u32,
     pub max: u32,
     #[serde(default)]
     pub as_of: Tick,
     pub regen_ticks: u64,
+    #[serde(default)]
+    pub growth: Vec<ManaGrowth>,
 }
 
 impl Mana {
-    fn regained(self, now: Tick) -> u64 {
+    /// Capacity and pace for a caster with `stats`. Stats are read now, for
+    /// the whole stretch since `as_of`: anything that changes a stat should
+    /// bank the pool first (`spend(0, ..)`).
+    pub fn rates(&self, stats: Option<Stats>) -> ManaRates {
+        let modifier = |stat| i64::from(stats.map_or(0, |stats| stats.modifier(stat)));
+        let grown = |per: fn(&ManaGrowth) -> i32| -> i64 {
+            self.growth
+                .iter()
+                .map(|growth| i64::from(per(growth)) * modifier(growth.stat))
+                .sum()
+        };
+        let max = (i64::from(self.max) + grown(|growth| growth.max)).max(0);
+        let pace = (BASE_PACE_BP + grown(|growth| growth.regen_bp)).max(SLOWEST_PACE_BP);
+        let regen_ticks = match self.regen_ticks {
+            0 => 0,
+            base => {
+                let ticks = u128::from(base) * BASE_PACE_BP as u128 / pace as u128;
+                u64::try_from(ticks).unwrap_or(u64::MAX).max(1)
+            }
+        };
+        ManaRates {
+            max: u32::try_from(max).unwrap_or(u32::MAX),
+            regen_ticks,
+        }
+    }
+
+    fn regained(&self, rates: ManaRates, now: Tick) -> u64 {
         now.since(self.as_of)
-            .checked_div(self.regen_ticks)
+            .checked_div(rates.regen_ticks)
             .unwrap_or(0)
     }
 
-    pub fn current(self, now: Tick) -> u32 {
-        let regained = u32::try_from(self.regained(now)).unwrap_or(u32::MAX);
-        self.value.saturating_add(regained).min(self.max)
+    pub fn current(&self, rates: ManaRates, now: Tick) -> u32 {
+        let regained = u32::try_from(self.regained(rates, now)).unwrap_or(u32::MAX);
+        self.value.saturating_add(regained).min(rates.max)
     }
 
     /// The pool after spending `amount` at `now`. Progress toward the next
     /// point carries over, unless the pool was full and so not regaining.
-    pub fn spend(self, amount: u32, now: Tick) -> Self {
-        let current = self.current(now);
-        let as_of = if current == self.max {
+    pub fn spend(&self, amount: u32, rates: ManaRates, now: Tick) -> Self {
+        let current = self.current(rates, now);
+        let as_of = if current == rates.max {
             now
         } else {
-            self.as_of.after(self.regained(now) * self.regen_ticks)
+            self.as_of
+                .after(self.regained(rates, now) * rates.regen_ticks)
         };
         Self {
             value: current.saturating_sub(amount),
             as_of,
-            ..self
+            ..self.clone()
         }
     }
 }

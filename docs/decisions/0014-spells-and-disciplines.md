@@ -29,6 +29,11 @@ spell would fix one way of paying for every caster.
   max, as_of, regen_ticks }`, which is computed on read (`value` plus a point
   per `regen_ticks` since `as_of`), so no timer runs per tick;
   `Command::SpendMana` banks the regained points and keeps partial progress.
+  The pool grows with stats (`Mana.growth`): per modifier point, each
+  listed stat adds capacity and regeneration pace (basis points; never below
+  a quarter pace), computed on read with the rest. The player's Intelligence
+  mostly deepens it, Willpower mostly quickens it, so the two pull a mage
+  toward a big reserve or a fast trickle.
 - **The discipline names the stat a spell scales with**, not the spell: a
   claiming handler sets `CheckCast.stat`, and the damage adds the caster's
   modifier for it. The same spell cast through another discipline (another
@@ -103,12 +108,12 @@ spell would fix one way of paying for every caster.
   `CostLine`s.
 - Not yet: element interactions, terrain-making spells and rune
   composition (proposed in ADR 0016), heat, wands and reagents, cone
-  widths other than 90°, mana regeneration scaling with a stat.
+  widths other than 90°.
 - `SAVE_VERSION` 11 (`Spell`, `SpellDamage`, `Recharging`, `CooldownCasting`);
   12 (`ManaCasting`, `Mana`, `Stats` gains Intelligence and Willpower,
   `SpellDamage` loses `stat`); 13 (`Area`); 15 (`BloodCasting`, `Scroll`,
   `Focus`, `Fizzle`); 16 (`Chain`); 17 (`Delay`, `Blast`, `SpellAi`,
-  elemental `DamageType`s and `Armor` resistances). Summons are ADR 0015.
+  elemental `DamageType`s and `Armor` resistances); 18 (`Mana.growth`). Summons are ADR 0015.
 - One goblin shaman joins each new zone, placed after the items, so the
   goblins and items of a seed stay where they were.
 - New loot (the scroll of fireball, the ember circlet) changes which items

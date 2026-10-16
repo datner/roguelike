@@ -196,11 +196,12 @@ report listing what changed, what was left out, and follow-ups.
   `DamageCause::Spell`; `Chain` (`ChainLightning.ron`); `Delay` → `Rune.ron` + `Blast`, bursting
   through `effect::expire_effect` (`FireRune.ron`); `spells:` in blueprints; `SpellAi` +
   `ai::spell_at`; `GoblinShaman.ron` with `BloodBolt.ron`, one per zone after the items.
-- `SAVE_VERSION` 17.
+- `SAVE_VERSION` 17; 18 after mana growth (`Mana.growth`: Intelligence deepens the pool, Willpower
+  quickens it).
 
 ## Left for later
 
 - Terrain-making spells, element interactions, rune composition: ADR 0016 (proposed).
 - Heat/overload, wands with charges, reagents from `Inventory`.
-- Cone widths other than 90°; mana regeneration scaling with a stat.
+- Cone widths other than 90°.
 - AI casting area spells is allowed but untested beyond "spares its own side"; shamans only know bolts.

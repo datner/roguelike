@@ -92,10 +92,17 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
         Span::raw(format!("{}/{}", sheet.health, sheet.max_health)),
     ])];
     if let Some((mana, max)) = sheet.mana {
-        lines.push(Line::from(vec![
-            dim("MP "),
-            Span::raw(format!("{mana}/{max}")),
-        ]));
+        let mut row = vec![dim("MP "), Span::raw(format!("{mana}/{max}"))];
+        // Turns per point, to a tenth: the pace Willpower buys.
+        if let Some(ticks) = sheet.mana_regen_ticks.filter(|&ticks| ticks > 0) {
+            let tenths = (ticks * 10).div_ceil(game::cost::TICKS_PER_TURN);
+            row.push(dim(format!(
+                "  +1 per {}.{} turns",
+                tenths / 10,
+                tenths % 10
+            )));
+        }
+        lines.push(Line::from(row));
     }
     if let Some(stats) = sheet.stats {
         let stat = |label: &str, which| {
@@ -235,7 +242,7 @@ mod tests {
         let screen = screen(&state, WIDTH);
         assert!(screen.contains("hero"), "{screen}");
         assert!(screen.contains("HP 20/20"));
-        assert!(screen.contains("MP 10/10"), "{screen}");
+        assert!(screen.contains("MP 14/14  +1 per 1.6 turns"), "{screen}");
         assert!(screen.contains("STR 16 (+0)"));
         assert!(screen.contains("INT 18 (+1)  WIL 18 (+1)"), "{screen}");
         assert!(screen.contains("Armor S0 B0 P0"));

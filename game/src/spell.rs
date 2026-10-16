@@ -17,8 +17,8 @@ use crate::cost::TICKS_PER_TURN;
 use crate::effect;
 use crate::entity::{
     Appearance, Area, Blast, BlocksMovement, BloodCasting, Chain, CooldownCasting, DamageTypes,
-    Dead, Delay, EffectTarget, Fizzle, Focus, Health, Hits, Mana, ManaCasting, Name, Position,
-    Recharging, School, Scroll, Shape, SpawnSeq, Spell, SpellDamage, Stat, Stats, Summon,
+    Dead, Delay, EffectTarget, Fizzle, Focus, Health, Hits, Mana, ManaCasting, ManaRates, Name,
+    Position, Recharging, School, Scroll, Shape, SpawnSeq, Spell, SpellDamage, Stat, Stats, Summon,
     SummonLimit, Summoned, Timed,
 };
 use crate::event::{Ctx, EventRegistry, settle};
@@ -127,10 +127,8 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         ev.claimed = true;
         ev.stat = Some(rule.stat);
         let price = mana_price(rule, ev.power);
-        let pool = ctx
-            .world
-            .get::<&Mana>(ev.caster)
-            .map_or(0, |mana| mana.current(ev.now));
+        let pool =
+            pool(ctx.world, ev.caster).map_or(0, |(mana, rates)| mana.current(rates, ev.now));
         ev.costs.push(CostLine {
             resource: "mana".to_string(),
             amount: u64::from(price),
@@ -839,12 +837,20 @@ pub(crate) fn recharge(state: &mut GameState, spell: Entity, duration: u64) {
 /// Applies `Command::SpendMana`: the regained mana is banked as of now and
 /// `amount` taken from it.
 pub(crate) fn spend_mana(state: &mut GameState, caster: Entity, amount: u32) {
-    let Ok(mana) = state.world.get::<&Mana>(caster).map(|mana| *mana) else {
+    let Some((mana, rates)) = pool(&state.world, caster) else {
         return;
     };
     let _ = state
         .world
-        .insert_one(caster, mana.spend(amount, state.now));
+        .insert_one(caster, mana.spend(amount, rates, state.now));
+}
+
+/// `caster`'s mana pool and its size and pace for their stats.
+pub(crate) fn pool(world: &World, caster: Entity) -> Option<(Mana, ManaRates)> {
+    let mana = Mana::clone(&*world.get::<&Mana>(caster).ok()?);
+    let stats = world.get::<&Stats>(caster).ok().map(|stats| *stats);
+    let rates = mana.rates(stats);
+    Some((mana, rates))
 }
 
 #[cfg(test)]
@@ -1127,6 +1133,7 @@ mod tests {
                     max: 10,
                     as_of: state.now,
                     regen_ticks: REGEN_TICKS,
+                    growth: Vec::new(),
                 },
             ),
         );
@@ -1139,8 +1146,8 @@ mod tests {
     }
 
     fn mana(state: &GameState) -> u32 {
-        let pool = *state.world.get::<&Mana>(state.player).unwrap();
-        pool.current(state.now)
+        let (pool, rates) = pool(&state.world, state.player).unwrap();
+        pool.current(rates, state.now)
     }
 
     #[test]
@@ -1165,6 +1172,112 @@ mod tests {
         );
         cast_at(&mut state, missile, (3, 1));
         assert_eq!((health(&state, target), mana(&state)), (10, 2));
+    }
+
+    /// A base pool of 10 regaining a point per 200 ticks, which Intelligence
+    /// deepens (+3 a point, +5% pace) and Willpower quickens (+1, +20%).
+    fn grown_pool() -> Mana {
+        use crate::entity::ManaGrowth;
+        Mana {
+            value: 99,
+            max: 10,
+            as_of: Tick::default(),
+            regen_ticks: 200,
+            growth: vec![
+                ManaGrowth {
+                    stat: Stat::Intelligence,
+                    max: 3,
+                    regen_bp: 500,
+                },
+                ManaGrowth {
+                    stat: Stat::Willpower,
+                    max: 1,
+                    regen_bp: 2_000,
+                },
+            ],
+        }
+    }
+
+    fn rates_with(intelligence: i32, willpower: i32) -> ManaRates {
+        grown_pool().rates(Some(Stats {
+            intelligence,
+            willpower,
+            ..Stats::AVERAGE
+        }))
+    }
+
+    #[test]
+    fn intelligence_deepens_the_pool_and_willpower_quickens_it() {
+        let base = ManaRates {
+            max: 10,
+            regen_ticks: 200,
+        };
+        assert_eq!(rates_with(16, 16), base);
+        assert_eq!(grown_pool().rates(None), base);
+        // Modifier +2 each: 10 + 6 capacity at 11 000 pace; 10 + 2 at 14 000.
+        assert_eq!(
+            rates_with(20, 16),
+            ManaRates {
+                max: 16,
+                regen_ticks: 181,
+            }
+        );
+        assert_eq!(
+            rates_with(16, 20),
+            ManaRates {
+                max: 12,
+                regen_ticks: 142,
+            }
+        );
+        // A dull mind (-3) shrinks the pool and slows it.
+        assert_eq!(
+            rates_with(10, 16),
+            ManaRates {
+                max: 1,
+                regen_ticks: 235,
+            }
+        );
+    }
+
+    #[test]
+    fn a_pool_never_shrinks_below_empty_or_slows_below_a_quarter_pace() {
+        assert_eq!(
+            rates_with(0, 0),
+            ManaRates {
+                max: 0,
+                regen_ticks: 800,
+            }
+        );
+        let still = Mana {
+            regen_ticks: 0,
+            ..grown_pool()
+        };
+        assert_eq!(still.rates(None).regen_ticks, 0, "still never regains");
+    }
+
+    #[test]
+    fn the_casters_stats_set_the_pool_they_cast_from() {
+        let (mut state, _, missile) = mage();
+        let player = state.player;
+        let _ = state.world.insert(
+            player,
+            (
+                grown_pool(),
+                Stats {
+                    willpower: 20,
+                    ..Stats::AVERAGE
+                },
+            ),
+        );
+        assert_eq!(mana(&state), 12, "a value above the maximum reads full");
+        spend_mana(&mut state, player, 12);
+        assert_eq!(
+            check_cast(&state, player, missile, (3, 1)),
+            Err("Not enough mana.".to_string())
+        );
+        state.now = state.now.after(3 * 142);
+        assert_eq!(mana(&state), 3, "a point per 142 ticks, not 200");
+        assert_eq!(check_cast(&state, player, missile, (3, 1)), Ok(()));
     }
 
     #[test]

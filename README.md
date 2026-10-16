@@ -143,7 +143,8 @@ In game:
   quiver first.
 - `c`: cast a spell you know (one turn). A list shows each spell's range,
   shape, damage and price (firebolt: a 6-turn recharge; magic missile: 3
-  mana, shown as MP in the side panel), and why it can't be cast now, if
+  mana, shown as MP in the side panel with how fast it comes back:
+  Intelligence mostly deepens the pool, Willpower mostly quickens it), and why it can't be cast now, if
   so; `Enter` picks one and aiming works as for `t`. An area spell marks
   the ground it would cover and the status bar says how many it catches:
   a burst is aimed at a spot, a beam or cone in a direction. A fireball

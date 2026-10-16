@@ -7,7 +7,7 @@ use crate::blueprint::ResolvedBlueprint;
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Mana, Name, PartKind,
+    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
     Quiver, Scroll, Shape, SpawnSeq, Speed, Spell, Stats, Throwable,
 };
 use crate::equipment::equipped;
@@ -134,6 +134,8 @@ pub struct CharacterSheet {
     pub max_health: i32,
     /// Current and maximum mana, read from the timestamps; `None` without a pool.
     pub mana: Option<(u32, u32)>,
+    /// Ticks per mana point regained, for the player's stats; 0 never.
+    pub mana_regen_ticks: Option<u64>,
     pub stats: Option<Stats>,
     /// Resistance per kind of damage: the player's own plus everything equipped.
     pub armor: Armor,
@@ -157,10 +159,9 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
     CharacterSheet {
         health,
         max_health,
-        mana: world
-            .get::<&Mana>(player)
-            .ok()
-            .map(|mana| (mana.current(state.now), mana.max)),
+        mana: spell::pool(world, player)
+            .map(|(mana, rates)| (mana.current(rates, state.now), rates.max)),
+        mana_regen_ticks: spell::pool(world, player).map(|(_, rates)| rates.regen_ticks),
         stats: world.get::<&Stats>(player).ok().map(|stats| *stats),
         armor,
         damage: strike.map(Strike::range),
