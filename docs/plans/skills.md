@@ -231,3 +231,8 @@ listing what changed, what was left out, and follow-ups.
   through `combat::skilled`; `ranged::launch` resolves odds, a miss or perfect dodge lands at the
   target's tile; `combat::announce` shared with melee; `Aim.chances` (`Chances { hit_bp, graze_bp }`)
   shown in the aiming status line.
+- **5** (ADR 0017, 0014 amendment): core Magic, schools, forms (Bolt, Burst, Cone, Beam, Nova, Chain,
+  Rune, Summoning), `Domain::Magic`; `skill::cast`, `skill::steadied`; `spell::Ready.skills`; level
+  applied in `inspect_cast` (not a `CastRisk` handler: handlers can't see the skill book); training in
+  `cast` on catching an enemy. Left out: discipline skills (no effect to read them yet); summonings and
+  runes don't train.

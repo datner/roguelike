@@ -118,3 +118,10 @@ spell would fix one way of paying for every caster.
   goblins and items of a seed stay where they were.
 - New loot (the scroll of fireball, the ember circlet) changes which items
   seeded worlds scatter: the pick is by index into every `Item` blueprint.
+
+## Amendment (ADR 0017): skill at magic
+
+`inspect_cast` also asks `skill::cast` which skills the spell uses and
+raises the strike and lowers the fizzle chance by the caster's level at
+them. Disciplines and `cast` are unchanged; a cast that catches an enemy
+trains those skills.

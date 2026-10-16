@@ -335,6 +335,7 @@ fn domain_name(domain: Domain) -> &'static str {
     match domain {
         Domain::Martial => "Martial",
         Domain::Defence => "Defence",
+        Domain::Magic => "Magic",
     }
 }
 

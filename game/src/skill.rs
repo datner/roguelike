@@ -12,7 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::BlueprintError;
 use crate::combat::{AttackOdds, CERTAIN, Outcome, Strike};
 use crate::entity::{
-    Body, DamageType, EquippedOn, Familiarity, Learner, Name, PartKind, Skills, Trains, Weapon,
+    Area, Body, Chain, DamageType, Delay, EquippedOn, Familiarity, Learner, Name, PartKind, School,
+    Shape, Skills, Spell, SpellDamage, Summon, Trains, Weapon,
 };
 use crate::equipment::equipped;
 use crate::grammar::{Subject, capitalize};
@@ -28,6 +29,7 @@ pub struct SkillId(u16);
 pub enum Domain {
     Martial,
     Defence,
+    Magic,
 }
 
 /// One entry of `data/skills.ron`. `weight` is how much the skill counts in
@@ -55,6 +57,18 @@ pub(crate) struct Core {
     pub empty_offhand: SkillId,
     pub thrown: SkillId,
     pub archery: SkillId,
+    pub magic: SkillId,
+    pub pyromancy: SkillId,
+    pub arcane: SkillId,
+    pub hemomancy: SkillId,
+    pub bolt: SkillId,
+    pub burst: SkillId,
+    pub cone: SkillId,
+    pub beam: SkillId,
+    pub nova: SkillId,
+    pub chain: SkillId,
+    pub rune: SkillId,
+    pub summoning: SkillId,
 }
 
 impl Core {
@@ -119,6 +133,18 @@ impl SkillBook {
             empty_offhand: core_id("Empty offhand")?,
             thrown: core_id("Thrown")?,
             archery: core_id("Archery")?,
+            magic: core_id("Magic")?,
+            pyromancy: core_id("Pyromancy")?,
+            arcane: core_id("Arcane")?,
+            hemomancy: core_id("Hemomancy")?,
+            bolt: core_id("Bolt")?,
+            burst: core_id("Burst")?,
+            cone: core_id("Cone")?,
+            beam: core_id("Beam")?,
+            nova: core_id("Nova")?,
+            chain: core_id("Chain")?,
+            rune: core_id("Rune")?,
+            summoning: core_id("Summoning")?,
         };
         Ok(Self {
             defs,
@@ -289,6 +315,53 @@ pub(crate) fn missile(
     skills.sort();
     skills.dedup();
     skills
+}
+
+/// The skills casting `spell` uses: Magic, its school, its form (Bolt for
+/// damage without an area, else the area's shape; Chain, Rune and
+/// Summoning on top for those payloads) and whatever it `Trains`. A scroll
+/// is its spell, so reading one trains the same. Sorted, without duplicates.
+pub(crate) fn cast(world: &World, book: &SkillBook, spell: Entity) -> Vec<SkillId> {
+    let (Some(core), Ok(data)) = (book.core, world.get::<&Spell>(spell)) else {
+        return Vec::new();
+    };
+    let school = match data.school {
+        School::Pyromancy => core.pyromancy,
+        School::Arcane => core.arcane,
+        School::Hemomancy => core.hemomancy,
+    };
+    let mut skills = vec![core.magic, school];
+    match world.get::<&Area>(spell).map(|area| area.shape) {
+        Ok(Shape::Burst { .. }) => skills.push(core.burst),
+        Ok(Shape::Cone) => skills.push(core.cone),
+        Ok(Shape::Beam) => skills.push(core.beam),
+        Ok(Shape::Nova { .. }) => skills.push(core.nova),
+        Err(_) if world.satisfies::<&SpellDamage>(spell) => skills.push(core.bolt),
+        Err(_) => {}
+    }
+    for (payload, skill) in [
+        (world.satisfies::<&Chain>(spell), core.chain),
+        (world.satisfies::<&Delay>(spell), core.rune),
+        (world.satisfies::<&Summon>(spell), core.summoning),
+    ] {
+        if payload {
+            skills.push(skill);
+        }
+    }
+    if let Ok(trains) = world.get::<&Trains>(spell) {
+        skills.extend(trains.0.iter().copied());
+    }
+    skills.sort();
+    skills.dedup();
+    skills
+}
+
+/// How much less likely a cast is to fizzle per level of skill at it.
+const FIZZLE_BP_PER_LEVEL: u32 = 200;
+
+/// `fizzle_bp` for a caster at `level` with the spell: steadier hands.
+pub(crate) fn steadied(fizzle_bp: u32, level: u32) -> u32 {
+    fizzle_bp.saturating_sub(FIZZLE_BP_PER_LEVEL * level)
 }
 
 /// The skills wielding `item` trains beyond the action's own: what it
@@ -470,6 +543,18 @@ pub(crate) mod tests {
             def("Thrown", Domain::Martial, 1),
             def("Archery", Domain::Martial, 1),
             def("Bow", Domain::Martial, 3),
+            def("Magic", Domain::Magic, 1),
+            def("Pyromancy", Domain::Magic, 3),
+            def("Arcane", Domain::Magic, 3),
+            def("Hemomancy", Domain::Magic, 3),
+            def("Bolt", Domain::Magic, 2),
+            def("Burst", Domain::Magic, 2),
+            def("Cone", Domain::Magic, 2),
+            def("Beam", Domain::Magic, 2),
+            def("Nova", Domain::Magic, 2),
+            def("Chain", Domain::Magic, 2),
+            def("Rune", Domain::Magic, 2),
+            def("Summoning", Domain::Magic, 2),
         ])
         .unwrap()
     }

@@ -39,6 +39,8 @@ This is a Cargo workspace with two crates:
     is the weighted average of the skills it uses; it raises hit chance
     and damage. A blow that misses may still graze (half damage), be
     turned aside by a buckler, or be dodged perfectly.
+    Casting trains Magic, the school and the spell's form; skill there
+    strengthens spells and makes them fizzle less.
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
     piercing (a set; punches are blunt), armor resists each kind, and a
     blow of several kinds goes through the weakest spot.

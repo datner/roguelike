@@ -98,3 +98,21 @@ cannot be ground out by repetition. The build plan is
   shot). Their strikes carry level, accuracy and damage bonus like melee
   (`combat::skilled`), and resolve through the same odds. `Strike.weapon`
   is the missile, so a missile's own `Graze` counts.
+
+## Magic (plan slice 5)
+
+- A cast uses Magic, its school (Pyromancy, Arcane, Hemomancy) and its form:
+  Bolt for damage without an area, else the area's shape (Burst, Cone,
+  Beam, Nova), plus Chain, Rune or Summoning for those payloads, plus what
+  the spell `Trains` (`skill::cast`). A scroll is its spell, so it trains
+  the same.
+- The effective level adds to a damaging spell's strike like a blow's
+  (every 4 levels, +1) and lowers the fizzle chance by 2% a level
+  (`skill::steadied`), both in `spell::inspect_cast`, so the spell list,
+  the aim preview and the cast agree. **Departs from the plan**: it is not a
+  `CastRisk` handler, because handlers can't see the skill book; `cast`
+  itself still learns nothing about skills.
+- A cast trains when it catches an enemy (named by the first one).
+  Summonings and runes catch nobody when cast, so they don't train yet;
+  neither do disciplines: Channeling or Hemomancy as paying skills wait
+  until something reads them (no skill without an effect).

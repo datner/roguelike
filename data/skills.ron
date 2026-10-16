@@ -21,4 +21,18 @@
     (name: "Dodge", domain: Defence, weight: 1),
     (name: "Poise", domain: Defence, weight: 1),
     (name: "Deflection", domain: Defence, weight: 1),
+
+    // Magic: the act, the school, then the form it takes.
+    (name: "Magic", domain: Magic, weight: 1),
+    (name: "Pyromancy", domain: Magic, weight: 3),
+    (name: "Arcane", domain: Magic, weight: 3),
+    (name: "Hemomancy", domain: Magic, weight: 3),
+    (name: "Bolt", domain: Magic, weight: 2),
+    (name: "Burst", domain: Magic, weight: 2),
+    (name: "Cone", domain: Magic, weight: 2),
+    (name: "Beam", domain: Magic, weight: 2),
+    (name: "Nova", domain: Magic, weight: 2),
+    (name: "Chain", domain: Magic, weight: 2),
+    (name: "Rune", domain: Magic, weight: 2),
+    (name: "Summoning", domain: Magic, weight: 2),
 ]

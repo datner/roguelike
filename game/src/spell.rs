@@ -28,6 +28,7 @@ use crate::map::Tile;
 use crate::prio;
 use crate::ranged::{self, Trail, check_range, flight};
 use crate::side;
+use crate::skill::{self, SkillId};
 use crate::spawn::Spawn;
 use crate::state::GameState;
 use crate::time::Tick;
@@ -285,6 +286,8 @@ pub(crate) struct Ready {
     power: i32,
     /// Who `PayCost` goes to: the caster, or the spell for a scroll.
     payer: Entity,
+    /// The skills it uses (ADR 0017), trained when it catches an enemy.
+    skills: Vec<SkillId>,
 }
 
 /// What `spell` hits for when `caster` casts it: its dice plus the caster's
@@ -406,18 +409,26 @@ pub(crate) fn inspect_cast(
             fizzle_bp: 0,
         },
     ));
+    // Skill steadies the cast and strengthens it, as it does a blow.
+    let skills = skill::cast(world, state.blueprints.skills(), spell);
+    let level = skill::effective(world, state.blueprints.skills(), actor, &skills);
     let ready = Ready {
         range: modified.range,
-        strike: strike(world, actor, spell, check.stat, modified.damage),
+        strike: strike(world, actor, spell, check.stat, modified.damage).map(|mut strike| {
+            strike.level = level;
+            strike.bonus += skill::damage_bonus(level);
+            strike
+        }),
         summon: world.get::<&Summon>(spell).ok().map(|summon| *summon),
         chain: world.get::<&Chain>(spell).ok().map(|chain| *chain),
         delay: world.get::<&Delay>(spell).ok().map(|delay| *delay),
         costs: check.costs,
         area: world.get::<&Area>(spell).ok().map(|area| *area),
-        fizzle_bp: risk.fizzle_bp,
+        fizzle_bp: skill::steadied(risk.fizzle_bp, level),
         school: data.school,
         power: modified.power,
         payer: if check.self_paid { spell } else { actor },
+        skills,
     };
     Ok((ready, blocked))
 }
@@ -730,6 +741,15 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
     if let Some(summon) = ready.summon {
         call(state, actor, summon, &footprint.placed);
     }
+    // A cast teaches when it catches an enemy, named by the first one.
+    let enemy = footprint
+        .caught
+        .iter()
+        .copied()
+        .find(|&target| side::enemies(&state.world, actor, target));
+    if let Some(enemy) = enemy {
+        skill::train(state, actor, &ready.skills, enemy, skill::BASE_XP);
+    }
 }
 
 /// Leaves a delayed spell's rune at `at`: a timed effect on `caster`
@@ -905,6 +925,80 @@ mod tests {
             spell,
             at,
         });
+    }
+
+    fn skill_names(state: &GameState, spell: Entity) -> Vec<String> {
+        let book = state.blueprints.skills();
+        skill::cast(&state.world, book, spell)
+            .into_iter()
+            .map(|id| book.get(id).unwrap().name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn a_cast_uses_magic_its_school_and_its_form() {
+        let (mut state, bolt) = caster();
+        assert_eq!(skill_names(&state, bolt), ["Magic", "Pyromancy", "Bolt"]);
+        let ball = thing("fireball")
+            .spell(School::Pyromancy, 6, 2)
+            .spell_damage(1, 1)
+            .area(Shape::Burst { radius: 1 }, Hits::All, 0)
+            .make(&mut state);
+        assert_eq!(skill_names(&state, ball), ["Magic", "Pyromancy", "Burst"]);
+        let lance = thing("lance")
+            .spell(School::Arcane, 6, 2)
+            .spell_damage(1, 1)
+            .with(Chain { jumps: 1, reach: 2 })
+            .make(&mut state);
+        assert_eq!(
+            skill_names(&state, lance),
+            ["Magic", "Arcane", "Bolt", "Chain"]
+        );
+    }
+
+    #[test]
+    fn skill_strengthens_and_steadies_a_cast() {
+        let (mut state, bolt) = caster();
+        let player = state.player;
+        let fizzle = Fizzle {
+            base_bp: 3_000,
+            per_armor_bp: 0,
+            per_modifier_bp: 0,
+            stat: Stat::Willpower,
+        };
+        state.world.insert_one(player, fizzle).unwrap();
+        let before = ready_cast(&state, player, bolt).unwrap();
+        let book = state.blueprints.skills();
+        let mut learned = crate::entity::Skills::default();
+        for name in ["Magic", "Pyromancy", "Bolt"] {
+            learned.set(book.id(name).unwrap(), skill::xp_for(8));
+        }
+        state.world.insert_one(player, learned).unwrap();
+        let after = ready_cast(&state, player, bolt).unwrap();
+        let (low, high) = before.strike.unwrap().range();
+        assert_eq!(after.strike.unwrap().range(), (low + 2, high + 2));
+        assert_eq!(
+            (before.fizzle_bp, after.fizzle_bp),
+            (3_000, 3_000 - 8 * 200)
+        );
+    }
+
+    #[test]
+    fn a_cast_that_catches_an_enemy_trains_and_one_that_catches_none_does_not() {
+        let (mut state, bolt) = caster();
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, crate::entity::Learner)
+            .unwrap();
+        let magic = state.blueprints.skills().id("Magic").unwrap();
+        cast_at(&mut state, bolt, (5, 1));
+        assert_eq!(skill::xp(&state.world, player, magic), 0);
+
+        state.now = Tick(10_000);
+        goblin(&mut state, 4);
+        cast_at(&mut state, bolt, (4, 1));
+        assert_eq!(skill::xp(&state.world, player, magic), skill::BASE_XP);
     }
 
     #[test]
