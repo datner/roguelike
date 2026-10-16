@@ -65,7 +65,9 @@ This is a Cargo workspace with two crates:
   raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
   clipped custom `MapWidget`, and owns all terminal lifecycle concerns
   (raw mode, alternate screen, Kitty keyboard protocol enhancement when
-  supported, panic-safe restore). It also owns the title menu and save
+  supported, panic-safe restore). Its UI is the map, log and status, a
+  side column of panels (hidden under 80 columns), and a hovering panel for
+  inventory and equipment, all drawn from `game`'s views. It also owns the title menu and save
   files: one per character, loaded from the menu and written (atomically)
   on quit.
 
@@ -107,7 +109,9 @@ In game:
   is kept.
 
 Moving, attacking (by moving into a creature), bumping a wall and waiting
-each take one turn. The status bar shows the current turn.
+each take one turn. The status bar shows the current turn. On terminals at least 80
+columns wide, a side column shows the character (HP, stats, armor,
+damage, weapon, auto-explore setting) and what each body part holds.
 
 ## Running
 

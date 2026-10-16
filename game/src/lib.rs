@@ -49,7 +49,7 @@ pub use effect::DurationChange;
 pub use entity::{
     Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Dead, Duration, Energy,
     Equippable, EquippedOn, Found, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind,
-    Player, Position, SpawnSeq, Speed, Timed,
+    Player, Position, SpawnSeq, Speed, Stat, Stats, Timed, Weapon,
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;

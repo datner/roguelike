@@ -8,6 +8,7 @@ mod input;
 mod menu;
 mod overlay;
 mod saves;
+mod side_panel;
 mod tui;
 mod widgets;
 

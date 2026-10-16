@@ -18,6 +18,7 @@ use crate::input::{map_key_event, map_menu_key, map_overlay_key};
 use crate::menu::{self, Action, Menu};
 use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
 use crate::saves::{self, Loaded};
+use crate::side_panel;
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
@@ -86,7 +87,7 @@ fn play(terminal: &mut Term, setup: &Setup, character: &str) -> io::Result<Resul
         Ok(state) => state,
         Err(err) => return Ok(Err(err)),
     };
-    let ran = run(terminal, &mut state);
+    let ran = run(terminal, &mut state, character);
     // Saved even if the terminal failed, so the run isn't lost.
     let saved = saves::save_on_quit(&path, &state);
     ran?;
@@ -131,9 +132,9 @@ fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, 
 /// Blocks on `event::read()` and redraws after every event (including
 /// resize) — no tick loop: `game::take_turn` runs the world until the
 /// player is ready again.
-pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
+pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
     let mut overlay: Option<Overlay> = None;
-    terminal.draw(|frame| draw(frame, state, overlay.as_ref()))?;
+    terminal.draw(|frame| draw(frame, state, character, overlay.as_ref()))?;
 
     loop {
         match event::read()? {
@@ -170,7 +171,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
                     InputEvent::Wait => take_turn(state, PlayerAction::Wait),
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
-                    InputEvent::Explore => explore(terminal, state)?,
+                    InputEvent::Explore => explore(terminal, state, character)?,
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
                     InputEvent::Inventory => overlay = Some(Overlay::new(Tab::Inventory)),
                     InputEvent::Equipment => overlay = Some(Overlay::new(Tab::Equipment)),
@@ -179,7 +180,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
             Event::Resize(_, _) => {}
             _ => continue,
         }
-        terminal.draw(|frame| draw(frame, state, overlay.as_ref()))?;
+        terminal.draw(|frame| draw(frame, state, character, overlay.as_ref()))?;
     }
 }
 
@@ -189,9 +190,9 @@ const EXPLORE_STEP_DELAY: Duration = Duration::from_millis(25);
 
 /// Steps until `game` stops auto-explore or any key is pressed. Key
 /// releases are ignored, or releasing the key that started it would stop it.
-fn explore(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
+fn explore(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
     while explore_step(state) {
-        terminal.draw(|frame| draw(frame, state, None))?;
+        terminal.draw(|frame| draw(frame, state, character, None))?;
         if key_pressed_within(EXPLORE_STEP_DELAY)? {
             break;
         }
@@ -210,7 +211,11 @@ fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
     Ok(false)
 }
 
-fn draw(frame: &mut Frame, state: &GameState, overlay: Option<&Overlay>) {
+fn draw(frame: &mut Frame, state: &GameState, character: &str, overlay: Option<&Overlay>) {
+    let (main, side) = side_panel::split(frame.area());
+    if let Some(side) = side {
+        side_panel::draw(frame, side, &side_panel::Context { state, character });
+    }
     let chunks = Layout::new(
         Direction::Vertical,
         [
@@ -219,7 +224,7 @@ fn draw(frame: &mut Frame, state: &GameState, overlay: Option<&Overlay>) {
             Constraint::Length(3),
         ],
     )
-    .split(frame.area());
+    .split(main);
 
     let (width, height) = viewport_tiles(chunks[0]);
     let view = render_view(state, width, height);
@@ -279,7 +284,9 @@ mod tests {
     /// 60×30: a 60×20 map panel above the 7-row log and 3-row status.
     fn rows(state: &GameState) -> Vec<String> {
         let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal.draw(|frame| draw(frame, state, None)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, state, "hero", None))
+            .unwrap();
         let buffer = terminal.backend().buffer();
         buffer
             .content()
@@ -308,7 +315,7 @@ mod tests {
         let state = state();
         let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
         terminal
-            .draw(|frame| draw(frame, &state, Some(&Overlay::new(Tab::Inventory))))
+            .draw(|frame| draw(frame, &state, "hero", Some(&Overlay::new(Tab::Inventory))))
             .unwrap();
         let rows: Vec<String> = {
             let buffer = terminal.backend().buffer();
@@ -321,6 +328,37 @@ mod tests {
         let map: String = rows[..20].concat();
         assert!(map.contains("Inventory") && map.contains("You carry nothing."));
         assert!(rows[20..].concat().contains("Log"), "the log stays visible");
+    }
+
+    #[test]
+    fn wide_terminals_get_the_side_column_beside_the_map() {
+        let state = state();
+        let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &state, "hero", None))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let rows: Vec<String> = buffer
+            .content()
+            .chunks(usize::from(buffer.area.width))
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+            .collect();
+        let side_x = usize::from(100 - side_panel::WIDTH);
+        let side: String = rows
+            .iter()
+            .map(|row| row.chars().skip(side_x).collect::<String>())
+            .collect();
+        let main: String = rows
+            .iter()
+            .map(|row| row.chars().take(side_x).collect::<String>())
+            .collect();
+        assert!(side.contains("hero") && side.contains("Equipment"));
+        assert_eq!(
+            main.matches('☺').count(),
+            1,
+            "the map still shows the player"
+        );
+        assert!(main.contains("Log") && !side.contains("Log"));
     }
 
     #[test]
