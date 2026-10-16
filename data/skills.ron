@@ -1,0 +1,12 @@
+// Every skill (ADR 0017). An action uses several at once; its level is their
+// weighted average, so specific skills weigh more than general ones. Ids
+// follow this order, but saves store names: reordering is safe.
+[
+    // Martial: how you fight.
+    (name: "Melee", domain: Martial, weight: 1),
+    (name: "Unarmed", domain: Martial, weight: 3),
+    (name: "Pierce", domain: Martial, weight: 2),
+    (name: "Slash", domain: Martial, weight: 2),
+    (name: "Blunt", domain: Martial, weight: 2),
+    (name: "Dagger", domain: Martial, weight: 3),
+]

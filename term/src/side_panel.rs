@@ -201,7 +201,7 @@ mod tests {
 
     fn state() -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
-        let blueprints = Blueprints::load_dir(&data.join("entities")).unwrap();
+        let blueprints = Blueprints::load(&data).unwrap();
         let cave = CaveParams::load(&data.join("cave.ron")).unwrap();
         GameState::new(3, blueprints, &cave).unwrap()
     }

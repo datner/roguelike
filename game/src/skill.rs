@@ -1,0 +1,532 @@
+//! Skills (ADR 0017): how well a creature does what it does, grown by doing
+//! it. Skills are flat, overlapping tags listed in `data/skills.ron`; one
+//! action uses several at once, and its level is their weighted average.
+//! Only XP is stored; levels are derived, so the curve can change freely.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use hecs::{Entity, World};
+use serde::{Deserialize, Serialize};
+
+use crate::blueprint::BlueprintError;
+use crate::combat::Strike;
+use crate::entity::{DamageType, Familiarity, Learner, Name, Skills, Trains};
+use crate::grammar::{Subject, capitalize};
+use crate::state::GameState;
+
+/// A skill's index in the `SkillBook` it was loaded into. Runtime-only, like
+/// `BlueprintId`: anything persisted stores the skill's name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SkillId(u16);
+
+/// What area of life a skill belongs to. A style fills one slot per domain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Domain {
+    Martial,
+    Defence,
+}
+
+/// One entry of `data/skills.ron`. `weight` is how much the skill counts in
+/// an action's level: specific skills weigh more than general ones.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillDef {
+    pub name: String,
+    pub domain: Domain,
+    pub weight: u32,
+}
+
+/// The skills the code names itself, because an action or a circumstance
+/// implies them rather than a part. Resolved once at load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Core {
+    pub melee: SkillId,
+    pub unarmed: SkillId,
+    pub pierce: SkillId,
+    pub slash: SkillId,
+    pub blunt: SkillId,
+}
+
+impl Core {
+    const NAMES: [&str; 5] = ["Melee", "Unarmed", "Pierce", "Slash", "Blunt"];
+
+    /// The skill trained by striking with `kind`, if any.
+    fn of_damage(self, kind: DamageType) -> Option<SkillId> {
+        match kind {
+            DamageType::Piercing => Some(self.pierce),
+            DamageType::Slashing => Some(self.slash),
+            DamageType::Blunt => Some(self.blunt),
+            DamageType::Fire | DamageType::Cold | DamageType::Shock => None,
+        }
+    }
+}
+
+/// Every skill there is. Empty by default, for tests that don't care about
+/// skills: without the core skills no action uses or trains any.
+#[derive(Debug, Clone, Default)]
+pub struct SkillBook {
+    /// Indexed by `SkillId`; ids follow file order.
+    defs: Vec<SkillDef>,
+    ids: BTreeMap<String, SkillId>,
+    core: Option<Core>,
+}
+
+impl SkillBook {
+    /// Reads `data/skills.ron`: a list of `SkillDef`s.
+    pub fn load(path: &Path) -> Result<Self, BlueprintError> {
+        let text =
+            std::fs::read_to_string(path).map_err(|err| BlueprintError::Io(path.into(), err))?;
+        let defs = ron::from_str(&text)
+            .map_err(|err| BlueprintError::Parse(path.into(), Box::new(err)))?;
+        Self::new(defs)
+    }
+
+    /// Rejects a name listed twice and a missing core skill, so neither can
+    /// surface during play.
+    pub fn new(defs: Vec<SkillDef>) -> Result<Self, BlueprintError> {
+        let mut ids = BTreeMap::new();
+        for (index, def) in defs.iter().enumerate() {
+            let id = u16::try_from(index)
+                .map(SkillId)
+                .map_err(|_| BlueprintError::TooManySkills)?;
+            if ids.insert(def.name.clone(), id).is_some() {
+                return Err(BlueprintError::DuplicateSkill(def.name.clone()));
+            }
+        }
+        let core_id = |name: &str| {
+            ids.get(name)
+                .copied()
+                .ok_or_else(|| BlueprintError::MissingSkill(name.to_string()))
+        };
+        let [melee, unarmed, pierce, slash, blunt] = Core::NAMES;
+        let core = Core {
+            melee: core_id(melee)?,
+            unarmed: core_id(unarmed)?,
+            pierce: core_id(pierce)?,
+            slash: core_id(slash)?,
+            blunt: core_id(blunt)?,
+        };
+        Ok(Self {
+            defs,
+            ids,
+            core: Some(core),
+        })
+    }
+
+    pub fn id(&self, name: &str) -> Option<SkillId> {
+        self.ids.get(name).copied()
+    }
+
+    pub fn get(&self, id: SkillId) -> Option<&SkillDef> {
+        self.defs.get(usize::from(id.0))
+    }
+
+    fn weight(&self, id: SkillId) -> u32 {
+        self.get(id).map_or(0, |def| def.weight)
+    }
+}
+
+/// The highest level there is.
+pub const MAX_LEVEL: u32 = 20;
+/// XP for one counted use, before repetition decays it.
+pub(crate) const BASE_XP: u32 = 10;
+/// How fast repetition decays XP: the `n`th use against the same kind of
+/// thing is worth `DECAY / (DECAY + n)` of a first one.
+const DECAY: u32 = 10;
+
+/// Total XP needed to reach `level`.
+pub fn xp_for(level: u32) -> u32 {
+    50 * level * level
+}
+
+/// The level `xp` reaches.
+pub fn level(xp: u32) -> u32 {
+    (0..=MAX_LEVEL)
+        .take_while(|&n| xp_for(n) <= xp)
+        .last()
+        .unwrap_or(0)
+}
+
+/// `creature`'s XP in `skill`.
+pub(crate) fn xp(world: &World, creature: Entity, skill: SkillId) -> u32 {
+    world.get::<&Skills>(creature).map_or(0, |skills| {
+        skills
+            .0
+            .iter()
+            .find(|&&(id, _)| id == skill)
+            .map_or(0, |&(_, xp)| xp)
+    })
+}
+
+/// `creature`'s level at an action using `skills`: the weighted average of
+/// its levels in them, rounded down. A sum would make the tool with the most
+/// skills the best one; an average keeps extra skills neutral.
+pub(crate) fn effective(
+    world: &World,
+    book: &SkillBook,
+    creature: Entity,
+    skills: &[SkillId],
+) -> u32 {
+    let total: u32 = skills.iter().map(|&id| book.weight(id)).sum();
+    if total == 0 {
+        return 0;
+    }
+    let weighted: u32 = skills
+        .iter()
+        .map(|&id| book.weight(id) * level(xp(world, creature, id)))
+        .sum();
+    weighted / total
+}
+
+/// Extra damage at an effective level.
+pub(crate) fn damage_bonus(level: u32) -> i32 {
+    i32::try_from(level / 4).unwrap_or(0)
+}
+
+/// The skills a melee `strike` uses: Melee, what the weapon trains (Unarmed
+/// for natural attacks) and one skill per kind of damage it deals. Sorted
+/// and without duplicates.
+pub(crate) fn melee(world: &World, book: &SkillBook, strike: &Strike) -> Vec<SkillId> {
+    let Some(core) = book.core else {
+        return Vec::new();
+    };
+    let mut skills = vec![core.melee];
+    match strike.weapon {
+        Some(weapon) => {
+            if let Ok(trains) = world.get::<&Trains>(weapon) {
+                skills.extend(trains.0.iter().copied());
+            }
+        }
+        None => skills.push(core.unarmed),
+    }
+    skills.extend(strike.types.iter().filter_map(|kind| core.of_damage(kind)));
+    skills.sort();
+    skills.dedup();
+    skills
+}
+
+/// `learner` used `skills` against `subject`: each gains `base` XP, less the
+/// more often it has been used against that kind of thing (by name). Logs
+/// each level gained. Does nothing for creatures without `Learner`.
+pub(crate) fn train(
+    state: &mut GameState,
+    learner: Entity,
+    skills: &[SkillId],
+    subject: Entity,
+    base: u32,
+) {
+    if !state.world.satisfies::<&Learner>(learner) {
+        return;
+    }
+    let kind = state
+        .world
+        .get::<&Name>(subject)
+        .map_or_else(|_| "something".to_string(), |name| name.0.clone());
+    let mut gains = Vec::with_capacity(skills.len());
+    {
+        let mut familiarity = state
+            .world
+            .get::<&Familiarity>(learner)
+            .map(|f| (*f).clone())
+            .unwrap_or_default();
+        for &skill in skills {
+            let uses = familiarity.uses(skill, &kind);
+            gains.push((skill, base * DECAY / (DECAY + uses)));
+            familiarity.count(skill, &kind);
+        }
+        let _ = state.world.insert_one(learner, familiarity);
+    }
+
+    let mut learned = state
+        .world
+        .get::<&Skills>(learner)
+        .map(|s| (*s).clone())
+        .unwrap_or_default();
+    let mut risen = Vec::new();
+    for (skill, gain) in gains {
+        let before = learned.xp(skill);
+        let after = before.saturating_add(gain);
+        learned.set(skill, after);
+        if level(after) > level(before) {
+            risen.push((skill, level(after)));
+        }
+    }
+    let _ = state.world.insert_one(learner, learned);
+
+    let whose = Subject::of(&state.world, learner).possessive();
+    for (skill, level) in risen {
+        let Some(def) = state.blueprints.skills().get(skill) else {
+            continue;
+        };
+        let name = def.name.to_lowercase();
+        state.log.push(capitalize(&format!(
+            "{whose} {name} skill rises to {level}."
+        )));
+    }
+}
+
+impl Skills {
+    pub(crate) fn xp(&self, skill: SkillId) -> u32 {
+        self.0
+            .iter()
+            .find(|&&(id, _)| id == skill)
+            .map_or(0, |&(_, xp)| xp)
+    }
+
+    /// Sets `skill`'s XP, keeping the list sorted by id.
+    pub(crate) fn set(&mut self, skill: SkillId, xp: u32) {
+        match self.0.binary_search_by_key(&skill, |&(id, _)| id) {
+            Ok(at) => self.0[at].1 = xp,
+            Err(at) => self.0.insert(at, (skill, xp)),
+        }
+    }
+}
+
+impl Familiarity {
+    fn uses(&self, skill: SkillId, kind: &str) -> u32 {
+        self.0
+            .iter()
+            .find(|(id, name, _)| *id == skill && name == kind)
+            .map_or(0, |&(_, _, uses)| uses)
+    }
+
+    /// One more use of `skill` against `kind`, keeping the list sorted.
+    fn count(&mut self, skill: SkillId, kind: &str) {
+        match self
+            .0
+            .binary_search_by(|(id, name, _)| (*id, name.as_str()).cmp(&(skill, kind)))
+        {
+            Ok(at) => self.0[at].2 += 1,
+            Err(at) => self.0.insert(at, (skill, kind.to_string(), 1)),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::command::Command;
+    use crate::entity::{Health, Stat};
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
+
+    fn def(name: &str, domain: Domain, weight: u32) -> SkillDef {
+        SkillDef {
+            name: name.to_string(),
+            domain,
+            weight,
+        }
+    }
+
+    /// The core skills plus Dagger, weighted as in `data/skills.ron`.
+    pub(crate) fn book() -> SkillBook {
+        SkillBook::new(vec![
+            def("Melee", Domain::Martial, 1),
+            def("Unarmed", Domain::Martial, 3),
+            def("Pierce", Domain::Martial, 2),
+            def("Slash", Domain::Martial, 2),
+            def("Blunt", Domain::Martial, 2),
+            def("Dagger", Domain::Martial, 3),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn levels_follow_the_curve() {
+        assert_eq!(level(0), 0);
+        assert_eq!(level(49), 0);
+        assert_eq!(level(50), 1);
+        assert_eq!(level(199), 1);
+        assert_eq!(level(200), 2);
+        assert_eq!(level(u32::MAX), MAX_LEVEL);
+    }
+
+    #[test]
+    fn a_name_listed_twice_or_a_missing_core_skill_fails() {
+        let mut defs = book().defs;
+        defs.push(def("Dagger", Domain::Martial, 1));
+        assert!(matches!(
+            SkillBook::new(defs),
+            Err(BlueprintError::DuplicateSkill(name)) if name == "Dagger"
+        ));
+        let defs = vec![def("Melee", Domain::Martial, 1)];
+        assert!(matches!(
+            SkillBook::new(defs),
+            Err(BlueprintError::MissingSkill(name)) if name == "Unarmed"
+        ));
+    }
+
+    fn id(state: &GameState, name: &str) -> SkillId {
+        state.blueprints.skills().id(name).unwrap()
+    }
+
+    /// Sets `creature`'s levels by skill name.
+    fn learn(state: &mut GameState, creature: Entity, levels: &[(&str, u32)]) {
+        let mut skills = Skills::default();
+        for &(name, level) in levels {
+            skills.set(id(state, name), xp_for(level));
+        }
+        state.world.insert_one(creature, skills).unwrap();
+    }
+
+    fn goblin(state: &mut GameState, x: i32) -> Entity {
+        thing("goblin").health(50).hostile().at(x, 1).make(state)
+    }
+
+    fn knife(state: &mut GameState, owner: Entity) -> Entity {
+        let dagger = id(state, "Dagger");
+        thing("knife")
+            .weapon(1, 3, Stat::Agility)
+            .with(Trains(vec![dagger]))
+            .equipped_on(owner, 2)
+            .make(state)
+    }
+
+    fn names(state: &GameState, skills: &[SkillId]) -> Vec<String> {
+        let book = state.blueprints.skills();
+        skills
+            .iter()
+            .map(|&id| book.get(id).unwrap().name.clone())
+            .collect()
+    }
+
+    fn player_strike(state: &GameState) -> Strike {
+        crate::combat::strike(&state.world, state.blueprints.skills(), state.player).unwrap()
+    }
+
+    #[test]
+    fn a_strike_uses_melee_the_tool_and_its_kinds_of_damage() {
+        let mut state = bare_state();
+        let bare = player_strike(&state);
+        let used = melee(&state.world, state.blueprints.skills(), &bare);
+        assert_eq!(names(&state, &used), ["Melee", "Unarmed", "Blunt"]);
+
+        let player = state.player;
+        knife(&mut state, player);
+        let armed = player_strike(&state);
+        let used = melee(&state.world, state.blueprints.skills(), &armed);
+        assert_eq!(names(&state, &used), ["Melee", "Slash", "Dagger"]);
+    }
+
+    #[test]
+    fn the_level_at_an_action_is_the_weighted_average() {
+        let mut state = bare_state();
+        let player = state.player;
+        knife(&mut state, player);
+        // Melee 8 (weight 1), Slash 0 (weight 2), Dagger 4 (weight 3):
+        // (8 + 0 + 12) / 6 = 3, rounded down.
+        learn(&mut state, player, &[("Melee", 8), ("Dagger", 4)]);
+        assert_eq!(player_strike(&state).level, 3);
+    }
+
+    #[test]
+    fn every_four_levels_add_a_point_of_damage_and_the_preview_agrees() {
+        let mut state = bare_state();
+        let target = goblin(&mut state, 2);
+        let base = player_strike(&state).range();
+        let player = state.player;
+        learn(
+            &mut state,
+            player,
+            &[("Melee", 9), ("Unarmed", 9), ("Blunt", 9)],
+        );
+        let skilled = player_strike(&state);
+        assert_eq!(skilled.level, 9);
+        assert_eq!(skilled.range(), (base.0 + 2, base.1 + 2));
+
+        let preview = crate::combat::preview_damage(&state, player, target).unwrap();
+        let before = state.world.get::<&Health>(target).unwrap().current;
+        state.run(Command::Attack {
+            attacker: player,
+            target,
+        });
+        let after = state.world.get::<&Health>(target).unwrap().current;
+        assert_eq!(before - after, preview);
+    }
+
+    #[test]
+    fn hitting_an_enemy_trains_every_skill_used_less_each_time() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.world.insert_one(player, Learner).unwrap();
+        let target = goblin(&mut state, 2);
+        let attack = Command::Attack {
+            attacker: player,
+            target,
+        };
+        state.run(attack);
+        for skill in ["Melee", "Unarmed", "Blunt"] {
+            assert_eq!(
+                xp(&state.world, player, id(&state, skill)),
+                BASE_XP,
+                "{skill}"
+            );
+        }
+        assert_eq!(xp(&state.world, player, id(&state, "Dagger")), 0);
+
+        // The second goblin teaches 10 / 11 of the first.
+        state.run(attack);
+        let melee = id(&state, "Melee");
+        assert_eq!(xp(&state.world, player, melee), BASE_XP + BASE_XP * 10 / 11);
+
+        // Something new teaches in full again.
+        let rat = thing("rat").health(50).hostile().at(1, 2).make(&mut state);
+        state.run(Command::Attack {
+            attacker: player,
+            target: rat,
+        });
+        assert_eq!(
+            xp(&state.world, player, melee),
+            2 * BASE_XP + BASE_XP * 10 / 11
+        );
+    }
+
+    #[test]
+    fn only_a_learner_hitting_an_enemy_trains() {
+        let mut state = bare_state();
+        let player = state.player;
+        let friend = thing("friend").health(50).at(2, 1).make(&mut state);
+        state.world.insert_one(player, Learner).unwrap();
+        state.run(Command::Attack {
+            attacker: player,
+            target: friend,
+        });
+        assert!(state.world.get::<&Skills>(player).is_err());
+
+        let goblin = goblin(&mut state, 1);
+        state.run(Command::Attack {
+            attacker: goblin,
+            target: player,
+        });
+        assert!(state.world.get::<&Skills>(goblin).is_err());
+    }
+
+    #[test]
+    fn a_level_gained_is_logged() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.world.insert_one(player, Learner).unwrap();
+        let mut skills = Skills::default();
+        skills.set(id(&state, "Unarmed"), xp_for(1) - 1);
+        state.world.insert_one(player, skills).unwrap();
+        let target = goblin(&mut state, 2);
+        state.run(Command::Attack {
+            attacker: player,
+            target,
+        });
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "Your unarmed skill rises to 1."),
+        );
+    }
+
+    #[test]
+    fn the_data_file_loads() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/skills.ron");
+        let book = SkillBook::load(&path).unwrap();
+        assert!(book.core.is_some());
+        assert!(book.id("Dagger").is_some());
+    }
+}

@@ -23,12 +23,13 @@ use serde::{Deserialize, Serialize};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
     BodyPart, Chain, CooldownCasting, Delay, Duration, Equippable, Fizzle, Focus, Health, Hostile,
-    Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
-    Projectile, Quiver, School, Scroll, Speed, Spell, SpellAi, SpellDamage, Stats, Summon,
-    SummonLimit, Throwable, Weapon,
+    Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
+    Projectile, Quiver, School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Summon,
+    SummonLimit, Throwable, Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
+use crate::skill::{SkillBook, xp_for};
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -79,6 +80,11 @@ pub enum ComponentDef {
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
+    /// Fixed skill levels by name (ADR 0017); spawned as XP.
+    Skills(BTreeMap<String, u32>),
+    /// Skills by name that using this trains.
+    Trains(Vec<String>),
+    Learner,
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -136,6 +142,9 @@ impl ComponentDef {
             ComponentDef::Quiver(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
+            ComponentDef::Learner => builder.add(Learner),
+            // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
+            ComponentDef::Skills(_) | ComponentDef::Trains(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
             // Holds a name; spawned from `ResolvedBlueprint::summon` instead.
@@ -173,6 +182,8 @@ pub struct ResolvedBlueprint {
     pub components: Vec<ComponentDef>,
     pub on_hit: Option<OnHit>,
     pub summon: Option<Summon>,
+    pub skills: Option<Skills>,
+    pub trains: Option<Trains>,
     pub equipment: Vec<BlueprintId>,
     /// The `Body` part each `equipment` entry is spawned on, index for index.
     pub equipped_on: Vec<u32>,
@@ -220,6 +231,8 @@ pub struct Blueprints {
     /// Indexed by `BlueprintId`; ids follow name order.
     resolved: Vec<ResolvedBlueprint>,
     ids: BTreeMap<String, BlueprintId>,
+    /// The skill list (`data/skills.ron`), which blueprints name skills from.
+    skills: SkillBook,
 }
 
 #[derive(Debug)]
@@ -247,6 +260,15 @@ pub enum BlueprintError {
         owner: String,
         spell: String,
     },
+    UnknownSkill {
+        owner: String,
+        skill: String,
+    },
+    /// `data/skills.ron` lists a skill twice.
+    DuplicateSkill(String),
+    /// `data/skills.ron` lacks a skill the code names (`skill::Core`).
+    MissingSkill(String),
+    TooManySkills,
     EffectWithoutDuration {
         owner: String,
         effect: String,
@@ -287,6 +309,12 @@ impl std::fmt::Display for BlueprintError {
             Self::UnknownSpell { owner, spell } => {
                 write!(f, "blueprint {owner:?} knows unknown spell {spell:?}")
             }
+            Self::UnknownSkill { owner, skill } => {
+                write!(f, "blueprint {owner:?} names unknown skill {skill:?}")
+            }
+            Self::DuplicateSkill(name) => write!(f, "skill {name:?} is listed twice"),
+            Self::MissingSkill(name) => write!(f, "the skill list lacks {name:?}"),
+            Self::TooManySkills => write!(f, "too many skills"),
             Self::UnknownSummon { owner, summon } => {
                 write!(f, "blueprint {owner:?} summons unknown {summon:?}")
             }
@@ -317,8 +345,15 @@ fn ron_options() -> ron::Options {
 }
 
 impl Blueprints {
-    /// Loads every `*.ron` file in `dir`, named by file stem, and resolves them.
-    pub fn load_dir(dir: &Path) -> Result<Self, BlueprintError> {
+    /// Loads the game's content from `data`: the skill list in `skills.ron`
+    /// and every blueprint in `entities/`.
+    pub fn load(data: &Path) -> Result<Self, BlueprintError> {
+        let skills = SkillBook::load(&data.join("skills.ron"))?;
+        Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)
+    }
+
+    /// Reads every `*.ron` file in `dir`, named by file stem.
+    fn read_dir(dir: &Path) -> Result<BTreeMap<String, Blueprint>, BlueprintError> {
         let io_err = |err| BlueprintError::Io(dir.to_path_buf(), err);
         let mut raw = BTreeMap::new();
         for entry in fs::read_dir(dir).map_err(io_err)? {
@@ -337,14 +372,23 @@ impl Blueprints {
                 .map_err(|err| BlueprintError::Parse(path.clone(), Box::new(err)))?;
             raw.insert(name, blueprint);
         }
-        Self::resolve(raw)
+        Ok(raw)
+    }
+
+    /// `resolve_with` and no skills: for tests whose blueprints name none.
+    pub fn resolve(raw: BTreeMap<String, Blueprint>) -> Result<Self, BlueprintError> {
+        Self::resolve_with(raw, SkillBook::default())
     }
 
     /// Checks that every referenced name exists, flattens inheritance,
     /// assigns ids in name order, and rejects on-hit effects without a
     /// `Duration` and equipment cycles, so neither can fail during play.
-    pub fn resolve(raw: BTreeMap<String, Blueprint>) -> Result<Self, BlueprintError> {
+    pub fn resolve_with(
+        raw: BTreeMap<String, Blueprint>,
+        skills: SkillBook,
+    ) -> Result<Self, BlueprintError> {
         check_references(&raw)?;
+        check_skills(&raw, &skills)?;
         let mut flat = BTreeMap::new();
         for name in raw.keys() {
             resolve_one(name, &raw, &mut flat, &mut Vec::new())?;
@@ -364,6 +408,16 @@ impl Blueprints {
             let mut components = Vec::with_capacity(blueprint.components.len());
             let mut on_hit = None;
             let mut summon = None;
+            let mut learned = None;
+            let mut trains = None;
+            let skill_id = |skill: &String| {
+                skills
+                    .id(skill)
+                    .ok_or_else(|| BlueprintError::UnknownSkill {
+                        owner: name.clone(),
+                        skill: skill.clone(),
+                    })
+            };
             for component in blueprint.components {
                 match component {
                     ComponentDef::OnHit(entries) => {
@@ -385,6 +439,20 @@ impl Blueprints {
                             lifetime: def.lifetime,
                         });
                     }
+                    ComponentDef::Skills(levels) => {
+                        let mut xp = levels
+                            .iter()
+                            .map(|(name, &level)| Ok((skill_id(name)?, xp_for(level))))
+                            .collect::<Result<Vec<_>, BlueprintError>>()?;
+                        xp.sort();
+                        learned = Some(Skills(xp));
+                    }
+                    ComponentDef::Trains(names) => {
+                        let mut ids = names.iter().map(skill_id).collect::<Result<Vec<_>, _>>()?;
+                        ids.sort();
+                        ids.dedup();
+                        trains = Some(Trains(ids));
+                    }
                     other => components.push(other),
                 }
             }
@@ -405,6 +473,8 @@ impl Blueprints {
                 components,
                 on_hit,
                 summon,
+                skills: learned,
+                trains,
                 equipment,
                 equipped_on: Vec::new(),
                 spells,
@@ -412,7 +482,16 @@ impl Blueprints {
         }
         check_equipment_cycles(&resolved)?;
         fit_equipment(&mut resolved)?;
-        Ok(Self { resolved, ids })
+        Ok(Self {
+            resolved,
+            ids,
+            skills,
+        })
+    }
+
+    /// Every skill there is.
+    pub fn skills(&self) -> &SkillBook {
+        &self.skills
     }
 
     pub fn id(&self, name: &str) -> Option<BlueprintId> {
@@ -464,6 +543,12 @@ impl Blueprints {
         if let Some(summon) = blueprint.summon {
             builder.add(summon);
         }
+        if let Some(skills) = &blueprint.skills {
+            builder.add(skills.clone());
+        }
+        if let Some(trains) = &blueprint.trains {
+            builder.add(trains.clone());
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
@@ -475,6 +560,27 @@ impl Blueprints {
         }
         Ok(owner)
     }
+}
+
+/// Every skill a blueprint names exists. Reported against the blueprint
+/// that wrote it, like `check_references`.
+fn check_skills(raw: &BTreeMap<String, Blueprint>, book: &SkillBook) -> Result<(), BlueprintError> {
+    for (owner, blueprint) in raw {
+        let named = blueprint.components.iter().flat_map(|c| match c {
+            ComponentDef::Skills(levels) => levels.keys().collect::<Vec<_>>(),
+            ComponentDef::Trains(names) => names.iter().collect(),
+            _ => Vec::new(),
+        });
+        for skill in named {
+            if book.id(skill).is_none() {
+                return Err(BlueprintError::UnknownSkill {
+                    owner: owner.clone(),
+                    skill: skill.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// On-hit effects are applied with `ApplyEffect`, which needs a `Duration`
@@ -718,7 +824,7 @@ mod tests {
     use super::*;
 
     fn data_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/entities")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")
     }
 
     fn bp(inherits: Option<&str>, components: Vec<ComponentDef>) -> Blueprint {
@@ -909,7 +1015,7 @@ mod tests {
 
     #[test]
     fn loads_the_data_directory() {
-        let blueprints = Blueprints::load_dir(&data_dir()).expect("data should load");
+        let blueprints = Blueprints::load(&data_dir()).expect("data should load");
         for name in [
             "Bleeding",
             "Creature",
@@ -1048,6 +1154,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn unknown_skills_are_reported_and_known_ones_spawn_as_ids_and_xp() {
+        let skills = crate::skill::tests::book();
+        let named = |components| {
+            Blueprints::resolve_with(
+                BTreeMap::from([("Fencer".to_string(), bp(None, components))]),
+                skills.clone(),
+            )
+        };
+        let levels = |name: &str| ComponentDef::Skills(BTreeMap::from([(name.to_string(), 2)]));
+        let trains = |name: &str| ComponentDef::Trains(vec![name.to_string()]);
+        for bad in [levels("Rapier"), trains("Rapier")] {
+            assert_eq!(
+                named(vec![bad]).unwrap_err().to_string(),
+                r#"blueprint "Fencer" names unknown skill "Rapier""#
+            );
+        }
+
+        let blueprints = named(vec![levels("Dagger"), trains("Melee")]).unwrap();
+        let mut world = World::new();
+        let fencer = blueprints
+            .spawn_id(&mut world, blueprints.id("Fencer").unwrap())
+            .unwrap();
+        let (dagger, melee) = (skills.id("Dagger").unwrap(), skills.id("Melee").unwrap());
+        assert_eq!(
+            *world.get::<&Skills>(fencer).unwrap(),
+            Skills(vec![(dagger, crate::skill::xp_for(2))])
+        );
+        assert_eq!(*world.get::<&Trains>(fencer).unwrap(), Trains(vec![melee]));
+    }
+
     fn timed() -> ComponentDef {
         ComponentDef::Duration(Duration(100))
     }
@@ -1124,7 +1261,7 @@ mod tests {
 
     #[test]
     fn equipment_is_spawned_and_attached() {
-        let blueprints = Blueprints::load_dir(&data_dir()).unwrap();
+        let blueprints = Blueprints::load(&data_dir()).unwrap();
         let mut world = World::new();
         let goblin = blueprints
             .spawn_id(&mut world, blueprints.id("Goblin").unwrap())
@@ -1137,6 +1274,6 @@ mod tests {
 
     #[test]
     fn missing_directory_is_an_error() {
-        assert!(Blueprints::load_dir(&data_dir().join("does-not-exist")).is_err());
+        assert!(Blueprints::load(&data_dir().join("does-not-exist")).is_err());
     }
 }

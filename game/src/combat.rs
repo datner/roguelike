@@ -16,6 +16,7 @@ use crate::entity::{
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
+use crate::skill::{self, SkillBook};
 use crate::state::GameState;
 
 /// Fired at a target before damage is applied. Handlers may rewrite `amount`
@@ -97,6 +98,8 @@ pub(crate) struct Strike {
     pub types: DamageTypes,
     /// The equipped weapon used, if not natural `Melee`.
     pub weapon: Option<Entity>,
+    /// The attacker's effective skill level at it (ADR 0017).
+    pub level: u32,
 }
 
 impl Strike {
@@ -109,8 +112,9 @@ impl Strike {
 
 /// The equipped `Weapon` on the lowest-numbered body part, else natural
 /// `Melee` (a Strength, blunt weapon); `None` if `attacker` has neither. The
-/// wielder's `Stats` modifier for the weapon's stat is the bonus.
-pub(crate) fn strike(world: &World, attacker: Entity) -> Option<Strike> {
+/// wielder's `Stats` modifier for the weapon's stat, plus the damage bonus of
+/// their skill level at this strike (ADR 0017), is the bonus.
+pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Option<Strike> {
     let mut worn = equipped(world, attacker);
     worn.sort_by_key(|&(_, part)| part);
     let wielded = worn.into_iter().find_map(|(item, _)| {
@@ -137,13 +141,22 @@ pub(crate) fn strike(world: &World, attacker: Entity) -> Option<Strike> {
     let bonus = world
         .get::<&Stats>(attacker)
         .map_or(0, |stats| stats.modifier(stat));
-    Some(Strike {
+    let mut strike = Strike {
         min,
         max,
         bonus,
         types,
         weapon,
-    })
+        level: 0,
+    };
+    strike.level = skill::effective(
+        world,
+        skills,
+        attacker,
+        &skill::melee(world, skills, &strike),
+    );
+    strike.bonus += skill::damage_bonus(strike.level);
+    Some(strike)
 }
 
 /// One melee hit before armor: how much, and of which kinds.
@@ -155,8 +168,13 @@ pub(crate) struct Hit {
 
 /// Raw damage of one of `attacker`'s melee hits (see `strike`), or `None`
 /// if it can't attack. Always exactly one draw from `rng`.
-pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Option<Hit> {
-    Some(roll_strike(rng, strike(world, attacker)?))
+pub(crate) fn roll_melee(
+    world: &World,
+    skills: &SkillBook,
+    rng: &mut Pcg64,
+    attacker: Entity,
+) -> Option<Hit> {
+    Some(roll_strike(rng, strike(world, skills, attacker)?))
 }
 
 /// One draw from `rng` for `strike`.
@@ -188,6 +206,7 @@ pub(crate) fn fire_strike(
         bonus,
         types: projectile.types,
         weapon: None,
+        level: 0,
     };
     Some((strike, projectile.break_bp))
 }
@@ -205,6 +224,7 @@ pub(crate) fn throw_strike(world: &World, thrower: Entity, missile: Entity) -> O
         bonus,
         types: throwable.types,
         weapon: None,
+        level: 0,
     })
 }
 
@@ -224,7 +244,7 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
         return None;
     }
     let mut rng = state.rngs.combat.clone();
-    let hit = roll_melee(&state.world, &mut rng, attacker)?;
+    let hit = roll_melee(&state.world, state.blueprints.skills(), &mut rng, attacker)?;
     let mut scratch = Vec::new();
     let mut ctx = Ctx {
         world: &state.world,
@@ -285,7 +305,7 @@ mod tests {
     fn bare_hands_add_strength_to_natural_melee() {
         let mut state = bare_state();
         let strong = fighter(&mut state, 20, 10);
-        let strike = strike(&state.world, strong).unwrap();
+        let strike = strike(&state.world, state.blueprints.skills(), strong).unwrap();
         assert_eq!((strike.range(), strike.weapon), ((4, 6), None));
     }
 
@@ -295,11 +315,13 @@ mod tests {
         let nimble = fighter(&mut state, 10, 20);
         let blade = knife().equipped_on(nimble, 2).make(&mut state);
 
-        let strike = strike(&state.world, nimble).unwrap();
+        let strike = strike(&state.world, state.blueprints.skills(), nimble).unwrap();
         assert_eq!((strike.range(), strike.weapon), ((3, 5), Some(blade)));
         let mut rng = state.rngs.combat.clone();
         for _ in 0..50 {
-            let damage = roll_melee(&state.world, &mut rng, nimble).unwrap().amount;
+            let damage = roll_melee(&state.world, state.blueprints.skills(), &mut rng, nimble)
+                .unwrap()
+                .amount;
             assert!((3..=5).contains(&damage), "{damage}");
         }
     }
@@ -309,17 +331,28 @@ mod tests {
         let mut state = bare_state();
         let fighter = fighter(&mut state, 16, 20);
         knife().carried_by(fighter).make(&mut state);
-        assert_eq!(strike(&state.world, fighter).unwrap().weapon, None);
+        assert_eq!(
+            strike(&state.world, state.blueprints.skills(), fighter)
+                .unwrap()
+                .weapon,
+            None
+        );
     }
 
     #[test]
     fn a_weak_hit_never_heals() {
         let mut state = bare_state();
         let feeble = fighter(&mut state, 4, 16);
-        assert_eq!(strike(&state.world, feeble).unwrap().range(), (0, 0));
+        assert_eq!(
+            strike(&state.world, state.blueprints.skills(), feeble)
+                .unwrap()
+                .range(),
+            (0, 0)
+        );
         let mut rng = state.rngs.combat.clone();
         assert_eq!(
-            roll_melee(&state.world, &mut rng, feeble).map(|hit| hit.amount),
+            roll_melee(&state.world, state.blueprints.skills(), &mut rng, feeble)
+                .map(|hit| hit.amount),
             Some(0)
         );
     }
@@ -575,7 +608,9 @@ mod tests {
         let mut state = bare_state();
         let brawler = fighter(&mut state, 16, 16);
         assert_eq!(
-            strike(&state.world, brawler).unwrap().types,
+            strike(&state.world, state.blueprints.skills(), brawler)
+                .unwrap()
+                .types,
             DamageTypes::of(&[Blunt])
         );
         thing("spear")
@@ -588,7 +623,9 @@ mod tests {
             .equipped_on(brawler, 2)
             .make(&mut state);
         assert_eq!(
-            strike(&state.world, brawler).unwrap().types,
+            strike(&state.world, state.blueprints.skills(), brawler)
+                .unwrap()
+                .types,
             DamageTypes::of(&[Slashing, Piercing])
         );
     }

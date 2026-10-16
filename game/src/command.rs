@@ -6,7 +6,7 @@ use hecs::Entity;
 
 use crate::ammo;
 use crate::blueprint::BlueprintId;
-use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
+use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_strike, strike};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
@@ -21,6 +21,8 @@ use crate::holding;
 use crate::input::Dir;
 use crate::map::Tile;
 use crate::ranged;
+use crate::side;
+use crate::skill;
 use crate::spell;
 use crate::state::GameState;
 use crate::time;
@@ -532,15 +534,23 @@ fn drop_item(state: &mut GameState, actor: Entity, item: Entity) {
 }
 
 fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
-    if let Some(hit) = roll_melee(&state.world, &mut state.rngs.combat, attacker) {
-        state.commands.push_back(Command::DealDamage {
-            target,
-            amount: hit.amount,
-            cause: DamageCause::Melee {
-                attacker,
-                types: hit.types,
-            },
-        });
+    let skills = state.blueprints.skills();
+    let Some(strike) = strike(&state.world, skills, attacker) else {
+        return;
+    };
+    let used = skill::melee(&state.world, skills, &strike);
+    let hit = roll_strike(&mut state.rngs.combat, strike);
+    state.commands.push_back(Command::DealDamage {
+        target,
+        amount: hit.amount,
+        cause: DamageCause::Melee {
+            attacker,
+            types: hit.types,
+        },
+    });
+    // Only a fight teaches: hitting a friend or a summon of your own does not.
+    if side::enemies(&state.world, attacker, target) {
+        skill::train(state, attacker, &used, target, skill::BASE_XP);
     }
 }
 

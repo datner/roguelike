@@ -442,229 +442,232 @@ pub(crate) mod tests {
     /// Both normal speed. Bleeding: 1 damage every 100 ticks for 500 ticks.
     pub(crate) fn test_blueprints() -> Blueprints {
         let name = |n: &str| ComponentDef::Name(Name(n.to_string()));
-        Blueprints::resolve(BTreeMap::from([
-            (
-                "Player".to_string(),
-                blueprint(
-                    vec![
-                        name("player"),
-                        ComponentDef::Player,
-                        test_body(),
-                        look('@'),
-                        ComponentDef::BlocksMovement,
-                        ComponentDef::Health(Health {
-                            current: 20,
-                            max: 20,
-                        }),
-                        ComponentDef::Melee(Melee { min: 2, max: 4 }),
-                        ComponentDef::Speed(Speed(100)),
-                    ],
-                    &[],
+        Blueprints::resolve_with(
+            BTreeMap::from([
+                (
+                    "Player".to_string(),
+                    blueprint(
+                        vec![
+                            name("player"),
+                            ComponentDef::Player,
+                            test_body(),
+                            look('@'),
+                            ComponentDef::BlocksMovement,
+                            ComponentDef::Health(Health {
+                                current: 20,
+                                max: 20,
+                            }),
+                            ComponentDef::Melee(Melee { min: 2, max: 4 }),
+                            ComponentDef::Speed(Speed(100)),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "Rubble".to_string(),
-                blueprint(
-                    vec![name("rubble"), look('%'), ComponentDef::BlocksMovement],
-                    &[],
+                (
+                    "Rubble".to_string(),
+                    blueprint(
+                        vec![name("rubble"), look('%'), ComponentDef::BlocksMovement],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "Goblin".to_string(),
-                blueprint(
-                    vec![
-                        name("goblin"),
-                        test_body(),
-                        look('g'),
-                        ComponentDef::BlocksMovement,
-                        ComponentDef::Health(Health { current: 8, max: 8 }),
-                        ComponentDef::Melee(Melee { min: 1, max: 3 }),
-                        ComponentDef::Speed(Speed(100)),
-                        ComponentDef::Hostile,
-                    ],
-                    &["LeatherArmor"],
+                (
+                    "Goblin".to_string(),
+                    blueprint(
+                        vec![
+                            name("goblin"),
+                            test_body(),
+                            look('g'),
+                            ComponentDef::BlocksMovement,
+                            ComponentDef::Health(Health { current: 8, max: 8 }),
+                            ComponentDef::Melee(Melee { min: 1, max: 3 }),
+                            ComponentDef::Speed(Speed(100)),
+                            ComponentDef::Hostile,
+                        ],
+                        &["LeatherArmor"],
+                    ),
                 ),
-            ),
-            (
-                "Firebolt".to_string(),
-                blueprint(
-                    vec![
-                        name("firebolt"),
-                        ComponentDef::Spell(Spell {
-                            school: School::Pyromancy,
-                            range: 7,
-                            power: 2,
-                        }),
-                        ComponentDef::SpellDamage(SpellDamage {
-                            min: 3,
-                            max: 6,
-                            types: DamageTypes::default(),
-                        }),
-                    ],
-                    &[],
+                (
+                    "Firebolt".to_string(),
+                    blueprint(
+                        vec![
+                            name("firebolt"),
+                            ComponentDef::Spell(Spell {
+                                school: School::Pyromancy,
+                                range: 7,
+                                power: 2,
+                            }),
+                            ComponentDef::SpellDamage(SpellDamage {
+                                min: 3,
+                                max: 6,
+                                types: DamageTypes::default(),
+                            }),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "MagicMissile".to_string(),
-                blueprint(
-                    vec![
-                        name("magic missile"),
-                        ComponentDef::Spell(Spell {
-                            school: School::Arcane,
-                            range: 8,
-                            power: 1,
-                        }),
-                        ComponentDef::SpellDamage(SpellDamage {
-                            min: 2,
-                            max: 4,
-                            types: DamageTypes::default(),
-                        }),
-                    ],
-                    &[],
+                (
+                    "MagicMissile".to_string(),
+                    blueprint(
+                        vec![
+                            name("magic missile"),
+                            ComponentDef::Spell(Spell {
+                                school: School::Arcane,
+                                range: 8,
+                                power: 1,
+                            }),
+                            ComponentDef::SpellDamage(SpellDamage {
+                                min: 2,
+                                max: 4,
+                                types: DamageTypes::default(),
+                            }),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "Fireball".to_string(),
-                blueprint(
-                    vec![
-                        name("fireball"),
-                        ComponentDef::Spell(Spell {
-                            school: School::Pyromancy,
-                            range: 6,
-                            power: 4,
-                        }),
-                        ComponentDef::SpellDamage(SpellDamage {
-                            min: 2,
-                            max: 5,
-                            types: DamageTypes::default(),
-                        }),
-                        ComponentDef::Area(Area {
-                            shape: Shape::Burst { radius: 1 },
-                            hits: Hits::All,
-                            falloff: 0,
-                        }),
-                    ],
-                    &[],
+                (
+                    "Fireball".to_string(),
+                    blueprint(
+                        vec![
+                            name("fireball"),
+                            ComponentDef::Spell(Spell {
+                                school: School::Pyromancy,
+                                range: 6,
+                                power: 4,
+                            }),
+                            ComponentDef::SpellDamage(SpellDamage {
+                                min: 2,
+                                max: 5,
+                                types: DamageTypes::default(),
+                            }),
+                            ComponentDef::Area(Area {
+                                shape: Shape::Burst { radius: 1 },
+                                hits: Hits::All,
+                                falloff: 0,
+                            }),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "ArcaneLance".to_string(),
-                blueprint(
-                    vec![
-                        name("arcane lance"),
-                        ComponentDef::Spell(Spell {
-                            school: School::Arcane,
-                            range: 8,
-                            power: 2,
-                        }),
-                        ComponentDef::SpellDamage(SpellDamage {
-                            min: 2,
-                            max: 4,
-                            types: DamageTypes::default(),
-                        }),
-                        ComponentDef::Area(Area {
-                            shape: Shape::Beam,
-                            hits: Hits::Enemies,
-                            falloff: 0,
-                        }),
-                    ],
-                    &[],
+                (
+                    "ArcaneLance".to_string(),
+                    blueprint(
+                        vec![
+                            name("arcane lance"),
+                            ComponentDef::Spell(Spell {
+                                school: School::Arcane,
+                                range: 8,
+                                power: 2,
+                            }),
+                            ComponentDef::SpellDamage(SpellDamage {
+                                min: 2,
+                                max: 4,
+                                types: DamageTypes::default(),
+                            }),
+                            ComponentDef::Area(Area {
+                                shape: Shape::Beam,
+                                hits: Hits::Enemies,
+                                falloff: 0,
+                            }),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "SummonWolf".to_string(),
-                blueprint(
-                    vec![
-                        name("summon wolf"),
-                        ComponentDef::Spell(Spell {
-                            school: School::Arcane,
-                            range: 5,
-                            power: 3,
-                        }),
-                        ComponentDef::Summon(SummonDef {
-                            blueprint: "SpiritWolf".to_string(),
-                            count: 1,
-                            lifetime: 3000,
-                        }),
-                    ],
-                    &[],
+                (
+                    "SummonWolf".to_string(),
+                    blueprint(
+                        vec![
+                            name("summon wolf"),
+                            ComponentDef::Spell(Spell {
+                                school: School::Arcane,
+                                range: 5,
+                                power: 3,
+                            }),
+                            ComponentDef::Summon(SummonDef {
+                                blueprint: "SpiritWolf".to_string(),
+                                count: 1,
+                                lifetime: 3000,
+                            }),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "SpiritWolf".to_string(),
-                blueprint(
-                    vec![
-                        name("spirit wolf"),
-                        ComponentDef::BlocksMovement,
-                        ComponentDef::Health(Health { current: 8, max: 8 }),
-                        ComponentDef::Melee(Melee { min: 2, max: 4 }),
-                        ComponentDef::Speed(Speed(120)),
-                    ],
-                    &[],
+                (
+                    "SpiritWolf".to_string(),
+                    blueprint(
+                        vec![
+                            name("spirit wolf"),
+                            ComponentDef::BlocksMovement,
+                            ComponentDef::Health(Health { current: 8, max: 8 }),
+                            ComponentDef::Melee(Melee { min: 2, max: 4 }),
+                            ComponentDef::Speed(Speed(120)),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "Binding".to_string(),
-                blueprint(vec![ComponentDef::Binding], &[]),
-            ),
-            (
-                "Rune".to_string(),
-                blueprint(
-                    vec![ComponentDef::Appearance(Appearance {
-                        glyph: 'o',
-                        fg: Rgb(255, 120, 40),
-                        bg: Rgb(0, 0, 0),
-                    })],
-                    &[],
+                (
+                    "Binding".to_string(),
+                    blueprint(vec![ComponentDef::Binding], &[]),
                 ),
-            ),
-            (
-                "GoblinShaman".to_string(),
-                blueprint(
-                    vec![
-                        name("goblin shaman"),
-                        ComponentDef::BlocksMovement,
-                        ComponentDef::Health(Health {
-                            current: 10,
-                            max: 10,
-                        }),
-                        ComponentDef::Melee(Melee { min: 1, max: 3 }),
-                        ComponentDef::Speed(Speed(100)),
-                        ComponentDef::Hostile,
-                    ],
-                    &[],
+                (
+                    "Rune".to_string(),
+                    blueprint(
+                        vec![ComponentDef::Appearance(Appearance {
+                            glyph: 'o',
+                            fg: Rgb(255, 120, 40),
+                            bg: Rgb(0, 0, 0),
+                        })],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "Bleeding".to_string(),
-                blueprint(
-                    vec![
-                        name("bleeding"),
-                        ComponentDef::Bleeding(Bleeding {
-                            damage: 1,
-                            interval: 100,
-                        }),
-                        ComponentDef::Duration(Duration(500)),
-                    ],
-                    &[],
+                (
+                    "GoblinShaman".to_string(),
+                    blueprint(
+                        vec![
+                            name("goblin shaman"),
+                            ComponentDef::BlocksMovement,
+                            ComponentDef::Health(Health {
+                                current: 10,
+                                max: 10,
+                            }),
+                            ComponentDef::Melee(Melee { min: 1, max: 3 }),
+                            ComponentDef::Speed(Speed(100)),
+                            ComponentDef::Hostile,
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-            (
-                "LeatherArmor".to_string(),
-                blueprint(
-                    vec![
-                        name("leather armor"),
-                        look('['),
-                        ComponentDef::Item,
-                        ComponentDef::Equippable(Equippable {
-                            part: PartKind::Body,
-                        }),
-                        ComponentDef::Armor(Armor::uniform(1)),
-                    ],
-                    &[],
+                (
+                    "Bleeding".to_string(),
+                    blueprint(
+                        vec![
+                            name("bleeding"),
+                            ComponentDef::Bleeding(Bleeding {
+                                damage: 1,
+                                interval: 100,
+                            }),
+                            ComponentDef::Duration(Duration(500)),
+                        ],
+                        &[],
+                    ),
                 ),
-            ),
-        ]))
+                (
+                    "LeatherArmor".to_string(),
+                    blueprint(
+                        vec![
+                            name("leather armor"),
+                            look('['),
+                            ComponentDef::Item,
+                            ComponentDef::Equippable(Equippable {
+                                part: PartKind::Body,
+                            }),
+                            ComponentDef::Armor(Armor::uniform(1)),
+                        ],
+                        &[],
+                    ),
+                ),
+            ]),
+            crate::skill::tests::book(),
+        )
         .expect("test blueprints resolve")
     }
 
@@ -778,9 +781,14 @@ pub(crate) mod tests {
     fn combat_rolls(state: &mut GameState) -> Vec<i32> {
         (0..20)
             .map(|_| {
-                roll_melee(&state.world, &mut state.rngs.combat, state.player)
-                    .unwrap()
-                    .amount
+                roll_melee(
+                    &state.world,
+                    state.blueprints.skills(),
+                    &mut state.rngs.combat,
+                    state.player,
+                )
+                .unwrap()
+                .amount
             })
             .collect()
     }

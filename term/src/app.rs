@@ -104,8 +104,7 @@ fn play(terminal: &mut Term, setup: &Setup, character: &str) -> io::Result<Resul
 
 /// The character's saved game, or a new one if it has no save yet.
 fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, String> {
-    let entities = setup.data_dir.join("entities");
-    let blueprints = Blueprints::load_dir(&entities).map_err(|err| {
+    let blueprints = Blueprints::load(&setup.data_dir).map_err(|err| {
         format!(
             "Failed to load blueprints from {}: {err}",
             setup.data_dir.display()
@@ -438,7 +437,7 @@ mod tests {
 
     fn state() -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
-        let blueprints = Blueprints::load_dir(&data.join("entities")).unwrap();
+        let blueprints = Blueprints::load(&data).unwrap();
         let cave = CaveParams::load(&data.join("cave.ron")).unwrap();
         GameState::new(3, blueprints, &cave).unwrap()
     }

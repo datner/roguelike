@@ -129,8 +129,8 @@ mod tests {
     use super::*;
 
     fn blueprints() -> Blueprints {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/entities");
-        Blueprints::load_dir(&dir).unwrap()
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        Blueprints::load(&dir).unwrap()
     }
 
     fn state() -> GameState {

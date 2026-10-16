@@ -45,6 +45,7 @@ pub mod ranged;
 pub mod rng;
 pub mod save;
 pub mod side;
+pub mod skill;
 pub mod spawn;
 pub mod spell;
 pub mod state;

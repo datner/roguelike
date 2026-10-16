@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::BlueprintId;
 use crate::cell::Rgb;
+use crate::skill::SkillId;
 use crate::time::Tick;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -737,3 +738,23 @@ pub struct OnHitEntry {
     /// Out of `effect::BASIS_POINTS`.
     pub chance_bp: u32,
 }
+
+/// What a creature has learned: XP per skill, sorted by id (ADR 0017).
+/// Levels are derived (`skill::level`), never stored. Built from
+/// `ComponentDef::Skills` at load and saved by name, since it holds ids.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Skills(pub Vec<(SkillId, u32)>);
+
+/// Item, spell or creature part: the skills that using it trains (a knife
+/// trains Dagger), on top of those the action itself implies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trains(pub Vec<SkillId>);
+
+/// A creature whose skills grow by use: only the player (ADR 0017).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Learner;
+
+/// How often a learner has trained each skill against each kind of thing
+/// (its `Name`), sorted; repetition makes a use teach less (ADR 0017).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Familiarity(pub Vec<(SkillId, String, u32)>);

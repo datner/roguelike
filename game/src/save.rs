@@ -16,20 +16,21 @@ use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
     BloodCasting, Body, Chain, CooldownCasting, Dead, Delay, Duration, EffectTarget, Energy,
-    Equippable, EquippedOn, Fizzle, Focus, Found, Health, Hostile, Inventory, Item, Launcher, Mana,
-    ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver, Recharging,
-    Scroll, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Summoned,
-    Throwable, Timed, Weapon,
+    Equippable, EquippedOn, Familiarity, Fizzle, Focus, Found, Health, Hostile, Inventory, Item,
+    Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position,
+    Projectile, Quiver, Recharging, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage,
+    Stats, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
 use crate::rng::Rngs;
+use crate::skill::{SkillBook, SkillId};
 use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 18;
+pub const SAVE_VERSION: u32 = 19;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -44,6 +45,7 @@ pub enum SaveError {
     /// A reference to an entity that no longer exists, where one must.
     DanglingReference,
     UnknownBlueprintId(BlueprintId),
+    UnknownSkillId(SkillId),
     Ron(ron::Error),
 }
 
@@ -65,6 +67,7 @@ impl std::fmt::Display for SaveError {
             ),
             Self::DanglingReference => write!(f, "an entity refers to one that no longer exists"),
             Self::UnknownBlueprintId(id) => write!(f, "no blueprint with id {id:?}"),
+            Self::UnknownSkillId(id) => write!(f, "no skill with id {id:?}"),
             Self::Ron(err) => write!(f, "{err}"),
         }
     }
@@ -80,6 +83,7 @@ pub enum LoadError {
         expected: u32,
     },
     UnknownBlueprint(String),
+    UnknownSkill(String),
     BadEntityIndex(u32),
     BadGrid(&'static str),
     /// The entity at this save index has no `SpawnSeq` (ADR 0008).
@@ -97,6 +101,7 @@ impl std::fmt::Display for LoadError {
             Self::UnknownBlueprint(name) => {
                 write!(f, "save refers to unknown blueprint {name:?}")
             }
+            Self::UnknownSkill(name) => write!(f, "save refers to unknown skill {name:?}"),
             Self::BadEntityIndex(index) => write!(f, "save refers to missing entity {index}"),
             Self::BadGrid(which) => write!(f, "save has a malformed {which} grid"),
             Self::MissingSpawnSeq(index) => write!(f, "saved entity {index} has no SpawnSeq"),
@@ -215,10 +220,14 @@ enum ComponentKind {
     SpellAi,
     Bleeding,
     OnHit,
+    Skills,
+    Trains,
+    Learner,
+    Familiarity,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 51] = [
+    const ALL: [ComponentKind; 55] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -270,6 +279,10 @@ impl ComponentKind {
         Self::SpellAi,
         Self::Bleeding,
         Self::OnHit,
+        Self::Skills,
+        Self::Trains,
+        Self::Learner,
+        Self::Familiarity,
     ];
 }
 
@@ -328,6 +341,12 @@ enum SavedComponent {
     SpellAi,
     Bleeding(Bleeding),
     OnHit(Vec<OnHitDef>),
+    /// XP by skill name.
+    Skills(Vec<(String, u32)>),
+    Trains(Vec<String>),
+    Learner,
+    /// Uses by skill name and kind of thing.
+    Familiarity(Vec<(String, String, u32)>),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -643,7 +662,44 @@ fn save_component(
             )),
             None => None,
         },
+        ComponentKind::Skills => match copy::<Skills>(entity) {
+            Some(Skills(entries)) => Some(S::Skills(
+                entries
+                    .into_iter()
+                    .map(|(id, xp)| Ok((skill_name(blueprints.skills(), id)?, xp)))
+                    .collect::<Result<_, SaveError>>()?,
+            )),
+            None => None,
+        },
+        ComponentKind::Trains => match copy::<Trains>(entity) {
+            Some(Trains(ids)) => Some(S::Trains(
+                ids.into_iter()
+                    .map(|id| skill_name(blueprints.skills(), id))
+                    .collect::<Result<_, SaveError>>()?,
+            )),
+            None => None,
+        },
+        ComponentKind::Learner => marker::<Learner>(entity, S::Learner),
+        ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
+            Some(Familiarity(entries)) => Some(S::Familiarity(
+                entries
+                    .into_iter()
+                    .map(|(id, kind, uses)| Ok((skill_name(blueprints.skills(), id)?, kind, uses)))
+                    .collect::<Result<_, SaveError>>()?,
+            )),
+            None => None,
+        },
     })
+}
+
+fn skill_name(book: &SkillBook, id: SkillId) -> Result<String, SaveError> {
+    book.get(id)
+        .map(|def| def.name.clone())
+        .ok_or(SaveError::UnknownSkillId(id))
+}
+
+fn skill_id(book: &SkillBook, name: String) -> Result<SkillId, LoadError> {
+    book.id(&name).ok_or(LoadError::UnknownSkill(name))
 }
 
 fn load_component(
@@ -731,6 +787,32 @@ fn load_component(
                 })
                 .collect::<Result<_, LoadError>>()?,
         )),
+        // Sorted by id, which follows the skill file: it may have been
+        // reordered since the save.
+        S::Skills(entries) => {
+            let mut learned = Skills::default();
+            for (name, xp) in entries {
+                learned.set(skill_id(blueprints.skills(), name)?, xp);
+            }
+            builder.add(learned)
+        }
+        S::Trains(names) => {
+            let mut ids = names
+                .into_iter()
+                .map(|name| skill_id(blueprints.skills(), name))
+                .collect::<Result<Vec<_>, _>>()?;
+            ids.sort();
+            builder.add(Trains(ids))
+        }
+        S::Learner => builder.add(Learner),
+        S::Familiarity(entries) => {
+            let mut familiarity = entries
+                .into_iter()
+                .map(|(name, kind, uses)| Ok((skill_id(blueprints.skills(), name)?, kind, uses)))
+                .collect::<Result<Vec<_>, LoadError>>()?;
+            familiarity.sort();
+            builder.add(Familiarity(familiarity))
+        }
     };
     Ok(())
 }
@@ -764,8 +846,8 @@ mod tests {
     use crate::zone::CaveParams;
 
     fn data_blueprints() -> Blueprints {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/entities");
-        Blueprints::load_dir(&dir).unwrap()
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        Blueprints::load(&dir).unwrap()
     }
 
     fn data_cave() -> CaveParams {
@@ -965,6 +1047,47 @@ mod tests {
         assert_eq!(
             loaded.world.get::<&Projectile>(nocked[0]).unwrap().break_bp,
             2500
+        );
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn skills_familiarity_and_what_a_weapon_trains_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let book = state.blueprints.skills();
+        let (melee, dagger) = (book.id("Melee").unwrap(), book.id("Dagger").unwrap());
+        state.world.insert_one(player, Learner).unwrap();
+        let goblin = thing("goblin")
+            .health(50)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        thing("knife")
+            .weapon(1, 3, Stat::Agility)
+            .with(Trains(vec![dagger]))
+            .equipped_on(player, 2)
+            .make(&mut state);
+        state.run(Command::Attack {
+            attacker: player,
+            target: goblin,
+        });
+        let skills = (*state.world.get::<&Skills>(player).unwrap()).clone();
+        let familiarity = (*state.world.get::<&Familiarity>(player).unwrap()).clone();
+        assert!(skills.xp(melee) > 0 && skills.xp(dagger) > 0);
+
+        let loaded = reload(&state, test_blueprints());
+        let player = loaded.player;
+        assert!(loaded.world.satisfies::<&Learner>(player));
+        assert_eq!(*loaded.world.get::<&Skills>(player).unwrap(), skills);
+        assert_eq!(
+            *loaded.world.get::<&Familiarity>(player).unwrap(),
+            familiarity
+        );
+        let (knife, _) = crate::equipment::equipped(&loaded.world, player)[0];
+        assert_eq!(
+            *loaded.world.get::<&Trains>(knife).unwrap(),
+            Trains(vec![dagger])
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }

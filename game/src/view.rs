@@ -155,7 +155,7 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
         .get::<&Health>(player)
         .map_or((0, 0), |h| (h.current, h.max));
     let armor = total_armor(world, player);
-    let strike = strike(world, player);
+    let strike = strike(world, state.blueprints.skills(), player);
     CharacterSheet {
         health,
         max_health,

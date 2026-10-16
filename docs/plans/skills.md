@@ -208,3 +208,10 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
 `scripts/check.sh` passes; new parts are registered in blueprint and save with a `SAVE_VERSION` bump and
 a round-trip test; the slice's ADR is written or updated; `docs/MAP.md` regenerated; a short report
 listing what changed, what was left out, and follow-ups.
+
+## As built
+
+- **1** (ADR 0017): `skill.rs` (`SkillBook` inside `Blueprints`, loaded by `Blueprints::load(data_dir)`;
+  `Core` skills; `level`, `effective`, `melee`, `train`), parts `Skills` (levels in RON, XP at runtime),
+  `Trains`, `Learner`, `Familiarity` (keyed by the subject's `Name`). Training is a call from
+  `command::attack`, not a `Command`. `Strike.level` carries the effective level. `SAVE_VERSION` 19.

@@ -29,6 +29,7 @@ can't show at a glance.
 - `ranged.rs`/`aim.rs` — flight is `ranged::flight` (a line, first creature or wall wins); `aim` previews through the same functions the command uses, so keep them shared (ADR 0013). Missile damage is untyped by `AfterHit`: only melee fires it.
 - `ai.rs` — perception of the player goes through `can_see_player` (ADR 0007), of anyone else through `perceives` (both in the player's view, ADR 0015); never compute a view per actor.
 - `side.rs` — who is an enemy is `side::enemies`, never a check for `Hostile`: summons take their owner's side (ADR 0015).
+- `skill.rs` — skills are names in data and saves, `SkillId`s at runtime (ADR 0017). Store XP, derive levels (`skill::level`). Which skills an action uses is decided in one function per action kind (`skill::melee`); XP is only granted through `skill::train`, from the applier of an action that counted (enemy, stakes).
 - `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.
