@@ -1,0 +1,10 @@
+// Slashing and piercing in flight: it gets through armor that resists only
+// one of them, but its dice are lower than a hand-held blade's (ADR 0012).
+(
+    components: [
+        Name("throwing knife"),
+        Appearance(glyph: '\\', fg: (190, 190, 200), bg: (0, 0, 0)),
+        Item,
+        Throwable(range: 6, min: 1, max: 2, stat: Agility, types: [Slashing, Piercing]),
+    ],
+)

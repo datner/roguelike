@@ -25,6 +25,7 @@ pub use blueprint::{
 };
 
 pub mod ai;
+pub mod aim;
 pub mod camera;
 pub mod combat;
 pub mod command;
@@ -38,6 +39,7 @@ pub mod fov;
 pub mod grammar;
 pub mod holding;
 pub mod prio;
+pub mod ranged;
 pub mod rng;
 pub mod save;
 pub mod spawn;
@@ -48,13 +50,14 @@ pub mod view;
 #[cfg(test)]
 mod testkit;
 
+pub use aim::{Aim, Shot, aim, aim_range, aim_targets};
 pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;
 pub use entity::{
     Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType, DamageTypes, Dead,
     Duration, Energy, Equippable, EquippedOn, Found, Health, Hostile, Item, Melee, Name, OnHit,
-    OnHitEntry, PartKind, Player, Position, SpawnSeq, Speed, Stat, Stats, Timed, Weapon,
+    OnHitEntry, PartKind, Player, Position, SpawnSeq, Speed, Stat, Stats, Throwable, Timed, Weapon,
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;
@@ -64,4 +67,5 @@ pub use state::{GameState, MessageLog, render_view};
 pub use time::{Tick, Timers, advance, take_turn};
 pub use view::{
     CharacterSheet, ItemRef, ItemView, PartView, character_sheet, equipment_view, inventory_view,
+    throwables,
 };

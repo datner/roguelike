@@ -18,6 +18,7 @@ use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::input::Dir;
 use crate::map::Tile;
+use crate::ranged;
 use crate::state::GameState;
 use crate::time;
 
@@ -36,6 +37,12 @@ pub(crate) enum DamageCause {
         attacker: Entity,
         types: DamageTypes,
     },
+    /// Thrown or fired: armored against like a blow, but not an `AfterHit`
+    /// source, so a missile never triggers its thrower's on-hit parts.
+    Ranged {
+        attacker: Entity,
+        types: DamageTypes,
+    },
     Effect {
         effect: Entity,
     },
@@ -45,7 +52,7 @@ impl DamageCause {
     /// What armor can resist. Effect damage is of no kind, so it passes.
     pub(crate) fn types(self) -> DamageTypes {
         match self {
-            Self::Melee { types, .. } => types,
+            Self::Melee { types, .. } | Self::Ranged { types, .. } => types,
             Self::Effect { .. } => DamageTypes::default(),
         }
     }
@@ -77,6 +84,13 @@ pub(crate) enum Command {
     Unequip {
         actor: Entity,
         item: Entity,
+    },
+    /// Hurl `item`, carried or equipped, at the tile `at`. It flies to the
+    /// first creature or wall on the line (ADR 0013) and comes to rest there.
+    Throw {
+        actor: Entity,
+        item: Entity,
+        at: (i32, i32),
     },
     Attack {
         attacker: Entity,
@@ -132,7 +146,8 @@ impl Command {
             | Command::FindItems(actor) => [Some(actor), None],
             Command::Drop { actor, item }
             | Command::Equip { actor, item, .. }
-            | Command::Unequip { actor, item } => [Some(actor), Some(item)],
+            | Command::Unequip { actor, item }
+            | Command::Throw { actor, item, .. } => [Some(actor), Some(item)],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -188,6 +203,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Drop { actor, item } => drop_item(state, actor, item),
             Command::Equip { actor, item, part } => equipment::equip(state, actor, item, part),
             Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
+            Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
             Command::Attack { attacker, target } => attack(state, attacker, target),
             Command::DealDamage {
                 target,
@@ -259,6 +275,12 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         }
         Command::Unequip { actor, item } => {
             let Err(message) = equipment::check_unequip(state, actor, item) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Throw { actor, item, at } => {
+            let Err(message) = ranged::check_throw(state, actor, item, at) else {
                 return false;
             };
             state.log.push(message);

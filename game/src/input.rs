@@ -56,6 +56,9 @@ pub enum InputEvent {
     /// game effect.
     Inventory,
     Equipment,
+    /// Frontend only: pick a throwable and aim it. The throw itself is
+    /// `PlayerAction::Throw`.
+    Throw,
     Quit,
 }
 
@@ -74,6 +77,11 @@ pub enum PlayerAction {
         part: Option<u32>,
     },
     Unequip(ItemRef),
+    /// Hurl a carried or equipped throwable at a map tile.
+    Throw {
+        item: ItemRef,
+        at: (i32, i32),
+    },
 }
 
 #[cfg(test)]

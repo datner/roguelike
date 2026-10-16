@@ -9,7 +9,9 @@ use rand_pcg::Pcg64;
 
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
-use crate::entity::{Armor, DamageType, DamageTypes, Health, Melee, OnHit, Stat, Stats, Weapon};
+use crate::entity::{
+    Armor, DamageType, DamageTypes, Health, Melee, OnHit, Stat, Stats, Throwable, Weapon,
+};
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
@@ -153,11 +155,31 @@ pub(crate) struct Hit {
 /// Raw damage of one of `attacker`'s melee hits (see `strike`), or `None`
 /// if it can't attack. Always exactly one draw from `rng`.
 pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Option<Hit> {
-    let strike = strike(world, attacker)?;
+    Some(roll_strike(rng, strike(world, attacker)?))
+}
+
+/// One draw from `rng` for `strike`.
+pub(crate) fn roll_strike(rng: &mut Pcg64, strike: Strike) -> Hit {
     let roll = rng.random_range(strike.min..=strike.max.max(strike.min));
-    Some(Hit {
+    Hit {
         amount: (roll + strike.bonus).max(0),
         types: strike.types,
+    }
+}
+
+/// How `thrower` hurls `missile`: its `Throwable` dice plus the thrower's
+/// stat modifier. `None` if it can't be thrown.
+pub(crate) fn throw_strike(world: &World, thrower: Entity, missile: Entity) -> Option<Strike> {
+    let throwable = *world.get::<&Throwable>(missile).ok()?;
+    let bonus = world
+        .get::<&Stats>(thrower)
+        .map_or(0, |stats| stats.modifier(throwable.stat));
+    Some(Strike {
+        min: throwable.min,
+        max: throwable.max,
+        bonus,
+        types: throwable.types,
+        weapon: None,
     })
 }
 

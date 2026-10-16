@@ -102,6 +102,12 @@ In game:
     it there (`Esc` backs out).
   - Equipping, unequipping and dropping take a turn each; the panel stays
     open.
+- `t`: throw something (carried or equipped; one turn). A list appears if
+  you have several throwables. A cursor starts on the nearest hostile in
+  view: `Tab`/`Shift-Tab` cycle targets, movement keys nudge it, `Enter`
+  or `Space` throws, `Esc`/`q` cancels. The path is marked and the status
+  bar shows the damage after armor; the missile hits the first creature on
+  the line and lands there (or before a wall), ready to pick up again.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

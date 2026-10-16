@@ -16,7 +16,7 @@ use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration, EffectTarget,
     Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit,
-    OnHitEntry, Player, Position, SpawnSeq, Speed, Stats, Timed, Weapon,
+    OnHitEntry, Player, Position, SpawnSeq, Speed, Stats, Throwable, Timed, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -26,7 +26,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 8;
+pub const SAVE_VERSION: u32 = 9;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -183,6 +183,7 @@ enum ComponentKind {
     EquippedOn,
     Stats,
     Weapon,
+    Throwable,
     Duration,
     Timed,
     EffectTarget,
@@ -191,7 +192,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 27] = [
+    const ALL: [ComponentKind; 28] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -214,6 +215,7 @@ impl ComponentKind {
         Self::EquippedOn,
         Self::Stats,
         Self::Weapon,
+        Self::Throwable,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -248,6 +250,7 @@ enum SavedComponent {
     EquippedOn(EquippedOn),
     Stats(Stats),
     Weapon(Weapon),
+    Throwable(Throwable),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -504,6 +507,7 @@ fn save_component(
         ComponentKind::EquippedOn => copy(entity).map(S::EquippedOn),
         ComponentKind::Stats => copy(entity).map(S::Stats),
         ComponentKind::Weapon => copy(entity).map(S::Weapon),
+        ComponentKind::Throwable => copy(entity).map(S::Throwable),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -566,6 +570,7 @@ fn load_component(
         S::EquippedOn(c) => builder.add(c),
         S::Stats(c) => builder.add(c),
         S::Weapon(c) => builder.add(c),
+        S::Throwable(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
@@ -606,6 +611,7 @@ mod tests {
 
     use super::*;
     use crate::command::Command;
+    use crate::entity::{DamageType, Stat};
     use crate::input::{Dir, PlayerAction};
     use crate::map::Tile;
     use crate::spawn::Spawn;
@@ -770,6 +776,26 @@ mod tests {
         assert_eq!(names(&loaded), ["first", "second"]);
         assert_eq!(loaded.explore_items, crate::explore::ExploreItems::PickUp);
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn a_throwable_item_and_its_damage_kinds_survive_a_round_trip() {
+        let mut state = bare_state();
+        let dagger = thing("dagger")
+            .item()
+            .throwable(
+                6,
+                (1, 2),
+                Stat::Agility,
+                &[DamageType::Slashing, DamageType::Piercing],
+            )
+            .carried_by(state.player)
+            .make(&mut state);
+        let before = *state.world.get::<&Throwable>(dagger).unwrap();
+
+        let loaded = reload(&state, test_blueprints());
+        let carried = crate::holding::carried(&loaded.world, loaded.player);
+        assert_eq!(*loaded.world.get::<&Throwable>(carried[0]).unwrap(), before);
     }
 
     #[test]

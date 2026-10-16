@@ -20,6 +20,7 @@ Point at code by module path (`game/src/combat.rs`), component, type or `Command
 | [0010](0010-inventory-equipment-body-parts.md) | Inventory vs equipped items; Qud-style body parts; item views for frontends | Accepted |
 | [0011](0011-stats-and-weapons.md) | Creature stats meet weapon attributes in one combat rule | Accepted |
 | [0012](0012-damage-types.md) | Damage kinds, per-kind armor, multi-kind blows use the weakest spot | Accepted |
+| [0013](0013-ranged-attacks.md) | Aimed throws and shots: tile targets, line flight, no to-hit roll | Accepted |
 
 ## Template
 

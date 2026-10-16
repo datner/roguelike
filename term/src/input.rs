@@ -22,6 +22,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('i') => Some(InputEvent::Inventory),
         KeyCode::Char('e') => Some(InputEvent::Equipment),
+        KeyCode::Char('t') => Some(InputEvent::Throw),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
         _ => None,
     }
@@ -55,6 +56,39 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Char('i') => Some(OverlayInput::Inventory),
         KeyCode::Char('e') => Some(OverlayInput::Equipment),
         KeyCode::Tab => Some(OverlayInput::SwitchTab),
+        _ => None,
+    }
+}
+
+/// Input while choosing a target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AimInput {
+    /// Nudge the cursor one tile.
+    Move(Dir),
+    /// Jump to the next or previous target in view.
+    Next,
+    Previous,
+    Confirm,
+    Cancel,
+}
+
+pub fn map_aim_key(key: KeyEvent) -> Option<AimInput> {
+    if key.kind == KeyEventKind::Release {
+        return None;
+    }
+    match key.code {
+        KeyCode::Up | KeyCode::Char('k') => Some(AimInput::Move(Dir::N)),
+        KeyCode::Down | KeyCode::Char('j') => Some(AimInput::Move(Dir::S)),
+        KeyCode::Left | KeyCode::Char('h') => Some(AimInput::Move(Dir::W)),
+        KeyCode::Right | KeyCode::Char('l') => Some(AimInput::Move(Dir::E)),
+        KeyCode::Char('y') => Some(AimInput::Move(Dir::NW)),
+        KeyCode::Char('u') => Some(AimInput::Move(Dir::NE)),
+        KeyCode::Char('b') => Some(AimInput::Move(Dir::SW)),
+        KeyCode::Char('n') => Some(AimInput::Move(Dir::SE)),
+        KeyCode::Tab => Some(AimInput::Next),
+        KeyCode::BackTab => Some(AimInput::Previous),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(AimInput::Confirm),
+        KeyCode::Esc | KeyCode::Char('q') => Some(AimInput::Cancel),
         _ => None,
     }
 }

@@ -19,7 +19,7 @@ use crate::entity::{Dead, Energy, SpawnSeq, Speed};
 use crate::equipment::equipped;
 use crate::input::PlayerAction;
 use crate::state::GameState;
-use crate::view::carried;
+use crate::view::{carried, held};
 
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -150,6 +150,17 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
             Command::Unequip {
                 actor: player,
                 item,
+            }
+        }
+        PlayerAction::Throw { item, at } => {
+            let Some(item) = item.find(&state.world, &held(state)) else {
+                state.log.push("You do not have that.");
+                return;
+            };
+            Command::Throw {
+                actor: player,
+                item,
+                at,
             }
         }
     };
@@ -513,7 +524,7 @@ mod tests {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::PickUp => PlayerAction::PickUp,
-                InputEvent::Inventory | InputEvent::Equipment => continue,
+                InputEvent::Inventory | InputEvent::Equipment | InputEvent::Throw => continue,
                 InputEvent::CycleExploreItems => {
                     crate::explore::cycle_explore_items(&mut state);
                     continue;

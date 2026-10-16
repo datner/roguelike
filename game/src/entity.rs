@@ -191,6 +191,19 @@ impl Stats {
     }
 }
 
+/// Item part: it can be thrown up to `range` tiles, hitting the first
+/// creature on the way for `min..=max` plus the thrower's `stat` modifier.
+/// Separate from `Weapon`, so a blade is a weaker missile than a dagger
+/// is in the hand (ADR 0012: versatility is paid for in the dice).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Throwable {
+    pub range: i32,
+    pub min: i32,
+    pub max: i32,
+    pub stat: Stat,
+    pub types: DamageTypes,
+}
+
 /// Item part: when equipped, melee hits roll this instead of the wielder's
 /// natural `Melee`, plus the wielder's `stat` modifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

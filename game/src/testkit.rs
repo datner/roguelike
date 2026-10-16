@@ -8,7 +8,7 @@ use hecs::Entity;
 use crate::cell::Rgb;
 use crate::entity::{
     Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health, Hostile, Item,
-    Melee, Name, PartKind, SpawnSeq, Speed, Stat, Stats, Weapon,
+    Melee, Name, PartKind, SpawnSeq, Speed, Stat, Stats, Throwable, Weapon,
 };
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
@@ -55,6 +55,22 @@ impl Spawn {
             max,
             stat,
             types: DamageTypes::of(&[DamageType::Slashing]),
+        })
+    }
+
+    pub(crate) fn throwable(
+        self,
+        range: i32,
+        (min, max): (i32, i32),
+        stat: Stat,
+        types: &[DamageType],
+    ) -> Self {
+        self.with(Throwable {
+            range,
+            min,
+            max,
+            stat,
+            types: DamageTypes::of(types),
         })
     }
 
@@ -111,4 +127,14 @@ impl Spawn {
 /// The newest log message, or `""` if the log is empty.
 pub(crate) fn last_log(state: &GameState) -> &str {
     state.log.recent(1).next().map_or("", String::as_str)
+}
+
+/// Everything on the map is in the player's view, for tests that aim.
+pub(crate) fn see_everything(state: &mut GameState) {
+    let (width, height) = (state.visible.width, state.visible.height);
+    for y in 0..height {
+        for x in 0..width {
+            state.visible.set(x, y, true);
+        }
+    }
 }

@@ -22,7 +22,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{
     Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable, Health,
-    Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed, Stats, Weapon,
+    Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed, Stats, Throwable,
+    Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -51,6 +52,7 @@ pub enum ComponentDef {
     Equippable(Equippable),
     Stats(Stats),
     Weapon(Weapon),
+    Throwable(Throwable),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -80,6 +82,7 @@ impl ComponentDef {
             ComponentDef::Equippable(c) => builder.add(c),
             ComponentDef::Stats(c) => builder.add(c),
             ComponentDef::Weapon(c) => builder.add(c),
+            ComponentDef::Throwable(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.

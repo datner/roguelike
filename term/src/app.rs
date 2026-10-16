@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use game::{
-    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, cycle_explore_items,
-    equipment_view, explore_step, inventory_view, random_seed, render_view, take_turn,
+    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items,
+    equipment_view, explore_step, inventory_view, random_seed, render_view, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -14,11 +14,12 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::input::{map_key_event, map_menu_key, map_overlay_key};
+use crate::input::{map_aim_key, map_key_event, map_menu_key, map_overlay_key};
 use crate::menu::{self, Action, Menu};
 use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
 use crate::saves::{self, Loaded};
 use crate::side_panel;
+use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
@@ -133,8 +134,8 @@ fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, 
 /// resize) — no tick loop: `game::take_turn` runs the world until the
 /// player is ready again.
 pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
-    let mut overlay: Option<Overlay> = None;
-    terminal.draw(|frame| draw(frame, state, character, overlay.as_ref()))?;
+    let mut modal: Option<Modal> = None;
+    terminal.draw(|frame| draw(frame, state, character, modal.as_ref()))?;
 
     loop {
         match event::read()? {
@@ -144,22 +145,57 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                 }
                 continue;
             }
-            Event::Key(key) if overlay.is_some() => {
-                let Some(input) = map_overlay_key(key) else {
-                    continue;
-                };
-                let (inventory, equipment) = (inventory_view(state), equipment_view(state));
-                let contents = Contents {
-                    inventory: &inventory,
-                    equipment: &equipment,
-                };
-                match overlay.as_mut().and_then(|o| o.handle(input, &contents)) {
-                    Some(OverlayAction::Close) => overlay = None,
-                    Some(OverlayAction::Act(action)) => take_turn(state, action),
+            Event::Key(key) if modal.is_some() => {
+                match modal.as_mut() {
+                    Some(Modal::Overlay(overlay)) => {
+                        let Some(input) = map_overlay_key(key) else {
+                            continue;
+                        };
+                        let (inventory, equipment) = (inventory_view(state), equipment_view(state));
+                        let contents = Contents {
+                            inventory: &inventory,
+                            equipment: &equipment,
+                        };
+                        match overlay.handle(input, &contents) {
+                            Some(OverlayAction::Close) => modal = None,
+                            Some(OverlayAction::Act(action)) => take_turn(state, action),
+                            None => {}
+                        }
+                    }
+                    Some(Modal::Choose(chooser)) => {
+                        let Some(input) = map_overlay_key(key) else {
+                            continue;
+                        };
+                        match chooser.handle(input, &throwables(state)) {
+                            Some(ChooserAction::Cancel) => modal = None,
+                            Some(ChooserAction::Pick(item)) => {
+                                modal = Aiming::new(state, Shot::Throw(item)).map(Modal::Aim);
+                            }
+                            None => {}
+                        }
+                    }
+                    Some(Modal::Aim(aiming)) => {
+                        let Some(input) = map_aim_key(key) else {
+                            continue;
+                        };
+                        match aiming.handle(input, state) {
+                            Some(AimAction::Cancel) => modal = None,
+                            Some(AimAction::Take(action)) => {
+                                // A refused throw (out of range, unseen) keeps the cursor
+                                // up, with the reason in the log, so it can be nudged.
+                                let before = state.now;
+                                take_turn(state, action);
+                                if state.now != before || state.game_over {
+                                    modal = None;
+                                }
+                            }
+                            None => {}
+                        }
+                    }
                     None => {}
                 }
                 if state.game_over {
-                    overlay = None;
+                    modal = None;
                 }
             }
             Event::Key(key) => {
@@ -173,14 +209,41 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state, character)?,
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
-                    InputEvent::Inventory => overlay = Some(Overlay::new(Tab::Inventory)),
-                    InputEvent::Equipment => overlay = Some(Overlay::new(Tab::Equipment)),
+                    InputEvent::Inventory => {
+                        modal = Some(Modal::Overlay(Overlay::new(Tab::Inventory)))
+                    }
+                    InputEvent::Equipment => {
+                        modal = Some(Modal::Overlay(Overlay::new(Tab::Equipment)))
+                    }
+                    InputEvent::Throw => modal = start_throw(state),
                 }
             }
             Event::Resize(_, _) => {}
             _ => continue,
         }
-        terminal.draw(|frame| draw(frame, state, character, overlay.as_ref()))?;
+        terminal.draw(|frame| draw(frame, state, character, modal.as_ref()))?;
+    }
+}
+
+/// What is on screen over the map, if anything, and takes the keys.
+enum Modal {
+    Overlay(Overlay),
+    /// Picking what to throw.
+    Choose(Chooser),
+    Aim(Aiming),
+}
+
+/// Straight to aiming with the only throwable; a list if there are several;
+/// a log line if there is none.
+fn start_throw(state: &mut GameState) -> Option<Modal> {
+    let mut options = throwables(state);
+    match options.len() {
+        0 => {
+            state.log.push("You have nothing to throw.");
+            None
+        }
+        1 => Aiming::new(state, Shot::Throw(options.remove(0).item)).map(Modal::Aim),
+        _ => Some(Modal::Choose(Chooser::default())),
     }
 }
 
@@ -211,7 +274,7 @@ fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
     Ok(false)
 }
 
-fn draw(frame: &mut Frame, state: &GameState, character: &str, overlay: Option<&Overlay>) {
+fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Modal>) {
     let (main, side) = side_panel::split(frame.area());
     if let Some(side) = side {
         side_panel::draw(frame, side, &side_panel::Context { state, character });
@@ -241,7 +304,9 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, overlay: Option<&
         chunks[1],
     );
 
-    let status = if state.game_over {
+    let status = if let Some(Modal::Aim(aiming)) = modal {
+        targeting::status(state, aiming)
+    } else if state.game_over {
         format!(
             "You died on turn {}. Press any key to return to the title.",
             state.now.turn()
@@ -254,13 +319,20 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, overlay: Option<&
         chunks[2],
     );
 
-    if let Some(overlay) = overlay {
-        let (inventory, equipment) = (inventory_view(state), equipment_view(state));
-        let contents = Contents {
-            inventory: &inventory,
-            equipment: &equipment,
-        };
-        overlay::draw(frame, chunks[0], overlay, &contents);
+    match modal {
+        Some(Modal::Overlay(overlay)) => {
+            let (inventory, equipment) = (inventory_view(state), equipment_view(state));
+            let contents = Contents {
+                inventory: &inventory,
+                equipment: &equipment,
+            };
+            overlay::draw(frame, chunks[0], overlay, &contents);
+        }
+        Some(Modal::Choose(chooser)) => {
+            targeting::draw_chooser(frame, chunks[0], chooser, &throwables(state));
+        }
+        Some(Modal::Aim(aiming)) => targeting::draw_aim(frame, chunks[0], state, aiming),
+        None => {}
     }
 }
 
@@ -315,7 +387,14 @@ mod tests {
         let state = state();
         let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
         terminal
-            .draw(|frame| draw(frame, &state, "hero", Some(&Overlay::new(Tab::Inventory))))
+            .draw(|frame| {
+                draw(
+                    frame,
+                    &state,
+                    "hero",
+                    Some(&Modal::Overlay(Overlay::new(Tab::Inventory))),
+                )
+            })
             .unwrap();
         let rows: Vec<String> = {
             let buffer = terminal.backend().buffer();

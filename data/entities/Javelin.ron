@@ -1,0 +1,10 @@
+// A heavy missile: one kind of damage, so armor that resists piercing
+// blunts it, but it hits harder and flies farther than a knife.
+(
+    components: [
+        Name("javelin"),
+        Appearance(glyph: '|', fg: (180, 150, 100), bg: (0, 0, 0)),
+        Item,
+        Throwable(range: 8, min: 2, max: 4, stat: Strength, types: [Piercing]),
+    ],
+)

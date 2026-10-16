@@ -9,6 +9,7 @@ mod menu;
 mod overlay;
 mod saves;
 mod side_panel;
+mod targeting;
 mod tui;
 mod widgets;
 

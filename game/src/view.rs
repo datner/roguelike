@@ -7,7 +7,7 @@ use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
     Appearance, Armor, Body, DamageTypes, Equippable, Health, Name, PartKind, SpawnSeq, Speed,
-    Stats,
+    Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -124,14 +124,7 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
     let (health, max_health) = world
         .get::<&Health>(player)
         .map_or((0, 0), |h| (h.current, h.max));
-    let armor_of = |entity| {
-        world
-            .get::<&Armor>(entity)
-            .map_or(Armor::default(), |armor| *armor)
-    };
-    let armor = equipped(world, player)
-        .into_iter()
-        .fold(armor_of(player), |sum, (item, _)| sum.plus(armor_of(item)));
+    let armor = total_armor(world, player);
     let strike = strike(world, player);
     CharacterSheet {
         health,
@@ -149,6 +142,38 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
 
 pub(crate) fn carried(state: &GameState) -> Vec<Entity> {
     holding::carried(&state.world, state.player)
+}
+
+/// Everything the player has in hand or on: carried, then equipped.
+pub(crate) fn held(state: &GameState) -> Vec<Entity> {
+    let mut held = carried(state);
+    held.extend(
+        equipped(&state.world, state.player)
+            .into_iter()
+            .map(|(item, _)| item),
+    );
+    held
+}
+
+/// What the player could throw right now.
+pub fn throwables(state: &GameState) -> Vec<ItemView> {
+    held(state)
+        .into_iter()
+        .filter(|&item| state.world.satisfies::<&Throwable>(item))
+        .filter_map(|item| ItemView::of(&state.world, item))
+        .collect()
+}
+
+/// Armor of everything `entity` is and wears: its own plus its equipment.
+pub(crate) fn total_armor(world: &World, entity: Entity) -> Armor {
+    let armor_of = |thing| {
+        world
+            .get::<&Armor>(thing)
+            .map_or(Armor::default(), |armor| *armor)
+    };
+    equipped(world, entity)
+        .into_iter()
+        .fold(armor_of(entity), |sum, (item, _)| sum.plus(armor_of(item)))
 }
 
 #[cfg(test)]
