@@ -107,6 +107,7 @@ mod tests {
     use crate::input::PlayerAction;
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
+    use crate::testkit::last_log;
     use crate::time::{Tick, take_turn};
 
     /// Player at (1, 1) plus a scheduled goblin at `at`.
@@ -223,7 +224,7 @@ mod tests {
         wait(&mut state);
         assert!(state.game_over);
         assert!(state.world.satisfies::<&Dead>(state.player));
-        assert_eq!(state.log.recent(1).next().unwrap(), "You die.");
+        assert_eq!(last_log(&state), "You die.");
 
         let now = state.now;
         wait(&mut state);

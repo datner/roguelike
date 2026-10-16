@@ -362,7 +362,7 @@ pub(crate) mod tests {
     };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
     use crate::zone::tests::test_cave;
     use rand::Rng;
 
@@ -649,10 +649,7 @@ pub(crate) mod tests {
         // (1,1) -> north is (1,0), a wall in `room`.
         state.run(Command::TryMove(state.player, Dir::N));
         assert_eq!(player_position(&state), Position { x: 1, y: 1 });
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("You bump into a wall.")
-        );
+        assert_eq!(last_log(&state), "You bump into a wall.");
     }
 
     #[test]
@@ -661,10 +658,7 @@ pub(crate) mod tests {
         state.spawn(Spawn::blueprint("Rubble").at(2, 1)).unwrap();
         state.run(Command::TryMove(state.player, Dir::E));
         assert_eq!(player_position(&state), Position { x: 1, y: 1 });
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("Something blocks your way.")
-        );
+        assert_eq!(last_log(&state), "Something blocks your way.");
     }
 
     #[test]

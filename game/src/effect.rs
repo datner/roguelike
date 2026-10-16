@@ -190,7 +190,7 @@ mod tests {
     use super::*;
     use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
     use crate::time::{Step, step};
 
     /// Bare state with an unscheduled player, so only timers move the clock.
@@ -230,10 +230,6 @@ mod tests {
 
     fn health(state: &GameState) -> i32 {
         state.world.get::<&Health>(state.player).unwrap().current
-    }
-
-    fn last_log(state: &GameState) -> &str {
-        state.log.recent(1).next().map(String::as_str).unwrap()
     }
 
     #[test]

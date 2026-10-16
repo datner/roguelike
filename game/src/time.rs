@@ -258,7 +258,7 @@ mod tests {
     use crate::entity::{Health, Position};
     use crate::input::{Dir, InputEvent};
     use crate::state::tests::{bare_state, test_blueprints};
-    use crate::testkit::blank;
+    use crate::testkit::{blank, last_log};
     use crate::zone::tests::test_cave;
 
     /// A state whose player is not scheduled, so `step` never stops for input.
@@ -417,10 +417,7 @@ mod tests {
         assert_eq!(state.now, now);
         assert_eq!(snapshot(&state), before);
         assert!(state.commands.is_empty());
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("You bump into a wall.")
-        );
+        assert_eq!(last_log(&state), "You bump into a wall.");
     }
 
     fn logged_an_error(state: &GameState) -> bool {

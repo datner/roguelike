@@ -216,7 +216,7 @@ mod tests {
     use super::*;
     use crate::cell::Rgb;
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
 
     /// Spawned after the starting view, so the view is refreshed to let the
     /// player remember it.
@@ -279,8 +279,8 @@ mod tests {
             [ExploreItems::Stop, ExploreItems::PickUp, ExploreItems::Find]
         );
         assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("Auto-explore will note items and walk on.")
+            last_log(&state),
+            "Auto-explore will note items and walk on."
         );
     }
 
@@ -306,10 +306,7 @@ mod tests {
         assert!(explore_step(&mut state));
         assert!(state.world.get::<&Position>(knife).is_err());
         assert_eq!(crate::view::inventory_view(&state).len(), 1);
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("You pick up the knife.")
-        );
+        assert_eq!(last_log(&state), "You pick up the knife.");
     }
 
     #[test]
@@ -334,10 +331,7 @@ mod tests {
         assert!(!explore_step(&mut state));
         assert_eq!(at(&state), (1, 1));
         assert_eq!(state.now, now);
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("The goblin is in view.")
-        );
+        assert_eq!(last_log(&state), "The goblin is in view.");
     }
 
     #[test]
@@ -350,9 +344,6 @@ mod tests {
                 .filter(|&(x, y)| Tile::is_open(state.map.get(x, y)))
                 .all(|(x, y)| flag(&state.seen, x, y))
         );
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("There is nowhere left to explore.")
-        );
+        assert_eq!(last_log(&state), "There is nowhere left to explore.");
     }
 }

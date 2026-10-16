@@ -478,7 +478,7 @@ pub(crate) mod tests {
     use crate::entity::Melee;
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
 
     /// For damage tests that don't care where the hit came from; an effect
     /// cause never triggers on-hit effects.
@@ -490,15 +490,6 @@ pub(crate) mod tests {
     pub(crate) const BLOW: DamageCause = DamageCause::Melee {
         attacker: Entity::DANGLING,
     };
-
-    fn last_log(state: &GameState) -> &str {
-        state
-            .log
-            .recent(1)
-            .next()
-            .map(String::as_str)
-            .unwrap_or_default()
-    }
 
     /// A goblin (8 HP, 1 AV leather armor) east of the player, who hits for
     /// exactly `damage`.

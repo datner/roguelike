@@ -176,7 +176,7 @@ mod tests {
     use crate::spawn::Spawn;
     use crate::state::MessageLog;
     use crate::state::tests::{bare_state, bare_state_seeded};
-    use crate::testkit::{blank, thing};
+    use crate::testkit::{blank, last_log, thing};
 
     #[test]
     fn stat_modifiers_follow_qud() {
@@ -242,15 +242,6 @@ mod tests {
 
     fn health(state: &GameState, entity: Entity) -> i32 {
         state.world.get::<&Health>(entity).unwrap().current
-    }
-
-    fn last_log(state: &GameState) -> &str {
-        state
-            .log
-            .recent(1)
-            .next()
-            .map(String::as_str)
-            .unwrap_or_default()
     }
 
     fn armored_dummy(state: &mut GameState, av: i32) -> (Entity, Entity) {

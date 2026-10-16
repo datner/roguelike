@@ -150,7 +150,7 @@ mod tests {
     use super::*;
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
     use crate::time::take_turn;
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
@@ -196,10 +196,7 @@ mod tests {
         let start = state.now;
         take_turn(&mut state, PlayerAction::PickUp);
         assert_eq!(state.now, start);
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("There is nothing here to pick up.")
-        );
+        assert_eq!(last_log(&state), "There is nothing here to pick up.");
     }
 
     #[test]
@@ -259,9 +256,6 @@ mod tests {
         let start = state.now;
         take_turn(&mut state, PlayerAction::Drop(item));
         assert_eq!(state.now, start);
-        assert_eq!(
-            state.log.recent(1).next().map(String::as_str),
-            Some("You do not carry that.")
-        );
+        assert_eq!(last_log(&state), "You do not carry that.");
     }
 }

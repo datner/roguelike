@@ -130,7 +130,7 @@ mod tests {
     use crate::input::PlayerAction;
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{last_log, thing};
     use crate::time::take_turn;
     use crate::view::{ItemRef, equipment_view, inventory_view};
 
@@ -150,10 +150,6 @@ mod tests {
             item,
             part,
         });
-    }
-
-    fn last_log(state: &GameState) -> &str {
-        state.log.recent(1).next().map_or("", String::as_str)
     }
 
     fn part_items(state: &GameState) -> Vec<(String, Option<String>)> {

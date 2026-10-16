@@ -102,3 +102,8 @@ impl Spawn {
         self
     }
 }
+
+/// The newest log message, or `""` if the log is empty.
+pub(crate) fn last_log(state: &GameState) -> &str {
+    state.log.recent(1).next().map_or("", String::as_str)
+}
