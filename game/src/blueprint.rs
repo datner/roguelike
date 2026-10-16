@@ -21,11 +21,11 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable,
-    EquippedOn, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed,
-    Stats, Weapon,
+    Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable, Health,
+    Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed, Stats, Weapon,
 };
 use crate::equipment::free_part;
+use crate::holding;
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -321,7 +321,7 @@ impl Blueprints {
     }
 
     /// Spawns blueprint `id`, and each piece of its equipment as a separate
-    /// entity listed in the owner's `Attachments` (on its body part). Only for
+    /// entity put on the owner's body part (`holding::put_on`). Only for
     /// `GameState::spawn_id`, which gives them all a `SpawnSeq`. Equipment
     /// cycles are rejected at load, so the recursion ends.
     #[expect(
@@ -337,13 +337,6 @@ impl Blueprints {
             .by_id(id)
             .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
 
-        let mut attachments = Vec::with_capacity(blueprint.equipment.len());
-        for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
-            let item = self.spawn_id(world, item)?;
-            let _ = world.insert_one(item, EquippedOn(part));
-            attachments.push(item);
-        }
-
         let mut builder = EntityBuilder::new();
         for component in &blueprint.components {
             component.add_to(&mut builder);
@@ -351,10 +344,12 @@ impl Blueprints {
         if let Some(on_hit) = &blueprint.on_hit {
             builder.add(on_hit.clone());
         }
-        if !attachments.is_empty() {
-            builder.add(Attachments(attachments));
+        let owner = world.spawn(builder.build());
+        for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
+            let item = self.spawn_id(world, item)?;
+            holding::put_on(world, owner, item, part);
         }
-        Ok(world.spawn(builder.build()))
+        Ok(owner)
     }
 }
 
@@ -879,7 +874,7 @@ mod tests {
         let goblin = blueprints
             .spawn_id(&mut world, blueprints.id("Goblin").unwrap())
             .unwrap();
-        let attachments = world.get::<&Attachments>(goblin).unwrap().0.clone();
+        let attachments = holding::attached(&world, goblin);
         assert_eq!(attachments.len(), 2);
         assert!(world.satisfies::<&Armor>(attachments[0]));
         assert!(world.satisfies::<&OnHit>(attachments[1]));

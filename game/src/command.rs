@@ -8,13 +8,12 @@ use crate::blueprint::BlueprintId;
 use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
-use crate::entity::{
-    Attachments, BlocksMovement, Dead, Energy, Found, Health, Inventory, Item, Position, SpawnSeq,
-};
+use crate::entity::{BlocksMovement, Dead, Energy, Found, Health, Item, Position, SpawnSeq};
 use crate::equipment;
 use crate::event::{Ctx, settle};
 use crate::fov;
 use crate::grammar::{Subject, capitalize};
+use crate::holding;
 use crate::input::Dir;
 use crate::map::Tile;
 use crate::state::GameState;
@@ -344,28 +343,19 @@ fn pick_up(state: &mut GameState, actor: Entity) {
             Subject::of(&state.world, actor).sentence("pick", &format!("up {}", what.noun()));
         state.log.push(message);
         let _ = state.world.remove_one::<Position>(item);
-        if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
-            inventory.0.push(item);
-            continue;
-        }
-        let _ = state.world.insert_one(actor, Inventory(vec![item]));
+        holding::stow(&mut state.world, actor, item);
     }
 }
 
 fn drop_item(state: &mut GameState, actor: Entity, item: Entity) {
-    let carried = state
-        .world
-        .get::<&Inventory>(actor)
-        .is_ok_and(|inventory| inventory.0.contains(&item));
+    let carried = holding::carried(&state.world, actor).contains(&item);
     let at = state.world.get::<&Position>(actor).ok().map(|pos| *pos);
     let (true, Some(at)) = (carried, at) else {
         let message = Subject::of(&state.world, actor).sentence("do", "not carry that");
         state.log.push(message);
         return;
     };
-    if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
-        inventory.0.retain(|&other| other != item);
-    }
+    holding::unstow(&mut state.world, actor, item);
     // It lands where its dropper stands, so it counts as found.
     let _ = state.world.insert(item, (at, Found));
     let what = Subject::of(&state.world, item);
@@ -467,12 +457,8 @@ fn die(state: &mut GameState, entity: Entity) {
 
     let mut doomed = vec![entity];
     while let Some(next) = doomed.pop() {
-        if let Ok(attachments) = state.world.get::<&Attachments>(next) {
-            doomed.extend(attachments.0.iter().copied());
-        }
-        if let Ok(inventory) = state.world.get::<&Inventory>(next) {
-            doomed.extend(inventory.0.iter().copied());
-        }
+        doomed.extend(holding::attached(&state.world, next));
+        doomed.extend(holding::carried(&state.world, next));
         let _ = state.world.despawn(next);
     }
 }
@@ -480,8 +466,9 @@ fn die(state: &mut GameState, entity: Entity) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::entity::{Melee, Name};
-    use crate::state::tests::{bare_state, spawn_with};
+    use crate::entity::Melee;
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
 
     /// For damage tests that don't care where the hit came from; an effect
     /// cause never triggers on-hit effects.
@@ -508,7 +495,7 @@ pub(crate) mod tests {
     fn facing_goblin(damage: i32) -> (GameState, Entity, Entity) {
         let mut state = bare_state();
         let goblin = state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
-        let armor = state.world.get::<&Attachments>(goblin).unwrap().0[0];
+        let armor = holding::attached(&state.world, goblin)[0];
         state
             .world
             .insert_one(
@@ -530,15 +517,11 @@ pub(crate) mod tests {
     }
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
-        spawn_with(state, (Name("knife".into()), Item, Position { x, y }))
+        thing("knife").item().at(x, y).spawn(state)
     }
 
     fn inventory(state: &GameState, entity: Entity) -> Vec<Entity> {
-        state
-            .world
-            .get::<&Inventory>(entity)
-            .map(|inventory| inventory.0.clone())
-            .unwrap_or_default()
+        holding::carried(&state.world, entity)
     }
 
     fn pick_up_here(state: &mut GameState) {
@@ -601,15 +584,8 @@ pub(crate) mod tests {
     #[test]
     fn a_dying_creature_takes_its_inventory_with_it() {
         let mut state = bare_state();
-        let knife = spawn_with(&mut state, (Name("knife".into()), Item));
-        let goblin = spawn_with(
-            &mut state,
-            (
-                Name("goblin".into()),
-                Position { x: 3, y: 3 },
-                Inventory(vec![knife]),
-            ),
-        );
+        let goblin = thing("goblin").at(3, 3).spawn(&mut state);
+        let knife = thing("knife").item().carried_by(goblin).spawn(&mut state);
         state.commands.push_back(Command::Die { entity: goblin });
         apply_commands(&mut state);
         assert!(!state.world.contains(knife));
@@ -637,7 +613,7 @@ pub(crate) mod tests {
     fn only_the_player_finds_items() {
         let mut state = bare_state();
         let knife = knife_at(&mut state, 3, 1);
-        let walker = spawn_with(&mut state, (Name("goblin".into()), Position { x: 2, y: 1 }));
+        let walker = thing("goblin").at(2, 1).spawn(&mut state);
         state.commands.push_back(Command::TryMove(walker, Dir::E));
         apply_commands(&mut state);
         assert_eq!(
@@ -690,7 +666,7 @@ pub(crate) mod tests {
     #[test]
     fn damage_to_something_without_health_is_ignored() {
         let mut state = bare_state();
-        let rock = spawn_with(&mut state, (Name("rock".into()),));
+        let rock = thing("rock").spawn(&mut state);
         let log_before = state.log.clone();
         state.commands.push_back(Command::DealDamage {
             target: rock,
@@ -705,10 +681,7 @@ pub(crate) mod tests {
     #[test]
     fn zero_damage_without_armor_leaves_the_target_unharmed() {
         let mut state = bare_state();
-        let dummy = spawn_with(
-            &mut state,
-            (Name("dummy".into()), Health { current: 3, max: 3 }),
-        );
+        let dummy = thing("dummy").health(3).spawn(&mut state);
         state.commands.push_back(Command::DealDamage {
             target: dummy,
             amount: 0,

@@ -609,7 +609,8 @@ mod tests {
     use crate::input::{Dir, PlayerAction};
     use crate::map::Tile;
     use crate::state::GOBLINS;
-    use crate::state::tests::{bare_state, spawn_with, test_blueprints};
+    use crate::state::tests::{bare_state, test_blueprints};
+    use crate::testkit::thing;
     use crate::time::{Step, step, take_turn};
     use crate::zone::CaveParams;
 
@@ -752,10 +753,7 @@ mod tests {
     fn a_carried_inventory_survives_a_round_trip() {
         let mut state = bare_state();
         for name in ["first", "second"] {
-            spawn_with(
-                &mut state,
-                (Name(name.into()), Item, Position { x: 1, y: 1 }),
-            );
+            thing(name).item().at(1, 1).spawn(&mut state);
         }
         take_turn(&mut state, PlayerAction::PickUp);
         let names = |state: &GameState| -> Vec<String> {
@@ -776,14 +774,8 @@ mod tests {
     #[test]
     fn found_and_unfound_floor_items_survive_a_round_trip() {
         let mut state = bare_state();
-        spawn_with(
-            &mut state,
-            (Name("found".into()), Item, Found, Position { x: 4, y: 4 }),
-        );
-        spawn_with(
-            &mut state,
-            (Name("unfound".into()), Item, Position { x: 5, y: 4 }),
-        );
+        thing("found").item().found().at(4, 4).spawn(&mut state);
+        thing("unfound").item().at(5, 4).spawn(&mut state);
         state.map.set(6, 4, Tile::Exit);
 
         let loaded = reload(&state, test_blueprints());
@@ -815,12 +807,7 @@ mod tests {
         let mut resumed = reload(&state, test_blueprints());
 
         let goblin_entity = goblin(&resumed).unwrap();
-        let carried = resumed
-            .world
-            .get::<&Attachments>(goblin_entity)
-            .unwrap()
-            .0
-            .clone();
+        let carried = crate::holding::attached(&resumed.world, goblin_entity);
         assert_eq!(carried.len(), 2);
         assert!(resumed.world.satisfies::<&Armor>(carried[0]));
         let bleed = carried[1];
@@ -883,7 +870,7 @@ mod tests {
     #[test]
     fn an_entity_without_a_spawn_seq_fails_the_save() {
         let mut state = bare_state();
-        let rock = spawn_with(&mut state, (Name("rock".into()),));
+        let rock = thing("rock").spawn(&mut state);
         // Stands in for an entity created outside `GameState::spawn`.
         state.world.remove_one::<SpawnSeq>(rock).unwrap();
         let err = to_ron(&state).err().unwrap();

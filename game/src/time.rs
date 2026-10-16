@@ -261,9 +261,10 @@ mod tests {
     use crate::command::MAX_COMMANDS_PER_STEP;
     use crate::command::tests::UNSOURCED;
     use crate::cost;
-    use crate::entity::{Health, Hostile, Melee, Position};
+    use crate::entity::{Health, Position};
     use crate::input::{Dir, InputEvent};
-    use crate::state::tests::{bare_state, spawn_with, test_blueprints};
+    use crate::state::tests::{bare_state, test_blueprints};
+    use crate::testkit::blank;
     use crate::zone::tests::test_cave;
 
     /// A state whose player is not scheduled, so `step` never stops for input.
@@ -274,7 +275,7 @@ mod tests {
     }
 
     fn actor(state: &mut GameState, speed: u32, energy: i64, seq: u64) -> Entity {
-        spawn_with(state, (Speed(speed), Energy(energy), SpawnSeq(seq)))
+        blank().speed(speed).energy(energy).seq(seq).spawn(state)
     }
 
     fn steps(state: &mut GameState, n: usize) -> Vec<Step> {
@@ -367,16 +368,7 @@ mod tests {
     #[test]
     fn a_bump_attack_costs_one_standard_action() {
         let mut state = bare_state();
-        let dummy = spawn_with(
-            &mut state,
-            (
-                Position { x: 2, y: 1 },
-                Health {
-                    current: 100,
-                    max: 100,
-                },
-            ),
-        );
+        let dummy = blank().at(2, 1).health(100).spawn(&mut state);
         state
             .commands
             .push_back(Command::TryMove(state.player, Dir::E));
@@ -475,18 +467,13 @@ mod tests {
         // TryMove, Attack, DealDamage and one pad per hostile's action.
         pad_hits(&mut state, 1);
         assert!(4 * HOSTILES as usize > MAX_COMMANDS_PER_STEP);
-        for seq in 1..=HOSTILES {
-            spawn_with(
-                &mut state,
-                (
-                    Position { x: 2, y: 1 },
-                    Hostile,
-                    Melee { min: 1, max: 1 },
-                    Speed(100),
-                    Energy(0),
-                    SpawnSeq(seq),
-                ),
-            );
+        for _ in 0..HOSTILES {
+            blank()
+                .at(2, 1)
+                .hostile()
+                .melee(1, 1)
+                .speed(100)
+                .spawn(&mut state);
         }
 
         take_turn(&mut state, PlayerAction::Wait);
@@ -519,17 +506,12 @@ mod tests {
                 },
             )
             .unwrap();
-        let hostile = spawn_with(
-            &mut state,
-            (
-                Position { x: 2, y: 1 },
-                Hostile,
-                Melee { min: 1, max: 1 },
-                Speed(100),
-                Energy(0),
-                SpawnSeq(1),
-            ),
-        );
+        let hostile = blank()
+            .at(2, 1)
+            .hostile()
+            .melee(1, 1)
+            .speed(100)
+            .spawn(&mut state);
 
         assert_eq!(step(&mut state), Step::Actor(hostile));
         assert!(logged_an_error(&state));

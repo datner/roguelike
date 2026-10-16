@@ -4,8 +4,9 @@
 
 use hecs::{Entity, World};
 
-use crate::entity::{Attachments, Body, BodyPart, Equippable, EquippedOn, Inventory, PartKind};
+use crate::entity::{Body, BodyPart, Equippable, EquippedOn, PartKind};
 use crate::grammar::{Subject, capitalize};
+use crate::holding;
 use crate::state::GameState;
 
 /// The first part of `kind` not in `occupied`, by index.
@@ -18,13 +19,9 @@ pub(crate) fn free_part(body: &[BodyPart], occupied: &[u32], kind: PartKind) -> 
 
 /// `owner`'s equipped items with the part each occupies, in `Attachments` order.
 pub(crate) fn equipped(world: &World, owner: Entity) -> Vec<(Entity, u32)> {
-    let Ok(attachments) = world.get::<&Attachments>(owner) else {
-        return Vec::new();
-    };
-    attachments
-        .0
-        .iter()
-        .filter_map(|&item| Some((item, world.get::<&EquippedOn>(item).ok()?.0)))
+    holding::attached(world, owner)
+        .into_iter()
+        .filter_map(|item| Some((item, world.get::<&EquippedOn>(item).ok()?.0)))
         .collect()
 }
 
@@ -40,10 +37,7 @@ pub(crate) fn plan_equip(
     let world = &state.world;
     let you = Subject::of(world, actor);
     let what = Subject::of(world, item);
-    let carried = world
-        .get::<&Inventory>(actor)
-        .is_ok_and(|inventory| inventory.0.contains(&item));
-    if !carried {
+    if !holding::carried(world, actor).contains(&item) {
         return Err(you.sentence("do", "not carry that"));
     }
     let Ok(kind) = world.get::<&Equippable>(item).map(|e| e.part) else {
@@ -88,15 +82,8 @@ pub(crate) fn equip(state: &mut GameState, actor: Entity, item: Entity, part: Op
     if let Some(old) = displaced {
         unequip(state, actor, old);
     }
-    if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
-        inventory.0.retain(|&other| other != item);
-    }
-    if let Ok(mut attachments) = state.world.get::<&mut Attachments>(actor) {
-        attachments.0.push(item);
-    } else {
-        let _ = state.world.insert_one(actor, Attachments(vec![item]));
-    }
-    let _ = state.world.insert_one(item, EquippedOn(part));
+    holding::unstow(&mut state.world, actor, item);
+    holding::put_on(&mut state.world, actor, item, part);
 
     let part_name = state
         .world
@@ -127,15 +114,8 @@ pub(crate) fn unequip(state: &mut GameState, actor: Entity, item: Entity) {
         state.log.push(message);
         return;
     }
-    if let Ok(mut attachments) = state.world.get::<&mut Attachments>(actor) {
-        attachments.0.retain(|&other| other != item);
-    }
-    let _ = state.world.remove_one::<EquippedOn>(item);
-    if let Ok(mut inventory) = state.world.get::<&mut Inventory>(actor) {
-        inventory.0.push(item);
-    } else {
-        let _ = state.world.insert_one(actor, Inventory(vec![item]));
-    }
+    holding::take_off(&mut state.world, actor, item);
+    holding::stow(&mut state.world, actor, item);
     let you = Subject::of(&state.world, actor);
     let what = Subject::of(&state.world, item);
     state.log.push(you.sentence("unequip", what.noun()));
@@ -146,28 +126,21 @@ mod tests {
     use super::*;
     use crate::command::tests::BLOW;
     use crate::command::{Command, apply_commands};
-    use crate::entity::{Armor, Health, Item, Name};
+    use crate::entity::{Armor, Health};
     use crate::input::PlayerAction;
-    use crate::state::tests::{bare_state, spawn_with};
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
     use crate::time::take_turn;
     use crate::view::{ItemRef, equipment_view, inventory_view};
 
     /// An item of `kind` in the player's pack.
     fn carry(state: &mut GameState, name: &str, kind: Option<PartKind>) -> Entity {
-        let item = spawn_with(state, (Name(name.into()), Item));
-        if let Some(part) = kind {
-            state.world.insert_one(item, Equippable { part }).unwrap();
+        let item = thing(name).item().carried_by(state.player);
+        match kind {
+            Some(part) => item.fits(part),
+            None => item,
         }
-        let player = state.player;
-        if let Ok(mut inventory) = state.world.get::<&mut Inventory>(player) {
-            inventory.0.push(item);
-            return item;
-        }
-        state
-            .world
-            .insert_one(player, Inventory(vec![item]))
-            .unwrap();
-        item
+        .spawn(state)
     }
 
     fn equip_cmd(state: &mut GameState, item: Entity, part: Option<u32>) {
@@ -245,7 +218,7 @@ mod tests {
         let rock = carry(&mut state, "rock", None);
         let boots = carry(&mut state, "boots", Some(PartKind::Feet));
         let knife = carry(&mut state, "knife", Some(PartKind::Hand));
-        let floor = spawn_with(&mut state, (Name("helm".into()), Item));
+        let floor = thing("helm").item().spawn(&mut state);
         let player = state.player;
         let plan = |state: &GameState, item, part| plan_equip(state, player, item, part);
 

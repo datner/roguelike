@@ -11,10 +11,11 @@ use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Attachments, Energy, Item, Position, SpawnSeq, Speed};
+use crate::entity::{Appearance, Energy, Item, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::explore::ExploreItems;
 use crate::fov;
+use crate::holding;
 use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
 use crate::time::{Tick, Timers};
@@ -240,14 +241,22 @@ impl GameState {
         } else {
             let _ = self.world.insert_one(entity, seq);
         }
-        let carried = self
-            .world
-            .get::<&Attachments>(entity)
-            .map(|attachments| attachments.0.clone())
-            .unwrap_or_default();
-        for item in carried {
+        for item in holding::attached(&self.world, entity) {
             self.register(item);
         }
+    }
+
+    /// Tests' ad-hoc entities (`testkit::Spawn`), registered like any
+    /// blueprint's so `SpawnSeq` and `Energy` stay assigned in one place.
+    #[cfg(test)]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "registered right after, as spawn_id does"
+    )]
+    pub(crate) fn spawn_built(&mut self, builder: &mut hecs::EntityBuilder) -> Entity {
+        let entity = self.world.spawn(builder.build());
+        self.register(entity);
+        entity
     }
 
     pub(crate) fn spawn_at(&mut self, name: &str, at: Position) -> Result<Entity, BlueprintError> {
@@ -347,6 +356,7 @@ pub(crate) mod tests {
     };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
+    use crate::testkit::thing;
     use crate::zone::tests::test_cave;
     use rand::Rng;
 
@@ -456,7 +466,6 @@ pub(crate) mod tests {
                     &[],
                 ),
             ),
-            ("Blank".to_string(), blueprint(vec![], &[])),
         ]))
         .expect("test blueprints resolve")
     }
@@ -479,18 +488,6 @@ pub(crate) mod tests {
             test_blueprints(),
         )
         .unwrap()
-    }
-
-    /// An entity with exactly `components` (plus its `SpawnSeq`), spawned
-    /// through `GameState::spawn` from the empty `Blank` blueprint. A
-    /// `SpawnSeq` in `components` replaces the assigned one.
-    pub(crate) fn spawn_with(
-        state: &mut GameState,
-        components: impl hecs::DynamicBundle,
-    ) -> Entity {
-        let entity = state.spawn("Blank").unwrap();
-        state.world.insert(entity, components).unwrap();
-        entity
     }
 
     fn player_position(state: &GameState) -> Position {
@@ -696,19 +693,11 @@ pub(crate) mod tests {
     }
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
-        spawn_with(
-            state,
-            (
-                Name("knife".into()),
-                Appearance {
-                    glyph: '/',
-                    fg: Rgb(200, 100, 50),
-                    bg: Rgb(0, 0, 0),
-                },
-                Item,
-                Position { x, y },
-            ),
-        )
+        thing("knife")
+            .look('/', Rgb(200, 100, 50))
+            .item()
+            .at(x, y)
+            .spawn(state)
     }
 
     #[test]

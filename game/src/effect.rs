@@ -7,8 +7,9 @@ use hecs::Entity;
 
 use crate::blueprint::BlueprintId;
 use crate::command::{Command, DamageCause};
-use crate::entity::{Attachments, Bleeding, Duration, EffectTarget, Name, Timed};
+use crate::entity::{Bleeding, Duration, EffectTarget, Name, Timed};
 use crate::grammar::Subject;
+use crate::holding;
 use crate::state::GameState;
 use crate::time::{Tick, Timer};
 
@@ -83,16 +84,7 @@ pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: Blu
         return;
     }
 
-    let attached = match state.world.get::<&mut Attachments>(target) {
-        Ok(mut attachments) => {
-            attachments.0.push(effect);
-            true
-        }
-        Err(_) => false,
-    };
-    if !attached {
-        let _ = state.world.insert_one(target, Attachments(vec![effect]));
-    }
+    holding::attach(&mut state.world, target, effect);
 
     // The name completes the sentence, as in the expiry message.
     let name = state.world.get::<&Name>(effect).ok().map(|n| n.0.clone());
@@ -154,9 +146,7 @@ pub(crate) fn expire_effect(state: &mut GameState, effect: Entity) {
         let subject = Subject::of(&state.world, target);
         state.log.push(subject.sentence("stop", &name));
     }
-    if let Ok(mut attachments) = state.world.get::<&mut Attachments>(target) {
-        attachments.0.retain(|&attached| attached != effect);
-    }
+    holding::detach(&mut state.world, target, effect);
     let _ = state.world.despawn(effect);
 }
 
@@ -197,9 +187,9 @@ fn timed_target(state: &GameState, effect: Entity) -> Option<(Timed, Entity)> {
 mod tests {
     use super::*;
     use crate::command::apply_commands;
-    use crate::entity::Name;
     use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
-    use crate::state::tests::{bare_state, spawn_with};
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
     use crate::time::{Step, step};
 
     /// Bare state with an unscheduled player, so only timers move the clock.
@@ -222,13 +212,7 @@ mod tests {
     fn apply_bleeding_to(state: &mut GameState, target: Entity) -> Entity {
         let blueprint = state.blueprints.id("Bleeding").unwrap();
         run(state, Command::ApplyEffect { target, blueprint });
-        *state
-            .world
-            .get::<&Attachments>(target)
-            .unwrap()
-            .0
-            .last()
-            .unwrap()
+        *holding::attached(&state.world, target).last().unwrap()
     }
 
     /// Fires every timer due up to and including `tick`, then sets the
@@ -278,7 +262,7 @@ mod tests {
     #[test]
     fn applying_an_effect_to_a_despawned_target_does_nothing() {
         let mut state = quiet_state();
-        let target = spawn_with(&mut state, (Name("dummy".into()),));
+        let target = thing("dummy").spawn(&mut state);
         state.world.despawn(target).unwrap();
         let (entities, log) = (state.world.len(), state.log.clone());
         let blueprint = state.blueprints.id("Bleeding").unwrap();
@@ -303,14 +287,7 @@ mod tests {
         assert!(state.world.contains(effect));
         run_until(&mut state, 500);
         assert!(!state.world.contains(effect));
-        assert!(
-            state
-                .world
-                .get::<&Attachments>(state.player)
-                .unwrap()
-                .0
-                .is_empty()
-        );
+        assert!(holding::attached(&state.world, state.player).is_empty());
         assert!(state.log.recent(3).any(|m| m == "You stop bleeding."));
     }
 
@@ -454,16 +431,7 @@ mod tests {
     #[test]
     fn bleeding_dies_with_its_target() {
         let mut state = quiet_state();
-        let dummy = spawn_with(
-            &mut state,
-            (
-                Name("dummy".into()),
-                Health {
-                    current: 10,
-                    max: 10,
-                },
-            ),
-        );
+        let dummy = thing("dummy").health(10).spawn(&mut state);
         let effect = apply_bleeding_to(&mut state, dummy);
         run(&mut state, Command::Die { entity: dummy });
         assert!(!state.world.contains(effect));
@@ -477,16 +445,7 @@ mod tests {
     /// makes the victim bleed.
     fn bleeding_striker() -> (GameState, Entity) {
         let mut state = quiet_state();
-        let dummy = spawn_with(
-            &mut state,
-            (
-                Name("dummy".into()),
-                Health {
-                    current: 100,
-                    max: 100,
-                },
-            ),
-        );
+        let dummy = thing("dummy").health(100).spawn(&mut state);
         let certain_bleed = OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp: 10_000,
@@ -505,7 +464,7 @@ mod tests {
     }
 
     fn attachments(state: &GameState, entity: Entity) -> Vec<Entity> {
-        state.world.get::<&Attachments>(entity).unwrap().0.clone()
+        holding::attached(&state.world, entity)
     }
 
     #[test]

@@ -215,25 +215,17 @@ fn paths_from(state: &GameState, from: Position) -> Paths {
 mod tests {
     use super::*;
     use crate::cell::Rgb;
-    use crate::entity::{Appearance, Name};
-    use crate::state::tests::{bare_state, spawn_with};
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
 
     /// Spawned after the starting view, so the view is refreshed to let the
     /// player remember it.
     fn item(state: &mut GameState, at: (i32, i32)) -> Entity {
-        let knife = spawn_with(
-            state,
-            (
-                Name("knife".into()),
-                Appearance {
-                    glyph: '/',
-                    fg: Rgb(200, 200, 200),
-                    bg: Rgb(0, 0, 0),
-                },
-                Item,
-                Position { x: at.0, y: at.1 },
-            ),
-        );
+        let knife = thing("knife")
+            .look('/', Rgb(200, 200, 200))
+            .item()
+            .at(at.0, at.1)
+            .spawn(state);
         crate::fov::update(state);
         knife
     }
@@ -336,10 +328,7 @@ mod tests {
     #[test]
     fn a_hostile_in_view_stops_it_before_any_time_passes() {
         let mut state = bare_state();
-        spawn_with(
-            &mut state,
-            (Name("goblin".into()), Hostile, Position { x: 3, y: 1 }),
-        );
+        thing("goblin").hostile().at(3, 1).spawn(&mut state);
         let now = state.now;
 
         assert!(!explore_step(&mut state));

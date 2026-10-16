@@ -173,10 +173,10 @@ mod tests {
     use super::*;
     use crate::command::apply_commands;
     use crate::command::tests::{BLOW, UNSOURCED};
-    use crate::entity::{Attachments, Bleeding, Name, OnHitEntry, Position};
-    use crate::entity::{EquippedOn, Inventory};
+    use crate::entity::{Bleeding, OnHitEntry};
     use crate::state::MessageLog;
-    use crate::state::tests::{bare_state, bare_state_seeded, spawn_with};
+    use crate::state::tests::{bare_state, bare_state_seeded};
+    use crate::testkit::{Spawn, blank, thing};
 
     #[test]
     fn stat_modifiers_follow_qud() {
@@ -193,24 +193,11 @@ mod tests {
 
     /// A fighter with natural 2-4 `Melee` and the given scores.
     fn fighter(state: &mut GameState, strength: i32, agility: i32) -> Entity {
-        spawn_with(
-            state,
-            (Melee { min: 2, max: 4 }, Stats { strength, agility }),
-        )
+        blank().melee(2, 4).stats(strength, agility).spawn(state)
     }
 
-    fn knife(state: &mut GameState) -> Entity {
-        spawn_with(
-            state,
-            (
-                Name("knife".into()),
-                Weapon {
-                    min: 1,
-                    max: 3,
-                    stat: Stat::Agility,
-                },
-            ),
-        )
+    fn knife() -> Spawn {
+        thing("knife").weapon(1, 3, Stat::Agility)
     }
 
     #[test]
@@ -225,12 +212,7 @@ mod tests {
     fn an_equipped_weapon_replaces_natural_melee_and_uses_its_stat() {
         let mut state = bare_state();
         let nimble = fighter(&mut state, 10, 20);
-        let blade = knife(&mut state);
-        state.world.insert_one(blade, EquippedOn(2)).unwrap();
-        state
-            .world
-            .insert_one(nimble, Attachments(vec![blade]))
-            .unwrap();
+        let blade = knife().equipped_on(nimble, 2).spawn(&mut state);
 
         let strike = strike(&state.world, nimble).unwrap();
         assert_eq!((strike.range(), strike.weapon), ((3, 5), Some(blade)));
@@ -245,11 +227,7 @@ mod tests {
     fn a_carried_weapon_is_not_used() {
         let mut state = bare_state();
         let fighter = fighter(&mut state, 16, 20);
-        let blade = knife(&mut state);
-        state
-            .world
-            .insert_one(fighter, Inventory(vec![blade]))
-            .unwrap();
+        knife().carried_by(fighter).spawn(&mut state);
         assert_eq!(strike(&state.world, fighter).unwrap().weapon, None);
     }
 
@@ -276,19 +254,8 @@ mod tests {
     }
 
     fn armored_dummy(state: &mut GameState, av: i32) -> (Entity, Entity) {
-        let armor = spawn_with(state, (Name("plate".into()), Armor { av }));
-        let dummy = spawn_with(
-            state,
-            (
-                Name("dummy".into()),
-                Position { x: 5, y: 5 },
-                Health {
-                    current: 10,
-                    max: 10,
-                },
-                Attachments(vec![armor]),
-            ),
-        );
+        let dummy = thing("dummy").at(5, 5).health(10).spawn(state);
+        let armor = thing("plate").armor(av).attached_to(dummy).spawn(state);
         (dummy, armor)
     }
 
@@ -318,13 +285,9 @@ mod tests {
     }
 
     fn bleeds(state: &GameState, entity: Entity) -> usize {
-        state
-            .world
-            .get::<&Attachments>(entity)
-            .unwrap()
-            .0
-            .iter()
-            .filter(|&&attached| state.world.satisfies::<&Bleeding>(attached))
+        crate::holding::attached(&state.world, entity)
+            .into_iter()
+            .filter(|&attached| state.world.satisfies::<&Bleeding>(attached))
             .count()
     }
 
@@ -378,11 +341,11 @@ mod tests {
         let mut state = bare_state();
         let (dummy, _) = armored_dummy(&mut state, 0);
         let on_hit = bleed_on_hit(&state, 10_000);
-        let knife = spawn_with(&mut state, (on_hit,));
         let player = state.player;
+        blank().with(on_hit).attached_to(player).spawn(&mut state);
         state
             .world
-            .insert(player, (Melee { min: 3, max: 3 }, Attachments(vec![knife])))
+            .insert_one(player, Melee { min: 3, max: 3 })
             .unwrap();
         player_hits(&mut state, dummy);
         assert_eq!(bleeds(&state, dummy), 1);
@@ -485,7 +448,7 @@ mod tests {
     #[test]
     fn preview_needs_melee_and_health() {
         let mut state = bare_state();
-        let rock = spawn_with(&mut state, (Name("rock".into()),));
+        let rock = thing("rock").spawn(&mut state);
         assert_eq!(preview_damage(&state, state.player, rock), None);
         assert_eq!(preview_damage(&state, rock, state.player), None);
     }

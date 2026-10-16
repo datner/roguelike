@@ -6,9 +6,10 @@ use hecs::{Entity, World};
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Appearance, Armor, Body, Equippable, Health, Inventory, Name, PartKind, SpawnSeq, Speed, Stats,
+    Appearance, Armor, Body, Equippable, Health, Name, PartKind, SpawnSeq, Speed, Stats,
 };
 use crate::equipment::equipped;
+use crate::holding;
 use crate::state::GameState;
 
 /// A frontend's handle on an item: its `SpawnSeq`, which is unique, stable
@@ -141,35 +142,23 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
 }
 
 pub(crate) fn carried(state: &GameState) -> Vec<Entity> {
-    state
-        .world
-        .get::<&Inventory>(state.player)
-        .map(|inventory| inventory.0.clone())
-        .unwrap_or_default()
+    holding::carried(&state.world, state.player)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::{Item, Position};
     use crate::input::PlayerAction;
-    use crate::state::tests::{bare_state, spawn_with};
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
     use crate::time::take_turn;
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
-        spawn_with(
-            state,
-            (
-                Name("knife".into()),
-                Appearance {
-                    glyph: '/',
-                    fg: Rgb(1, 2, 3),
-                    bg: Rgb(0, 0, 0),
-                },
-                Item,
-                Position { x, y },
-            ),
-        )
+        thing("knife")
+            .look('/', Rgb(1, 2, 3))
+            .item()
+            .at(x, y)
+            .spawn(state)
     }
 
     #[test]
@@ -215,7 +204,7 @@ mod tests {
 
     #[test]
     fn the_character_sheet_combines_stats_and_equipment() {
-        use crate::entity::{Equippable, PartKind, Stat, Weapon};
+        use crate::entity::{PartKind, Stat};
 
         let mut state = bare_state();
         let player = state.player;
@@ -237,37 +226,18 @@ mod tests {
         // Test player: natural 2-4, +1 Strength.
         assert_eq!((sheet.damage, sheet.wielding), (Some((3, 5)), None));
 
-        let blade = knife_at(&mut state, 1, 1);
-        state
-            .world
-            .insert(
-                blade,
-                (
-                    Equippable {
-                        part: PartKind::Hand,
-                    },
-                    Weapon {
-                        min: 1,
-                        max: 3,
-                        stat: Stat::Agility,
-                    },
-                ),
-            )
-            .unwrap();
-        let mail = knife_at(&mut state, 1, 1);
-        state
-            .world
-            .insert(
-                mail,
-                (
-                    Name("mail".into()),
-                    Equippable {
-                        part: PartKind::Body,
-                    },
-                    Armor { av: 2 },
-                ),
-            )
-            .unwrap();
+        let blade = thing("knife")
+            .item()
+            .at(1, 1)
+            .fits(PartKind::Hand)
+            .weapon(1, 3, Stat::Agility)
+            .spawn(&mut state);
+        let mail = thing("mail")
+            .item()
+            .at(1, 1)
+            .fits(PartKind::Body)
+            .armor(2)
+            .spawn(&mut state);
         take_turn(&mut state, PlayerAction::PickUp);
         for item in [blade, mail] {
             let item = ItemRef::of(&state.world, item).unwrap();

@@ -36,12 +36,16 @@ pub mod event;
 pub mod explore;
 pub mod fov;
 pub mod grammar;
+pub mod holding;
 pub mod prio;
 pub mod rng;
 pub mod save;
 pub mod state;
 pub mod time;
 pub mod view;
+
+#[cfg(test)]
+mod testkit;
 
 pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
