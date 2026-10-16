@@ -4,6 +4,7 @@ use std::ops::ControlFlow;
 
 use hecs::Entity;
 
+use crate::ammo;
 use crate::blueprint::BlueprintId;
 use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
@@ -92,6 +93,23 @@ pub(crate) enum Command {
         item: Entity,
         at: (i32, i32),
     },
+    /// Shoot the launcher `actor` wields at the tile `at`, with the nocked
+    /// arrow or else the next one in an equipped quiver.
+    Fire {
+        actor: Entity,
+        at: (i32, i32),
+    },
+    /// Put `arrow` from the pack on the wielded launcher (a turn, even with a
+    /// quiver: a special arrow overrides the quiver, ADR 0013).
+    Nock {
+        actor: Entity,
+        arrow: Entity,
+    },
+    /// Move loose ammunition from the pack into an equipped quiver.
+    Quiver {
+        actor: Entity,
+        arrow: Entity,
+    },
     Attack {
         attacker: Entity,
         target: Entity,
@@ -142,12 +160,15 @@ impl Command {
         match *self {
             Command::TryMove(actor, _)
             | Command::Wait(actor)
+            | Command::Fire { actor, .. }
             | Command::PickUp(actor)
             | Command::FindItems(actor) => [Some(actor), None],
             Command::Drop { actor, item }
             | Command::Equip { actor, item, .. }
             | Command::Unequip { actor, item }
-            | Command::Throw { actor, item, .. } => [Some(actor), Some(item)],
+            | Command::Throw { actor, item, .. }
+            | Command::Nock { actor, arrow: item }
+            | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -204,6 +225,9 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Equip { actor, item, part } => equipment::equip(state, actor, item, part),
             Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
+            Command::Fire { actor, at } => ranged::fire(state, actor, at),
+            Command::Nock { actor, arrow } => ammo::nock(state, actor, arrow),
+            Command::Quiver { actor, arrow } => ammo::quiver(state, actor, arrow),
             Command::Attack { attacker, target } => attack(state, attacker, target),
             Command::DealDamage {
                 target,
@@ -281,6 +305,24 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         }
         Command::Throw { actor, item, at } => {
             let Err(message) = ranged::check_throw(state, actor, item, at) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Fire { actor, at } => {
+            let Err(message) = ranged::check_fire(state, actor, at) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Nock { actor, arrow } => {
+            let Err(message) = ammo::check_nock(state, actor, arrow) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Quiver { actor, arrow } => {
+            let Err(message) = ammo::check_quiver(state, actor, arrow) else {
                 return false;
             };
             state.log.push(message);
@@ -386,11 +428,14 @@ fn floor_items_under(state: &GameState, entity: Entity) -> Vec<Entity> {
 
 fn pick_up(state: &mut GameState, actor: Entity) {
     for item in floor_items_under(state, actor) {
+        let _ = state.world.remove_one::<Position>(item);
+        if ammo::stow_found(state, actor, item) {
+            continue;
+        }
         let what = Subject::of(&state.world, item);
         let message =
             Subject::of(&state.world, actor).sentence("pick", &format!("up {}", what.noun()));
         state.log.push(message);
-        let _ = state.world.remove_one::<Position>(item);
         holding::stow(&mut state.world, actor, item);
     }
 }

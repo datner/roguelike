@@ -109,6 +109,14 @@ impl Overlay {
                 Some(OverlayAction::Act(PlayerAction::Equip { item, part: None }))
             }
             OverlayInput::Drop => Some(OverlayAction::Act(PlayerAction::Drop(chosen?))),
+            OverlayInput::Nock | OverlayInput::Quiver => {
+                let item = items.get(self.selected).filter(|item| item.ammo)?.item;
+                Some(OverlayAction::Act(if input == OverlayInput::Nock {
+                    PlayerAction::Nock(item)
+                } else {
+                    PlayerAction::Quiver(item)
+                }))
+            }
             _ => None,
         }
     }
@@ -204,11 +212,21 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
             part_rows(contents.equipment, overlay.selected),
             "Enter unequip / choose  Tab inventory  Esc close",
         ),
-        (Tab::Inventory, _, _) => (
-            tabs(Tab::Inventory),
-            item_rows(contents.inventory, overlay.selected),
-            "Enter equip  d drop  Tab equipment  Esc close",
-        ),
+        (Tab::Inventory, _, _) => {
+            let ammo = contents
+                .inventory
+                .get(overlay.selected)
+                .is_some_and(|item| item.ammo);
+            (
+                tabs(Tab::Inventory),
+                item_rows(contents.inventory, overlay.selected),
+                if ammo {
+                    "n nock  v quiver  d drop  Esc close"
+                } else {
+                    "Enter equip  d drop  Tab equipment  Esc close"
+                },
+            )
+        }
     };
     if let Some(notice) = overlay.notice {
         rows.push(Line::default());
@@ -286,10 +304,17 @@ fn part_rows(parts: &[PartView], selected: usize) -> Vec<Line<'static>> {
 
 /// The item's glyph in its colour, then its name.
 pub fn item_spans(item: &ItemView) -> Vec<Span<'static>> {
-    vec![
+    let mut spans = vec![
         Span::styled(item.glyph.to_string(), Style::new().fg(color(item.fg))),
         Span::raw(format!(" {}", item.name)),
-    ]
+    ];
+    if let Some(note) = &item.note {
+        spans.push(Span::styled(
+            format!(" ({note})"),
+            Style::new().add_modifier(Modifier::DIM),
+        ));
+    }
+    spans
 }
 
 fn highlight(line: Line<'static>, selected: bool) -> Line<'static> {
@@ -317,6 +342,8 @@ mod tests {
                 glyph: '/',
                 fg: Rgb(200, 100, 50),
                 fits: Some(PartKind::Hand),
+                ammo: false,
+                note: None,
             })
             .collect()
     }
@@ -357,6 +384,39 @@ mod tests {
             overlay.handle(OverlayInput::Drop, &contents),
             Some(OverlayAction::Act(PlayerAction::Drop(inventory[0].item)))
         );
+    }
+
+    #[test]
+    fn n_and_v_nock_or_quiver_ammunition_and_ignore_anything_else() {
+        let mut inventory = items(&["knife", "arrow"]);
+        inventory[1].ammo = true;
+        let contents = Contents {
+            inventory: &inventory,
+            equipment: &[],
+        };
+        let mut overlay = Overlay::new(Tab::Inventory);
+        assert_eq!(overlay.handle(OverlayInput::Nock, &contents), None);
+        overlay.handle(OverlayInput::Down, &contents);
+        assert_eq!(
+            overlay.handle(OverlayInput::Nock, &contents),
+            Some(OverlayAction::Act(PlayerAction::Nock(inventory[1].item)))
+        );
+        assert_eq!(
+            overlay.handle(OverlayInput::Quiver, &contents),
+            Some(OverlayAction::Act(PlayerAction::Quiver(inventory[1].item)))
+        );
+        assert!(screen(&overlay, &contents).contains("n nock"));
+    }
+
+    #[test]
+    fn a_note_shows_beside_the_item_name() {
+        let mut inventory = items(&["quiver"]);
+        inventory[0].note = Some("3/20".to_string());
+        let contents = Contents {
+            inventory: &inventory,
+            equipment: &[],
+        };
+        assert!(screen(&Overlay::new(Tab::Inventory), &contents).contains("quiver (3/20)"));
     }
 
     #[test]

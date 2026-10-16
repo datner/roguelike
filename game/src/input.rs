@@ -59,6 +59,8 @@ pub enum InputEvent {
     /// Frontend only: pick a throwable and aim it. The throw itself is
     /// `PlayerAction::Throw`.
     Throw,
+    /// Frontend only: fire the wielded launcher. The shot is `PlayerAction::Fire`.
+    Fire,
     Quit,
 }
 
@@ -82,6 +84,14 @@ pub enum PlayerAction {
         item: ItemRef,
         at: (i32, i32),
     },
+    /// Shoot the wielded launcher at a map tile.
+    Fire {
+        at: (i32, i32),
+    },
+    /// Nock a carried arrow on the wielded launcher.
+    Nock(ItemRef),
+    /// Put carried ammunition in an equipped quiver.
+    Quiver(ItemRef),
 }
 
 #[cfg(test)]

@@ -2,18 +2,19 @@
 //! what a shot at one would do, in plain data. Computed with the same
 //! functions the commands use, so the preview cannot disagree with the shot.
 
-use hecs::Entity;
-
-use crate::combat::throw_strike;
-use crate::entity::{DamageTypes, Dead, Hostile, Name, Position, Throwable};
-use crate::ranged::{check_throw, distance, flight};
+use crate::ammo;
+use crate::entity::{DamageTypes, Dead, Hostile, Name, Position};
+use crate::ranged::{Ready, check, distance, flight, ready_fire, ready_throw};
 use crate::state::GameState;
 use crate::view::{ItemRef, held, total_armor};
 
 /// What the player is aiming with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shot {
+    /// A carried or equipped throwable.
     Throw(ItemRef),
+    /// The wielded launcher, with the arrow it would use.
+    Fire,
 }
 
 /// What a shot at one tile would do.
@@ -33,32 +34,54 @@ pub struct Aim {
     pub problem: Option<String>,
 }
 
-struct Resolved {
-    item: Entity,
-    throwable: Throwable,
-    origin: (i32, i32),
+/// The shot as it would go now, or why it can't; for the player.
+fn ready(state: &GameState, shot: Shot) -> Result<Ready, String> {
+    match shot {
+        Shot::Throw(item) => {
+            let item = item
+                .find(&state.world, &held(state))
+                .ok_or_else(|| "You do not have that.".to_string())?;
+            ready_throw(state, state.player, item)
+        }
+        Shot::Fire => ready_fire(state, state.player),
+    }
 }
 
-fn resolve(state: &GameState, shot: Shot) -> Option<Resolved> {
-    let Shot::Throw(item) = shot;
-    let item = item.find(&state.world, &held(state))?;
-    let throwable = *state.world.get::<&Throwable>(item).ok()?;
-    let origin = state
-        .world
-        .get::<&Position>(state.player)
-        .ok()
-        .map(|pos| (pos.x, pos.y))?;
-    Some(Resolved {
-        item,
-        throwable,
-        origin,
-    })
+fn origin(state: &GameState) -> Option<(i32, i32)> {
+    let at = state.world.get::<&Position>(state.player).ok()?;
+    Some((at.x, at.y))
+}
+
+/// What pressing "fire" should do now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FireStep {
+    /// Aim with `Shot::Fire`.
+    Aim,
+    /// The bow has no arrow ready but the pack has one: nock it first (a
+    /// turn), then fire.
+    Nock(ItemRef),
+    /// Can't shoot, and nothing to do about it.
+    Cannot(&'static str),
+}
+
+pub fn fire_step(state: &GameState) -> FireStep {
+    let world = &state.world;
+    let Some((_, launcher)) = ammo::wielded_launcher(world, state.player) else {
+        return FireStep::Cannot("You have nothing to fire.");
+    };
+    if ready_fire(state, state.player).is_ok() {
+        return FireStep::Aim;
+    }
+    match ammo::loose_ammo(world, state.player, launcher.ammo).and_then(|a| ItemRef::of(world, a)) {
+        Some(arrow) => FireStep::Nock(arrow),
+        None => FireStep::Cannot("You have no arrows."),
+    }
 }
 
 /// Living hostiles the player can see and the shot could reach, nearest
 /// first (ties by row, then column): where a cursor should start and cycle.
 pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
-    let Some(resolved) = resolve(state, shot) else {
+    let (Ok(ready), Some(origin)) = (ready(state, shot), origin(state)) else {
         return Vec::new();
     };
     let mut targets: Vec<(i32, i32)> = state
@@ -69,35 +92,28 @@ pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
         .iter()
         .map(|pos| (pos.x, pos.y))
         .filter(|&at| {
-            distance(resolved.origin, at) <= resolved.throwable.range
+            distance(origin, at) <= ready.range
                 && state.visible.get(at.0, at.1).copied().unwrap_or(false)
         })
         .collect();
-    targets.sort_by_key(|&(x, y)| (distance(resolved.origin, (x, y)), y, x));
+    targets.sort_by_key(|&(x, y)| (distance(origin, (x, y)), y, x));
     targets
 }
 
-/// Where the player stands and how far `shot` reaches; `None` if the shot is
-/// no longer available (the item is gone).
+/// Where the player stands and how far `shot` reaches; `None` if the shot
+/// is not available (no such item, no arrow).
 pub fn aim_range(state: &GameState, shot: Shot) -> Option<((i32, i32), i32)> {
-    let resolved = resolve(state, shot)?;
-    Some((resolved.origin, resolved.throwable.range))
+    Some((origin(state)?, ready(state, shot).ok()?.range))
 }
 
-/// What a shot at `at` would do; `None` if the shot is no longer available.
+/// What a shot at `at` would do; `None` if the shot is not available.
 pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
-    let resolved = resolve(state, shot)?;
-    let strike = throw_strike(&state.world, state.player, resolved.item)?;
-    let flight = flight(
-        state,
-        state.player,
-        resolved.origin,
-        at,
-        resolved.throwable.range,
-    );
-    let (low, high) = strike.range();
+    let ready = ready(state, shot).ok()?;
+    let origin = origin(state)?;
+    let flight = flight(state, state.player, origin, at, ready.range);
+    let (low, high) = ready.strike.range();
     let resisted = flight.hit.map_or(0, |target| {
-        total_armor(&state.world, target).against(strike.types)
+        total_armor(&state.world, target).against(ready.strike.types)
     });
     let target = flight.hit.map(|target| {
         state
@@ -106,21 +122,22 @@ pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
             .map_or_else(|_| "creature".to_string(), |name| name.0.clone())
     });
     Some(Aim {
-        origin: resolved.origin,
-        range: resolved.throwable.range,
+        origin,
+        range: ready.range,
         path: flight.path,
         landing: flight.landing,
         target,
         damage: ((low - resisted).max(0), (high - resisted).max(0)),
-        types: strike.types,
-        problem: check_throw(state, state.player, resolved.item, at).err(),
+        types: ready.strike.types,
+        problem: check(state, state.player, &ready, at).err(),
     })
 }
-
 #[cfg(test)]
 mod tests {
+    use hecs::Entity;
+
     use super::*;
-    use crate::entity::{DamageType, Stat};
+    use crate::entity::{AmmoKind, DamageType, Stat};
     use crate::state::tests::bare_state;
     use crate::testkit::{see_everything, thing};
 
@@ -188,5 +205,67 @@ mod tests {
         state.visible.set(3, 1, false);
         let hidden = aim(&state, shot, (3, 1)).unwrap();
         assert_eq!(hidden.problem.as_deref(), Some("You can't see that spot."));
+    }
+    fn bow(state: &mut GameState) {
+        thing("bow")
+            .item()
+            .launcher(8, AmmoKind::Arrow, Stat::Agility)
+            .equipped_on(state.player, 3)
+            .make(state);
+    }
+
+    fn arrow() -> crate::spawn::Spawn {
+        thing("arrow")
+            .item()
+            .ammo(AmmoKind::Arrow)
+            .projectile(2, 2, &[DamageType::Piercing], 0)
+    }
+
+    #[test]
+    fn pressing_fire_aims_nocks_or_explains() {
+        let mut state = bare_state();
+        assert_eq!(
+            fire_step(&state),
+            FireStep::Cannot("You have nothing to fire.")
+        );
+
+        bow(&mut state);
+        assert_eq!(fire_step(&state), FireStep::Cannot("You have no arrows."));
+
+        let loose = arrow().carried_by(state.player).make(&mut state);
+        let loose = ItemRef::of(&state.world, loose).unwrap();
+        assert_eq!(fire_step(&state), FireStep::Nock(loose));
+
+        thing("quiver")
+            .item()
+            .quiver(AmmoKind::Arrow, 5)
+            .equipped_on(state.player, 2)
+            .make(&mut state);
+        assert_eq!(
+            fire_step(&state),
+            FireStep::Nock(loose),
+            "an empty quiver supplies nothing"
+        );
+    }
+
+    #[test]
+    fn a_fire_aim_previews_the_next_arrow() {
+        let mut state = bare_state();
+        bow(&mut state);
+        let quiver = thing("quiver")
+            .item()
+            .quiver(AmmoKind::Arrow, 5)
+            .equipped_on(state.player, 2)
+            .make(&mut state);
+        let arrow = arrow().make(&mut state);
+        crate::holding::stow(&mut state.world, quiver, arrow);
+        goblin(&mut state, 4, 1);
+        see_everything(&mut state);
+
+        assert_eq!(fire_step(&state), FireStep::Aim);
+        assert_eq!(aim_targets(&state, Shot::Fire), [(4, 1)]);
+        let aim = aim(&state, Shot::Fire, (4, 1)).unwrap();
+        assert_eq!((aim.range, aim.damage), (8, (2, 2)));
+        assert_eq!(aim.target.as_deref(), Some("goblin"));
     }
 }

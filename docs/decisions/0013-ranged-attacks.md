@@ -28,11 +28,32 @@ or the rendering seam.
   melee event.
 - The player may only aim at tiles in view.
 
+### Launchers and ammunition
+
+- `Launcher { range, ammo, stat }` on a bow; `Ammo(kind)` and `Projectile
+  { min, max, types, break_bp }` on arrows. The shot rolls the arrow's dice
+  plus the shooter's stat modifier, and the arrow's own kinds resist as in
+  ADR 0012. A hit may break the arrow (a second combat-stream draw); a miss
+  never does.
+- **Loose arrows are single entities and don't stack.** A `Quiver` (worn on
+  the back) is the only place they do: its arrows are the entities in its
+  own `Inventory`. Reusing `Inventory` means they are inert, saved and
+  despawned with it for free. Picking ammunition up fills an equipped
+  quiver before the pack; `Command::Quiver` moves loose ones in by hand.
+- **A nocked arrow is the one thing in the launcher's own `Inventory`.**
+  `Fire` uses it first, else the next arrow in an equipped quiver. So
+  `Command::Nock` fetches a special arrow from the pack, even with a full
+  quiver; it costs its own turn (`cost::NOCK`), which is the price of
+  overriding the quiver. Unequipping the bow returns the arrow to the pack.
+- With no nocked arrow and no quiver supply, pressing fire in `term` nocks a
+  loose arrow first (a turn); a second press aims.
+- The player starts with a short bow and a quiver of 12 arrows.
+
 ## Consequences
 
 - Thrown items are not lost: they land as found floor items and can be
   picked up again (auto-explore's item memory covers them).
 - A knife that is both `Weapon` and `Throwable` has independent dice, so
   versatility is tuned in data.
-- `SAVE_VERSION` 9 (new `Throwable` component).
+- `SAVE_VERSION` 10 (`Throwable`, `Ammo`, `Projectile`, `Launcher`, `Quiver`).
 - AI does not throw or shoot yet.

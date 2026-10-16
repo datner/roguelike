@@ -6,8 +6,8 @@ use hecs::{Entity, World};
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Appearance, Armor, Body, DamageTypes, Equippable, Health, Name, PartKind, SpawnSeq, Speed,
-    Stats, Throwable,
+    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
+    Quiver, SpawnSeq, Speed, Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -42,6 +42,28 @@ pub struct ItemView {
     pub fg: Rgb,
     /// The kind of body part it can be equipped on, if any.
     pub fits: Option<PartKind>,
+    /// Loose ammunition: it can be nocked or put in a quiver.
+    pub ammo: bool,
+    /// What it holds, to show beside the name: a quiver's arrows, a bow's
+    /// nocked arrow.
+    pub note: Option<String>,
+}
+
+/// A quiver's load or a launcher's nocked arrow, for display.
+fn note(world: &World, item: Entity) -> Option<String> {
+    if let Ok(quiver) = world.get::<&Quiver>(item) {
+        return Some(format!(
+            "{}/{}",
+            holding::carried(world, item).len(),
+            quiver.capacity
+        ));
+    }
+    if world.satisfies::<&Launcher>(item) {
+        let arrow = holding::carried(world, item).into_iter().next()?;
+        let name = world.get::<&Name>(arrow).ok()?;
+        return Some(format!("nocked: {}", name.0));
+    }
+    None
 }
 
 impl ItemView {
@@ -58,6 +80,8 @@ impl ItemView {
             glyph,
             fg,
             fits: world.get::<&Equippable>(item).ok().map(|e| e.part),
+            ammo: world.satisfies::<&Ammo>(item),
+            note: note(world, item),
         })
     }
 }

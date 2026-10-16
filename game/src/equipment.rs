@@ -4,6 +4,7 @@
 
 use hecs::{Entity, World};
 
+use crate::ammo;
 use crate::entity::{Body, BodyPart, Equippable, EquippedOn, PartKind};
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
@@ -116,6 +117,7 @@ pub(crate) fn unequip(state: &mut GameState, actor: Entity, item: Entity) {
     }
     holding::take_off(&mut state.world, actor, item);
     holding::stow(&mut state.world, actor, item);
+    ammo::return_nocked(&mut state.world, actor, item);
     let you = Subject::of(&state.world, actor);
     let what = Subject::of(&state.world, item);
     state.log.push(you.sentence("unequip", what.noun()));

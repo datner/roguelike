@@ -152,6 +152,24 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 item,
             }
         }
+        PlayerAction::Fire { at } => Command::Fire { actor: player, at },
+        PlayerAction::Nock(arrow) | PlayerAction::Quiver(arrow) => {
+            let Some(found) = arrow.find(&state.world, &carried(state)) else {
+                state.log.push("You do not carry that.");
+                return;
+            };
+            if matches!(action, PlayerAction::Nock(_)) {
+                Command::Nock {
+                    actor: player,
+                    arrow: found,
+                }
+            } else {
+                Command::Quiver {
+                    actor: player,
+                    arrow: found,
+                }
+            }
+        }
         PlayerAction::Throw { item, at } => {
             let Some(item) = item.find(&state.world, &held(state)) else {
                 state.log.push("You do not have that.");
@@ -524,7 +542,10 @@ mod tests {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::PickUp => PlayerAction::PickUp,
-                InputEvent::Inventory | InputEvent::Equipment | InputEvent::Throw => continue,
+                InputEvent::Inventory
+                | InputEvent::Equipment
+                | InputEvent::Throw
+                | InputEvent::Fire => continue,
                 InputEvent::CycleExploreItems => {
                     crate::explore::cycle_explore_items(&mut state);
                     continue;

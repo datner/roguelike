@@ -10,7 +10,8 @@ use rand_pcg::Pcg64;
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{
-    Armor, DamageType, DamageTypes, Health, Melee, OnHit, Stat, Stats, Throwable, Weapon,
+    Armor, DamageType, DamageTypes, Health, Launcher, Melee, OnHit, Projectile, Stat, Stats,
+    Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
@@ -165,6 +166,30 @@ pub(crate) fn roll_strike(rng: &mut Pcg64, strike: Strike) -> Hit {
         amount: (roll + strike.bonus).max(0),
         types: strike.types,
     }
+}
+
+/// How `shooter` fires `arrow` from `launcher`: the ammunition's dice and
+/// kinds, plus the shooter's modifier for the launcher's stat; and the
+/// arrow's chance (out of 10 000) to break on a hit. `None` if `arrow` is
+/// not a projectile.
+pub(crate) fn fire_strike(
+    world: &World,
+    shooter: Entity,
+    launcher: Launcher,
+    arrow: Entity,
+) -> Option<(Strike, u32)> {
+    let projectile = *world.get::<&Projectile>(arrow).ok()?;
+    let bonus = world
+        .get::<&Stats>(shooter)
+        .map_or(0, |stats| stats.modifier(launcher.stat));
+    let strike = Strike {
+        min: projectile.min,
+        max: projectile.max,
+        bonus,
+        types: projectile.types,
+        weapon: None,
+    };
+    Some((strike, projectile.break_bp))
 }
 
 /// How `thrower` hurls `missile`: its `Throwable` dice plus the thrower's

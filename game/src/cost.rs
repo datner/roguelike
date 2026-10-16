@@ -22,6 +22,11 @@ pub const DROP: i64 = STANDARD;
 pub const EQUIP: i64 = STANDARD;
 pub const UNEQUIP: i64 = STANDARD;
 pub const THROW: i64 = STANDARD;
+pub const FIRE: i64 = STANDARD;
+/// Fetching a special arrow from the pack: the price of overriding the
+/// quiver (ADR 0013).
+pub const NOCK: i64 = STANDARD;
+pub const QUIVER: i64 = STANDARD;
 
 /// The actor that pays for `command`, and how much. `None` for commands that
 /// are consequences of an action (`Attack` from a bump, damage, death…)
@@ -35,6 +40,9 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::Equip { actor, .. } => Some((actor, EQUIP)),
         Command::Unequip { actor, .. } => Some((actor, UNEQUIP)),
         Command::Throw { actor, .. } => Some((actor, THROW)),
+        Command::Fire { actor, .. } => Some((actor, FIRE)),
+        Command::Nock { actor, .. } => Some((actor, NOCK)),
+        Command::Quiver { actor, .. } => Some((actor, QUIVER)),
         _ => None,
     }
 }

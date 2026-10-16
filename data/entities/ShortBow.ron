@@ -1,0 +1,11 @@
+// Shoots arrows from the quiver on your back, or one you nocked by hand.
+// Not a melee weapon: wielding it, you still punch.
+(
+    components: [
+        Name("short bow"),
+        Appearance(glyph: '}', fg: (160, 110, 60), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Hand),
+        Launcher(range: 9, ammo: Arrow, stat: Agility),
+    ],
+)

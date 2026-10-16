@@ -22,7 +22,7 @@ pub(crate) enum Held {
     Attached(Entity),
     #[cfg(test)]
     Equipped(Entity, u32),
-    #[cfg(test)]
+    /// In the owner's `Inventory`, or a quiver's or launcher's.
     Carried(Entity),
 }
 
@@ -73,6 +73,12 @@ impl Spawn {
 
     pub(crate) fn attached_to(mut self, owner: Entity) -> Self {
         self.held = Some(Held::Attached(owner));
+        self
+    }
+
+    /// Carried by `owner` (inert), or in the quiver or launcher `owner` is.
+    pub(crate) fn carried_by(mut self, owner: Entity) -> Self {
+        self.held = Some(Held::Carried(owner));
         self
     }
 }

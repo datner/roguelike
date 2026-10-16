@@ -130,6 +130,7 @@ impl Aiming {
 fn action(shot: Shot, at: (i32, i32)) -> PlayerAction {
     match shot {
         Shot::Throw(item) => PlayerAction::Throw { item, at },
+        Shot::Fire => PlayerAction::Fire { at },
     }
 }
 
@@ -138,7 +139,11 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
     let Some(shot) = aim(state, aiming.shot, aiming.cursor) else {
         return "Nothing to aim.".to_string();
     };
-    let keys = "Enter: throw  Tab: next target  Esc: cancel";
+    let verb = match aiming.shot {
+        Shot::Throw(_) => "throw",
+        Shot::Fire => "fire",
+    };
+    let keys = format!("Enter: {verb}  Tab: next target  Esc: cancel");
     if let Some(problem) = shot.problem {
         return format!("{problem}  {keys}");
     }
@@ -202,6 +207,8 @@ mod tests {
             glyph: '/',
             fg: Rgb(1, 2, 3),
             fits: None,
+            ammo: false,
+            note: None,
         }
     }
 

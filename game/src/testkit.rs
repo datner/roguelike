@@ -7,8 +7,9 @@ use hecs::Entity;
 
 use crate::cell::Rgb;
 use crate::entity::{
-    Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health, Hostile, Item,
-    Melee, Name, PartKind, SpawnSeq, Speed, Stat, Stats, Throwable, Weapon,
+    Ammo, AmmoKind, Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health,
+    Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, SpawnSeq, Speed, Stat,
+    Stats, Throwable, Weapon,
 };
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
@@ -74,6 +75,33 @@ impl Spawn {
         })
     }
 
+    pub(crate) fn launcher(self, range: i32, ammo: AmmoKind, stat: Stat) -> Self {
+        self.with(Launcher { range, ammo, stat })
+    }
+
+    pub(crate) fn quiver(self, ammo: AmmoKind, capacity: u32) -> Self {
+        self.with(Quiver { ammo, capacity })
+    }
+
+    pub(crate) fn ammo(self, kind: AmmoKind) -> Self {
+        self.with(Ammo(kind))
+    }
+
+    pub(crate) fn projectile(
+        self,
+        min: i32,
+        max: i32,
+        types: &[DamageType],
+        break_bp: u32,
+    ) -> Self {
+        self.with(Projectile {
+            min,
+            max,
+            types: DamageTypes::of(types),
+            break_bp,
+        })
+    }
+
     pub(crate) fn armor(self, av: i32) -> Self {
         self.with(Armor::uniform(av))
     }
@@ -114,12 +142,6 @@ impl Spawn {
     /// Equipped by `owner` on body part `part`.
     pub(crate) fn equipped_on(mut self, owner: Entity, part: u32) -> Self {
         self.held = Some(Held::Equipped(owner, part));
-        self
-    }
-
-    /// In `owner`'s inventory.
-    pub(crate) fn carried_by(mut self, owner: Entity) -> Self {
-        self.held = Some(Held::Carried(owner));
         self
     }
 }

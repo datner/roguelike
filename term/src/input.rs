@@ -23,6 +23,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('i') => Some(InputEvent::Inventory),
         KeyCode::Char('e') => Some(InputEvent::Equipment),
         KeyCode::Char('t') => Some(InputEvent::Throw),
+        KeyCode::Char('f') => Some(InputEvent::Fire),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
         _ => None,
     }
@@ -35,6 +36,10 @@ pub enum OverlayInput {
     Down,
     Select,
     Drop,
+    /// Nock the selected arrow on the wielded bow.
+    Nock,
+    /// Put the selected arrow in an equipped quiver.
+    Quiver,
     Close,
     /// Show the inventory view, or close if it is showing.
     Inventory,
@@ -52,6 +57,8 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Down | KeyCode::Char('j') => Some(OverlayInput::Down),
         KeyCode::Enter => Some(OverlayInput::Select),
         KeyCode::Char('d') => Some(OverlayInput::Drop),
+        KeyCode::Char('n') => Some(OverlayInput::Nock),
+        KeyCode::Char('v') => Some(OverlayInput::Quiver),
         KeyCode::Esc | KeyCode::Char('q') => Some(OverlayInput::Close),
         KeyCode::Char('i') => Some(OverlayInput::Inventory),
         KeyCode::Char('e') => Some(OverlayInput::Equipment),

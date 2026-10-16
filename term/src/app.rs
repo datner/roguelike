@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use game::{
-    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items,
-    equipment_view, explore_step, inventory_view, random_seed, render_view, take_turn, throwables,
+    Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
+    cycle_explore_items, equipment_view, explore_step, fire_step, inventory_view, random_seed,
+    render_view, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -216,6 +217,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                         modal = Some(Modal::Overlay(Overlay::new(Tab::Equipment)))
                     }
                     InputEvent::Throw => modal = start_throw(state),
+                    InputEvent::Fire => modal = start_fire(state),
                 }
             }
             Event::Resize(_, _) => {}
@@ -231,6 +233,22 @@ enum Modal {
     /// Picking what to throw.
     Choose(Chooser),
     Aim(Aiming),
+}
+
+/// Pressing fire: aim if an arrow is ready, nock one first (a turn) if only
+/// the pack has them, otherwise say why not.
+fn start_fire(state: &mut GameState) -> Option<Modal> {
+    match fire_step(state) {
+        FireStep::Aim => Aiming::new(state, Shot::Fire).map(Modal::Aim),
+        FireStep::Nock(arrow) => {
+            take_turn(state, PlayerAction::Nock(arrow));
+            None
+        }
+        FireStep::Cannot(why) => {
+            state.log.push(why);
+            None
+        }
+    }
 }
 
 /// Straight to aiming with the only throwable; a list if there are several;
@@ -380,6 +398,44 @@ mod tests {
         let panel: String = rows[..20].concat();
         assert_eq!(panel.matches('☺').count(), 1);
         assert!(panel.contains('#') && panel.contains('.'));
+    }
+
+    #[test]
+    fn a_new_game_starts_with_a_bow_and_a_stocked_quiver() {
+        let state = state();
+        assert_eq!(fire_step(&state), FireStep::Aim);
+        let worn: Vec<(String, Option<String>)> = equipment_view(&state)
+            .into_iter()
+            .filter_map(|part| part.item)
+            .map(|item| (item.name, item.note))
+            .collect();
+        assert_eq!(
+            worn,
+            [
+                ("quiver".to_string(), Some("12/20".to_string())),
+                ("short bow".to_string(), None)
+            ]
+        );
+    }
+
+    #[test]
+    fn aiming_marks_the_cursor_and_describes_the_shot_in_the_status_bar() {
+        let state = state();
+        let aiming = Aiming::new(&state, Shot::Fire).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Aim(aiming))))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        // Nothing in view at the start: the cursor rests on the player, centred.
+        let cursor = buffer.cell((30, 10)).unwrap();
+        assert_eq!(cursor.symbol(), "☺");
+        assert!(cursor.modifier.contains(ratatui::style::Modifier::REVERSED));
+        let status: String = (27..30)
+            .flat_map(|y| (0..60).map(move |x| (x, y)))
+            .map(|at| buffer.cell(at).unwrap().symbol())
+            .collect();
+        assert!(status.contains("Enter: fire"), "{status}");
     }
 
     #[test]

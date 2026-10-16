@@ -204,6 +204,48 @@ pub struct Throwable {
     pub types: DamageTypes,
 }
 
+/// What a launcher shoots and a quiver holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AmmoKind {
+    Arrow,
+}
+
+/// Item part: a loose piece of ammunition. Anything with this can be nocked
+/// or put in a quiver of its kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ammo(pub AmmoKind);
+
+/// Item part on ammunition: what it does when it hits. `break_bp` is the
+/// chance (out of 10 000) that it is lost when it hits a creature; one that
+/// misses always lands intact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Projectile {
+    pub min: i32,
+    pub max: i32,
+    pub types: DamageTypes,
+    pub break_bp: u32,
+}
+
+/// Item part: fires `ammo` up to `range` tiles when equipped. The shot
+/// rolls the ammunition's dice plus the shooter's `stat` modifier. A nocked
+/// arrow is the one thing in the launcher's own `Inventory`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Launcher {
+    pub range: i32,
+    pub ammo: AmmoKind,
+    pub stat: Stat,
+}
+
+/// Item part: while equipped, a quiver supplies a launcher's shots. Its
+/// arrows are the entities in its own `Inventory`, so they stay inert, are
+/// saved and despawn with it. Loose ammunition does not stack; this is the
+/// only place it does (ADR 0013).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Quiver {
+    pub ammo: AmmoKind,
+    pub capacity: u32,
+}
+
 /// Item part: when equipped, melee hits roll this instead of the wielder's
 /// natural `Melee`, plus the wielder's `stat` modifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

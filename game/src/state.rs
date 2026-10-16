@@ -11,7 +11,7 @@ use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Energy, Item, Position, SpawnSeq, Speed};
+use crate::entity::{Appearance, Energy, Item, Position, Quiver, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -29,6 +29,9 @@ pub const GOBLIN_MIN_DISTANCE: i32 = 12;
 /// Items scattered on the floor of a new zone, each drawn from
 /// `Blueprints::items` (fewer if the cave has no room or there are none).
 pub const FLOOR_ITEMS: usize = 5;
+
+/// Arrows the player starts with in their quiver.
+pub const STARTING_ARROWS: usize = 12;
 /// Closest an item may start to the player, in steps, so finding one means
 /// leaving the starting spot.
 pub const ITEM_MIN_DISTANCE: i32 = 4;
@@ -114,6 +117,22 @@ impl GameState {
         let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
         place_exit(&mut map, (x, y));
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
+    }
+
+    /// Arrows in the player's quiver at the start: a bow is no use without,
+    /// and no RNG is drawn, so seeded worlds are unchanged by it.
+    fn stock_quivers(&mut self) -> Result<(), BlueprintError> {
+        let quivers: Vec<Entity> = crate::equipment::equipped(&self.world, self.player)
+            .into_iter()
+            .map(|(item, _)| item)
+            .filter(|&item| self.world.satisfies::<&Quiver>(item))
+            .collect();
+        for quiver in quivers {
+            for _ in 0..STARTING_ARROWS {
+                self.spawn(Spawn::blueprint("Arrow").carried_by(quiver))?;
+            }
+        }
+        Ok(())
     }
 
     fn populate(&mut self) -> Result<(), BlueprintError> {
@@ -208,6 +227,7 @@ impl GameState {
             explore_items: ExploreItems::default(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
+        state.stock_quivers()?;
         fov::update(&mut state);
         Ok(state)
     }
@@ -241,7 +261,6 @@ impl GameState {
             Some(Held::Attached(owner)) => holding::attach(world, owner, entity),
             #[cfg(test)]
             Some(Held::Equipped(owner, part)) => holding::put_on(world, owner, entity, part),
-            #[cfg(test)]
             Some(Held::Carried(owner)) => holding::stow(world, owner, entity),
             None => {}
         }

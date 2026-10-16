@@ -22,6 +22,7 @@ can't show at a glance.
 - `fov.rs` — refreshed once per player turn, never per actor; AI sight reuses it (ADR 0007).
 - `save.rs` — a new component needs a `ComponentKind` and a `SavedComponent` variant (remap any `Entity`/`BlueprintId` both ways); any format change bumps `SAVE_VERSION` (ADR 0008).
 - `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.
+- `ammo.rs` — a nocked arrow is the launcher's own `Inventory`, a quiver's arrows are the quiver's: never add a new holder list for them. `Fire` takes the nocked arrow first, then an *equipped* quiver.
 - `ranged.rs`/`aim.rs` — flight is `ranged::flight` (a line, first creature or wall wins); `aim` previews through the same functions the command uses, so keep them shared (ADR 0013). Missile damage is untyped by `AfterHit`: only melee fires it.
 - `ai.rs` — all perception goes through `can_see_player` (ADR 0007).
 - `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.

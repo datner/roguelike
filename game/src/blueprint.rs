@@ -21,9 +21,9 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable, Health,
-    Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Speed, Stats, Throwable,
-    Weapon,
+    Ammo, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Duration, Equippable,
+    Health, Hostile, Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Projectile,
+    Quiver, Speed, Stats, Throwable, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -53,6 +53,10 @@ pub enum ComponentDef {
     Stats(Stats),
     Weapon(Weapon),
     Throwable(Throwable),
+    Ammo(Ammo),
+    Projectile(Projectile),
+    Launcher(Launcher),
+    Quiver(Quiver),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -83,6 +87,10 @@ impl ComponentDef {
             ComponentDef::Stats(c) => builder.add(c),
             ComponentDef::Weapon(c) => builder.add(c),
             ComponentDef::Throwable(c) => builder.add(c),
+            ComponentDef::Ammo(c) => builder.add(c),
+            ComponentDef::Projectile(c) => builder.add(c),
+            ComponentDef::Launcher(c) => builder.add(c),
+            ComponentDef::Quiver(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.

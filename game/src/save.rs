@@ -14,9 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration, EffectTarget,
-    Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit,
-    OnHitEntry, Player, Position, SpawnSeq, Speed, Stats, Throwable, Timed, Weapon,
+    Ammo, Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, Dead, Duration,
+    EffectTarget, Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item,
+    Launcher, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver, SpawnSeq,
+    Speed, Stats, Throwable, Timed, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -26,7 +27,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 9;
+pub const SAVE_VERSION: u32 = 10;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -184,6 +185,10 @@ enum ComponentKind {
     Stats,
     Weapon,
     Throwable,
+    Ammo,
+    Projectile,
+    Launcher,
+    Quiver,
     Duration,
     Timed,
     EffectTarget,
@@ -192,7 +197,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 28] = [
+    const ALL: [ComponentKind; 32] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -216,6 +221,10 @@ impl ComponentKind {
         Self::Stats,
         Self::Weapon,
         Self::Throwable,
+        Self::Ammo,
+        Self::Projectile,
+        Self::Launcher,
+        Self::Quiver,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -251,6 +260,10 @@ enum SavedComponent {
     Stats(Stats),
     Weapon(Weapon),
     Throwable(Throwable),
+    Ammo(Ammo),
+    Projectile(Projectile),
+    Launcher(Launcher),
+    Quiver(Quiver),
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -508,6 +521,10 @@ fn save_component(
         ComponentKind::Stats => copy(entity).map(S::Stats),
         ComponentKind::Weapon => copy(entity).map(S::Weapon),
         ComponentKind::Throwable => copy(entity).map(S::Throwable),
+        ComponentKind::Ammo => copy(entity).map(S::Ammo),
+        ComponentKind::Projectile => copy(entity).map(S::Projectile),
+        ComponentKind::Launcher => copy(entity).map(S::Launcher),
+        ComponentKind::Quiver => copy(entity).map(S::Quiver),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -571,6 +588,10 @@ fn load_component(
         S::Stats(c) => builder.add(c),
         S::Weapon(c) => builder.add(c),
         S::Throwable(c) => builder.add(c),
+        S::Ammo(c) => builder.add(c),
+        S::Projectile(c) => builder.add(c),
+        S::Launcher(c) => builder.add(c),
+        S::Quiver(c) => builder.add(c),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
@@ -775,6 +796,55 @@ mod tests {
         let loaded = reload(&state, test_blueprints());
         assert_eq!(names(&loaded), ["first", "second"]);
         assert_eq!(loaded.explore_items, crate::explore::ExploreItems::PickUp);
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn a_quiver_its_arrows_and_a_nocked_arrow_survive_a_round_trip() {
+        use crate::entity::{Ammo, AmmoKind, Launcher, Projectile, Quiver};
+        let mut state = bare_state();
+        let arrow = || {
+            thing("arrow").item().ammo(AmmoKind::Arrow).projectile(
+                1,
+                3,
+                &[DamageType::Piercing],
+                2500,
+            )
+        };
+        let bow = thing("bow")
+            .item()
+            .launcher(8, AmmoKind::Arrow, Stat::Agility)
+            .equipped_on(state.player, 3)
+            .make(&mut state);
+        let quiver = thing("quiver")
+            .item()
+            .quiver(AmmoKind::Arrow, 10)
+            .equipped_on(state.player, 2)
+            .make(&mut state);
+        for _ in 0..2 {
+            let loaded = arrow().make(&mut state);
+            crate::holding::stow(&mut state.world, quiver, loaded);
+        }
+        let nocked = arrow().make(&mut state);
+        crate::holding::stow(&mut state.world, bow, nocked);
+
+        let loaded = reload(&state, test_blueprints());
+        let worn = crate::equipment::equipped(&loaded.world, loaded.player);
+        let find = |has: fn(&hecs::World, hecs::Entity) -> bool| {
+            worn.iter()
+                .map(|&(item, _)| item)
+                .find(|&item| has(&loaded.world, item))
+        };
+        let bow = find(|w, e| w.satisfies::<&Launcher>(e)).unwrap();
+        let quiver = find(|w, e| w.satisfies::<&Quiver>(e)).unwrap();
+        assert_eq!(crate::holding::carried(&loaded.world, quiver).len(), 2);
+        let nocked = crate::holding::carried(&loaded.world, bow);
+        assert_eq!(nocked.len(), 1);
+        assert!(loaded.world.satisfies::<&Ammo>(nocked[0]));
+        assert_eq!(
+            loaded.world.get::<&Projectile>(nocked[0]).unwrap().break_bp,
+            2500
+        );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }
 

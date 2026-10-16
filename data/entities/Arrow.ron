@@ -1,0 +1,11 @@
+// Ammunition for a bow. One piercing arrow; loose ones don't stack, a quiver
+// holds them. A hit may snap it: a miss never does.
+(
+    components: [
+        Name("arrow"),
+        Appearance(glyph: '-', fg: (200, 180, 130), bg: (0, 0, 0)),
+        Item,
+        Ammo(Arrow),
+        Projectile(min: 2, max: 4, types: [Piercing], break_bp: 2500),
+    ],
+)

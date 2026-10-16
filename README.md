@@ -33,6 +33,14 @@ This is a Cargo workspace with two crates:
   - Stats and weapons (ADR 0011): creatures have Strength and Agility; a
     hit rolls the wielded weapon's dice (or natural melee) plus the
     modifier of the stat that weapon uses. `character_sheet` sums it up.
+  - Damage types and armor (ADR 0012): blows are slashing, blunt or
+    piercing (a set; punches are blunt), armor resists each kind, and a
+    blow of several kinds goes through the weakest spot.
+  - Ranged attacks (ADR 0013): throw a `Throwable` or shoot a `Launcher`
+    at a tile; the missile flies a straight line to the first creature or
+    wall. `aim` previews a shot for frontends. A quiver holds arrows and
+    supplies the bow; a nocked arrow overrides it. You start with a short
+    bow and 12 arrows.
   - Auto-explore: `explore_step` walks the player, one turn at a time,
     to the nearest unfound item they know of, then to unexplored ground,
     then to the exit, stopping as soon as a hostile is in view.
@@ -97,6 +105,8 @@ In game:
   views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
   view's key again also closes).
   - Inventory: `Enter` equips on the first part that fits, `d` drops.
+    On an arrow: `n` nocks it on your bow (a turn, and it overrides the
+    quiver: use it for special arrows), `v` puts it in your quiver.
   - Equipment: one row per body part. `Enter` on a filled part unequips;
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).
@@ -108,6 +118,11 @@ In game:
   or `Space` throws, `Esc`/`q` cancels. The path is marked and the status
   bar shows the damage after armor; the missile hits the first creature on
   the line and lands there (or before a wall), ready to pick up again.
+- `f`: fire the bow you wield, with the nocked arrow, else the next one
+  from your quiver; aiming works as for `t`. With neither, a loose arrow
+  in your pack is nocked first (one turn), then `f` again aims. Arrows that
+  miss land intact; ones that hit may break. Arrows you pick up fill your
+  quiver first.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

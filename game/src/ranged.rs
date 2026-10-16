@@ -3,12 +3,15 @@
 //! an attack always hits whoever is first in line.
 
 use hecs::Entity;
+use rand::RngExt;
 
-use crate::combat::{roll_strike, throw_strike};
+use crate::ammo;
+use crate::combat::{Strike, fire_strike, roll_strike, throw_strike};
 use crate::command::{Command, DamageCause};
+use crate::effect::BASIS_POINTS;
 use crate::entity::{Dead, EquippedOn, Found, Health, Position, Throwable};
 use crate::equipment;
-use crate::grammar::Subject;
+use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::map::Tile;
 use crate::state::GameState;
@@ -95,32 +98,86 @@ pub(crate) fn flight(
     }
 }
 
-/// Whether `actor` may throw `item` at `at` right now. The player can only
-/// aim at tiles in view. Shared by `reject_input` and the aiming view, so
-/// what the preview allows is what the command allows.
-pub(crate) fn check_throw(
-    state: &GameState,
-    actor: Entity,
-    item: Entity,
-    at: (i32, i32),
-) -> Result<(), String> {
-    let held = holding::carried(&state.world, actor).contains(&item)
-        || equipment::equipped(&state.world, actor)
+/// A missile ready to leave the shooter: what flies, how it hurts and how
+/// far it goes. Built the same way for the command and for the aiming
+/// preview, so they cannot disagree.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Ready {
+    pub missile: Entity,
+    pub strike: Strike,
+    pub range: i32,
+    /// Where the missile comes from: a launcher or quiver, or `None` for
+    /// the shooter's own hands (carried or equipped).
+    container: Option<Entity>,
+    verb: &'static str,
+    /// Chance, out of 10 000, that it is lost when it hits a creature.
+    break_bp: Option<u32>,
+}
+
+/// `actor` throwing `item`, which they must hold and which must be throwable.
+pub(crate) fn ready_throw(state: &GameState, actor: Entity, item: Entity) -> Result<Ready, String> {
+    let world = &state.world;
+    let held = holding::carried(world, actor).contains(&item)
+        || equipment::equipped(world, actor)
             .iter()
             .any(|&(worn, _)| worn == item);
     if !held {
         return Err("You do not have that.".to_string());
     }
-    let Ok(throwable) = state.world.get::<&Throwable>(item).map(|t| *t) else {
+    let (Some(strike), Ok(throwable)) = (
+        throw_strike(world, actor, item),
+        world.get::<&Throwable>(item).map(|t| *t),
+    ) else {
         return Err("You can't throw that.".to_string());
     };
-    let Some(from) = state.world.get::<&Position>(actor).ok().map(|p| (p.x, p.y)) else {
-        return Err("You can't throw from nowhere.".to_string());
+    Ok(Ready {
+        missile: item,
+        strike,
+        range: throwable.range,
+        container: None,
+        verb: "throw",
+        break_bp: None,
+    })
+}
+
+/// `actor` firing the launcher they wield with the arrow it would use: the
+/// nocked one, else the next in an equipped quiver.
+pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, String> {
+    let world = &state.world;
+    let Some((launcher, spec)) = ammo::wielded_launcher(world, actor) else {
+        return Err("You have nothing to fire.".to_string());
+    };
+    let Some((arrow, container)) = ammo::next_arrow(world, actor, launcher, spec.ammo) else {
+        return Err("You have no arrows.".to_string());
+    };
+    let Some((strike, break_bp)) = fire_strike(world, actor, spec, arrow) else {
+        return Err("You can't fire that.".to_string());
+    };
+    Ok(Ready {
+        missile: arrow,
+        strike,
+        range: spec.range,
+        container: Some(container),
+        verb: "shoot",
+        break_bp: Some(break_bp),
+    })
+}
+
+/// Whether `ready` may be aimed at `at` right now. The player can only aim
+/// at tiles in view.
+pub(crate) fn check(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    at: (i32, i32),
+) -> Result<(), String> {
+    let Some(from) = position(state, actor) else {
+        return Err("You can't aim from nowhere.".to_string());
     };
     if from == at {
-        return Err("You can't throw at yourself.".to_string());
+        return Err("You can't aim at yourself.".to_string());
     }
-    if distance(from, at) > throwable.range {
+    if distance(from, at) > ready.range {
         return Err("That is out of range.".to_string());
     }
     if actor == state.player && !state.visible.get(at.0, at.1).copied().unwrap_or(false) {
@@ -129,62 +186,102 @@ pub(crate) fn check_throw(
     Ok(())
 }
 
-/// Applies `Command::Throw`: the item leaves its holder and comes to rest
-/// where `flight` says; whoever is first in line takes `DealDamage`. The
-/// damage roll is one combat-stream draw, made only when something is hit.
-pub(crate) fn throw(state: &mut GameState, actor: Entity, item: Entity, at: (i32, i32)) {
-    let Some(from) = state.world.get::<&Position>(actor).ok().map(|p| (p.x, p.y)) else {
-        return;
-    };
-    let (Some(strike), Ok(throwable)) = (
-        throw_strike(&state.world, actor, item),
-        state.world.get::<&Throwable>(item).map(|t| *t),
-    ) else {
-        return;
-    };
-    let flight = flight(state, actor, from, at, throwable.range);
+fn position(state: &GameState, entity: Entity) -> Option<(i32, i32)> {
+    let at = state.world.get::<&Position>(entity).ok()?;
+    Some((at.x, at.y))
+}
 
-    if state.world.satisfies::<&EquippedOn>(item) {
-        holding::take_off(&mut state.world, actor, item);
-    } else {
-        holding::unstow(&mut state.world, actor, item);
+/// Why `Throw` is refused, if it is.
+pub(crate) fn check_throw(
+    state: &GameState,
+    actor: Entity,
+    item: Entity,
+    at: (i32, i32),
+) -> Result<(), String> {
+    check(state, actor, &ready_throw(state, actor, item)?, at)
+}
+
+/// Why `Fire` is refused, if it is.
+pub(crate) fn check_fire(state: &GameState, actor: Entity, at: (i32, i32)) -> Result<(), String> {
+    check(state, actor, &ready_fire(state, actor)?, at)
+}
+
+/// Applies `Command::Throw`.
+pub(crate) fn throw(state: &mut GameState, actor: Entity, item: Entity, at: (i32, i32)) {
+    if let Ok(ready) = ready_throw(state, actor, item) {
+        launch(state, actor, ready, at);
     }
-    let _ = state.world.insert(
-        item,
-        (
-            Position {
-                x: flight.landing.0,
-                y: flight.landing.1,
-            },
-            Found,
-        ),
-    );
+}
+
+/// Applies `Command::Fire`.
+pub(crate) fn fire(state: &mut GameState, actor: Entity, at: (i32, i32)) {
+    if let Ok(ready) = ready_fire(state, actor) {
+        launch(state, actor, ready, at);
+    }
+}
+
+/// Sends `ready` toward `at`: it leaves its holder and comes to rest where
+/// `flight` says, and whoever is first in line takes `DealDamage`. The
+/// damage roll is one combat-stream draw, made only when something is hit;
+/// ammunition then makes a second, for breaking.
+fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
+    let Some(from) = position(state, actor) else {
+        return;
+    };
+    let item = ready.missile;
+    let flight = flight(state, actor, from, at, ready.range);
+
+    match ready.container {
+        Some(container) => holding::unstow(&mut state.world, container, item),
+        None if state.world.satisfies::<&EquippedOn>(item) => {
+            holding::take_off(&mut state.world, actor, item);
+        }
+        None => holding::unstow(&mut state.world, actor, item),
+    }
 
     let what = Subject::of(&state.world, item);
     let aimed = flight.hit.map_or_else(String::new, |target| {
         format!(" at {}", Subject::of(&state.world, target).noun())
     });
     let message =
-        Subject::of(&state.world, actor).sentence("throw", &format!("{}{aimed}", what.noun()));
+        Subject::of(&state.world, actor).sentence(ready.verb, &format!("{}{aimed}", what.noun()));
     state.log.push(message);
 
-    if let Some(target) = flight.hit {
-        let hit = roll_strike(&mut state.rngs.combat, strike);
-        state.commands.push_back(Command::DealDamage {
-            target,
-            amount: hit.amount,
-            cause: DamageCause::Ranged {
-                attacker: actor,
-                types: hit.types,
-            },
-        });
+    let Some(target) = flight.hit else {
+        land(state, item, flight.landing);
+        return;
+    };
+    let hit = roll_strike(&mut state.rngs.combat, ready.strike);
+    let breaks = ready
+        .break_bp
+        .is_some_and(|chance| state.rngs.combat.random_range(0..BASIS_POINTS) < u64::from(chance));
+    if breaks {
+        let _ = state.world.despawn(item);
+        state
+            .log
+            .push(format!("{} breaks.", capitalize(what.noun())));
+    } else {
+        land(state, item, flight.landing);
     }
+    state.commands.push_back(Command::DealDamage {
+        target,
+        amount: hit.amount,
+        cause: DamageCause::Ranged {
+            attacker: actor,
+            types: hit.types,
+        },
+    });
+}
+
+/// Comes to rest on the floor, found: whoever threw it knows where it is.
+fn land(state: &mut GameState, item: Entity, (x, y): (i32, i32)) {
+    let _ = state.world.insert(item, (Position { x, y }, Found));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::{Armor, DamageType, OnHit, OnHitEntry, Stat};
+    use crate::entity::{AmmoKind, Armor, DamageType, OnHit, OnHitEntry, Stat};
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, thing};
@@ -398,7 +495,7 @@ mod tests {
         take_turn(&mut state, PlayerAction::Throw { item, at: (10, 1) });
         assert_eq!(last_log(&state), "That is out of range.");
         take_turn(&mut state, PlayerAction::Throw { item, at: (1, 1) });
-        assert_eq!(last_log(&state), "You can't throw at yourself.");
+        assert_eq!(last_log(&state), "You can't aim at yourself.");
         assert_eq!(state.now, before);
 
         take_turn(&mut state, PlayerAction::Throw { item, at: (4, 1) });
@@ -421,5 +518,180 @@ mod tests {
         };
         assert_eq!(run(7), run(7));
         assert!((1..30).map(run).any(|health| health != run(7)));
+    }
+    fn bow(state: &mut GameState) -> Entity {
+        thing("bow")
+            .item()
+            .launcher(8, AmmoKind::Arrow, Stat::Agility)
+            .equipped_on(state.player, 3)
+            .make(state)
+    }
+
+    fn quiver(state: &mut GameState) -> Entity {
+        thing("quiver")
+            .item()
+            .quiver(AmmoKind::Arrow, 10)
+            .equipped_on(state.player, 2)
+            .make(state)
+    }
+
+    /// An arrow that always rolls `damage` and breaks with chance `break_bp`.
+    fn arrow(damage: i32, break_bp: u32) -> crate::spawn::Spawn {
+        thing("arrow").item().ammo(AmmoKind::Arrow).projectile(
+            damage,
+            damage,
+            &[DamageType::Piercing],
+            break_bp,
+        )
+    }
+
+    fn stocked_quiver(state: &mut GameState, arrows: usize) -> (Entity, Vec<Entity>) {
+        let quiver = quiver(state);
+        let loaded = (0..arrows)
+            .map(|_| {
+                let arrow = arrow(2, 0).make(state);
+                holding::stow(&mut state.world, quiver, arrow);
+                arrow
+            })
+            .collect();
+        (quiver, loaded)
+    }
+
+    fn fire_at(state: &mut GameState, at: (i32, i32)) {
+        state.run(Command::Fire {
+            actor: state.player,
+            at,
+        });
+    }
+
+    #[test]
+    fn firing_uses_the_quiver_and_the_arrow_lands_where_it_hit() {
+        let mut state = bare_state();
+        bow(&mut state);
+        let (quiver, arrows) = stocked_quiver(&mut state, 2);
+        let target = goblin(&mut state, 4);
+        fire_at(&mut state, (4, 1));
+        assert_eq!(health(&state, target), 8);
+        assert_eq!(position(&state, arrows[0]), Some((4, 1)));
+        assert_eq!(holding::carried(&state.world, quiver), [arrows[1]]);
+        let log: Vec<_> = state.log.recent(2).cloned().collect();
+        assert_eq!(
+            log,
+            [
+                "The goblin takes 2 damage.",
+                "You shoot the arrow at the goblin."
+            ]
+        );
+    }
+
+    #[test]
+    fn a_nocked_arrow_overrides_the_quiver_and_is_used_first() {
+        let mut state = bare_state();
+        let bow = bow(&mut state);
+        let (quiver, arrows) = stocked_quiver(&mut state, 2);
+        let special = arrow(5, 0).carried_by(state.player).make(&mut state);
+        state.run(Command::Nock {
+            actor: state.player,
+            arrow: special,
+        });
+        let target = goblin(&mut state, 4);
+
+        fire_at(&mut state, (4, 1));
+        assert_eq!(health(&state, target), 5);
+        assert!(holding::carried(&state.world, bow).is_empty());
+        assert_eq!(holding::carried(&state.world, quiver), arrows);
+
+        fire_at(&mut state, (4, 1));
+        assert_eq!(health(&state, target), 3);
+    }
+
+    #[test]
+    fn the_shooters_stat_adds_to_the_arrows_dice() {
+        let mut state = bare_state();
+        bow(&mut state);
+        stocked_quiver(&mut state, 1);
+        state
+            .world
+            .insert_one(
+                state.player,
+                crate::entity::Stats {
+                    strength: 16,
+                    agility: 20,
+                },
+            )
+            .unwrap();
+        let target = goblin(&mut state, 4);
+        fire_at(&mut state, (4, 1));
+        assert_eq!(health(&state, target), 6, "2 + 2 Agility");
+    }
+
+    #[test]
+    fn an_arrow_that_hits_may_break_and_one_that_misses_never_does() {
+        let mut state = bare_state();
+        bow(&mut state);
+        let quiver = quiver(&mut state);
+        let doomed = arrow(2, 10_000).make(&mut state);
+        let spared = arrow(2, 10_000).make(&mut state);
+        holding::stow(&mut state.world, quiver, doomed);
+        holding::stow(&mut state.world, quiver, spared);
+        let target = goblin(&mut state, 4);
+
+        fire_at(&mut state, (4, 1));
+        assert!(!state.world.contains(doomed));
+        assert_eq!(health(&state, target), 8, "a breaking arrow still hurts");
+        assert!(state.log.recent(3).any(|line| line == "The arrow breaks."));
+
+        fire_at(&mut state, (1, 5));
+        assert_eq!(position(&state, spared), Some((1, 5)));
+    }
+
+    #[test]
+    fn arrows_are_resisted_by_piercing_armor() {
+        let mut state = bare_state();
+        bow(&mut state);
+        stocked_quiver(&mut state, 1);
+        let target = goblin(&mut state, 4);
+        thing("plate")
+            .with(Armor {
+                piercing: 1,
+                ..Armor::default()
+            })
+            .attached_to(target)
+            .make(&mut state);
+        fire_at(&mut state, (4, 1));
+        assert_eq!(health(&state, target), 9);
+    }
+
+    #[test]
+    fn firing_is_refused_without_a_bow_or_arrows_and_costs_no_time() {
+        let mut state = bare_state();
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Fire { at: (4, 1) });
+        assert_eq!(last_log(&state), "You have nothing to fire.");
+
+        bow(&mut state);
+        take_turn(&mut state, PlayerAction::Fire { at: (4, 1) });
+        assert_eq!(last_log(&state), "You have no arrows.");
+
+        stocked_quiver(&mut state, 1);
+        take_turn(&mut state, PlayerAction::Fire { at: (20, 1) });
+        assert_eq!(last_log(&state), "That is out of range.");
+        assert_eq!(state.now, before);
+
+        take_turn(&mut state, PlayerAction::Fire { at: (4, 1) });
+        assert!(state.now > before);
+    }
+
+    #[test]
+    fn nocking_costs_a_turn_even_with_a_full_quiver() {
+        let mut state = bare_state();
+        bow(&mut state);
+        stocked_quiver(&mut state, 3);
+        let special = arrow(5, 0).carried_by(state.player).make(&mut state);
+        let item = ItemRef::of(&state.world, special).unwrap();
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Nock(item));
+        assert!(state.now > before);
+        assert_eq!(last_log(&state), "You nock the arrow.");
     }
 }
