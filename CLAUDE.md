@@ -26,6 +26,11 @@ ratatui's `TestBackend` for `term` widgets).
   testing, running and git; piping _command output_ into `head`/`tail` is fine.
 - A PreToolUse hook rejects `cat`/`head`/`tail`/`sed`/`awk`/`less` on files. If
   it fires, switch tools; don't hunt for another shell workaround.
+- For "where is this defined / who uses it", prefer the LSP tool
+  (`goToDefinition`, `findReferences`, `incomingCalls`) over Grep: exact, no
+  same-name noise. It runs the devShell's rust-analyzer through the project
+  plugin in `.claude/skills/rust-lsp/`; the first query after start waits for
+  indexing.
 
 ## Reading policy
 

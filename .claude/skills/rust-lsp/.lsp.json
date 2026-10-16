@@ -1,0 +1,8 @@
+{
+  "rust-analyzer": {
+    "command": "${CLAUDE_PLUGIN_ROOT}/rust-analyzer.sh",
+    "extensionToLanguage": { ".rs": "rust" },
+    "workspaceFolder": "${CLAUDE_PROJECT_DIR}",
+    "startupTimeout": 120000
+  }
+}

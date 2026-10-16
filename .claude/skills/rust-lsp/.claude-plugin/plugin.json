@@ -1,0 +1,6 @@
+{
+  "name": "roguelike-rust-lsp",
+  "description": "rust-analyzer from the project's flake devShell, for Claude Code's LSP tool",
+  "version": "0.1.0",
+  "author": { "name": "Yuval Datner" }
+}
