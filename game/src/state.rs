@@ -13,6 +13,7 @@ use crate::combat;
 use crate::command::Command;
 use crate::entity::{Appearance, Attachments, Energy, Item, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
+use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
@@ -73,6 +74,9 @@ pub struct GameState {
     /// Tiles the player has ever seen. Only their terrain is remembered.
     pub seen: Grid<bool>,
     pub(crate) next_spawn_seq: u64,
+    /// What auto-explore does on reaching a floor item. A player setting,
+    /// but it decides actions, so it is game state and saved.
+    pub explore_items: ExploreItems,
 }
 
 impl GameState {
@@ -194,6 +198,7 @@ impl GameState {
             visible: unseen.clone(),
             seen: unseen,
             next_spawn_seq: 0,
+            explore_items: ExploreItems::default(),
         };
         state.player = state.spawn_at("Player", player_at)?;
         fov::update(&mut state);

@@ -18,6 +18,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('n') => Some(InputEvent::Move(Dir::SE)),
         KeyCode::Char('.') => Some(InputEvent::Wait),
         KeyCode::Char('x') => Some(InputEvent::Explore),
+        KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
         _ => None,
@@ -130,6 +131,10 @@ mod tests {
         assert_eq!(
             map_key_event(key(KeyCode::Char('x'))),
             Some(InputEvent::Explore)
+        );
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('X'))),
+            Some(InputEvent::CycleExploreItems)
         );
     }
 

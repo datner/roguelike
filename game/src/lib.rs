@@ -51,7 +51,7 @@ pub use entity::{
     Equippable, EquippedOn, Found, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind,
     Player, Position, SpawnSeq, Speed, Timed,
 };
-pub use explore::explore_step;
+pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;
 pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};

@@ -2,6 +2,7 @@
 //! unexplored ground, then the exit, judged only from what the player knows.
 
 use hecs::Entity;
+use serde::{Deserialize, Serialize};
 
 use crate::entity::{BlocksMovement, Found, Hostile, Item, Position};
 use crate::grammar::Subject;
@@ -10,9 +11,43 @@ use crate::map::{Grid, Tile};
 use crate::state::GameState;
 use crate::time::take_turn;
 
-/// Takes one auto-explore step as the player's turn and returns whether the
-/// player moved. When it doesn't step, the log says why and no time passes;
-/// a frontend repeats this until it returns false.
+/// What auto-explore does when a step finds floor items.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExploreItems {
+    /// Note them and keep going.
+    #[default]
+    Find,
+    /// Stop on them, so the player decides.
+    Stop,
+    /// Pick them up (a turn) and keep going.
+    PickUp,
+}
+
+impl ExploreItems {
+    fn next(self) -> Self {
+        match self {
+            ExploreItems::Find => ExploreItems::Stop,
+            ExploreItems::Stop => ExploreItems::PickUp,
+            ExploreItems::PickUp => ExploreItems::Find,
+        }
+    }
+}
+
+/// Switches `state.explore_items` to the next setting and says so. Takes no
+/// time.
+pub fn cycle_explore_items(state: &mut GameState) {
+    state.explore_items = state.explore_items.next();
+    state.log.push(match state.explore_items {
+        ExploreItems::Find => "Auto-explore will note items and walk on.",
+        ExploreItems::Stop => "Auto-explore will stop at items.",
+        ExploreItems::PickUp => "Auto-explore will pick items up.",
+    });
+}
+
+/// Takes one auto-explore step as the player's turn and returns whether to
+/// keep going. It stops without spending time when there is nowhere to go
+/// (the log says why), after a step that didn't move, and, per
+/// `state.explore_items`, after a step that found items.
 pub fn explore_step(state: &mut GameState) -> bool {
     if state.game_over {
         return false;
@@ -22,16 +57,38 @@ pub fn explore_step(state: &mut GameState) -> bool {
     };
     match next_step(state, before) {
         Ok(dir) => {
+            let unfound = unfound_items(state);
             take_turn(state, PlayerAction::Move(dir));
             // A step that didn't move (something unseen in the way) already
             // logged why; stopping keeps it from repeating forever.
-            player_position(state).is_some_and(|after| after != before)
+            let moved = player_position(state).is_some_and(|after| after != before);
+            if !moved || unfound_items(state) == unfound {
+                return moved;
+            }
+            match state.explore_items {
+                ExploreItems::Find => true,
+                ExploreItems::Stop => false,
+                ExploreItems::PickUp => {
+                    take_turn(state, PlayerAction::PickUp);
+                    !state.game_over
+                }
+            }
         }
         Err(reason) => {
             state.log.push(reason);
             false
         }
     }
+}
+
+/// Floor items the player has not found yet.
+fn unfound_items(state: &GameState) -> usize {
+    state
+        .world
+        .query::<(&Position, &Item, Option<&Found>)>()
+        .iter()
+        .filter(|(_, _, found)| found.is_none())
+        .count()
 }
 
 fn player_position(state: &GameState) -> Option<Position> {
@@ -194,6 +251,53 @@ mod tests {
             "You stand at the exit; there is nothing left to find."
         );
         assert!(log.iter().any(|m| *m == "You find the knife."));
+    }
+
+    #[test]
+    fn cycling_the_item_setting_wraps_and_says_so() {
+        let mut state = bare_state();
+        assert_eq!(state.explore_items, ExploreItems::Find);
+        let mut seen = Vec::new();
+        for _ in 0..3 {
+            cycle_explore_items(&mut state);
+            seen.push(state.explore_items);
+        }
+        assert_eq!(
+            seen,
+            [ExploreItems::Stop, ExploreItems::PickUp, ExploreItems::Find]
+        );
+        assert_eq!(
+            state.log.recent(1).next().map(String::as_str),
+            Some("Auto-explore will note items and walk on.")
+        );
+    }
+
+    #[test]
+    fn with_stop_it_halts_on_the_step_that_finds_an_item() {
+        let mut state = bare_state();
+        state.explore_items = ExploreItems::Stop;
+        let knife = item(&mut state, (3, 1));
+        assert!(explore_step(&mut state));
+        assert!(!explore_step(&mut state), "the arriving step stops");
+        assert_eq!(at(&state), (3, 1));
+        assert!(state.world.satisfies::<&Found>(knife));
+        // Found now, so the next run walks past it.
+        assert!(explore_step(&mut state));
+    }
+
+    #[test]
+    fn with_pick_up_it_takes_what_it_finds_and_walks_on() {
+        let mut state = bare_state();
+        state.explore_items = ExploreItems::PickUp;
+        let knife = item(&mut state, (3, 1));
+        assert!(explore_step(&mut state));
+        assert!(explore_step(&mut state));
+        assert!(state.world.get::<&Position>(knife).is_err());
+        assert_eq!(crate::view::inventory_view(&state).len(), 1);
+        assert_eq!(
+            state.log.recent(1).next().map(String::as_str),
+            Some("You pick up the knife.")
+        );
     }
 
     #[test]

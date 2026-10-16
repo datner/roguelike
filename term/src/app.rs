@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use game::{
-    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, explore_step, random_seed,
-    render_view, take_turn,
+    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, cycle_explore_items, explore_step,
+    random_seed, render_view, take_turn,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -151,6 +151,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::Wait => take_turn(state, PlayerAction::Wait),
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state)?,
+                    InputEvent::CycleExploreItems => cycle_explore_items(state),
                 }
             }
             Event::Resize(_, _) => {}

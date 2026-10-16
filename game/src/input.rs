@@ -50,6 +50,8 @@ pub enum InputEvent {
     PickUp,
     /// Repeat `explore::explore_step` until it stops.
     Explore,
+    /// `explore::cycle_explore_items`: what auto-explore does at items.
+    CycleExploreItems,
     Quit,
 }
 

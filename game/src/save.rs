@@ -18,6 +18,7 @@ use crate::entity::{
     Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory, Item, Melee, Name, OnHit,
     OnHitEntry, Player, Position, SpawnSeq, Speed, Stats, Timed, Weapon,
 };
+use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
 use crate::rng::Rngs;
@@ -25,7 +26,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 5;
+pub const SAVE_VERSION: u32 = 6;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -117,6 +118,7 @@ struct Save {
     game_over: bool,
     player: u32,
     next_spawn_seq: u64,
+    explore_items: ExploreItems,
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
@@ -303,6 +305,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         game_over: state.game_over,
         player: must_refer(state.player)?,
         next_spawn_seq: state.next_spawn_seq,
+        explore_items: state.explore_items,
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
@@ -396,6 +399,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         visible,
         seen,
         next_spawn_seq: save.next_spawn_seq,
+        explore_items: save.explore_items,
     };
     fov::update(&mut state);
     Ok(state)
@@ -756,8 +760,10 @@ mod tests {
         };
         assert_eq!(names(&state), ["first", "second"]);
 
+        state.explore_items = crate::explore::ExploreItems::PickUp;
         let loaded = reload(&state, test_blueprints());
         assert_eq!(names(&loaded), ["first", "second"]);
+        assert_eq!(loaded.explore_items, crate::explore::ExploreItems::PickUp);
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }
 

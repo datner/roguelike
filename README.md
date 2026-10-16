@@ -91,6 +91,8 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
+- `X`: cycle what auto-explore does at items: note them and walk on
+  (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.
 - After you die, any key returns to the title without saving; the last save
   is kept.

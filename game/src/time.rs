@@ -544,6 +544,10 @@ mod tests {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::PickUp => PlayerAction::PickUp,
+                InputEvent::CycleExploreItems => {
+                    crate::explore::cycle_explore_items(&mut state);
+                    continue;
+                }
                 InputEvent::Explore => {
                     while crate::explore::explore_step(&mut state) {}
                     continue;
