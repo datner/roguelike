@@ -543,55 +543,19 @@ fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
     let used = skill::melee(&state.world, skills, attacker, &strike);
     let odds = combat::odds(state, &strike, attacker, target);
     let outcome = combat::resolve(&mut state.rngs.combat, &odds);
-    let striker = Subject::of(&state.world, attacker);
-    let struck = Subject::of(&state.world, target);
-    match outcome {
-        Outcome::Hit | Outcome::Graze => {
-            let hit = roll_strike(&mut state.rngs.combat, strike);
-            let graze = outcome == Outcome::Graze;
-            if graze {
-                state.log.push(striker.sentence("graze", struck.noun()));
-            }
-            state.commands.push_back(Command::DealDamage {
-                target,
-                amount: if graze { hit.amount / 2 } else { hit.amount },
-                cause: DamageCause::Melee {
-                    attacker,
-                    types: hit.types,
-                    graze,
-                },
-            });
-        }
-        Outcome::Miss => state.log.push(striker.sentence("miss", struck.noun())),
-        Outcome::PerfectDodge => {
-            state.log.push(struck.sentence("dodge", "perfectly"));
-            let _ = dispatch(
-                state,
-                target,
-                combat::PerfectDodge {
-                    attacker,
-                    defender: target,
-                },
-            );
-        }
-        Outcome::Deflected(by) => {
-            let item = Subject::of(&state.world, by);
-            state.log.push(capitalize(&format!(
-                "{} {} turns {} blow.",
-                struck.possessive(),
-                item.noun().trim_start_matches("the "),
-                striker.possessive()
-            )));
-            let _ = dispatch(
-                state,
-                target,
-                combat::Deflected {
-                    attacker,
-                    defender: target,
-                    by,
-                },
-            );
-        }
+    combat::announce(state, attacker, target, outcome);
+    if let Outcome::Hit | Outcome::Graze = outcome {
+        let hit = roll_strike(&mut state.rngs.combat, strike);
+        let graze = outcome == Outcome::Graze;
+        state.commands.push_back(Command::DealDamage {
+            target,
+            amount: if graze { hit.amount / 2 } else { hit.amount },
+            cause: DamageCause::Melee {
+                attacker,
+                types: hit.types,
+                graze,
+            },
+        });
     }
     // Only a fight teaches: hitting a friend or a summon of your own does not.
     if side::enemies(&state.world, attacker, target) {

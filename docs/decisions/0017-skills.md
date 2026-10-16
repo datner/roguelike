@@ -89,3 +89,12 @@ cannot be ground out by repetition. The build plan is
   `BASE_XP`, or `BASE_XP × (2 − perfect chance)` for a perfect dodge.
 - Tests about what a hit does give the attacker (or defender) the test-only
   `testkit::SureHits` part, registered only under `cfg(test)`.
+
+## Missiles (plan slice 4)
+
+- A thrown missile uses Thrown, what it `Trains` and its damage kinds; a
+  fired one, Archery, what the launcher `Trains` (the short bow: Bow) and
+  the arrow's damage kinds (`skill::missile`, with `Launch` on the readied
+  shot). Their strikes carry level, accuracy and damage bonus like melee
+  (`combat::skilled`), and resolve through the same odds. `Strike.weapon`
+  is the missile, so a missile's own `Graze` counts.

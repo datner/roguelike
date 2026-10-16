@@ -44,7 +44,9 @@ This is a Cargo workspace with two crates:
     blow of several kinds goes through the weakest spot.
   - Ranged attacks (ADR 0013): throw a `Throwable` or shoot a `Launcher`
     at a tile; the missile flies a straight line to the first creature or
-    wall. `aim` previews a shot for frontends. A quiver holds arrows and
+    wall, and meets that creature like a blow (it may miss and drop at its
+    feet). Throwing trains Thrown, shooting Archery and Bow. `aim`
+    previews a shot for frontends. A quiver holds arrows and
     supplies the bow; a nocked arrow overrides it. You start with a short
     bow and 12 arrows.
   - Spells (ADR 0014): a spell is a part attached to its caster; how it is

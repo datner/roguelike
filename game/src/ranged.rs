@@ -7,7 +7,7 @@ use rand::RngExt;
 
 use crate::ammo;
 use crate::cell::Rgb;
-use crate::combat::{Strike, fire_strike, roll_strike, throw_strike};
+use crate::combat::{self, Outcome, Strike, fire_strike, roll_strike, throw_strike};
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{Appearance, Dead, EquippedOn, Found, Health, Position, Throwable};
@@ -15,6 +15,8 @@ use crate::equipment;
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::map::Tile;
+use crate::side;
+use crate::skill::{self, Launch};
 use crate::state::GameState;
 
 /// The tiles from `from` (not included) to `to` (included): Bresenham's
@@ -121,6 +123,8 @@ pub(crate) struct Ready {
     pub missile: Entity,
     pub strike: Strike,
     pub range: i32,
+    /// Thrown, or fired from which launcher: decides the skills it uses.
+    pub launch: Launch,
     /// Where the missile comes from: a launcher or quiver, or `None` for
     /// the shooter's own hands (carried or equipped).
     container: Option<Entity>,
@@ -140,7 +144,7 @@ pub(crate) fn ready_throw(state: &GameState, actor: Entity, item: Entity) -> Res
         return Err("You do not have that.".to_string());
     }
     let (Some(strike), Ok(throwable)) = (
-        throw_strike(world, actor, item),
+        throw_strike(world, state.blueprints.skills(), actor, item),
         world.get::<&Throwable>(item).map(|t| *t),
     ) else {
         return Err("You can't throw that.".to_string());
@@ -149,6 +153,7 @@ pub(crate) fn ready_throw(state: &GameState, actor: Entity, item: Entity) -> Res
         missile: item,
         strike,
         range: throwable.range,
+        launch: Launch::Thrown,
         container: None,
         verb: "throw",
         break_bp: None,
@@ -165,13 +170,20 @@ pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, Stri
     let Some((arrow, container)) = ammo::next_arrow(world, actor, launcher, spec.ammo) else {
         return Err("You have no arrows.".to_string());
     };
-    let Some((strike, break_bp)) = fire_strike(world, actor, spec, arrow) else {
+    let Some((strike, break_bp)) = fire_strike(
+        world,
+        state.blueprints.skills(),
+        actor,
+        (launcher, spec),
+        arrow,
+    ) else {
         return Err("You can't fire that.".to_string());
     };
     Ok(Ready {
         missile: arrow,
         strike,
         range: spec.range,
+        launch: Launch::Fired(launcher),
         container: Some(container),
         verb: "shoot",
         break_bp: Some(break_bp),
@@ -287,10 +299,19 @@ fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
         land(state, item, flight.landing);
         return;
     };
-    let hit = roll_strike(&mut state.rngs.combat, ready.strike);
-    let breaks = ready
-        .break_bp
-        .is_some_and(|chance| state.rngs.combat.random_range(0..BASIS_POINTS) < u64::from(chance));
+    // The flight is RNG-free; only how it meets its target is rolled. A miss
+    // or a dodge comes to rest at the target's feet, so the path the aim
+    // preview drew stays true.
+    let odds = combat::odds(state, &ready.strike, actor, target);
+    let outcome = combat::resolve(&mut state.rngs.combat, &odds);
+    combat::announce(state, actor, target, outcome);
+    let struck = !matches!(outcome, Outcome::Miss | Outcome::PerfectDodge);
+    let hit = matches!(outcome, Outcome::Hit | Outcome::Graze)
+        .then(|| roll_strike(&mut state.rngs.combat, ready.strike));
+    let breaks = struck
+        && ready.break_bp.is_some_and(|chance| {
+            state.rngs.combat.random_range(0..BASIS_POINTS) < u64::from(chance)
+        });
     if breaks {
         let _ = state.world.despawn(item);
         state
@@ -299,14 +320,29 @@ fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
     } else {
         land(state, item, flight.landing);
     }
-    state.commands.push_back(Command::DealDamage {
-        target,
-        amount: hit.amount,
-        cause: DamageCause::Ranged {
-            attacker: actor,
-            types: hit.types,
-        },
-    });
+    if let Some(hit) = hit {
+        state.commands.push_back(Command::DealDamage {
+            target,
+            amount: if outcome == Outcome::Graze {
+                hit.amount / 2
+            } else {
+                hit.amount
+            },
+            cause: DamageCause::Ranged {
+                attacker: actor,
+                types: hit.types,
+            },
+        });
+    }
+    if side::enemies(&state.world, actor, target) {
+        let used = skill::missile(
+            &state.world,
+            state.blueprints.skills(),
+            ready.launch,
+            &ready.strike,
+        );
+        skill::after_blow(state, &used, &odds, outcome);
+    }
 }
 
 /// Comes to rest on the floor, found: whoever threw it knows where it is.
@@ -321,7 +357,7 @@ mod tests {
     use crate::entity::{AmmoKind, Armor, DamageType, OnHit, OnHitEntry, Stat};
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
-    use crate::testkit::{last_log, thing};
+    use crate::testkit::{last_log, sure_hits, thing};
     use crate::time::take_turn;
     use crate::view::ItemRef;
 
@@ -421,6 +457,8 @@ mod tests {
     #[test]
     fn a_thrown_knife_hits_the_first_creature_and_lands_there() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let knife = knife(&mut state);
         let near = goblin(&mut state, 4);
         let far = goblin(&mut state, 6);
@@ -514,6 +552,8 @@ mod tests {
     fn armor_resists_the_weakest_kind_of_a_thrown_blow() {
         let target = |slashing, piercing| {
             let mut state = bare_state();
+            let player = state.player;
+            sure_hits(&mut state, player);
             let knife = knife(&mut state);
             let goblin = goblin(&mut state, 4);
             thing("mail")
@@ -643,6 +683,8 @@ mod tests {
     #[test]
     fn firing_uses_the_quiver_and_the_arrow_lands_where_it_hit() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         bow(&mut state);
         let (quiver, arrows) = stocked_quiver(&mut state, 2);
         let target = goblin(&mut state, 4);
@@ -663,6 +705,8 @@ mod tests {
     #[test]
     fn a_nocked_arrow_overrides_the_quiver_and_is_used_first() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let bow = bow(&mut state);
         let (quiver, arrows) = stocked_quiver(&mut state, 2);
         let special = arrow(5, 0).carried_by(state.player).make(&mut state);
@@ -684,6 +728,8 @@ mod tests {
     #[test]
     fn the_shooters_stat_adds_to_the_arrows_dice() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         bow(&mut state);
         stocked_quiver(&mut state, 1);
         state
@@ -705,6 +751,8 @@ mod tests {
     #[test]
     fn an_arrow_that_hits_may_break_and_one_that_misses_never_does() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         bow(&mut state);
         let quiver = quiver(&mut state);
         let doomed = arrow(2, 10_000).make(&mut state);
@@ -725,6 +773,8 @@ mod tests {
     #[test]
     fn arrows_are_resisted_by_piercing_armor() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         bow(&mut state);
         stocked_quiver(&mut state, 1);
         let target = goblin(&mut state, 4);
@@ -770,5 +820,93 @@ mod tests {
         take_turn(&mut state, PlayerAction::Nock(item));
         assert!(state.now > before);
         assert_eq!(last_log(&state), "You nock the arrow.");
+    }
+}
+
+#[cfg(test)]
+mod odds_tests {
+    use super::*;
+    use crate::entity::{Learner, Stat};
+    use crate::input::PlayerAction;
+    use crate::state::MessageLog;
+    use crate::state::tests::bare_state;
+    use crate::testkit::thing;
+    use crate::time::take_turn;
+    use crate::view::ItemRef;
+
+    /// Throws a fresh knife at a dummy two tiles east until a throw logs
+    /// `marker`; returns what that throw cost the dummy, and the knife.
+    fn throw_until(state: &mut GameState, dummy: Entity, marker: &str) -> (i32, Entity) {
+        for _ in 0..500 {
+            let player = state.player;
+            let knife = thing("knife")
+                .item()
+                .throwable(
+                    6,
+                    (2, 2),
+                    Stat::Agility,
+                    &[crate::entity::DamageType::Piercing],
+                )
+                .carried_by(player)
+                .make(state);
+            let before = state.world.get::<&Health>(dummy).unwrap().current;
+            state.log = MessageLog::default();
+            let seq = ItemRef::of(&state.world, knife).unwrap();
+            take_turn(
+                state,
+                PlayerAction::Throw {
+                    item: seq,
+                    at: (3, 1),
+                },
+            );
+            if state
+                .log
+                .recent(usize::MAX)
+                .any(|line| line.contains(marker))
+            {
+                return (
+                    before - state.world.get::<&Health>(dummy).unwrap().current,
+                    knife,
+                );
+            }
+        }
+        panic!("never saw {marker:?}");
+    }
+
+    #[test]
+    fn a_missile_that_misses_lands_at_its_targets_feet_and_a_graze_halves() {
+        let mut state = bare_state();
+        let dummy = thing("dummy")
+            .health(1000)
+            .hostile()
+            .at(3, 1)
+            .make(&mut state);
+        crate::testkit::see_everything(&mut state);
+        let (lost, knife) = throw_until(&mut state, dummy, "You miss the dummy.");
+        assert_eq!(lost, 0);
+        assert_eq!(position(&state, knife), Some((3, 1)));
+        let (lost, _) = throw_until(&mut state, dummy, "You graze the dummy.");
+        assert_eq!(lost, 1);
+    }
+
+    #[test]
+    fn throwing_at_an_enemy_trains_thrown_and_the_kind_of_damage() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.world.insert_one(player, Learner).unwrap();
+        let dummy = thing("dummy")
+            .health(1000)
+            .hostile()
+            .at(3, 1)
+            .make(&mut state);
+        crate::testkit::see_everything(&mut state);
+        throw_until(&mut state, dummy, "dummy");
+        let book = state.blueprints.skills();
+        for skill in ["Thrown", "Pierce"] {
+            let id = book.id(skill).unwrap();
+            assert!(crate::skill::xp(&state.world, player, id) > 0, "{skill}");
+        }
+        let melee = book.id("Melee").unwrap();
+        assert_eq!(crate::skill::xp(&state.world, player, melee), 0);
     }
 }

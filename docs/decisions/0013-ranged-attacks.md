@@ -68,8 +68,10 @@ or the rendering seam.
 
 ## Amendment (ADR 0017): blows can miss
 
-Melee blows no longer always land: each resolves to a hit, graze,
-deflection, miss or perfect dodge (`combat::odds` / `combat::resolve`, ADR
-0017). Missiles still always hit whoever is first in line until the skills
-plan's slice 4 gives them the same odds; the flight path itself stays
-RNG-free.
+Blows no longer always land: each resolves to a hit, graze, deflection,
+miss or perfect dodge (`combat::odds` / `combat::resolve`, ADR 0017), melee
+and missiles alike. The flight path stays RNG-free: only how the missile
+meets the first creature in line is rolled. A graze or deflection stops it
+like a hit (and may break an arrow); a miss or perfect dodge comes to rest
+at the target's feet, so the path the aim preview drew stays true. `aim`
+shows the hit and graze chances from the same odds.

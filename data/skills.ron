@@ -12,6 +12,10 @@
     // How a weapon is held (from equipment, not the weapon).
     (name: "One-handed", domain: Martial, weight: 1),
     (name: "Empty offhand", domain: Martial, weight: 1),
+    // Missiles: the action, then the launcher.
+    (name: "Thrown", domain: Martial, weight: 1),
+    (name: "Archery", domain: Martial, weight: 1),
+    (name: "Bow", domain: Martial, weight: 3),
 
     // Defence: how you avoid being hurt.
     (name: "Dodge", domain: Defence, weight: 1),

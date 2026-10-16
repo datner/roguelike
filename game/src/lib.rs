@@ -55,7 +55,7 @@ pub mod view;
 #[cfg(test)]
 mod testkit;
 
-pub use aim::{Aim, FireStep, Shot, aim, aim_range, aim_targets, fire_step};
+pub use aim::{Aim, Chances, FireStep, Shot, aim, aim_range, aim_targets, fire_step};
 pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;

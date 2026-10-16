@@ -5,7 +5,7 @@
 use hecs::Entity;
 
 use crate::ammo;
-use crate::combat::Strike;
+use crate::combat::{self, Strike};
 use crate::entity::{DamageTypes, Dead, Health, Name, Position};
 use crate::ranged::{check_range, distance, flight, ready_fire, ready_throw};
 use crate::side;
@@ -55,6 +55,17 @@ pub struct Aim {
     /// Where a summoning would put its creatures; the preview draws from a
     /// clone of the stream the cast uses, so they agree.
     pub summons: Vec<(i32, i32)>,
+    /// How a missile would meet its target, from the odds the shot rolls
+    /// (ADR 0017); `None` without a target, and for spells.
+    pub chances: Option<Chances>,
+}
+
+/// Chances, out of 10 000, of each way a shot can land that does damage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Chances {
+    pub hit_bp: u32,
+    /// Missed, not dodged perfectly, grazed and not deflected.
+    pub graze_bp: u32,
 }
 
 /// The shot as it would go now, or why it can't; for the player.
@@ -167,6 +178,13 @@ pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
         area: Vec::new(),
         caught: usize::from(flight.hit.is_some()),
         summons: Vec::new(),
+        chances: flight.hit.map(|target| {
+            let odds = combat::odds(state, &strike, state.player, target);
+            Chances {
+                hit_bp: odds.hit_bp,
+                graze_bp: odds.graze_overall_bp(),
+            }
+        }),
     })
 }
 
@@ -204,6 +222,7 @@ fn aim_cast(state: &GameState, spell: ItemRef, at: (i32, i32)) -> Option<Aim> {
         landing: footprint.landing,
         area: footprint.area,
         summons: footprint.placed,
+        chances: None,
     })
 }
 
@@ -273,6 +292,15 @@ mod tests {
         );
         // 1-2 dice; armor takes the weaker of slashing 1 / piercing 0.
         assert_eq!(aim.damage, (1, 2));
+        // Equals: 75% to hit; of the other 25%, 30% graze.
+        assert_eq!(
+            aim.chances,
+            Some(Chances {
+                hit_bp: 7_500,
+                graze_bp: 750
+            })
+        );
+        assert_eq!(super::aim(&state, shot, (1, 4)).unwrap().chances, None);
     }
 
     #[test]

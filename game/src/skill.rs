@@ -53,6 +53,8 @@ pub(crate) struct Core {
     pub deflection: SkillId,
     pub one_handed: SkillId,
     pub empty_offhand: SkillId,
+    pub thrown: SkillId,
+    pub archery: SkillId,
 }
 
 impl Core {
@@ -115,6 +117,8 @@ impl SkillBook {
             deflection: core_id("Deflection")?,
             one_handed: core_id("One-handed")?,
             empty_offhand: core_id("Empty offhand")?,
+            thrown: core_id("Thrown")?,
+            archery: core_id("Archery")?,
         };
         Ok(Self {
             defs,
@@ -251,6 +255,40 @@ fn grip(world: &World, core: Core, wielder: Entity, weapon: Entity) -> Vec<Skill
         grip.push(core.empty_offhand);
     }
     grip
+}
+
+/// How a missile leaves its shooter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Launch {
+    Thrown,
+    /// From this launcher.
+    Fired(Entity),
+}
+
+/// The skills a missile `strike` uses: Thrown and what the missile trains,
+/// or Archery and what the launcher trains (a bow, Bow); then one skill per
+/// kind of damage it deals. Sorted and without duplicates.
+pub(crate) fn missile(
+    world: &World,
+    book: &SkillBook,
+    launch: Launch,
+    strike: &Strike,
+) -> Vec<SkillId> {
+    let Some(core) = book.core else {
+        return Vec::new();
+    };
+    let (action, tool) = match launch {
+        Launch::Thrown => (core.thrown, strike.weapon),
+        Launch::Fired(launcher) => (core.archery, Some(launcher)),
+    };
+    let mut skills = vec![action];
+    if let Some(Ok(trains)) = tool.map(|tool| world.get::<&Trains>(tool)) {
+        skills.extend(trains.0.iter().copied());
+    }
+    skills.extend(strike.types.iter().filter_map(|kind| core.of_damage(kind)));
+    skills.sort();
+    skills.dedup();
+    skills
 }
 
 /// The skills wielding `item` trains beyond the action's own: what it
@@ -429,6 +467,9 @@ pub(crate) mod tests {
             def("Deflection", Domain::Defence, 1),
             def("One-handed", Domain::Martial, 1),
             def("Empty offhand", Domain::Martial, 1),
+            def("Thrown", Domain::Martial, 1),
+            def("Archery", Domain::Martial, 1),
+            def("Bow", Domain::Martial, 3),
         ])
         .unwrap()
     }

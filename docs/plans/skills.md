@@ -226,3 +226,8 @@ listing what changed, what was left out, and follow-ups.
   say "trains …".
 - **3**: core skills One-handed and Empty offhand, added by `skill::melee` (now given the attacker)
   from the wielder's `Body` and equipped items. Natural attacks get neither.
+- **4** (ADR 0017, 0013 amendment): `skill::missile` + `Launch` (on `ranged::Ready`); core Thrown and
+  Archery, data Bow (`ShortBow` trains it); `fire_strike`/`throw_strike` take the skill book and go
+  through `combat::skilled`; `ranged::launch` resolves odds, a miss or perfect dodge lands at the
+  target's tile; `combat::announce` shared with melee; `Aim.chances` (`Chances { hit_bp, graze_bp }`)
+  shown in the aiming status line.

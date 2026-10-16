@@ -7,7 +7,7 @@ use hecs::{Entity, World};
 use rand::RngExt;
 use rand_pcg::Pcg64;
 
-use crate::command::{Command, DamageCause};
+use crate::command::{Command, DamageCause, dispatch};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{
     Armor, DamageType, DamageTypes, Deflect, Graze, Health, Launcher, Melee, OnHit, Projectile,
@@ -15,8 +15,9 @@ use crate::entity::{
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
+use crate::grammar::{Subject, capitalize};
 use crate::prio;
-use crate::skill::{self, SkillBook, SkillId};
+use crate::skill::{self, Launch, SkillBook, SkillId};
 use crate::state::GameState;
 
 /// Fired at a target before damage is applied. Handlers may rewrite `amount`
@@ -100,7 +101,7 @@ pub(crate) struct Strike {
     pub max: i32,
     pub bonus: i32,
     pub types: DamageTypes,
-    /// The equipped weapon used, if not natural `Melee`.
+    /// The equipped weapon used (not for natural `Melee`), or the missile.
     pub weapon: Option<Entity>,
     /// The attacker's effective skill level at it (ADR 0017).
     pub level: u32,
@@ -147,7 +148,7 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
     let bonus = world
         .get::<&Stats>(attacker)
         .map_or(0, |stats| stats.modifier(stat));
-    let mut strike = Strike {
+    let strike = Strike {
         min,
         max,
         bonus,
@@ -156,15 +157,8 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
         level: 0,
         accuracy: 0,
     };
-    strike.level = skill::effective(
-        world,
-        skills,
-        attacker,
-        &skill::melee(world, skills, attacker, &strike),
-    );
-    strike.accuracy = bonus + i32::try_from(strike.level).unwrap_or(0);
-    strike.bonus += skill::damage_bonus(strike.level);
-    Some(strike)
+    let used = skill::melee(world, skills, attacker, &strike);
+    Some(skilled(world, skills, attacker, strike, &used))
 }
 
 /// One melee hit before armor: how much, and of which kinds.
@@ -224,6 +218,25 @@ pub(crate) struct AttackOdds {
     pub deflect_bp: u32,
     /// The defender's worn item that would turn a graze aside.
     pub deflector: Option<Entity>,
+}
+
+impl AttackOdds {
+    /// The chance, out of `CERTAIN`, that the blow ends as a graze: it
+    /// misses, isn't dodged perfectly, grazes, and isn't deflected.
+    pub(crate) fn graze_overall_bp(&self) -> u32 {
+        let not = |bp: u32| u64::from(CERTAIN - bp.min(CERTAIN));
+        let deflect = if self.deflector.is_some() {
+            self.deflect_bp
+        } else {
+            0
+        };
+        let chance = not(self.hit_bp)
+            * not(self.perfect_bp)
+            * u64::from(self.graze_bp.min(CERTAIN))
+            * not(deflect)
+            / u64::from(CERTAIN).pow(3);
+        u32::try_from(chance).unwrap_or(CERTAIN)
+    }
 }
 
 /// How a blow resolved.
@@ -341,48 +354,120 @@ pub(crate) fn resolve(rng: &mut Pcg64, odds: &AttackOdds) -> Outcome {
     }
 }
 
-/// How `shooter` fires `arrow` from `launcher`: the ammunition's dice and
-/// kinds, plus the shooter's modifier for the launcher's stat; and the
+/// Logs how a blow from `attacker` at `target` resolved, and fires
+/// `PerfectDodge` or `Deflected` at the target. A hit says nothing here:
+/// the damage it deals is logged when dealt.
+pub(crate) fn announce(state: &mut GameState, attacker: Entity, target: Entity, outcome: Outcome) {
+    let striker = Subject::of(&state.world, attacker);
+    let struck = Subject::of(&state.world, target);
+    match outcome {
+        Outcome::Hit => {}
+        Outcome::Graze => state.log.push(striker.sentence("graze", struck.noun())),
+        Outcome::Miss => state.log.push(striker.sentence("miss", struck.noun())),
+        Outcome::PerfectDodge => {
+            state.log.push(struck.sentence("dodge", "perfectly"));
+            let _ = dispatch(
+                state,
+                target,
+                PerfectDodge {
+                    attacker,
+                    defender: target,
+                },
+            );
+        }
+        Outcome::Deflected(by) => {
+            let item = Subject::of(&state.world, by);
+            state.log.push(capitalize(&format!(
+                "{} {} turns {} blow.",
+                struck.possessive(),
+                item.noun().trim_start_matches("the "),
+                striker.possessive()
+            )));
+            let _ = dispatch(
+                state,
+                target,
+                Deflected {
+                    attacker,
+                    defender: target,
+                    by,
+                },
+            );
+        }
+    }
+}
+
+/// How `shooter` fires `arrow` from `launcher` (an entity with `spec`): the
+/// ammunition's dice and kinds, plus the shooter's modifier for the
+/// launcher's stat and the damage bonus of their skill at it; and the
 /// arrow's chance (out of 10 000) to break on a hit. `None` if `arrow` is
 /// not a projectile.
 pub(crate) fn fire_strike(
     world: &World,
+    skills: &SkillBook,
     shooter: Entity,
-    launcher: Launcher,
+    (launcher, spec): (Entity, Launcher),
     arrow: Entity,
 ) -> Option<(Strike, u32)> {
     let projectile = *world.get::<&Projectile>(arrow).ok()?;
     let bonus = world
         .get::<&Stats>(shooter)
-        .map_or(0, |stats| stats.modifier(launcher.stat));
+        .map_or(0, |stats| stats.modifier(spec.stat));
     let strike = Strike {
         min: projectile.min,
         max: projectile.max,
         bonus,
         types: projectile.types,
-        weapon: None,
+        weapon: Some(arrow),
         level: 0,
         accuracy: 0,
     };
-    Some((strike, projectile.break_bp))
+    let used = skill::missile(world, skills, Launch::Fired(launcher), &strike);
+    Some((
+        skilled(world, skills, shooter, strike, &used),
+        projectile.break_bp,
+    ))
 }
 
 /// How `thrower` hurls `missile`: its `Throwable` dice plus the thrower's
-/// stat modifier. `None` if it can't be thrown.
-pub(crate) fn throw_strike(world: &World, thrower: Entity, missile: Entity) -> Option<Strike> {
+/// stat modifier and the damage bonus of their skill at it. `None` if it
+/// can't be thrown.
+pub(crate) fn throw_strike(
+    world: &World,
+    skills: &SkillBook,
+    thrower: Entity,
+    missile: Entity,
+) -> Option<Strike> {
     let throwable = *world.get::<&Throwable>(missile).ok()?;
     let bonus = world
         .get::<&Stats>(thrower)
         .map_or(0, |stats| stats.modifier(throwable.stat));
-    Some(Strike {
+    let strike = Strike {
         min: throwable.min,
         max: throwable.max,
         bonus,
         types: throwable.types,
-        weapon: None,
+        weapon: Some(missile),
         level: 0,
         accuracy: 0,
-    })
+    };
+    let used = skill::missile(world, skills, Launch::Thrown, &strike);
+    Some(skilled(world, skills, thrower, strike, &used))
+}
+
+/// `strike` (its `bonus` still the bare stat modifier) as `attacker` makes
+/// it with `used` skills: their effective level, the accuracy reckoned from
+/// it, and its damage bonus.
+fn skilled(
+    world: &World,
+    skills: &SkillBook,
+    attacker: Entity,
+    mut strike: Strike,
+    used: &[SkillId],
+) -> Strike {
+    strike.level = skill::effective(world, skills, attacker, used);
+    strike.accuracy = strike.bonus + i32::try_from(strike.level).unwrap_or(0);
+    strike.bonus += skill::damage_bonus(strike.level);
+    strike
 }
 
 /// Damage the next real `Attack { attacker, target }` would deal, computed on
