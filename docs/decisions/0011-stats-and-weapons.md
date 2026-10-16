@@ -17,8 +17,8 @@ meeting the attributes of what it wields, as in Caves of Qud.
   boosts it (a knife uses Agility). The wielded weapon is the `Weapon` on
   the lowest-numbered equipped body part; with none, natural `Melee` is a
   Strength weapon.
-- `combat::strike` is the one place this is decided; `roll_melee` (real
-  hits and `preview_damage`) and the character sheet both use it. Damage =
+- One function in `game/src/combat.rs` decides this; real hits, the damage
+  preview and the character sheet all use it. Damage =
   roll + modifier, never below 0, then armor as before.
 - A hit is still exactly one draw from the combat stream.
 

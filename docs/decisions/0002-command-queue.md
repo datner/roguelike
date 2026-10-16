@@ -7,7 +7,7 @@ Date: 2026-09-27
 Qud-style parts react to events and change other entities. Doing that by mutating the hecs `World` from inside handlers fights the borrow checker (live query borrows) and makes bugs hard to trace.
 
 ## Decision
-Input handlers and systems push `Command`s onto `GameState.commands`. `apply_commands` drains the queue and applies each one. Handlers read state, drop their borrows, then write; follow-up effects are pushed as further commands rather than applied recursively.
+Input handlers and systems push `Command`s onto the queue on `GameState`. The applier in `game/src/command.rs` drains the queue and applies each one. Handlers read state, drop their borrows, then write; follow-up effects are pushed as further commands rather than applied recursively.
 
 ## Consequences
 - Borrowing stays simple; every state change has one entry point to log, replay, or test.

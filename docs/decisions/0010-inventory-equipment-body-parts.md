@@ -6,7 +6,7 @@ Date: 2026-10-16
 ## Context
 
 Items can now be carried and worn. Event dispatch already treats everything
-in a creature's `Attachments` as part of it (ADR 0004 parts, `event::fire`),
+in a creature's `Attachments` as part of it (ADR 0004 parts, `game/src/event.rs`),
 and timed effects live there too. A carried item must not act (a knife in the
 pack must not cause bleeding), and Caves of Qud equips items on a creature's
 own anatomy rather than on fixed slots. Frontends need to name items without
@@ -24,14 +24,16 @@ seeing hecs types (ADR 0001).
   so a `Body` never reorders. One item per part.
 - **Blueprint equipment is fitted at load.** Each `equipment` entry must be
   `Equippable` and fit a free part in list order, or loading fails
-  (`EquipmentDoesNotFit`); spawning can't fail to place it.
+  (`game/src/blueprint.rs`); spawning can't fail to place it.
 - **Equip and unequip are commands** costing a standard action. Equipping
   onto a taken part swaps the old item into the inventory. An impossible
-  player equip/unequip is refused in `reject_input`, costing no time.
-- **Frontends get views, not entities.** `view.rs` returns plain structs
-  (`inventory_view`, `equipment_view`) and an `ItemRef`, which wraps the
-  item's `SpawnSeq` (unique, stable, already saved). `PlayerAction`s take
-  `ItemRef`s and `take_turn` resolves them against what the player holds.
+  player equip/unequip is refused up front (`game/src/command.rs`),
+  costing no time.
+- **Frontends get views, not entities.** `game/src/view.rs` returns plain
+  structs (inventory, equipment, character sheet) and an `ItemRef`, which
+  wraps the item's `SpawnSeq` (unique, stable, already saved).
+  `PlayerAction`s take `ItemRef`s and the turn entry point resolves them
+  against what the player holds.
 
 ## Consequences
 

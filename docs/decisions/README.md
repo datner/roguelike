@@ -2,7 +2,9 @@
 
 One short file per decision: what we chose, why, and what it costs. Agents: read the relevant ADR before changing something it covers; add a new one when you make a decision a future reader would otherwise have to reverse-engineer.
 
-Name files `NNNN-kebab-title.md`. Never rewrite an accepted ADR — supersede it with a new one and set the old one's status to `Superseded by NNNN`.
+Name files `NNNN-kebab-title.md`. Never rewrite an accepted ADR — supersede it with a new one and set the old one's status to `Superseded by NNNN`. Updating a code reference after a rename is fine; changing the decision is not.
+
+Point at code by module path (`game/src/combat.rs`), component, type or `Command` — never by function, method or constant name. Those get renamed; a module path or a domain type rarely does, so the ADR stays true without upkeep.
 
 | # | Decision | Status |
 |---|----------|--------|
@@ -16,7 +18,7 @@ Name files `NNNN-kebab-title.md`. Never rewrite an accepted ADR — supersede it
 | [0008](0008-save-games.md) | Versioned RON saves with index-remapped entities; per-character save on quit | Accepted |
 | [0009](0009-zones-and-camera.md) | Fixed-size zones larger than the screen, per-zone seeds, camera in `game` | Accepted |
 | [0010](0010-inventory-equipment-body-parts.md) | Inventory vs equipped items; Qud-style body parts; item views for frontends | Accepted |
-| [0011](0011-stats-and-weapons.md) | Creature stats meet weapon attributes in one `strike` rule | Accepted |
+| [0011](0011-stats-and-weapons.md) | Creature stats meet weapon attributes in one combat rule | Accepted |
 
 ## Template
 
