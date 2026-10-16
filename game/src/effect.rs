@@ -6,10 +6,12 @@
 use hecs::Entity;
 
 use crate::blueprint::BlueprintId;
+use crate::blueprint::ResolvedBlueprint;
 use crate::command::{Command, DamageCause};
 use crate::entity::{Bleeding, Duration, EffectTarget, Name, Timed};
 use crate::grammar::Subject;
 use crate::holding;
+use crate::spawn::Spawn;
 use crate::state::GameState;
 use crate::time::{Tick, Timer};
 
@@ -56,35 +58,35 @@ pub(crate) fn apply_effect(state: &mut GameState, target: Entity, blueprint: Blu
     if !state.world.contains(target) {
         return;
     }
-    let effect = match state.spawn_id(blueprint) {
-        Ok(effect) => effect,
-        Err(err) => {
-            state.log.push(format!("Error: cannot apply effect: {err}"));
-            return;
-        }
-    };
     // On-hit effects are checked for a `Duration` at load.
+    let duration = state
+        .blueprints
+        .by_id(blueprint)
+        .and_then(ResolvedBlueprint::duration);
     debug_assert!(
-        state.world.satisfies::<&Duration>(effect),
+        duration.is_some(),
         "effect blueprint {blueprint:?} has no Duration"
     );
-    let Ok(Duration(duration)) = state.world.remove_one::<Duration>(effect) else {
-        let _ = state.world.despawn(effect);
+    let Some(duration) = duration else {
         return;
     };
     let timed = Timed {
         start: state.now,
         duration,
     };
-    if state
-        .world
-        .insert(effect, (timed, EffectTarget(target)))
-        .is_err()
-    {
-        return;
-    }
-
-    holding::attach(&mut state.world, target, effect);
+    let spawn = Spawn::id(blueprint)
+        .with(timed)
+        .with(EffectTarget(target))
+        .attached_to(target);
+    let effect = match state.spawn(spawn) {
+        Ok(effect) => effect,
+        Err(err) => {
+            state.log.push(format!("Error: cannot apply effect: {err}"));
+            return;
+        }
+    };
+    // Its length now lives in `Timed`.
+    let _ = state.world.remove_one::<Duration>(effect);
 
     // The name completes the sentence, as in the expiry message.
     let name = state.world.get::<&Name>(effect).ok().map(|n| n.0.clone());

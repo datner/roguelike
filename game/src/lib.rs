@@ -40,6 +40,7 @@ pub mod holding;
 pub mod prio;
 pub mod rng;
 pub mod save;
+pub mod spawn;
 pub mod state;
 pub mod time;
 pub mod view;

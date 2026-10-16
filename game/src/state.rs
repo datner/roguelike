@@ -6,7 +6,7 @@ use hecs::{Entity, World};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
-use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
+use crate::blueprint::{BlueprintError, Blueprints};
 use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
@@ -18,6 +18,7 @@ use crate::fov;
 use crate::holding;
 use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
+use crate::spawn::{Held, Source, Spawn};
 use crate::time::{Tick, Timers};
 use crate::zone::{CaveParams, ZoneCoord, generate_cave, place_exit, start_position, zone_seed};
 
@@ -139,7 +140,7 @@ impl GameState {
             ) else {
                 break;
             };
-            self.spawn_at("Goblin", Position { x, y })?;
+            self.spawn(Spawn::blueprint("Goblin").at(x, y))?;
         }
         // After the goblins, so adding items left their placement unchanged.
         self.scatter_items(from)?;
@@ -169,8 +170,7 @@ impl GameState {
                 break;
             };
             let id = pool[self.rngs.spawn.random_range(0..pool.len())];
-            let item = self.spawn_id(id)?;
-            let _ = self.world.insert_one(item, Position { x, y });
+            self.spawn(Spawn::id(id).at(x, y))?;
         }
         Ok(())
     }
@@ -207,27 +207,44 @@ impl GameState {
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
         };
-        state.player = state.spawn_at("Player", player_at)?;
+        state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
         fov::update(&mut state);
         Ok(state)
     }
 
-    /// Spawns a blueprint and registers it and its equipment with the
-    /// scheduler: a `SpawnSeq` each, for tie-breaking and save order, and,
-    /// for anything with a `Speed`, `Energy(0)` so it can act on the tick it
-    /// appears. These spawn functions are the only way to create entities
-    /// (ADR 0008); clippy rejects `World::spawn` elsewhere in `game`.
-    pub(crate) fn spawn(&mut self, name: &str) -> Result<Entity, BlueprintError> {
-        let id = self
-            .blueprints
-            .id(name)
-            .ok_or_else(|| BlueprintError::UnknownBlueprint(name.to_string()))?;
-        self.spawn_id(id)
-    }
-
-    pub(crate) fn spawn_id(&mut self, id: BlueprintId) -> Result<Entity, BlueprintError> {
-        let entity = self.blueprints.spawn_id(&mut self.world, id)?;
+    /// Creates what `spawn` describes and registers it and its equipment with
+    /// the scheduler: a `SpawnSeq` each, for tie-breaking and save order,
+    /// and, for anything with a `Speed`, `Energy(0)` so it can act on the
+    /// tick it appears. The only way to create entities (ADR 0008); clippy
+    /// rejects `World::spawn` elsewhere in `game`.
+    pub(crate) fn spawn(&mut self, mut spawn: Spawn) -> Result<Entity, BlueprintError> {
+        let entity = match spawn.source {
+            Source::Blueprint(name) => {
+                let id = self
+                    .blueprints
+                    .id(&name)
+                    .ok_or(BlueprintError::UnknownBlueprint(name))?;
+                self.blueprints.spawn_id(&mut self.world, id)?
+            }
+            Source::Id(id) => self.blueprints.spawn_id(&mut self.world, id)?,
+            #[cfg(test)]
+            Source::Blank => self.spawn_blank(),
+        };
+        // Extras go in before registration, so a `Speed` among them counts.
+        let _ = self.world.insert(entity, spawn.components.build());
         self.register(entity);
+        #[cfg(test)]
+        let _ = self.world.insert(entity, spawn.overrides.build());
+
+        let world = &mut self.world;
+        match spawn.held {
+            Some(Held::Attached(owner)) => holding::attach(world, owner, entity),
+            #[cfg(test)]
+            Some(Held::Equipped(owner, part)) => holding::put_on(world, owner, entity, part),
+            #[cfg(test)]
+            Some(Held::Carried(owner)) => holding::stow(world, owner, entity),
+            None => {}
+        }
         Ok(entity)
     }
 
@@ -246,23 +263,13 @@ impl GameState {
         }
     }
 
-    /// Tests' ad-hoc entities (`testkit::Spawn`), registered like any
-    /// blueprint's so `SpawnSeq` and `Energy` stay assigned in one place.
     #[cfg(test)]
     #[expect(
         clippy::disallowed_methods,
-        reason = "registered right after, as spawn_id does"
+        reason = "the blank half of GameState::spawn, which registers it"
     )]
-    pub(crate) fn spawn_built(&mut self, builder: &mut hecs::EntityBuilder) -> Entity {
-        let entity = self.world.spawn(builder.build());
-        self.register(entity);
-        entity
-    }
-
-    pub(crate) fn spawn_at(&mut self, name: &str, at: Position) -> Result<Entity, BlueprintError> {
-        let entity = self.spawn(name)?;
-        let _ = self.world.insert_one(entity, at);
-        Ok(entity)
+    fn spawn_blank(&mut self) -> Entity {
+        self.world.spawn(())
     }
 }
 
@@ -651,7 +658,7 @@ pub(crate) mod tests {
     #[test]
     fn move_into_blocking_entity_is_blocked_and_logs_a_message() {
         let mut state = bare_state();
-        state.spawn_at("Rubble", Position { x: 2, y: 1 }).unwrap();
+        state.spawn(Spawn::blueprint("Rubble").at(2, 1)).unwrap();
         state.run(Command::TryMove(state.player, Dir::E));
         assert_eq!(player_position(&state), Position { x: 1, y: 1 });
         assert_eq!(
@@ -670,7 +677,7 @@ pub(crate) mod tests {
         // (2, 1) was seen from the start and is now 9 tiles away.
         assert_eq!(state.visible.get(2, 1), Some(&false));
         assert_eq!(state.seen.get(2, 1), Some(&true));
-        state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
+        state.spawn(Spawn::blueprint("Goblin").at(2, 1)).unwrap();
 
         // The whole room fits, so screen and world coordinates agree.
         let view = render_view(&state, 40, 20);

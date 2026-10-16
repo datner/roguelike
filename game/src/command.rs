@@ -476,6 +476,7 @@ fn die(state: &mut GameState, entity: Entity) {
 pub(crate) mod tests {
     use super::*;
     use crate::entity::Melee;
+    use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
     use crate::testkit::thing;
 
@@ -503,7 +504,7 @@ pub(crate) mod tests {
     /// exactly `damage`.
     fn facing_goblin(damage: i32) -> (GameState, Entity, Entity) {
         let mut state = bare_state();
-        let goblin = state.spawn_at("Goblin", Position { x: 2, y: 1 }).unwrap();
+        let goblin = state.spawn(Spawn::blueprint("Goblin").at(2, 1)).unwrap();
         let armor = holding::attached(&state.world, goblin)[0];
         state
             .world

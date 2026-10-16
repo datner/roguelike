@@ -128,6 +128,7 @@ mod tests {
     use crate::command::tests::BLOW;
     use crate::entity::{Armor, Health};
     use crate::input::PlayerAction;
+    use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
     use crate::testkit::thing;
     use crate::time::take_turn;
@@ -319,7 +320,7 @@ mod tests {
     #[test]
     fn spawned_equipment_sits_on_its_body_part() {
         let mut state = bare_state();
-        let goblin = state.spawn("Goblin").unwrap();
+        let goblin = state.spawn(Spawn::blueprint("Goblin")).unwrap();
         let worn = equipped(&state.world, goblin);
         assert_eq!(worn.len(), 1);
         // Leather armor goes on the body, the test anatomy's second part.

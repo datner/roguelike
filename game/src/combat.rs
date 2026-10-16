@@ -173,9 +173,10 @@ mod tests {
     use super::*;
     use crate::command::tests::{BLOW, UNSOURCED};
     use crate::entity::{Bleeding, OnHitEntry};
+    use crate::spawn::Spawn;
     use crate::state::MessageLog;
     use crate::state::tests::{bare_state, bare_state_seeded};
-    use crate::testkit::{Spawn, blank, thing};
+    use crate::testkit::{blank, thing};
 
     #[test]
     fn stat_modifiers_follow_qud() {

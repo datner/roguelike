@@ -105,13 +105,14 @@ mod tests {
     use crate::entity::{Dead, Melee};
     use crate::fov::{self, RADIUS};
     use crate::input::PlayerAction;
+    use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
     use crate::time::{Tick, take_turn};
 
     /// Player at (1, 1) plus a scheduled goblin at `at`.
     fn with_goblin(at: Position) -> (GameState, Entity) {
         let mut state = bare_state();
-        let goblin = state.spawn_at("Goblin", at).unwrap();
+        let goblin = state.spawn(Spawn::blueprint("Goblin").with(at)).unwrap();
         (state, goblin)
     }
 
@@ -192,7 +193,7 @@ mod tests {
     #[test]
     fn a_blocked_goblin_steps_around_in_fixed_order() {
         let (mut state, goblin) = with_goblin(Position { x: 5, y: 1 });
-        state.spawn_at("Rubble", Position { x: 4, y: 1 }).unwrap();
+        state.spawn(Spawn::blueprint("Rubble").at(4, 1)).unwrap();
         // W is blocked and N/NW are wall; SW is the only step that gets closer.
         assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::SW));
 
@@ -201,7 +202,7 @@ mod tests {
         let (mut state, goblin) = with_goblin(Position { x: 5, y: 3 });
         assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::NW));
         // …and with NW blocked, W wins.
-        state.spawn_at("Rubble", Position { x: 4, y: 2 }).unwrap();
+        state.spawn(Spawn::blueprint("Rubble").at(4, 2)).unwrap();
         assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::W));
     }
 

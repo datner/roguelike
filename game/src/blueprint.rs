@@ -128,6 +128,14 @@ impl ResolvedBlueprint {
             .unwrap_or_default()
     }
 
+    /// How long an effect made from this lasts, in ticks.
+    pub fn duration(&self) -> Option<u64> {
+        self.components.iter().find_map(|c| match c {
+            ComponentDef::Duration(Duration(ticks)) => Some(*ticks),
+            _ => None,
+        })
+    }
+
     pub fn equippable(&self) -> Option<PartKind> {
         self.components.iter().find_map(|c| match c {
             ComponentDef::Equippable(e) => Some(e.part),

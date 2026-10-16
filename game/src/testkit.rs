@@ -1,52 +1,32 @@
-//! Test-only entity builder. Tests describe an ad-hoc entity by what it is
-//! (`.item()`, `.armor(2)`, `.equipped_on(owner, 2)`), so a change to how a
-//! component or a holding is stored is made here once, not in every test.
+//! Test-only additions to `spawn::Spawn`. Tests describe an ad-hoc entity by
+//! what it is (`.item()`, `.armor(2)`, `.equipped_on(owner, 2)`), so a change
+//! to how a component or a holding is stored is made here once, not in every
+//! test.
 
-use hecs::{Component, Entity, EntityBuilder};
+use hecs::Entity;
 
 use crate::cell::Rgb;
 use crate::entity::{
     Appearance, Armor, Energy, Equippable, Found, Health, Hostile, Item, Melee, Name, PartKind,
-    Position, SpawnSeq, Speed, Stat, Stats, Weapon,
+    SpawnSeq, Speed, Stat, Stats, Weapon,
 };
-use crate::holding;
+use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
 
 /// An entity named `name` (the bare noun, as `Name` holds it).
 pub(crate) fn thing(name: &str) -> Spawn {
-    Spawn::default().with(Name(name.to_string()))
+    Spawn::blank().with(Name(name.to_string()))
 }
 
-/// An entity with nothing but what `GameState` registers.
+/// An entity with nothing but what `GameState::spawn` registers.
 pub(crate) fn blank() -> Spawn {
-    Spawn::default()
-}
-
-/// Where the entity goes once spawned.
-#[derive(Clone, Copy)]
-enum Held {
-    Attached(Entity),
-    Equipped(Entity, u32),
-    Carried(Entity),
-}
-
-#[derive(Default)]
-pub(crate) struct Spawn {
-    components: EntityBuilder,
-    /// Applied after registration, so they override what it assigns.
-    overrides: EntityBuilder,
-    held: Option<Held>,
+    Spawn::blank()
 }
 
 impl Spawn {
-    /// Escape hatch for a component without a method here.
-    pub(crate) fn with(mut self, component: impl Component) -> Self {
-        self.components.add(component);
-        self
-    }
-
-    pub(crate) fn at(self, x: i32, y: i32) -> Self {
-        self.with(Position { x, y })
+    /// `GameState::spawn`, unwrapped: a test's spawn failing is a test bug.
+    pub(crate) fn spawn(self, state: &mut GameState) -> Entity {
+        state.spawn(self).expect("test spawn")
     }
 
     pub(crate) fn look(self, glyph: char, fg: Rgb) -> Self {
@@ -110,12 +90,6 @@ impl Spawn {
         self
     }
 
-    /// In `owner`'s `Attachments`, not on a body part (an effect, say).
-    pub(crate) fn attached_to(mut self, owner: Entity) -> Self {
-        self.held = Some(Held::Attached(owner));
-        self
-    }
-
     /// Equipped by `owner` on body part `part`.
     pub(crate) fn equipped_on(mut self, owner: Entity, part: u32) -> Self {
         self.held = Some(Held::Equipped(owner, part));
@@ -126,20 +100,5 @@ impl Spawn {
     pub(crate) fn carried_by(mut self, owner: Entity) -> Self {
         self.held = Some(Held::Carried(owner));
         self
-    }
-
-    pub(crate) fn spawn(mut self, state: &mut GameState) -> Entity {
-        let entity = state.spawn_built(&mut self.components);
-        let world = &mut state.world;
-        world
-            .insert(entity, self.overrides.build())
-            .expect("just spawned");
-        match self.held {
-            Some(Held::Attached(owner)) => holding::attach(world, owner, entity),
-            Some(Held::Equipped(owner, part)) => holding::put_on(world, owner, entity, part),
-            Some(Held::Carried(owner)) => holding::stow(world, owner, entity),
-            None => {}
-        }
-        entity
     }
 }

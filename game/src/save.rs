@@ -608,6 +608,7 @@ mod tests {
     use crate::command::Command;
     use crate::input::{Dir, PlayerAction};
     use crate::map::Tile;
+    use crate::spawn::Spawn;
     use crate::state::GOBLINS;
     use crate::state::tests::{bare_state, test_blueprints};
     use crate::testkit::thing;
@@ -795,7 +796,7 @@ mod tests {
     #[test]
     fn an_equipped_bleeding_goblin_survives_a_round_trip() {
         let mut state = bare_state();
-        let goblin_entity = state.spawn_at("Goblin", Position { x: 12, y: 10 }).unwrap();
+        let goblin_entity = state.spawn(Spawn::blueprint("Goblin").at(12, 10)).unwrap();
         let blueprint = state.blueprints.id("Bleeding").unwrap();
         state.run(Command::ApplyEffect {
             target: goblin_entity,
@@ -883,7 +884,7 @@ mod tests {
     #[test]
     fn spawned_equipment_gets_a_spawn_seq_after_its_owner() {
         let mut state = bare_state();
-        let goblin = state.spawn("Goblin").unwrap();
+        let goblin = state.spawn(Spawn::blueprint("Goblin")).unwrap();
         let armor = state.world.get::<&Attachments>(goblin).unwrap().0[0];
         let seq = |entity| *state.world.get::<&SpawnSeq>(entity).unwrap();
         assert_eq!(seq(armor), SpawnSeq(seq(goblin).0 + 1));
@@ -916,7 +917,7 @@ mod tests {
     #[test]
     fn a_timer_for_a_despawned_entity_stays_queued() {
         let mut state = bare_state();
-        let goblin_entity = state.spawn_at("Goblin", Position { x: 12, y: 10 }).unwrap();
+        let goblin_entity = state.spawn(Spawn::blueprint("Goblin").at(12, 10)).unwrap();
         let blueprint = state.blueprints.id("Bleeding").unwrap();
         state.commands.push_back(Command::ApplyEffect {
             target: goblin_entity,

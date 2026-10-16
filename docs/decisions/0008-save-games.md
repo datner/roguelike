@@ -27,7 +27,7 @@ are runtime-only, so neither can be written to disk as-is.
   entity is already gone is kept as a no-op (`None`), so the queue and the
   clock jumps it causes are unchanged.
 - **Every entity has a `SpawnSeq`.** Entities are created only through
-  `GameState::spawn`/`spawn_id`/`spawn_at`, which number the entity and its
+  `GameState::spawn(Spawn)`, which numbers the entity and its
   equipment (clippy bans `World::spawn` in `game`); saving fails if any
   entity lacks one, so save order never falls back to hecs ids.
   `GameState.world` is `pub(crate)`, so no other crate can spawn around it.
