@@ -24,6 +24,8 @@ pub const UNEQUIP: i64 = STANDARD;
 pub const THROW: i64 = STANDARD;
 pub const FIRE: i64 = STANDARD;
 pub const CAST: i64 = STANDARD;
+/// Taking up or setting aside a style: a change of mind, but a turn.
+pub const FOLLOW_STYLE: i64 = STANDARD;
 /// Fetching a special arrow from the pack: the price of overriding the
 /// quiver (ADR 0013).
 pub const NOCK: i64 = STANDARD;
@@ -43,6 +45,7 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::Throw { actor, .. } => Some((actor, THROW)),
         Command::Fire { actor, .. } => Some((actor, FIRE)),
         Command::Cast { actor, .. } => Some((actor, CAST)),
+        Command::FollowStyle { actor, .. } => Some((actor, FOLLOW_STYLE)),
         Command::Nock { actor, .. } => Some((actor, NOCK)),
         Command::Quiver { actor, .. } => Some((actor, QUIVER)),
         _ => None,

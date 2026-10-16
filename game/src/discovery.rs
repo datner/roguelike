@@ -7,7 +7,7 @@ use std::path::Path;
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
-use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
+use crate::blueprint::{BlueprintError, BlueprintId, Blueprints, ComponentDef};
 use crate::entity::{Discovered, Proficiency};
 use crate::grammar::Subject;
 use crate::holding;
@@ -27,6 +27,8 @@ pub enum Requirement {
 pub enum Grant {
     /// A proficiency: this blueprint, attached to the learner.
     Proficiency(String),
+    /// A style (ADR 0019): this blueprint, known but not yet followed.
+    Style(String),
 }
 
 /// One entry of `data/discoveries.ron`.
@@ -43,6 +45,8 @@ pub(crate) struct Discovery {
     pub name: String,
     pub requires: Vec<(SkillId, u32)>,
     pub grants: BlueprintId,
+    /// A style, carried until followed; else a proficiency, attached.
+    pub style: bool,
 }
 
 /// Reads `data/discoveries.ron`: a list of `DiscoveryDef`s.
@@ -52,7 +56,8 @@ pub(crate) fn read(path: &Path) -> Result<Vec<DiscoveryDef>, BlueprintError> {
 }
 
 /// Resolves `defs` against `blueprints`: every skill and blueprint named
-/// must exist, and the blueprint granted must be a `Proficiency`.
+/// must exist, and the blueprint granted must be a proficiency or a style,
+/// as the grant says.
 pub(crate) fn resolve(
     defs: Vec<DiscoveryDef>,
     blueprints: &Blueprints,
@@ -74,13 +79,19 @@ pub(crate) fn resolve(
                     Ok((id, *level))
                 })
                 .collect::<Result<_, BlueprintError>>()?;
-            let Grant::Proficiency(granted) = &def.grants;
+            let (granted, style) = match &def.grants {
+                Grant::Proficiency(name) => (name, false),
+                Grant::Style(name) => (name, true),
+            };
             let grants = blueprints
                 .id(granted)
                 .filter(|&id| {
                     blueprints.by_id(id).is_some_and(|bp| {
-                        bp.components
-                            .contains(&crate::blueprint::ComponentDef::Proficiency)
+                        if style {
+                            bp.style.is_some()
+                        } else {
+                            bp.components.contains(&ComponentDef::Proficiency)
+                        }
                     })
                 })
                 .ok_or_else(|| unknown(granted.clone()))?;
@@ -88,6 +99,7 @@ pub(crate) fn resolve(
                 name: def.name,
                 requires,
                 grants,
+                style,
             })
         })
         .collect()
@@ -106,20 +118,27 @@ fn made(state: &GameState, learner: Entity) -> Vec<String> {
 }
 
 /// A moment of inspiration: every discovery `learner` has newly met the
-/// requirements of, in file order, is made and its proficiency attached.
-/// Called only from `skill::train`, after a use with stakes.
+/// requirements of, in file order, is made: a proficiency is attached, a
+/// style becomes known. Called only from `skill::train`, after a use with
+/// stakes.
 pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
     let mut discovered = made(state, learner);
-    let new: Vec<(String, BlueprintId)> = state
+    let new: Vec<(String, BlueprintId, bool)> = state
         .blueprints
         .discoveries()
         .iter()
         .filter(|d| !discovered.contains(&d.name))
         .filter(|d| d.requires.iter().all(|&req| met(state, learner, req)))
-        .map(|d| (d.name.clone(), d.grants))
+        .map(|d| (d.name.clone(), d.grants, d.style))
         .collect();
-    for (name, grants) in new {
-        if state.spawn(Spawn::id(grants).attached_to(learner)).is_err() {
+    for (name, grants, style) in new {
+        let spawn = Spawn::id(grants);
+        let spawn = if style {
+            spawn.carried_by(learner)
+        } else {
+            spawn.attached_to(learner)
+        };
+        if state.spawn(spawn).is_err() {
             continue;
         }
         let message = Subject::of(&state.world, learner).sentence("discover", &name);

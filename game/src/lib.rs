@@ -50,6 +50,7 @@ pub mod skill;
 pub mod spawn;
 pub mod spell;
 pub mod state;
+pub mod style;
 pub mod time;
 pub mod view;
 
@@ -74,6 +75,7 @@ pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
 pub use skill::{Domain, SkillBook, SkillDef};
 pub use state::{GameState, MessageLog, render_view};
+pub use style::{StyleDef, StyleView, styles};
 pub use time::{Tick, Timers, advance, take_turn};
 pub use view::{
     CastPreview, CharacterSheet, CostLine, ItemRef, ItemView, PartView, SkillView, SpellView,

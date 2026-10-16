@@ -787,3 +787,32 @@ pub struct Footwork {
 /// The discoveries a learner has made, by name, sorted (ADR 0018).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Discovered(pub Vec<String>);
+
+/// A style (ADR 0019): a practice its holder follows. A known style is
+/// carried (`Inventory`), inert; the one followed is attached, so its
+/// principles take part in events. One followed per domain; a hybrid fills
+/// every domain it lists. Built from `StyleDef` at load (it holds ids) and
+/// saved by name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Style {
+    pub domains: Vec<crate::skill::Domain>,
+    /// Its own skill, trained by uses that follow it.
+    pub skill: SkillId,
+    /// A use follows the style when it uses all of these.
+    pub follows: Vec<SkillId>,
+    pub principles: Vec<Principle>,
+}
+
+/// What a style does once its skill reaches `from_level`; nothing before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Principle {
+    pub from_level: u32,
+    pub does: Does,
+}
+
+/// The effects a principle can have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Does {
+    /// After a perfect dodge, strike back at once, for free.
+    Riposte,
+}

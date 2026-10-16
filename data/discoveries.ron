@@ -1,10 +1,21 @@
 // What skill combinations inspire (ADR 0018). Checked in this order after
 // each use with stakes; a discovery is made once, and grants a proficiency
-// (a blueprint with `Proficiency`, attached to the learner).
+// (a blueprint with `Proficiency`, attached to the learner) or a style (a
+// blueprint with `Style`, known until followed; ADR 0019).
 [
     (
         name: "Footwork",
         requires: [Skill("Dodge", 4), Skill("Poise", 2)],
         grants: Proficiency("Footwork"),
+    ),
+    (
+        name: "Fencing",
+        requires: [
+            Skill("Melee", 3),
+            Skill("Pierce", 3),
+            Skill("One-handed", 3),
+            Skill("Empty offhand", 3),
+        ],
+        grants: Style("Fencing"),
     ),
 ]

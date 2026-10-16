@@ -393,6 +393,11 @@ pub(crate) fn train(
     if !state.world.satisfies::<&Learner>(learner) {
         return;
     }
+    // A followed style trains along with any use that follows it.
+    let mut skills = skills.to_vec();
+    skills.extend(crate::style::following(&state.world, learner, &skills));
+    skills.sort();
+    skills.dedup();
     let kind = state
         .world
         .get::<&Name>(subject)
@@ -404,7 +409,7 @@ pub(crate) fn train(
             .get::<&Familiarity>(learner)
             .map(|f| (*f).clone())
             .unwrap_or_default();
-        for &skill in skills {
+        for &skill in &skills {
             let uses = familiarity.uses(skill, &kind);
             gains.push((skill, base * DECAY / (DECAY + uses)));
             familiarity.count(skill, &kind);

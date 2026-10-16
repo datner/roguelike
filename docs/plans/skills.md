@@ -240,3 +240,9 @@ listing what changed, what was left out, and follow-ups.
   `skill::train`, `ideas`, `proficiencies`), `data/discoveries.ron`, `Blueprints::with_discoveries`;
   parts `Proficiency`, `Footwork`, `Discovered`; `AttackOdds.asking`; `Footwork.ron` (Dodge 4 + Poise 2).
   The skills panel lists proficiencies and ideas (an idea's name stays hidden). `SAVE_VERSION` 21.
+- **7** (ADR 0019): `style.rs` (`StyleDef`, `follow`, `following`, `styles`, the Riposte handler);
+  `Style { domains, skill, follows, principles }` with `Principle`/`Does`; `Command::FollowStyle`
+  (`cost::FOLLOW_STYLE`), `PlayerAction::FollowStyle`; style skills train inside `skill::train`;
+  `Grant::Style`; content Fencing (skill, style, discovery), Sword, `Rapier.ron`. The skills panel
+  lists styles; Enter follows. `SAVE_VERSION` 22. Left out: penalties and principles gated on the
+  current use following the style; inventions.

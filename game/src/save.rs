@@ -19,8 +19,8 @@ use crate::entity::{
     EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
     Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
     OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
-    Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Summoned,
-    Throwable, Timed, Trains, Weapon,
+    Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
+    Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -28,10 +28,11 @@ use crate::map::Grid;
 use crate::rng::Rngs;
 use crate::skill::{SkillBook, SkillId};
 use crate::state::{GameState, MessageLog, event_registry};
+use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 21;
+pub const SAVE_VERSION: u32 = 22;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -230,10 +231,11 @@ enum ComponentKind {
     Proficiency,
     Footwork,
     Discovered,
+    Style,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 60] = [
+    const ALL: [ComponentKind; 61] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -294,6 +296,7 @@ impl ComponentKind {
         Self::Proficiency,
         Self::Footwork,
         Self::Discovered,
+        Self::Style,
     ];
 }
 
@@ -363,6 +366,8 @@ enum SavedComponent {
     Proficiency,
     Footwork(Footwork),
     Discovered(Discovered),
+    /// Skills by name.
+    Style(StyleDef),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -702,6 +707,13 @@ fn save_component(
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
+        ComponentKind::Style => match copy::<Style>(entity) {
+            Some(style) => Some(S::Style(
+                StyleDef::of(&style, blueprints.skills())
+                    .ok_or(SaveError::UnknownSkillId(style.skill))?,
+            )),
+            None => None,
+        },
         ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
             Some(Familiarity(entries)) => Some(S::Familiarity(
                 entries
@@ -833,6 +845,10 @@ fn load_component(
         S::Proficiency => builder.add(Proficiency),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),
+        S::Style(def) => builder.add(
+            def.resolve(blueprints.skills())
+                .map_err(LoadError::UnknownSkill)?,
+        ),
         S::Familiarity(entries) => {
             let mut familiarity = entries
                 .into_iter()
@@ -1075,6 +1091,42 @@ mod tests {
         assert_eq!(
             loaded.world.get::<&Projectile>(nocked[0]).unwrap().break_bp,
             2500
+        );
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn a_known_and_a_followed_style_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let book = state.blueprints.skills();
+        let style = Style {
+            domains: vec![crate::skill::Domain::Martial],
+            skill: book.id("Dagger").unwrap(),
+            follows: vec![book.id("Melee").unwrap()],
+            principles: vec![crate::entity::Principle {
+                from_level: 5,
+                does: crate::entity::Does::Riposte,
+            }],
+        };
+        thing("knifework")
+            .with(style.clone())
+            .carried_by(player)
+            .make(&mut state);
+        thing("fencing")
+            .with(style.clone())
+            .attached_to(player)
+            .make(&mut state);
+
+        let loaded = reload(&state, test_blueprints());
+        let known = crate::style::known(&loaded.world, loaded.player);
+        assert_eq!(known.len(), 2);
+        for thing in known {
+            assert_eq!(*loaded.world.get::<&Style>(thing).unwrap(), style);
+        }
+        assert_eq!(
+            crate::style::followed(&loaded.world, loaded.player).len(),
+            1
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }

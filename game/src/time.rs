@@ -181,6 +181,17 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 at,
             }
         }
+        PlayerAction::FollowStyle(style) => {
+            let known = crate::style::known(&state.world, player);
+            let Some(style) = style.find(&state.world, &known) else {
+                state.log.push("You know no such style.");
+                return;
+            };
+            Command::FollowStyle {
+                actor: player,
+                style,
+            }
+        }
         PlayerAction::Throw { item, at } => {
             let Some(item) = item.find(&state.world, &held(state)) else {
                 state.log.push("You do not have that.");

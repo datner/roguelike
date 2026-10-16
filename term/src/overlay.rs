@@ -2,7 +2,7 @@
 //! an equipment view, and the skills the player has learned. Pure state plus drawing; `app::run` feeds it keys and
 //! performs the actions it returns.
 
-use game::{Domain, IdeaView, ItemView, PartView, PlayerAction, SkillView};
+use game::{Domain, IdeaView, ItemView, PartView, PlayerAction, SkillView, StyleView};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
@@ -28,6 +28,7 @@ pub struct Contents<'a> {
     pub skills: &'a [SkillView],
     pub proficiencies: &'a [String],
     pub ideas: &'a [IdeaView],
+    pub styles: &'a [StyleView],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,8 +94,7 @@ impl Overlay {
                     (Tab::Equipment, Some(picking)) => {
                         self.handle_picking(input, picking, contents)
                     }
-                    // Nothing to choose: the skills view only shows.
-                    (Tab::Skills, _) => None,
+                    (Tab::Skills, _) => self.handle_styles(input, contents.styles),
                 };
             }
         }
@@ -128,6 +128,18 @@ impl Overlay {
             }
             _ => None,
         }
+    }
+
+    /// The skills view's only choice: which style to follow.
+    fn handle_styles(
+        &mut self,
+        input: OverlayInput,
+        styles: &[StyleView],
+    ) -> Option<OverlayAction> {
+        move_selection(&mut self.selected, input, styles.len());
+        let style = styles.get(self.selected)?;
+        (input == OverlayInput::Select)
+            .then_some(OverlayAction::Act(PlayerAction::FollowStyle(style.style)))
     }
 
     fn handle_equipment(
@@ -223,8 +235,12 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
         ),
         (Tab::Skills, _, _) => (
             tabs(Tab::Skills),
-            skill_rows(contents),
-            "Tab inventory  Esc close",
+            skill_rows(contents, overlay.selected),
+            if contents.styles.is_empty() {
+                "Tab inventory  Esc close"
+            } else {
+                "Enter follow / set aside  Tab inventory  Esc close"
+            },
         ),
         (Tab::Inventory, _, _) => {
             let ammo = contents
@@ -301,7 +317,7 @@ fn item_rows(items: &[ItemView], selected: usize) -> Vec<Line<'static>> {
 
 /// The skills under a heading per domain (name, level, XP toward the next
 /// level), then the proficiencies attained and the half-formed ideas.
-fn skill_rows(contents: &Contents) -> Vec<Line<'static>> {
+fn skill_rows(contents: &Contents, selected: usize) -> Vec<Line<'static>> {
     let skills = contents.skills;
     if skills.is_empty() {
         return vec![Line::from("You have learned nothing yet.")];
@@ -329,6 +345,18 @@ fn skill_rows(contents: &Contents) -> Vec<Line<'static>> {
             Span::raw(format!("  {:<width$}  {:>2}", skill.name, skill.level)),
             Span::styled(progress, dim),
         ]));
+    }
+    if !contents.styles.is_empty() {
+        rows.push(heading("Styles"));
+        let selected = selected.min(contents.styles.len() - 1);
+        for (i, style) in contents.styles.iter().enumerate() {
+            let following = if style.followed { "  following" } else { "" };
+            let row = Line::from(vec![
+                Span::raw(format!("  {}  {:>2}", style.name, style.level)),
+                Span::styled(following, dim),
+            ]);
+            rows.push(highlight(row, i == selected));
+        }
     }
     if !contents.proficiencies.is_empty() {
         rows.push(heading("Proficiencies"));
@@ -463,6 +491,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Down, &contents), None);
@@ -491,6 +520,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Nock, &contents), None);
@@ -516,6 +546,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         assert!(screen(&Overlay::new(Tab::Inventory), &contents).contains("quiver (3/20)"));
     }
@@ -528,6 +559,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Select, &contents), None);
@@ -552,6 +584,7 @@ mod tests {
                     skills: &[],
                     proficiencies: &[],
                     ideas: &[],
+                    styles: &[],
                 },
             );
         }
@@ -562,6 +595,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         assert_eq!(
             overlay.handle(OverlayInput::Drop, &contents),
@@ -580,6 +614,7 @@ mod tests {
                 skills: &[],
                 proficiencies: &[],
                 ideas: &[],
+                styles: &[],
             },
         );
         assert!(screen.contains("Inventory"));
@@ -612,6 +647,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -632,6 +668,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -663,6 +700,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         assert_eq!(overlay.handle(OverlayInput::Select, &contents), None);
@@ -680,6 +718,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -703,6 +742,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Equipment, &contents), None);
@@ -742,6 +782,7 @@ mod tests {
             skills: &skills,
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::SwitchTab, &contents);
@@ -765,6 +806,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         assert!(
             screen(&Overlay::new(Tab::Skills), &empty).contains("You have learned nothing yet.")
@@ -782,6 +824,7 @@ mod tests {
             skills: &[],
             proficiencies: &[],
             ideas: &[],
+            styles: &[],
         };
         assert!(screen(&Overlay::new(Tab::Inventory), &contents).contains("trains slash, dagger"));
     }
@@ -800,11 +843,50 @@ mod tests {
             skills: &skills,
             proficiencies: &["footwork".to_string()],
             ideas: &ideas,
+            styles: &[],
         };
         let shown = screen(&Overlay::new(Tab::Skills), &contents);
         for line in ["Proficiencies", "  footwork", "Ideas", "Dodge 4 + 1 more"] {
             assert!(shown.contains(line), "{line:?} in\n{shown}");
         }
         assert!(!shown.contains("Fencing"), "an idea's name stays hidden");
+    }
+
+    #[test]
+    fn the_skills_tab_follows_the_selected_style() {
+        let styles = [
+            StyleView {
+                style: ItemRef(SpawnSeq(7)),
+                name: "fencing".into(),
+                level: 2,
+                followed: true,
+            },
+            StyleView {
+                style: ItemRef(SpawnSeq(8)),
+                name: "brawling".into(),
+                level: 0,
+                followed: false,
+            },
+        ];
+        let skills = [skill("Melee", Domain::Martial, 1, 60, Some(200))];
+        let contents = Contents {
+            inventory: &[],
+            equipment: &[],
+            skills: &skills,
+            proficiencies: &[],
+            ideas: &[],
+            styles: &styles,
+        };
+        let mut overlay = Overlay::new(Tab::Skills);
+        let shown = screen(&overlay, &contents);
+        assert!(shown.contains("fencing   2  following"), "{shown}");
+        assert!(shown.contains("brawling   0"));
+        assert_eq!(overlay.handle(OverlayInput::Down, &contents), None);
+        assert_eq!(
+            overlay.handle(OverlayInput::Select, &contents),
+            Some(OverlayAction::Act(PlayerAction::FollowStyle(ItemRef(
+                SpawnSeq(8)
+            ))))
+        );
     }
 }

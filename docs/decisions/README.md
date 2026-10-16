@@ -44,3 +44,4 @@ What this makes easier, what it makes harder, what we'd revisit and when.
 ```
 | [0017](0017-skills.md) | Flat data-defined skills, weighted-average level, XP-only storage, use-based training that decays with repetition | Accepted |
 | [0018](0018-discovery.md) | Data-defined discoveries checked after uses with stakes; proficiencies are attached blueprints; a legible journal | Accepted |
+| [0019](0019-styles.md) | Styles: carried when known, attached when followed, own skill, principles by level | Accepted |

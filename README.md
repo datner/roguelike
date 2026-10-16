@@ -45,6 +45,9 @@ This is a Cargo workspace with two crates:
     discovery from `data/discoveries.ron`, granting a proficiency (a part
     attached to you, such as Footwork). Half-formed ideas show in the
     skills panel.
+  - Styles (ADR 0019): a discovery can grant a style, such as Fencing. Take
+    it up from the skills panel; it grows with every use that follows it
+    and gains principles at levels (Fencing ripostes a perfect dodge).
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
     piercing (a set; punches are blunt), armor resists each kind, and a
     blow of several kinds goes through the weakest spot.
@@ -143,7 +146,8 @@ In game:
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).
   - Skills: what you have learned, by domain, with each level and the XP
-    toward the next.
+    toward the next; then your styles (`Enter` takes one up or sets it
+    aside, a turn), proficiencies and half-formed ideas.
   - Equipping, unequipping and dropping take a turn each; the panel stays
     open.
 - `t`: throw something (carried or equipped; one turn). A list appears if

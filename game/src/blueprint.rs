@@ -26,11 +26,13 @@ use crate::entity::{
     BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus,
     Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
     OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School, Scroll, Skills,
-    Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Throwable, Trains, Weapon,
+    Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit, Throwable, Trains,
+    Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
+use crate::style::StyleDef;
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -90,6 +92,8 @@ pub enum ComponentDef {
     Deflect(Deflect),
     Proficiency,
     Footwork(Footwork),
+    /// Skills by name; spawned from `ResolvedBlueprint::style`.
+    Style(StyleDef),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -156,7 +160,7 @@ impl ComponentDef {
             ComponentDef::Proficiency => builder.add(Proficiency),
             ComponentDef::Footwork(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
-            ComponentDef::Skills(_) | ComponentDef::Trains(_) => return,
+            ComponentDef::Skills(_) | ComponentDef::Trains(_) | ComponentDef::Style(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
             // Holds a name; spawned from `ResolvedBlueprint::summon` instead.
@@ -196,6 +200,7 @@ pub struct ResolvedBlueprint {
     pub summon: Option<Summon>,
     pub skills: Option<Skills>,
     pub trains: Option<Trains>,
+    pub style: Option<Style>,
     pub equipment: Vec<BlueprintId>,
     /// The `Body` part each `equipment` entry is spawned on, index for index.
     pub equipped_on: Vec<u32>,
@@ -436,6 +441,7 @@ impl Blueprints {
             let mut summon = None;
             let mut learned = None;
             let mut trains = None;
+            let mut style = None;
             let skill_id = |skill: &String| {
                 skills
                     .id(skill)
@@ -480,6 +486,14 @@ impl Blueprints {
                         ids.dedup();
                         trains = Some(Trains(ids));
                     }
+                    ComponentDef::Style(def) => {
+                        style = Some(def.resolve(&skills).map_err(|skill| {
+                            BlueprintError::UnknownSkill {
+                                owner: name.clone(),
+                                skill,
+                            }
+                        })?);
+                    }
                     other => components.push(other),
                 }
             }
@@ -502,6 +516,7 @@ impl Blueprints {
                 summon,
                 skills: learned,
                 trains,
+                style,
                 equipment,
                 equipped_on: Vec::new(),
                 spells,
@@ -587,6 +602,9 @@ impl Blueprints {
         if let Some(trains) = &blueprint.trains {
             builder.add(trains.clone());
         }
+        if let Some(style) = &blueprint.style {
+            builder.add(style.clone());
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
@@ -607,6 +625,7 @@ fn check_skills(raw: &BTreeMap<String, Blueprint>, book: &SkillBook) -> Result<(
         let named = blueprint.components.iter().flat_map(|c| match c {
             ComponentDef::Skills(levels) => levels.keys().collect::<Vec<_>>(),
             ComponentDef::Trains(names) => names.iter().collect(),
+            ComponentDef::Style(def) => def.names().collect(),
             _ => Vec::new(),
         });
         for skill in named {

@@ -9,6 +9,7 @@
     (name: "Slash", domain: Martial, weight: 2),
     (name: "Blunt", domain: Martial, weight: 2),
     (name: "Dagger", domain: Martial, weight: 3),
+    (name: "Sword", domain: Martial, weight: 3),
     // How a weapon is held (from equipment, not the weapon).
     (name: "One-handed", domain: Martial, weight: 1),
     (name: "Empty offhand", domain: Martial, weight: 1),
@@ -16,6 +17,9 @@
     (name: "Thrown", domain: Martial, weight: 1),
     (name: "Archery", domain: Martial, weight: 1),
     (name: "Bow", domain: Martial, weight: 3),
+    // Styles: each has its own skill, trained by uses that follow it
+    // (ADR 0019). It never counts toward a use's level.
+    (name: "Fencing", domain: Martial, weight: 1),
 
     // Defence: how you avoid being hurt.
     (name: "Dodge", domain: Defence, weight: 1),

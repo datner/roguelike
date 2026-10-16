@@ -135,6 +135,12 @@ pub(crate) enum Command {
         spell: Entity,
         duration: u64,
     },
+    /// Take up a style `actor` knows, or set aside the one they follow
+    /// (ADR 0019).
+    FollowStyle {
+        actor: Entity,
+        style: Entity,
+    },
     /// Take `amount` from `caster`'s mana pool.
     SpendMana {
         caster: Entity,
@@ -208,6 +214,7 @@ impl Command {
             | Command::Nock { actor, arrow: item }
             | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
+            Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Recharge { spell, .. } => [Some(spell), None],
             Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
@@ -269,6 +276,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
             Command::Cast { actor, spell, at } => spell::cast(state, actor, spell, at),
+            Command::FollowStyle { actor, style } => crate::style::follow(state, actor, style),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
             Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),

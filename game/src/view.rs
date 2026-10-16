@@ -8,7 +8,7 @@ use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
     Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
-    Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Throwable,
+    Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Style, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -183,7 +183,11 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
 }
 
 pub(crate) fn carried(state: &GameState) -> Vec<Entity> {
+    // Known styles are carried too (ADR 0019), but they are not things.
     holding::carried(&state.world, state.player)
+        .into_iter()
+        .filter(|&thing| !state.world.satisfies::<&Style>(thing))
+        .collect()
 }
 
 /// Everything the player has in hand or on: carried, then equipped.
