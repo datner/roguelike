@@ -12,9 +12,10 @@ use crate::equipment::equipped;
 use crate::state::GameState;
 
 /// A frontend's handle on an item: its `SpawnSeq`, which is unique, stable
-/// across saves, and says nothing about hecs ids.
+/// across saves, and says nothing about hecs ids. Public, since a made-up
+/// one is harmless: `take_turn` only resolves refs to items the player holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ItemRef(SpawnSeq);
+pub struct ItemRef(pub SpawnSeq);
 
 impl ItemRef {
     pub(crate) fn of(world: &World, item: Entity) -> Option<Self> {

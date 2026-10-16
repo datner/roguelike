@@ -1,4 +1,4 @@
-//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent` or a `MenuInput`.
+//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent`, `MenuInput` or `OverlayInput`.
 
 use game::{Dir, InputEvent};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
@@ -20,7 +20,32 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('x') => Some(InputEvent::Explore),
         KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
+        KeyCode::Char('i') => Some(InputEvent::Inventory),
         KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
+        _ => None,
+    }
+}
+
+/// Input while the hovering panel (`overlay`) is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayInput {
+    Up,
+    Down,
+    Select,
+    Drop,
+    Close,
+}
+
+pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
+    if key.kind == KeyEventKind::Release {
+        return None;
+    }
+    match key.code {
+        KeyCode::Up | KeyCode::Char('k') => Some(OverlayInput::Up),
+        KeyCode::Down | KeyCode::Char('j') => Some(OverlayInput::Down),
+        KeyCode::Enter => Some(OverlayInput::Select),
+        KeyCode::Char('d') => Some(OverlayInput::Drop),
+        KeyCode::Esc | KeyCode::Char('q' | 'i') => Some(OverlayInput::Close),
         _ => None,
     }
 }
@@ -136,6 +161,22 @@ mod tests {
             map_key_event(key(KeyCode::Char('X'))),
             Some(InputEvent::CycleExploreItems)
         );
+    }
+
+    #[test]
+    fn i_opens_the_inventory_and_closes_it_again() {
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('i'))),
+            Some(InputEvent::Inventory)
+        );
+        for code in [KeyCode::Char('i'), KeyCode::Esc, KeyCode::Char('q')] {
+            assert_eq!(map_overlay_key(key(code)), Some(OverlayInput::Close));
+        }
+        assert_eq!(
+            map_overlay_key(key(KeyCode::Char('j'))),
+            Some(OverlayInput::Down)
+        );
+        assert_eq!(map_overlay_key(key(KeyCode::Char('l'))), None);
     }
 
     #[test]

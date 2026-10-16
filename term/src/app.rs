@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use game::{
     Blueprints, CaveParams, GameState, InputEvent, PlayerAction, cycle_explore_items, explore_step,
-    random_seed, render_view, take_turn,
+    inventory_view, random_seed, render_view, take_turn,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -14,8 +14,9 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::input::{map_key_event, map_menu_key};
+use crate::input::{map_key_event, map_menu_key, map_overlay_key};
 use crate::menu::{self, Action, Menu};
+use crate::overlay::{self, Contents, Overlay, OverlayAction};
 use crate::saves::{self, Loaded};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
@@ -131,7 +132,8 @@ fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, 
 /// resize) — no tick loop: `game::take_turn` runs the world until the
 /// player is ready again.
 pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
-    terminal.draw(|frame| draw(frame, state))?;
+    let mut overlay: Option<Overlay> = None;
+    terminal.draw(|frame| draw(frame, state, overlay.as_ref()))?;
 
     loop {
         match event::read()? {
@@ -140,6 +142,23 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     return Ok(());
                 }
                 continue;
+            }
+            Event::Key(key) if overlay.is_some() => {
+                let Some(input) = map_overlay_key(key) else {
+                    continue;
+                };
+                let inventory = inventory_view(state);
+                let contents = Contents {
+                    inventory: &inventory,
+                };
+                match overlay.as_mut().and_then(|o| o.handle(input, &contents)) {
+                    Some(OverlayAction::Close) => overlay = None,
+                    Some(OverlayAction::Act(action)) => take_turn(state, action),
+                    None => {}
+                }
+                if state.game_over {
+                    overlay = None;
+                }
             }
             Event::Key(key) => {
                 let Some(input_event) = map_key_event(key) else {
@@ -152,12 +171,13 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state)?,
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
+                    InputEvent::Inventory => overlay = Some(Overlay::default()),
                 }
             }
             Event::Resize(_, _) => {}
             _ => continue,
         }
-        terminal.draw(|frame| draw(frame, state))?;
+        terminal.draw(|frame| draw(frame, state, overlay.as_ref()))?;
     }
 }
 
@@ -169,7 +189,7 @@ const EXPLORE_STEP_DELAY: Duration = Duration::from_millis(25);
 /// releases are ignored, or releasing the key that started it would stop it.
 fn explore(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
     while explore_step(state) {
-        terminal.draw(|frame| draw(frame, state))?;
+        terminal.draw(|frame| draw(frame, state, None))?;
         if key_pressed_within(EXPLORE_STEP_DELAY)? {
             break;
         }
@@ -188,7 +208,7 @@ fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
     Ok(false)
 }
 
-fn draw(frame: &mut Frame, state: &GameState) {
+fn draw(frame: &mut Frame, state: &GameState, overlay: Option<&Overlay>) {
     let chunks = Layout::new(
         Direction::Vertical,
         [
@@ -226,6 +246,14 @@ fn draw(frame: &mut Frame, state: &GameState) {
         Paragraph::new(status).block(Block::bordered().title("Status")),
         chunks[2],
     );
+
+    if let Some(overlay) = overlay {
+        let inventory = inventory_view(state);
+        let contents = Contents {
+            inventory: &inventory,
+        };
+        overlay::draw(frame, chunks[0], overlay, &contents);
+    }
 }
 
 #[cfg(test)]
@@ -248,7 +276,7 @@ mod tests {
     /// 60×30: a 60×20 map panel above the 7-row log and 3-row status.
     fn rows(state: &GameState) -> Vec<String> {
         let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal.draw(|frame| draw(frame, state)).unwrap();
+        terminal.draw(|frame| draw(frame, state, None)).unwrap();
         let buffer = terminal.backend().buffer();
         buffer
             .content()
@@ -270,6 +298,26 @@ mod tests {
         let panel: String = rows[..20].concat();
         assert_eq!(panel.matches('☺').count(), 1);
         assert!(panel.contains('#') && panel.contains('.'));
+    }
+
+    #[test]
+    fn the_inventory_panel_hovers_over_the_map() {
+        let state = state();
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &state, Some(&Overlay::default())))
+            .unwrap();
+        let rows: Vec<String> = {
+            let buffer = terminal.backend().buffer();
+            buffer
+                .content()
+                .chunks(usize::from(buffer.area.width))
+                .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+                .collect()
+        };
+        let map: String = rows[..20].concat();
+        assert!(map.contains("Inventory") && map.contains("You carry nothing."));
+        assert!(rows[20..].concat().contains("Log"), "the log stays visible");
     }
 
     #[test]

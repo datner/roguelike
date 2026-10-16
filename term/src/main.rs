@@ -6,6 +6,7 @@ use std::process::ExitCode;
 mod app;
 mod input;
 mod menu;
+mod overlay;
 mod saves;
 mod tui;
 mod widgets;

@@ -8,8 +8,10 @@ Thin shell around `game`. **No game rules here.** If you're about to decide what
 - `menu.rs` — title menu (new, continue, load; rename/delete saves). Pure state: `Menu::handle` returns an `Action`, it never touches files; drawing is tested with `TestBackend`.
 - `saves.rs` — save file paths (`directories` for the default), listing (newest first), loading, rename (never overwrites), delete, atomic save-on-quit (skipped after death). Never overwrites a save that failed to load. ADR 0008.
 - `tui.rs` — terminal init/restore, Kitty keyboard enhancement, panic hook. Every mode you enable must be undone in `restore()`, including on panic.
-- `input.rs` — `KeyEvent` → `game::InputEvent` in game, → `MenuInput` on the title menu. Only place keys are bound; update README "Controls" when bindings change.
+- `input.rs` — `KeyEvent` → `game::InputEvent` in game, → `OverlayInput` while the hovering panel is open, → `MenuInput` on the title menu. Only place keys are bound; update README "Controls" when bindings change.
 - `app.rs` — `session` (menu ↔ game loop, performs menu actions, loads/starts/saves games), the blocking game loop (turn-based: no tick timer; auto-explore only polls briefly between its steps so a key can interrupt) and panel layout.
+- `overlay.rs` — the hovering panel over the map (inventory view). Pure state: `Overlay::handle` takes an `OverlayInput` plus fresh `game` views (`Contents`) and returns `Close` or a `PlayerAction`; `app::run` owns the `Option<Overlay>` and routes keys to it while open.
+- `widgets/mod.rs` — `color`, the one `game::Rgb` → ratatui colour conversion.
 - `widgets/map_widget.rs` — renders `Grid<Cell>`. `tile_to_screen` is the single place that maps tile coords to screen coords, and `viewport_tiles` its inverse for the panel size passed to `render_view`; keep it that way. The camera (which world tiles are shown) is `game::camera`.
 
 ## Rules

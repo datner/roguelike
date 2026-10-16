@@ -3,8 +3,9 @@
 use game::{Cell, Grid};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Color;
 use ratatui::widgets::Widget;
+
+use super::color;
 
 /// Maps one map tile to one screen cell. This is the only place that knows
 /// about the tile-to-screen ratio — switching to two characters per tile
@@ -48,8 +49,8 @@ impl<'a> Widget for MapWidget<'a> {
                 if let Some(buf_cell) = buf.cell_mut((pos_x, pos_y)) {
                     buf_cell
                         .set_char(cell.glyph)
-                        .set_fg(Color::Rgb(cell.fg.0, cell.fg.1, cell.fg.2))
-                        .set_bg(Color::Rgb(cell.bg.0, cell.bg.1, cell.bg.2));
+                        .set_fg(color(cell.fg))
+                        .set_bg(color(cell.bg));
                 }
             }
         }
