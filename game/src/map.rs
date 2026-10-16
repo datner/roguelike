@@ -8,6 +8,16 @@ use serde::{Deserialize, Serialize};
 pub enum Tile {
     Floor,
     Wall,
+    /// Where auto-explore heads once the zone holds nothing else to find.
+    Exit,
+}
+
+impl Tile {
+    /// Can be stood on and seen through. Off-map (`None` from `Grid::get`)
+    /// counts as wall, so callers pass `map.get(..)` straight in.
+    pub fn is_open(tile: Option<&Tile>) -> bool {
+        matches!(tile, Some(Tile::Floor | Tile::Exit))
+    }
 }
 
 pub type Map = Grid<Tile>;

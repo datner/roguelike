@@ -505,6 +505,10 @@ mod tests {
             let action = match input {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
+                InputEvent::Explore => {
+                    while crate::explore::explore_step(&mut state) {}
+                    continue;
+                }
                 InputEvent::Quit => break,
             };
             take_turn(&mut state, action);
@@ -523,6 +527,7 @@ mod tests {
                 InputEvent::Move(Dir::S),
             ]);
         }
+        script.push(InputEvent::Explore);
         let a = play(7, &script);
         let b = play(7, &script);
         assert_eq!(a.log, b.log);

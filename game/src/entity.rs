@@ -82,6 +82,16 @@ pub struct SpawnSeq(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hostile;
 
+/// Marker component: a thing that can lie on the floor. Its blueprints are
+/// the pool new zones scatter (`GameState::new`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Item;
+
+/// Marker component: the player has stood on this floor item, so
+/// auto-explore stops heading for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Found;
+
 /// Blueprint-side length of a timed effect, in ticks. `ApplyEffect` swaps it
 /// for `Timed`, since only then is the start known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

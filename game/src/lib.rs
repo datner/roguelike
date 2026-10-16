@@ -32,6 +32,7 @@ pub mod cost;
 pub mod effect;
 pub mod entity;
 pub mod event;
+pub mod explore;
 pub mod fov;
 pub mod grammar;
 pub mod prio;
@@ -44,9 +45,10 @@ pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;
 pub use entity::{
-    Appearance, Armor, Bleeding, BlocksMovement, Dead, Duration, Energy, Health, Hostile, Melee,
-    Name, OnHit, OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
+    Appearance, Armor, Bleeding, BlocksMovement, Dead, Duration, Energy, Found, Health, Hostile,
+    Item, Melee, Name, OnHit, OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
 };
+pub use explore::explore_step;
 pub use grammar::Subject;
 pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};

@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
 use crate::entity::{
     Appearance, Armor, Attachments, Bleeding, BlocksMovement, Dead, Duration, EffectTarget, Energy,
-    Health, Hostile, Melee, Name, OnHit, OnHitEntry, Player, Position, SpawnSeq, Speed, Timed,
+    Found, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, Player, Position, SpawnSeq,
+    Speed, Timed,
 };
 use crate::fov;
 use crate::map::Grid;
@@ -24,7 +25,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 1;
+pub const SAVE_VERSION: u32 = 2;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -171,6 +172,8 @@ enum ComponentKind {
     Energy,
     SpawnSeq,
     Hostile,
+    Item,
+    Found,
     Duration,
     Timed,
     EffectTarget,
@@ -179,7 +182,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 19] = [
+    const ALL: [ComponentKind; 21] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -194,6 +197,8 @@ impl ComponentKind {
         Self::Energy,
         Self::SpawnSeq,
         Self::Hostile,
+        Self::Item,
+        Self::Found,
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
@@ -220,6 +225,8 @@ enum SavedComponent {
     Energy(Energy),
     SpawnSeq(SpawnSeq),
     Hostile,
+    Item,
+    Found,
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
@@ -453,6 +460,8 @@ fn save_component(
         ComponentKind::Energy => copy(entity).map(S::Energy),
         ComponentKind::SpawnSeq => copy(entity).map(S::SpawnSeq),
         ComponentKind::Hostile => marker::<Hostile>(entity, S::Hostile),
+        ComponentKind::Item => marker::<Item>(entity, S::Item),
+        ComponentKind::Found => marker::<Found>(entity, S::Found),
         ComponentKind::Duration => copy(entity).map(S::Duration),
         ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
@@ -505,6 +514,8 @@ fn load_component(
         S::Energy(c) => builder.add(c),
         S::SpawnSeq(c) => builder.add(c),
         S::Hostile => builder.add(Hostile),
+        S::Item => builder.add(Item),
+        S::Found => builder.add(Found),
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
@@ -685,6 +696,33 @@ mod tests {
             }
         }
         state.now
+    }
+
+    #[test]
+    fn found_and_unfound_floor_items_survive_a_round_trip() {
+        let mut state = bare_state();
+        spawn_with(
+            &mut state,
+            (Name("found".into()), Item, Found, Position { x: 4, y: 4 }),
+        );
+        spawn_with(
+            &mut state,
+            (Name("unfound".into()), Item, Position { x: 5, y: 4 }),
+        );
+        state.map.set(6, 4, Tile::Exit);
+
+        let loaded = reload(&state, test_blueprints());
+        let found: Vec<(String, bool)> = loaded
+            .world
+            .query::<(&Name, &Item, Option<&Found>)>()
+            .iter()
+            .map(|(name, _, found)| (name.0.clone(), found.is_some()))
+            .collect();
+        assert_eq!(
+            found,
+            [("found".to_string(), true), ("unfound".to_string(), false)]
+        );
+        assert_eq!(loaded.map.get(6, 4), Some(&Tile::Exit));
     }
 
     #[test]

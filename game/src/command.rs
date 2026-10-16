@@ -8,7 +8,7 @@ use crate::blueprint::BlueprintId;
 use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
-use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Health, Position};
+use crate::entity::{Attachments, BlocksMovement, Dead, Energy, Found, Health, Item, Position};
 use crate::event::{Ctx, settle};
 use crate::fov;
 use crate::grammar::{Subject, capitalize};
@@ -70,6 +70,8 @@ pub(crate) enum Command {
     },
     ExpireEffect(Entity),
     BleedTick(Entity),
+    /// The player arrived on a tile: the floor items there become `Found`.
+    FindItems(Entity),
     /// Scheduler only: move the clock forward and grant actors energy.
     AdvanceClock {
         ticks: u64,
@@ -84,7 +86,9 @@ impl Command {
     /// `apply_commands` skips the command.
     fn participants(&self) -> [Option<Entity>; 2] {
         match *self {
-            Command::TryMove(actor, _) | Command::Wait(actor) => [Some(actor), None],
+            Command::TryMove(actor, _) | Command::Wait(actor) | Command::FindItems(actor) => {
+                [Some(actor), None]
+            }
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
                 [Some(target), None]
@@ -144,6 +148,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::BleedTick(effect) => effect::bleed_tick(state, effect),
             Command::AdvanceClock { ticks } => time::advance_clock(state, ticks),
             Command::UpdateFov => fov::update(state),
+            Command::FindItems(finder) => find_items(state, finder),
         }
     }
 }
@@ -194,7 +199,7 @@ fn destination(state: &GameState, entity: Entity, dir: Dir) -> Option<(i32, i32)
 
 /// Off-map counts as wall.
 fn is_wall(state: &GameState, (x, y): (i32, i32)) -> bool {
-    !matches!(state.map.get(x, y), Some(Tile::Floor))
+    !Tile::is_open(state.map.get(x, y))
 }
 
 fn log_wall_bump(state: &mut GameState, entity: Entity) {
@@ -244,6 +249,29 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
     if let Ok(mut pos) = state.world.get::<&mut Position>(entity) {
         pos.x = target.0;
         pos.y = target.1;
+    }
+    if entity == state.player {
+        state.commands.push_back(Command::FindItems(entity));
+    }
+}
+
+/// Announces each floor item under `finder` the first time they stand on it.
+fn find_items(state: &mut GameState, finder: Entity) {
+    let Some(at) = state.world.get::<&Position>(finder).ok().map(|pos| *pos) else {
+        return;
+    };
+    let new: Vec<Entity> = state
+        .world
+        .query::<(Entity, &Position, &Item, Option<&Found>)>()
+        .iter()
+        .filter(|&(_, pos, _, found)| *pos == at && found.is_none())
+        .map(|(item, ..)| item)
+        .collect();
+    for item in new {
+        let what = Subject::of(&state.world, item);
+        let message = Subject::of(&state.world, finder).sentence("find", what.noun());
+        state.log.push(message);
+        let _ = state.world.insert_one(item, Found);
     }
 }
 
@@ -385,6 +413,42 @@ pub(crate) mod tests {
             .commands
             .push_back(Command::TryMove(state.player, Dir::E));
         apply_commands(state);
+    }
+
+    fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {
+        spawn_with(state, (Name("knife".into()), Item, Position { x, y }))
+    }
+
+    #[test]
+    fn stepping_onto_an_item_finds_it_once() {
+        let mut state = bare_state();
+        let knife = knife_at(&mut state, 2, 1);
+        bump_east(&mut state);
+        assert!(state.world.satisfies::<&Found>(knife));
+        assert_eq!(last_log(&state), "You find the knife.");
+
+        state.log.push("marker");
+        state.commands.push_back(Command::FindItems(state.player));
+        apply_commands(&mut state);
+        assert_eq!(
+            last_log(&state),
+            "marker",
+            "a found item is not announced again"
+        );
+    }
+
+    #[test]
+    fn only_the_player_finds_items() {
+        let mut state = bare_state();
+        let knife = knife_at(&mut state, 3, 1);
+        let walker = spawn_with(&mut state, (Name("goblin".into()), Position { x: 2, y: 1 }));
+        state.commands.push_back(Command::TryMove(walker, Dir::E));
+        apply_commands(&mut state);
+        assert_eq!(
+            *state.world.get::<&Position>(walker).unwrap(),
+            Position { x: 3, y: 1 }
+        );
+        assert!(!state.world.satisfies::<&Found>(knife));
     }
 
     #[test]

@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use hecs::{Entity, World};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintError, BlueprintId, Blueprints};
@@ -10,18 +11,24 @@ use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Attachments, Energy, Position, SpawnSeq, Speed};
+use crate::entity::{Appearance, Attachments, Energy, Item, Position, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::fov;
 use crate::map::{Grid, Map, Tile, choose_spawn_position};
 use crate::rng::Rngs;
 use crate::time::{Tick, Timers};
-use crate::zone::{CaveParams, ZoneCoord, generate_cave, start_position, zone_seed};
+use crate::zone::{CaveParams, ZoneCoord, generate_cave, place_exit, start_position, zone_seed};
 
 /// Goblins placed in a new zone (fewer if the cave has no room).
 pub const GOBLINS: usize = 6;
 /// Closest a goblin may start to the player, in steps.
 pub const GOBLIN_MIN_DISTANCE: i32 = 12;
+/// Items scattered on the floor of a new zone, each drawn from
+/// `Blueprints::items` (fewer if the cave has no room or there are none).
+pub const FLOOR_ITEMS: usize = 5;
+/// Closest an item may start to the player, in steps, so finding one means
+/// leaving the starting spot.
+pub const ITEM_MIN_DISTANCE: i32 = 4;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -70,8 +77,9 @@ pub struct GameState {
 
 impl GameState {
     /// The starting zone: a generated cave, the player on the floor tile
-    /// nearest its centre, and `GOBLINS` goblins on free floor at least
-    /// `GOBLIN_MIN_DISTANCE` away, drawn from the spawn stream.
+    /// nearest its centre, the exit on the floor farthest from it, then
+    /// `GOBLINS` goblins and `FLOOR_ITEMS` items on free floor, drawn from
+    /// the spawn stream.
     pub fn new(
         seed: u64,
         blueprints: Blueprints,
@@ -82,17 +90,19 @@ impl GameState {
         Ok(state)
     }
 
-    /// Just the generated zone and the player; no other entities.
+    /// Just the generated zone (exit included) and the player; no other
+    /// entities.
     pub fn bare(
         seed: u64,
         blueprints: Blueprints,
         cave: &CaveParams,
     ) -> Result<Self, BlueprintError> {
         let zone_seed = zone_seed(seed, ZoneCoord::START);
-        let (map, map_stream) = generate_cave(zone_seed, cave);
+        let (mut map, map_stream) = generate_cave(zone_seed, cave);
         let mut rngs = Rngs::new(seed, zone_seed);
         rngs.map = map_stream;
         let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
+        place_exit(&mut map, (x, y));
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
     }
 
@@ -122,7 +132,37 @@ impl GameState {
             };
             self.spawn_at("Goblin", Position { x, y })?;
         }
+        // After the goblins, so adding items left their placement unchanged.
+        self.scatter_items(from)?;
         self.log.push("Goblins prowl these caves.");
+        Ok(())
+    }
+
+    fn scatter_items(&mut self, from: (i32, i32)) -> Result<(), BlueprintError> {
+        let pool = self.blueprints.items();
+        if pool.is_empty() {
+            return Ok(());
+        }
+        for _ in 0..FLOOR_ITEMS {
+            let occupied: Vec<(i32, i32)> = self
+                .world
+                .query::<&Position>()
+                .iter()
+                .map(|pos| (pos.x, pos.y))
+                .collect();
+            let Some((x, y)) = choose_spawn_position(
+                &self.map,
+                &occupied,
+                from,
+                ITEM_MIN_DISTANCE,
+                &mut self.rngs.spawn,
+            ) else {
+                break;
+            };
+            let id = pool[self.rngs.spawn.random_range(0..pool.len())];
+            let item = self.spawn_id(id)?;
+            let _ = self.world.insert_one(item, Position { x, y });
+        }
         Ok(())
     }
 
@@ -242,6 +282,7 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
             let (glyph, fg) = match tile {
                 Tile::Floor => ('.', Rgb(90, 90, 90)),
                 Tile::Wall => ('#', Rgb(140, 140, 140)),
+                Tile::Exit => ('>', Rgb(240, 220, 80)),
             };
             if let Some(cell) = grid.get_mut(screen_x, screen_y) {
                 cell.glyph = glyph;
@@ -250,14 +291,20 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
         }
     }
 
-    for (pos, appearance) in state.world.query::<(&Position, &Appearance)>().iter() {
-        if !flag(&state.visible, pos.x, pos.y) {
-            continue;
-        }
+    let mut shown: Vec<(Position, char, Rgb, bool)> = state
+        .world
+        .query::<(&Position, &Appearance, Option<&Item>)>()
+        .iter()
+        .filter(|(pos, _, _)| flag(&state.visible, pos.x, pos.y))
+        .map(|(pos, look, item)| (*pos, look.glyph, look.fg, item.is_some()))
+        .collect();
+    // Items first, so anyone standing on one is drawn over it.
+    shown.sort_by_key(|&(_, _, _, item)| !item);
+    for (pos, glyph, fg, _) in shown {
         let (screen_x, screen_y) = camera.world_to_screen((pos.x, pos.y));
         if let Some(cell) = grid.get_mut(screen_x, screen_y) {
-            cell.glyph = appearance.glyph;
-            cell.fg = appearance.fg;
+            cell.glyph = glyph;
+            cell.fg = fg;
         }
     }
 
@@ -277,7 +324,7 @@ pub(crate) mod tests {
     use crate::blueprint::{Blueprint, ComponentDef};
     use crate::combat::roll_melee;
     use crate::command::apply_commands;
-    use crate::entity::{Armor, Attachments, Bleeding, Duration, Health, Melee, Name};
+    use crate::entity::{Armor, Attachments, Bleeding, Duration, Found, Health, Melee, Name};
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
     use crate::zone::tests::test_cave;
@@ -361,7 +408,12 @@ pub(crate) mod tests {
             (
                 "LeatherArmor".to_string(),
                 blueprint(
-                    vec![name("leather armor"), ComponentDef::Armor(Armor { av: 1 })],
+                    vec![
+                        name("leather armor"),
+                        look('['),
+                        ComponentDef::Item,
+                        ComponentDef::Armor(Armor { av: 1 }),
+                    ],
                     &[],
                 ),
             ),
@@ -430,6 +482,39 @@ pub(crate) mod tests {
                 assert!(state.world.satisfies::<&Armor>(gear[0]));
             }
         }
+    }
+
+    #[test]
+    fn new_scatters_unfound_items_and_places_a_reachable_exit() {
+        for seed in 0..5 {
+            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+            let player = player_position(&state);
+            let items: Vec<Position> = state
+                .world
+                .query::<(&Position, &Item, Option<&Found>)>()
+                .iter()
+                .map(|(pos, _, found)| {
+                    assert!(found.is_none(), "seed {seed}");
+                    *pos
+                })
+                .collect();
+            assert_eq!(items.len(), FLOOR_ITEMS, "seed {seed}");
+            for at in &items {
+                assert_eq!(state.map.get(at.x, at.y), Some(&Tile::Floor));
+                let distance = (at.x - player.x).abs().max((at.y - player.y).abs());
+                assert!(distance >= ITEM_MIN_DISTANCE, "seed {seed}: {at:?}");
+            }
+            let exits = state
+                .map
+                .cells()
+                .iter()
+                .filter(|&&t| t == Tile::Exit)
+                .count();
+            assert_eq!(exits, 1, "seed {seed}");
+        }
+        let a = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        let b = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        assert_eq!(a.map, b.map);
     }
 
     #[test]

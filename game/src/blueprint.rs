@@ -21,8 +21,8 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Hostile, Melee,
-    Name, OnHit, OnHitEntry, Player, Speed,
+    Appearance, Armor, Attachments, Bleeding, BlocksMovement, Duration, Health, Hostile, Item,
+    Melee, Name, OnHit, OnHitEntry, Player, Speed,
 };
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
@@ -44,6 +44,7 @@ pub enum ComponentDef {
     Melee(Melee),
     Speed(Speed),
     Hostile,
+    Item,
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
@@ -68,6 +69,7 @@ impl ComponentDef {
             ComponentDef::Melee(c) => builder.add(c),
             ComponentDef::Speed(c) => builder.add(c),
             ComponentDef::Hostile => builder.add(Hostile),
+            ComponentDef::Item => builder.add(Item),
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
@@ -262,6 +264,16 @@ impl Blueprints {
 
     pub fn get(&self, name: &str) -> Option<&ResolvedBlueprint> {
         self.by_id(self.id(name)?)
+    }
+
+    /// Every blueprint with an `Item` component, in id (name) order so
+    /// picking from it by index is deterministic.
+    pub fn items(&self) -> Vec<BlueprintId> {
+        (0..)
+            .zip(&self.resolved)
+            .filter(|(_, blueprint)| blueprint.components.contains(&ComponentDef::Item))
+            .map(|(id, _)| BlueprintId(id))
+            .collect()
     }
 
     /// Spawns blueprint `id`, and each piece of its equipment as a separate

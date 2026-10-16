@@ -6,8 +6,8 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 
 - `cell.rs` — `Cell { glyph, fg, bg }`, `Rgb`: the only rendering output.
 - `input.rs` — `InputEvent`, `Dir`, `PlayerAction`: the only input. Frontends translate raw keys into these and pass a `PlayerAction` to `take_turn`, which resolves the player entity and commands. Anything taking or returning a hecs type stays `pub(crate)`.
-- `map.rs` — `Tile`, `Grid<T>` (i32 coords, `get` returns `Option`), spawn placement. `map::tests::room` is the hand-built 40×20 room tests use instead of the generator.
-- `zone.rs` — zone size, `zone_seed` (SplitMix64 mixing of world seed and zone coords), the cellular-automata cave generator (`CaveParams` from `data/cave.ron`), `start_position`. ADR 0009.
+- `map.rs` — `Tile` (`Tile::is_open` is the one walk/see-through check: floor and exit), `Grid<T>` (i32 coords, `get` returns `Option`), spawn placement. `map::tests::room` is the hand-built 40×20 room tests use instead of the generator.
+- `zone.rs` — zone size, `zone_seed` (SplitMix64 mixing of world seed and zone coords), the cellular-automata cave generator (`CaveParams` from `data/cave.ron`), `start_position`, `place_exit` (farthest floor from the start; no RNG). ADR 0009.
 - `camera.rs` — `Camera`: which world tiles a viewport shows, and the only screen↔world coordinate conversion. ADR 0009.
 - `entity.rs` — hecs components: plain data only (`Position`, `Appearance`, `Health`, `Armor`, `Attachments`, markers like `BlocksMovement`).
 - `blueprint.rs` — blueprints (RON, with `inherits` and `equipment`), loading and spawning. Inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Every referenced name is validated at load and resolved to a runtime-only `BlueprintId` (never serialized; persist names).
@@ -23,6 +23,7 @@ Pure library. No terminal/graphics crates, no I/O besides loading data files, no
 - `effect.rs` — timed effects: `ApplyEffect`, `ModifyDuration` (`DurationChange`), expiry, bleeding ticks.
 - `fov.rs` — symmetric shadowcasting (`compute`, `RADIUS`) and `update`, which refreshes `GameState.visible`/`seen` once per player turn. ADR 0007.
 - `save.rs` — `to_ron` / `from_ron`: `GameState` to and from a versioned RON string (no file IO). Entities by value with references as save indices; a new component needs a `ComponentKind` and a `SavedComponent` variant, and a format change bumps `SAVE_VERSION`. ADR 0008.
+- `explore.rs` — `explore_step`: auto-explore as one player move per call (unfound `Item`s the player has seen, then frontier, then the exit; BFS over seen open tiles), halting with a log message when a hostile is visible or nothing is left. Items become `Found` via `Command::FindItems`, queued when the player moves.
 - `ai.rs` — `decide`: a non-player actor's next `Command` (hostiles that see the player attack or step greedily toward them; others wait). All perception goes through `can_see_player` (ADR 0007).
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.

@@ -45,6 +45,8 @@ impl Dir {
 pub enum InputEvent {
     Move(Dir),
     Wait,
+    /// Repeat `explore::explore_step` until it stops.
+    Explore,
     Quit,
 }
 

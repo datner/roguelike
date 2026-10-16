@@ -2,10 +2,11 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use game::{
-    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, random_seed, render_view,
-    take_turn,
+    Blueprints, CaveParams, GameState, InputEvent, PlayerAction, explore_step, random_seed,
+    render_view, take_turn,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -148,6 +149,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
                     InputEvent::Quit => return Ok(()),
                     InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
                     InputEvent::Wait => take_turn(state, PlayerAction::Wait),
+                    InputEvent::Explore => explore(terminal, state)?,
                 }
             }
             Event::Resize(_, _) => {}
@@ -155,6 +157,33 @@ pub fn run(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
         }
         terminal.draw(|frame| draw(frame, state))?;
     }
+}
+
+/// Pause between auto-explore steps, so the walk is visible and a key
+/// press can interrupt it.
+const EXPLORE_STEP_DELAY: Duration = Duration::from_millis(25);
+
+/// Steps until `game` stops auto-explore or any key is pressed. Key
+/// releases are ignored, or releasing the key that started it would stop it.
+fn explore(terminal: &mut Term, state: &mut GameState) -> io::Result<()> {
+    while explore_step(state) {
+        terminal.draw(|frame| draw(frame, state))?;
+        if key_pressed_within(EXPLORE_STEP_DELAY)? {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
+    while event::poll(timeout)? {
+        if let Event::Key(key) = event::read()?
+            && key.kind != KeyEventKind::Release
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn draw(frame: &mut Frame, state: &GameState) {

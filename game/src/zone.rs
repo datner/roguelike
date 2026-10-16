@@ -244,9 +244,38 @@ pub fn start_position(map: &Map) -> Option<(i32, i32)> {
         .min_by_key(|&(x, y)| (x - cx).pow(2) + (y - cy).pow(2))
 }
 
+/// Turns the floor tile farthest from `start` (in steps; BFS order breaks
+/// ties) into the exit, so reaching it means crossing the zone. Draws no
+/// randomness, so placing it changes no stream. Returns where it went;
+/// `None` if `start` has no other floor to reach.
+pub fn place_exit(map: &mut Map, start: (i32, i32)) -> Option<(i32, i32)> {
+    let mut seen = Grid::new(map.width, map.height, false);
+    let exit = region(map, start, &mut seen)
+        .last()
+        .copied()
+        .filter(|&at| at != start)?;
+    map.set(exit.0, exit.1, Tile::Exit);
+    Some(exit)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn the_exit_is_the_farthest_floor_from_the_start() {
+        let mut map = Grid::new(7, 3, Tile::Wall);
+        for x in 1..6 {
+            map.set(x, 1, Tile::Floor);
+        }
+        assert_eq!(place_exit(&mut map, (2, 1)), Some((5, 1)));
+        assert_eq!(map.get(5, 1), Some(&Tile::Exit));
+
+        let mut lone = Grid::new(3, 3, Tile::Wall);
+        lone.set(1, 1, Tile::Floor);
+        assert_eq!(place_exit(&mut lone, (1, 1)), None);
+        assert_eq!(lone.get(1, 1), Some(&Tile::Floor));
+    }
 
     /// Same values as `data/cave.ron`, inline so retuning the data file
     /// can't break tests that only need some cave.

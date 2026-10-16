@@ -81,9 +81,9 @@ fn chebyshev(a: Position, b: Position) -> i32 {
     (a.x - b.x).abs().max((a.y - b.y).abs())
 }
 
-/// Floor with nothing blocking or fightable on it.
+/// Open ground with nothing blocking or fightable on it.
 fn passable(state: &GameState, at: Position) -> bool {
-    if state.map.get(at.x, at.y) != Some(&Tile::Floor) {
+    if !Tile::is_open(state.map.get(at.x, at.y)) {
         return false;
     }
     let occupied = |pos: &Position| *pos == at;
