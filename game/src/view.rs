@@ -6,7 +6,8 @@ use hecs::{Entity, World};
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Appearance, Armor, Body, Equippable, Health, Name, PartKind, SpawnSeq, Speed, Stats,
+    Appearance, Armor, Body, DamageTypes, Equippable, Health, Name, PartKind, SpawnSeq, Speed,
+    Stats,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -106,10 +107,12 @@ pub struct CharacterSheet {
     pub health: i32,
     pub max_health: i32,
     pub stats: Option<Stats>,
-    /// Armor value: the player's own plus everything equipped.
-    pub av: i32,
+    /// Resistance per kind of damage: the player's own plus everything equipped.
+    pub armor: Armor,
     /// Melee damage before armor, stat bonus included; `None` if unable.
     pub damage: Option<(i32, i32)>,
+    /// The kinds of that damage.
+    pub damage_types: DamageTypes,
     /// What melee hits are made with, if not bare-handed.
     pub wielding: Option<String>,
     pub speed: u32,
@@ -121,19 +124,22 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
     let (health, max_health) = world
         .get::<&Health>(player)
         .map_or((0, 0), |h| (h.current, h.max));
-    let armor = |entity| world.get::<&Armor>(entity).map_or(0, |armor| armor.av);
-    let av = armor(player)
-        + equipped(world, player)
-            .into_iter()
-            .map(|(item, _)| armor(item))
-            .sum::<i32>();
+    let armor_of = |entity| {
+        world
+            .get::<&Armor>(entity)
+            .map_or(Armor::default(), |armor| *armor)
+    };
+    let armor = equipped(world, player)
+        .into_iter()
+        .fold(armor_of(player), |sum, (item, _)| sum.plus(armor_of(item)));
     let strike = strike(world, player);
     CharacterSheet {
         health,
         max_health,
         stats: world.get::<&Stats>(player).ok().map(|stats| *stats),
-        av,
+        armor,
         damage: strike.map(Strike::range),
+        damage_types: strike.map_or_else(DamageTypes::default, |strike| strike.types),
         wielding: strike
             .and_then(|strike| strike.weapon)
             .and_then(|weapon| world.get::<&Name>(weapon).ok().map(|name| name.0.clone())),
@@ -217,8 +223,8 @@ mod tests {
             .unwrap();
         let sheet = character_sheet(&state);
         assert_eq!(
-            (sheet.health, sheet.max_health, sheet.av, sheet.speed),
-            (20, 20, 0, 100)
+            (sheet.health, sheet.max_health, sheet.armor, sheet.speed),
+            (20, 20, Armor::default(), 100)
         );
         // Test player: natural 2-4, +1 Strength.
         assert_eq!((sheet.damage, sheet.wielding), (Some((3, 5)), None));
@@ -242,7 +248,7 @@ mod tests {
         }
 
         let sheet = character_sheet(&state);
-        assert_eq!(sheet.av, 2);
+        assert_eq!(sheet.armor, Armor::uniform(2));
         // Knife 1-3, +2 Agility.
         assert_eq!(sheet.damage, Some((3, 5)));
         assert_eq!(sheet.wielding.as_deref(), Some("knife"));

@@ -8,7 +8,9 @@ use crate::blueprint::BlueprintId;
 use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_melee};
 use crate::cost;
 use crate::effect::{self, DurationChange};
-use crate::entity::{BlocksMovement, Dead, Energy, Found, Health, Item, Position, SpawnSeq};
+use crate::entity::{
+    Armor, BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, SpawnSeq,
+};
 use crate::equipment;
 use crate::event::{Ctx, settle};
 use crate::fov;
@@ -30,8 +32,23 @@ pub const MAX_COMMANDS_PER_STEP: usize = 1000;
 /// effect's own damage can never re-apply effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DamageCause {
-    Melee { attacker: Entity },
-    Effect { effect: Entity },
+    Melee {
+        attacker: Entity,
+        types: DamageTypes,
+    },
+    Effect {
+        effect: Entity,
+    },
+}
+
+impl DamageCause {
+    /// What armor can resist. Effect damage is of no kind, so it passes.
+    pub(crate) fn types(self) -> DamageTypes {
+        match self {
+            Self::Melee { types, .. } => types,
+            Self::Effect { .. } => DamageTypes::default(),
+        }
+    }
 }
 
 /// Actions (`TryMove`, `Wait`, `PickUp`, `Drop`, `Equip`, `Unequip`) cost
@@ -373,11 +390,14 @@ fn drop_item(state: &mut GameState, actor: Entity, item: Entity) {
 }
 
 fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
-    if let Some(amount) = roll_melee(&state.world, &mut state.rngs.combat, attacker) {
+    if let Some(hit) = roll_melee(&state.world, &mut state.rngs.combat, attacker) {
         state.commands.push_back(Command::DealDamage {
             target,
-            amount,
-            cause: DamageCause::Melee { attacker },
+            amount: hit.amount,
+            cause: DamageCause::Melee {
+                attacker,
+                types: hit.types,
+            },
         });
     }
 }
@@ -393,11 +413,11 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
         BeforeTakeDamage {
             target,
             amount,
+            armor: Armor::default(),
             cause,
         },
     ))
-    .amount
-    .max(0);
+    .dealt();
     let victim = Subject::of(&state.world, target);
     if dealt == 0 {
         state.log.push(if amount > 0 {
@@ -437,7 +457,7 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
     if remaining <= 0 {
         state.commands.push_back(Command::Die { entity: target });
     }
-    if let DamageCause::Melee { attacker } = cause {
+    if let DamageCause::Melee { attacker, .. } = cause {
         let _ = dispatch(
             state,
             attacker,
@@ -475,7 +495,7 @@ fn die(state: &mut GameState, entity: Entity) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::entity::Melee;
+    use crate::entity::{DamageType, Melee};
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, thing};
@@ -489,6 +509,7 @@ pub(crate) mod tests {
     /// A melee hit from nobody, for tests about armor.
     pub(crate) const BLOW: DamageCause = DamageCause::Melee {
         attacker: Entity::DANGLING,
+        types: DamageTypes::single(DamageType::Blunt),
     };
 
     /// A goblin (8 HP, 1 AV leather armor) east of the player, who hits for

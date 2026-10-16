@@ -297,7 +297,7 @@ mod tests {
     fn only_equipped_armor_protects() {
         let mut state = bare_state();
         let armor = carry(&mut state, "mail", Some(PartKind::Body));
-        state.world.insert_one(armor, Armor { av: 1 }).unwrap();
+        state.world.insert_one(armor, Armor::uniform(1)).unwrap();
         let hit = |state: &mut GameState| {
             let before = state.world.get::<&Health>(state.player).unwrap().current;
             state.run(Command::DealDamage {

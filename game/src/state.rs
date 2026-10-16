@@ -467,7 +467,7 @@ pub(crate) mod tests {
                         ComponentDef::Equippable(Equippable {
                             part: PartKind::Body,
                         }),
-                        ComponentDef::Armor(Armor { av: 1 }),
+                        ComponentDef::Armor(Armor::uniform(1)),
                     ],
                     &[],
                 ),
@@ -585,7 +585,11 @@ pub(crate) mod tests {
 
     fn combat_rolls(state: &mut GameState) -> Vec<i32> {
         (0..20)
-            .map(|_| roll_melee(&state.world, &mut state.rngs.combat, state.player).unwrap())
+            .map(|_| {
+                roll_melee(&state.world, &mut state.rngs.combat, state.player)
+                    .unwrap()
+                    .amount
+            })
             .collect()
     }
 

@@ -19,6 +19,7 @@ Point at code by module path (`game/src/combat.rs`), component, type or `Command
 | [0009](0009-zones-and-camera.md) | Fixed-size zones larger than the screen, per-zone seeds, camera in `game` | Accepted |
 | [0010](0010-inventory-equipment-body-parts.md) | Inventory vs equipped items; Qud-style body parts; item views for frontends | Accepted |
 | [0011](0011-stats-and-weapons.md) | Creature stats meet weapon attributes in one combat rule | Accepted |
+| [0012](0012-damage-types.md) | Damage kinds, per-kind armor, multi-kind blows use the weakest spot | Accepted |
 
 ## Template
 

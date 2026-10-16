@@ -52,9 +52,9 @@ pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;
 pub use entity::{
-    Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, Dead, Duration, Energy,
-    Equippable, EquippedOn, Found, Health, Hostile, Item, Melee, Name, OnHit, OnHitEntry, PartKind,
-    Player, Position, SpawnSeq, Speed, Stat, Stats, Timed, Weapon,
+    Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType, DamageTypes, Dead,
+    Duration, Energy, Equippable, EquippedOn, Found, Health, Hostile, Item, Melee, Name, OnHit,
+    OnHitEntry, PartKind, Player, Position, SpawnSeq, Speed, Stat, Stats, Timed, Weapon,
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;

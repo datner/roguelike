@@ -7,8 +7,8 @@ use hecs::Entity;
 
 use crate::cell::Rgb;
 use crate::entity::{
-    Appearance, Armor, Energy, Equippable, Found, Health, Hostile, Item, Melee, Name, PartKind,
-    SpawnSeq, Speed, Stat, Stats, Weapon,
+    Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health, Hostile, Item,
+    Melee, Name, PartKind, SpawnSeq, Speed, Stat, Stats, Weapon,
 };
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
@@ -50,11 +50,16 @@ impl Spawn {
     }
 
     pub(crate) fn weapon(self, min: i32, max: i32, stat: Stat) -> Self {
-        self.with(Weapon { min, max, stat })
+        self.with(Weapon {
+            min,
+            max,
+            stat,
+            types: DamageTypes::of(&[DamageType::Slashing]),
+        })
     }
 
     pub(crate) fn armor(self, av: i32) -> Self {
-        self.with(Armor { av })
+        self.with(Armor::uniform(av))
     }
 
     /// At full health.

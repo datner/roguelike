@@ -2,7 +2,7 @@
 //! status. Each `Panel` supplies a title and lines; `draw` stacks them in
 //! `PANELS` order. Hidden on narrow terminals so the map keeps its room.
 
-use game::{ExploreItems, GameState, Stat, character_sheet, equipment_view};
+use game::{DamageType, ExploreItems, GameState, Stat, character_sheet, equipment_view};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -110,11 +110,22 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
     let damage = sheet
         .damage
         .map_or_else(|| "-".to_string(), |(min, max)| format!("{min}-{max}"));
+    let kinds = sheet
+        .damage_types
+        .iter()
+        .map(DamageType::noun)
+        .collect::<Vec<_>>()
+        .join("+");
     lines.push(Line::from(vec![
-        dim("AV "),
-        Span::raw(sheet.av.to_string()),
-        dim("  Dmg "),
-        Span::raw(damage),
+        dim("Armor "),
+        Span::raw(format!(
+            "S{} B{} P{}",
+            sheet.armor.slashing, sheet.armor.blunt, sheet.armor.piercing
+        )),
+    ]));
+    lines.push(Line::from(vec![
+        dim("Dmg "),
+        Span::raw(format!("{damage} {kinds}")),
     ]));
     let wielding = sheet.wielding.unwrap_or_else(|| "bare hands".to_string());
     lines.push(Line::from(vec![dim("Wielding "), Span::raw(wielding)]));
@@ -208,7 +219,8 @@ mod tests {
         assert!(screen.contains("hero"), "{screen}");
         assert!(screen.contains("HP 20/20"));
         assert!(screen.contains("STR 16 (+0)"));
-        assert!(screen.contains("AV 0  Dmg 2-4"));
+        assert!(screen.contains("Armor S0 B0 P0"));
+        assert!(screen.contains("Dmg 2-4 blunt"), "{screen}");
         assert!(screen.contains("Wielding bare hands"));
         assert!(screen.contains("Explore note items"));
     }

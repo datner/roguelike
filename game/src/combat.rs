@@ -9,18 +9,29 @@ use rand_pcg::Pcg64;
 
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
-use crate::entity::{Armor, Health, Melee, OnHit, Stat, Stats, Weapon};
+use crate::entity::{Armor, DamageType, DamageTypes, Health, Melee, OnHit, Stat, Stats, Weapon};
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
 use crate::state::GameState;
 
-/// Fired at a target before damage is applied; handlers may reduce `amount`.
+/// Fired at a target before damage is applied. Handlers may rewrite `amount`
+/// and add the resistance they provide to `armor`; `dealt` combines them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BeforeTakeDamage {
     pub target: Entity,
     pub amount: i32,
+    pub armor: Armor,
     pub cause: DamageCause,
+}
+
+impl BeforeTakeDamage {
+    /// What gets through: `amount` less the gathered armor against this
+    /// blow's kinds, never negative. The one place that sum is made, so real
+    /// hits and `preview_damage` agree.
+    pub fn dealt(&self) -> i32 {
+        (self.amount - self.armor.against(self.cause.types())).max(0)
+    }
 }
 
 /// Notification fired after damage has been applied to `Health`.
@@ -62,22 +73,16 @@ fn on_hit_applies_effects(
     ControlFlow::Continue(ev)
 }
 
-/// Armor stops blows, not what is already inside: effect damage such as
-/// bleeding passes through.
+/// Each worn piece adds its resistance; the total is applied once, per kind,
+/// in `BeforeTakeDamage::dealt`. Effect damage such as bleeding is of no kind,
+/// so it passes: armor stops blows, not what is already inside.
 fn armor_reduces_damage(
     _ctx: &mut Ctx<'_>,
     armor: &Armor,
     mut ev: BeforeTakeDamage,
 ) -> ControlFlow<BeforeTakeDamage, BeforeTakeDamage> {
-    if !matches!(ev.cause, DamageCause::Melee { .. }) {
-        return ControlFlow::Continue(ev);
-    }
-    ev.amount = (ev.amount - armor.av).max(0);
-    if ev.amount == 0 {
-        ControlFlow::Break(ev)
-    } else {
-        ControlFlow::Continue(ev)
-    }
+    ev.armor = ev.armor.plus(*armor);
+    ControlFlow::Continue(ev)
 }
 
 /// How `attacker` hits in melee: the dice and the stat bonus added to them.
@@ -86,6 +91,7 @@ pub(crate) struct Strike {
     pub min: i32,
     pub max: i32,
     pub bonus: i32,
+    pub types: DamageTypes,
     /// The equipped weapon used, if not natural `Melee`.
     pub weapon: Option<Entity>,
 }
@@ -99,20 +105,32 @@ impl Strike {
 }
 
 /// The equipped `Weapon` on the lowest-numbered body part, else natural
-/// `Melee` (a Strength weapon); `None` if `attacker` has neither. The
+/// `Melee` (a Strength, blunt weapon); `None` if `attacker` has neither. The
 /// wielder's `Stats` modifier for the weapon's stat is the bonus.
 pub(crate) fn strike(world: &World, attacker: Entity) -> Option<Strike> {
     let mut worn = equipped(world, attacker);
     worn.sort_by_key(|&(_, part)| part);
     let wielded = worn.into_iter().find_map(|(item, _)| {
         let weapon = *world.get::<&Weapon>(item).ok()?;
-        Some((weapon.min, weapon.max, weapon.stat, Some(item)))
+        Some((
+            weapon.min,
+            weapon.max,
+            weapon.stat,
+            weapon.types,
+            Some(item),
+        ))
     });
     let natural = || {
         let melee = *world.get::<&Melee>(attacker).ok()?;
-        Some((melee.min, melee.max, Stat::Strength, None))
+        Some((
+            melee.min,
+            melee.max,
+            Stat::Strength,
+            DamageTypes::single(DamageType::Blunt),
+            None,
+        ))
     };
-    let (min, max, stat, weapon) = wielded.or_else(natural)?;
+    let (min, max, stat, types, weapon) = wielded.or_else(natural)?;
     let bonus = world
         .get::<&Stats>(attacker)
         .map_or(0, |stats| stats.modifier(stat));
@@ -120,16 +138,27 @@ pub(crate) fn strike(world: &World, attacker: Entity) -> Option<Strike> {
         min,
         max,
         bonus,
+        types,
         weapon,
     })
 }
 
+/// One melee hit before armor: how much, and of which kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Hit {
+    pub amount: i32,
+    pub types: DamageTypes,
+}
+
 /// Raw damage of one of `attacker`'s melee hits (see `strike`), or `None`
 /// if it can't attack. Always exactly one draw from `rng`.
-pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Option<i32> {
+pub(crate) fn roll_melee(world: &World, rng: &mut Pcg64, attacker: Entity) -> Option<Hit> {
     let strike = strike(world, attacker)?;
     let roll = rng.random_range(strike.min..=strike.max.max(strike.min));
-    Some((roll + strike.bonus).max(0))
+    Some(Hit {
+        amount: (roll + strike.bonus).max(0),
+        types: strike.types,
+    })
 }
 
 /// Damage the next real `Attack { attacker, target }` would deal, computed on
@@ -148,7 +177,7 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
         return None;
     }
     let mut rng = state.rngs.combat.clone();
-    let raw = roll_melee(&state.world, &mut rng, attacker)?;
+    let hit = roll_melee(&state.world, &mut rng, attacker)?;
     let mut scratch = Vec::new();
     let mut ctx = Ctx {
         world: &state.world,
@@ -161,11 +190,15 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
         target,
         BeforeTakeDamage {
             target,
-            amount: raw,
-            cause: DamageCause::Melee { attacker },
+            amount: hit.amount,
+            armor: Armor::default(),
+            cause: DamageCause::Melee {
+                attacker,
+                types: hit.types,
+            },
         },
     ));
-    Some(ev.amount.max(0))
+    Some(ev.dealt())
 }
 
 #[cfg(test)]
@@ -218,7 +251,7 @@ mod tests {
         assert_eq!((strike.range(), strike.weapon), ((3, 5), Some(blade)));
         let mut rng = state.rngs.combat.clone();
         for _ in 0..50 {
-            let damage = roll_melee(&state.world, &mut rng, nimble).unwrap();
+            let damage = roll_melee(&state.world, &mut rng, nimble).unwrap().amount;
             assert!((3..=5).contains(&damage), "{damage}");
         }
     }
@@ -237,7 +270,10 @@ mod tests {
         let feeble = fighter(&mut state, 4, 16);
         assert_eq!(strike(&state.world, feeble).unwrap().range(), (0, 0));
         let mut rng = state.rngs.combat.clone();
-        assert_eq!(roll_melee(&state.world, &mut rng, feeble), Some(0));
+        assert_eq!(
+            roll_melee(&state.world, &mut rng, feeble).map(|hit| hit.amount),
+            Some(0)
+        );
     }
 
     fn health(state: &GameState, entity: Entity) -> i32 {
@@ -397,6 +433,132 @@ mod tests {
         });
         assert_eq!(health(&state, dummy), 9);
         assert_eq!(last_log(&state), "The dummy takes 1 damage.");
+    }
+
+    use DamageType::{Blunt, Piercing, Slashing};
+
+    fn blow_of(types: &[DamageType]) -> DamageCause {
+        DamageCause::Melee {
+            attacker: Entity::DANGLING,
+            types: DamageTypes::of(types),
+        }
+    }
+
+    /// Health lost by a 10 HP dummy wearing `pieces` when hit for 5.
+    fn lost_to(pieces: &[Armor], types: &[DamageType]) -> i32 {
+        let mut state = bare_state();
+        let dummy = thing("dummy").at(5, 5).health(10).make(&mut state);
+        for &piece in pieces {
+            thing("piece")
+                .with(piece)
+                .attached_to(dummy)
+                .make(&mut state);
+        }
+        state.run(Command::DealDamage {
+            target: dummy,
+            amount: 5,
+            cause: blow_of(types),
+        });
+        10 - health(&state, dummy)
+    }
+
+    const SCALY: Armor = Armor {
+        slashing: 3,
+        blunt: 0,
+        piercing: 1,
+    };
+
+    #[test]
+    fn armor_resists_each_kind_separately() {
+        let lost = |kind| lost_to(&[SCALY], &[kind]);
+        assert_eq!((lost(Slashing), lost(Blunt), lost(Piercing)), (2, 5, 4));
+    }
+
+    #[test]
+    fn a_blow_of_several_kinds_goes_through_the_weakest_spot() {
+        assert_eq!(lost_to(&[SCALY], &[Slashing, Piercing]), 4);
+        assert_eq!(lost_to(&[SCALY], &[Slashing, Blunt]), 5);
+    }
+
+    #[test]
+    fn pieces_add_up_per_kind_before_the_weakest_is_chosen() {
+        let a = Armor {
+            slashing: 2,
+            ..Armor::default()
+        };
+        let b = Armor {
+            piercing: 2,
+            ..Armor::default()
+        };
+        assert_eq!(lost_to(&[a, b], &[Slashing, Piercing]), 3);
+        assert_eq!(lost_to(&[a, b], &[Slashing]), 3);
+    }
+
+    #[test]
+    fn more_kinds_are_never_worse_than_either_alone() {
+        let kinds = |armor: Armor, types: &[DamageType]| armor.against(DamageTypes::of(types));
+        for slashing in 0..4 {
+            for piercing in 0..4 {
+                let armor = Armor {
+                    slashing,
+                    piercing,
+                    blunt: 0,
+                };
+                let both = kinds(armor, &[Slashing, Piercing]);
+                assert!(both <= kinds(armor, &[Slashing]) && both <= kinds(armor, &[Piercing]));
+            }
+        }
+    }
+
+    #[test]
+    fn damage_types_read_as_a_list_in_data() {
+        let types: DamageTypes = ron::from_str("[Slashing, Piercing]").unwrap();
+        assert_eq!(types, DamageTypes::of(&[Piercing, Slashing]));
+        let again: DamageTypes = ron::from_str(&ron::to_string(&types).unwrap()).unwrap();
+        assert_eq!(again, types);
+    }
+
+    #[test]
+    fn bare_hands_are_blunt_and_a_weapon_brings_its_own_kinds() {
+        let mut state = bare_state();
+        let brawler = fighter(&mut state, 16, 16);
+        assert_eq!(
+            strike(&state.world, brawler).unwrap().types,
+            DamageTypes::of(&[Blunt])
+        );
+        thing("spear")
+            .with(Weapon {
+                min: 1,
+                max: 2,
+                stat: Stat::Strength,
+                types: DamageTypes::of(&[Slashing, Piercing]),
+            })
+            .equipped_on(brawler, 2)
+            .make(&mut state);
+        assert_eq!(
+            strike(&state.world, brawler).unwrap().types,
+            DamageTypes::of(&[Slashing, Piercing])
+        );
+    }
+
+    #[test]
+    fn a_real_attack_is_resisted_by_the_weapons_kind() {
+        let mut state = bare_state();
+        let attacker = fighter(&mut state, 16, 16);
+        let target = thing("dummy").at(5, 5).health(100).make(&mut state);
+        thing("plate")
+            .with(Armor {
+                blunt: 3,
+                ..Armor::default()
+            })
+            .attached_to(target)
+            .make(&mut state);
+        state
+            .world
+            .insert_one(attacker, Melee { min: 4, max: 4 })
+            .unwrap();
+        state.run(Command::Attack { attacker, target });
+        assert_eq!(health(&state, target), 99);
     }
 
     #[test]

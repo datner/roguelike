@@ -111,7 +111,7 @@ In game:
 Moving, attacking (by moving into a creature), bumping a wall and waiting
 each take one turn. The status bar shows the current turn. On terminals at least 80
 columns wide, a side column shows the character (HP, stats, armor,
-damage, weapon, auto-explore setting) and what each body part holds.
+damage and its kinds, weapon, auto-explore setting) and what each body part holds.
 
 ## Running
 

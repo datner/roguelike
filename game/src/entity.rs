@@ -45,10 +45,114 @@ pub struct Health {
     pub max: i32,
 }
 
-/// Armor value: flat reduction applied to each incoming hit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// How a blow harms. Armor resists each kind separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum DamageType {
+    Slashing,
+    Blunt,
+    Piercing,
+}
+
+impl DamageType {
+    pub const ALL: [DamageType; 3] = [Self::Slashing, Self::Blunt, Self::Piercing];
+
+    pub fn noun(self) -> &'static str {
+        match self {
+            Self::Slashing => "slashing",
+            Self::Blunt => "blunt",
+            Self::Piercing => "piercing",
+        }
+    }
+
+    const fn bit(self) -> u8 {
+        1 << self as u8
+    }
+}
+
+/// The kinds of damage one blow carries: a set, so a thrown knife can be
+/// both slashing and piercing. Serialized as a list (`[Slashing, Piercing]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(from = "Vec<DamageType>", into = "Vec<DamageType>")]
+pub struct DamageTypes(u8);
+
+impl DamageTypes {
+    pub const fn single(kind: DamageType) -> Self {
+        Self(kind.bit())
+    }
+
+    pub fn of(types: &[DamageType]) -> Self {
+        types.iter().copied().collect()
+    }
+
+    pub fn contains(self, kind: DamageType) -> bool {
+        self.0 & kind.bit() != 0
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = DamageType> {
+        DamageType::ALL
+            .into_iter()
+            .filter(move |&kind| self.contains(kind))
+    }
+}
+
+impl FromIterator<DamageType> for DamageTypes {
+    fn from_iter<I: IntoIterator<Item = DamageType>>(iter: I) -> Self {
+        Self(iter.into_iter().fold(0, |bits, kind| bits | kind.bit()))
+    }
+}
+
+impl From<Vec<DamageType>> for DamageTypes {
+    fn from(types: Vec<DamageType>) -> Self {
+        types.into_iter().collect()
+    }
+}
+
+impl From<DamageTypes> for Vec<DamageType> {
+    fn from(types: DamageTypes) -> Self {
+        types.iter().collect()
+    }
+}
+
+/// Flat damage reduction per kind of damage; worn pieces add up per kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Armor {
-    pub av: i32,
+    pub slashing: i32,
+    pub blunt: i32,
+    pub piercing: i32,
+}
+
+impl Armor {
+    pub fn uniform(value: i32) -> Self {
+        Self {
+            slashing: value,
+            blunt: value,
+            piercing: value,
+        }
+    }
+
+    pub fn of(self, kind: DamageType) -> i32 {
+        match kind {
+            DamageType::Slashing => self.slashing,
+            DamageType::Blunt => self.blunt,
+            DamageType::Piercing => self.piercing,
+        }
+    }
+
+    /// What this armor takes off a blow of `types`: the kind it resists
+    /// *least*, so a blow carrying several kinds goes through the weakest
+    /// spot (ADR 0012). A blow of no kind (effect damage) is not resisted.
+    pub fn against(self, types: DamageTypes) -> i32 {
+        types.iter().map(|kind| self.of(kind)).min().unwrap_or(0)
+    }
+
+    pub fn plus(self, other: Armor) -> Armor {
+        Armor {
+            slashing: self.slashing + other.slashing,
+            blunt: self.blunt + other.blunt,
+            piercing: self.piercing + other.piercing,
+        }
+    }
 }
 
 /// Inclusive natural (unarmed) melee damage range, boosted by Strength.
@@ -94,6 +198,7 @@ pub struct Weapon {
     pub min: i32,
     pub max: i32,
     pub stat: Stat,
+    pub types: DamageTypes,
 }
 
 /// Entities carried by this one (equipment). Their components take part in
