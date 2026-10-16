@@ -2,13 +2,16 @@
 //! what a shot at one would do, in plain data. Computed with the same
 //! functions the commands use, so the preview cannot disagree with the shot.
 
+use hecs::Entity;
+
 use crate::ammo;
 use crate::combat::Strike;
-use crate::entity::{DamageTypes, Dead, Hostile, Name, Position};
+use crate::entity::{DamageTypes, Dead, Health, Name, Position};
 use crate::ranged::{check_range, distance, flight, ready_fire, ready_throw};
-use crate::spell::ready_cast;
+use crate::side;
+use crate::spell::{check_target, footprint, ready_cast};
 use crate::state::GameState;
-use crate::view::{ItemRef, held, known_spells, total_armor};
+use crate::view::{ItemRef, castable, held, total_armor};
 
 /// What the player is aiming with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +28,8 @@ pub enum Shot {
 /// a spell's readiness that aiming needs.
 struct Ready {
     range: i32,
-    strike: Strike,
+    /// `None` for a spell that does no damage.
+    strike: Option<Strike>,
 }
 
 /// What a shot at one tile would do.
@@ -43,6 +47,14 @@ pub struct Aim {
     pub types: DamageTypes,
     /// Why the shot can't be taken, if it can't.
     pub problem: Option<String>,
+    /// The tiles an area spell would cover, nearest its centre first; empty
+    /// for anything that hits one creature.
+    pub area: Vec<(i32, i32)>,
+    /// How many creatures it would affect.
+    pub caught: usize,
+    /// Where a summoning would put its creatures; the preview draws from a
+    /// clone of the stream the cast uses, so they agree.
+    pub summons: Vec<(i32, i32)>,
 }
 
 /// The shot as it would go now, or why it can't; for the player.
@@ -53,15 +65,15 @@ fn ready(state: &GameState, shot: Shot) -> Result<Ready, String> {
                 .find(&state.world, &held(state))
                 .ok_or_else(|| "You do not have that.".to_string())?;
             let ready = ready_throw(state, state.player, item)?;
-            (ready.range, ready.strike)
+            (ready.range, Some(ready.strike))
         }
         Shot::Fire => {
             let ready = ready_fire(state, state.player)?;
-            (ready.range, ready.strike)
+            (ready.range, Some(ready.strike))
         }
         Shot::Cast(spell) => {
             let spell = spell
-                .find(&state.world, &known_spells(state))
+                .find(&state.world, &castable(state))
                 .ok_or_else(|| "You don't know that spell.".to_string())?;
             let ready = ready_cast(state, state.player, spell)?;
             (ready.range, ready.strike)
@@ -101,7 +113,7 @@ pub fn fire_step(state: &GameState) -> FireStep {
     }
 }
 
-/// Living hostiles the player can see and the shot could reach, nearest
+/// Living enemies the player can see and the shot could reach, nearest
 /// first (ties by row, then column): where a cursor should start and cycle.
 pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
     let (Ok(ready), Some(origin)) = (ready(state, shot), origin(state)) else {
@@ -109,11 +121,12 @@ pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
     };
     let mut targets: Vec<(i32, i32)> = state
         .world
-        .query::<&Position>()
-        .with::<&Hostile>()
+        .query::<(Entity, &Position)>()
+        .with::<&Health>()
         .without::<&Dead>()
         .iter()
-        .map(|pos| (pos.x, pos.y))
+        .filter(|&(entity, _)| side::enemies(&state.world, state.player, entity))
+        .map(|(_, pos)| (pos.x, pos.y))
         .filter(|&at| {
             distance(origin, at) <= ready.range
                 && state.visible.get(at.0, at.1).copied().unwrap_or(false)
@@ -131,34 +144,78 @@ pub fn aim_range(state: &GameState, shot: Shot) -> Option<((i32, i32), i32)> {
 
 /// What a shot at `at` would do; `None` if the shot is not available.
 pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
+    if let Shot::Cast(spell) = shot {
+        return aim_cast(state, spell, at);
+    }
     let ready = ready(state, shot).ok()?;
+    let strike = ready.strike?;
     let origin = origin(state)?;
     let flight = flight(state, state.player, origin, at, ready.range);
-    let (low, high) = ready.strike.range();
+    let (low, high) = strike.range();
     let resisted = flight.hit.map_or(0, |target| {
-        total_armor(&state.world, target).against(ready.strike.types)
-    });
-    let target = flight.hit.map(|target| {
-        state
-            .world
-            .get::<&Name>(target)
-            .map_or_else(|_| "creature".to_string(), |name| name.0.clone())
+        total_armor(&state.world, target).against(strike.types)
     });
     Some(Aim {
         origin,
         range: ready.range,
         path: flight.path,
         landing: flight.landing,
-        target,
+        target: flight.hit.map(|target| noun(state, target)),
         damage: ((low - resisted).max(0), (high - resisted).max(0)),
-        types: ready.strike.types,
+        types: strike.types,
         problem: check_range(state, state.player, ready.range, at).err(),
+        area: Vec::new(),
+        caught: usize::from(flight.hit.is_some()),
+        summons: Vec::new(),
     })
 }
+
+/// A spell's `aim`, from the footprint its cast would use. A bolt's damage
+/// is shown after its target's resistance, as a missile's is after armor;
+/// an area's before, since each creature caught resists on its own.
+fn aim_cast(state: &GameState, spell: ItemRef, at: (i32, i32)) -> Option<Aim> {
+    let spell = spell.find(&state.world, &castable(state))?;
+    let ready = ready_cast(state, state.player, spell).ok()?;
+    let footprint = footprint(
+        state,
+        state.player,
+        &ready,
+        at,
+        &mut state.rngs.spell.clone(),
+    )?;
+    Some(Aim {
+        origin: origin(state)?,
+        range: ready.range,
+        target: footprint.caught.first().map(|&target| noun(state, target)),
+        damage: ready.strike.map_or((0, 0), |strike| {
+            let (low, high) = strike.range();
+            let resisted = match (ready.area, footprint.caught.first()) {
+                (None, Some(&target)) => total_armor(&state.world, target).against(strike.types),
+                _ => 0,
+            };
+            ((low - resisted).max(0), (high - resisted).max(0))
+        }),
+        types: ready
+            .strike
+            .map_or_else(DamageTypes::default, |strike| strike.types),
+        problem: check_target(state, state.player, &ready, at).err(),
+        caught: footprint.caught.len(),
+        path: footprint.path,
+        landing: footprint.landing,
+        area: footprint.area,
+        summons: footprint.placed,
+    })
+}
+
+fn noun(state: &GameState, entity: Entity) -> String {
+    state
+        .world
+        .get::<&Name>(entity)
+        .map_or_else(|_| "creature".to_string(), |name| name.0.clone())
+}
+
 #[cfg(test)]
 mod tests {
-    use hecs::Entity;
-
     use super::*;
     use crate::entity::{AmmoKind, DamageType, Stat};
     use crate::state::tests::bare_state;
@@ -349,5 +406,31 @@ mod tests {
         crate::spell::recharge(&mut state, spell, 600);
         assert_eq!(aim_range(&state, shot), None);
         assert!(aim_targets(&state, shot).is_empty());
+    }
+
+    #[test]
+    fn an_area_aim_shows_the_ground_and_how_many_it_catches() {
+        use crate::entity::{Hits, Shape};
+        let mut state = bare_state();
+        let (bolt, _) = firebolt(&mut state);
+        let _ = state.world.insert_one(
+            bolt,
+            crate::entity::Area {
+                shape: Shape::Burst { radius: 1 },
+                hits: Hits::All,
+                falloff: 0,
+            },
+        );
+        let shot = Shot::Cast(ItemRef::of(&state.world, bolt).unwrap());
+        goblin(&mut state, 5, 1);
+        goblin(&mut state, 6, 2);
+        goblin(&mut state, 8, 1);
+        see_everything(&mut state);
+
+        let preview = aim(&state, shot, (5, 1)).unwrap();
+        // Against the top wall: the row above is not open ground.
+        assert_eq!((preview.landing, preview.area.len()), ((5, 1), 6));
+        assert_eq!(preview.area[0], (5, 1), "the centre first");
+        assert_eq!((preview.caught, preview.problem), (2, None));
     }
 }

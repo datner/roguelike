@@ -45,22 +45,36 @@ pub struct Health {
     pub max: i32,
 }
 
-/// How a blow harms. Armor resists each kind separately.
+/// How a blow or a spell harms. Armor resists each kind separately; the
+/// last three are elements, which spells carry (ADR 0014).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DamageType {
     Slashing,
     Blunt,
     Piercing,
+    Fire,
+    Cold,
+    Shock,
 }
 
 impl DamageType {
-    pub const ALL: [DamageType; 3] = [Self::Slashing, Self::Blunt, Self::Piercing];
+    pub const ALL: [DamageType; 6] = [
+        Self::Slashing,
+        Self::Blunt,
+        Self::Piercing,
+        Self::Fire,
+        Self::Cold,
+        Self::Shock,
+    ];
 
     pub fn noun(self) -> &'static str {
         match self {
             Self::Slashing => "slashing",
             Self::Blunt => "blunt",
             Self::Piercing => "piercing",
+            Self::Fire => "fire",
+            Self::Cold => "cold",
+            Self::Shock => "shock",
         }
     }
 
@@ -114,21 +128,33 @@ impl From<DamageTypes> for Vec<DamageType> {
 }
 
 /// Flat damage reduction per kind of damage; worn pieces add up per kind.
+/// The elemental fields are resistances, read the same way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Armor {
     pub slashing: i32,
     pub blunt: i32,
     pub piercing: i32,
+    pub fire: i32,
+    pub cold: i32,
+    pub shock: i32,
 }
 
 impl Armor {
+    /// `value` against every physical kind; no elemental resistance.
     pub fn uniform(value: i32) -> Self {
         Self {
             slashing: value,
             blunt: value,
             piercing: value,
+            ..Self::default()
         }
+    }
+
+    /// How much of it there is to wear: the physical kinds summed, since
+    /// resisting an element weighs nothing.
+    pub fn weight(self) -> i32 {
+        self.slashing + self.blunt + self.piercing
     }
 
     pub fn of(self, kind: DamageType) -> i32 {
@@ -136,6 +162,9 @@ impl Armor {
             DamageType::Slashing => self.slashing,
             DamageType::Blunt => self.blunt,
             DamageType::Piercing => self.piercing,
+            DamageType::Fire => self.fire,
+            DamageType::Cold => self.cold,
+            DamageType::Shock => self.shock,
         }
     }
 
@@ -151,6 +180,9 @@ impl Armor {
             slashing: self.slashing + other.slashing,
             blunt: self.blunt + other.blunt,
             piercing: self.piercing + other.piercing,
+            fire: self.fire + other.fire,
+            cold: self.cold + other.cold,
+            shock: self.shock + other.shock,
         }
     }
 }
@@ -224,6 +256,7 @@ pub struct Throwable {
 pub enum School {
     Pyromancy,
     Arcane,
+    Hemomancy,
 }
 
 /// Spell part: a spell a creature knows, held in its `Attachments`. `power`
@@ -236,12 +269,119 @@ pub struct Spell {
 }
 
 /// Spell part: hits the first creature on the line for `min..=max` plus the
-/// caster's modifier for the stat of the discipline casting it. Untyped, so
-/// armor does not resist it.
+/// caster's modifier for the stat of the discipline casting it, resisted by
+/// armor of its `types`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellDamage {
     pub min: i32,
     pub max: i32,
+    /// The kinds it is (elements, usually); none for raw force, which no
+    /// armor resists.
+    #[serde(default)]
+    pub types: DamageTypes,
+}
+
+/// The ground a spell covers; see `area::tiles`. Distances are rings, so a
+/// radius-1 burst is the 3×3 block around its centre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Shape {
+    /// Flies like a bolt, then bursts where it lands: every tile within
+    /// `radius` of that spot that the spot can see.
+    Burst { radius: i32 },
+    /// A quarter circle from the caster toward the aimed tile, out to the
+    /// spell's range.
+    Cone,
+    /// A straight line from the caster toward the aimed tile, through
+    /// creatures, until a wall or the spell's range.
+    Beam,
+    /// Every tile within `radius` of the caster that the caster can see; not
+    /// aimed.
+    Nova { radius: i32 },
+}
+
+/// Who in an area a spell affects. Sides are hostile or not, until there are
+/// factions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Hits {
+    /// Everyone, the caster included.
+    All,
+    /// Creatures on the other side from the caster.
+    Enemies,
+    /// The caster and creatures on its side.
+    Allies,
+}
+
+/// Spell part: the spell covers an area instead of hitting the first
+/// creature on a line. Each creature caught takes its own damage roll, less
+/// `falloff` per tile from the area's centre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Area {
+    pub shape: Shape,
+    pub hits: Hits,
+    #[serde(default)]
+    pub falloff: i32,
+}
+
+/// AI part: the creature casts the spells it knows when one would hit its
+/// target and spare its own side, before it fights hand to hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellAi;
+
+/// Spell part: the spell does not go off when cast but leaves a rune where
+/// it lands, which bursts `ticks` later: a timed effect on the caster (ADR
+/// 0006), so `ModifyDuration` hastens or delays it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Delay {
+    pub ticks: u64,
+}
+
+/// Effect part: a delayed spell waiting on the ground, its damage fixed when
+/// it was cast. Bursts over `area` on expiry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Blast {
+    pub min: i32,
+    pub max: i32,
+    pub bonus: i32,
+    pub types: DamageTypes,
+    pub area: Area,
+}
+
+/// Spell part: a bolt that, having hit, leaps on to the nearest enemy not
+/// yet hit within `reach` tiles, up to `jumps` times. Each creature takes its
+/// own roll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Chain {
+    pub jumps: u32,
+    pub reach: i32,
+}
+
+/// Spell part: calls `count` creatures of `blueprint` onto the free tiles
+/// nearest the aimed spot, for `lifetime` ticks, on the caster's side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Summon {
+    pub blueprint: BlueprintId,
+    pub count: u32,
+    pub lifetime: u64,
+}
+
+/// A summoned creature's tie to whoever called it: it fights on their side
+/// and is dismissed when they die.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Summoned {
+    pub owner: Entity,
+}
+
+/// Effect part: the timed effect holding a summon in the world. When it
+/// expires, its target is dismissed (ADR 0006: the lifetime is `Timed`, so
+/// `ModifyDuration` lengthens or shortens it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Binding;
+
+/// Caster part: no more than `max` of the caster's summons at once. A cast
+/// that would go over is refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SummonLimit {
+    pub max: u32,
 }
 
 /// A spell that was just cast and cannot be cast again until `Timed` ends.
@@ -265,6 +405,47 @@ pub struct CooldownCasting {
 pub struct ManaCasting {
     pub school: School,
     pub mana_per_power: u32,
+    pub stat: Stat,
+}
+
+/// Caster part, blood magic: spells of `school` cost `power * hp_per_power`
+/// of the caster's own health, which they can't pay with their last point;
+/// they scale with `stat`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BloodCasting {
+    pub school: School,
+    pub hp_per_power: i32,
+    pub stat: Stat,
+}
+
+/// Spell part: the spell is a scroll, cast by reading it. It needs no
+/// discipline and no stat, and reading it uses it up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Scroll;
+
+/// Equipment part: a focus for `school`, adding `range` tiles, `power` (a
+/// negative one makes casts cheaper, never below 0) and `damage` to every
+/// cast of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Focus {
+    pub school: School,
+    #[serde(default)]
+    pub range: i32,
+    #[serde(default)]
+    pub power: i32,
+    #[serde(default)]
+    pub damage: i32,
+}
+
+/// Caster part: casting can fizzle, after the price is paid. The chance, out
+/// of 10 000, is `base_bp` plus `per_armor_bp` for every point of armor worn,
+/// less `per_modifier_bp` for every point of the `stat` modifier; never
+/// below 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fizzle {
+    pub base_bp: u32,
+    pub per_armor_bp: u32,
+    pub per_modifier_bp: u32,
     pub stat: Stat,
 }
 

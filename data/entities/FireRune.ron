@@ -1,0 +1,12 @@
+// A delayed pyromancy burst (ADR 0014, `Delay`): it lays a rune where it
+// lands, which bursts 3 turns later on whoever is standing there then.
+(
+    components: [
+        Name("fire rune"),
+        Appearance(glyph: '°', fg: (255, 120, 40), bg: (0, 0, 0)),
+        Spell(school: Pyromancy, range: 6, power: 3),
+        SpellDamage(min: 4, max: 8, types: [Fire]),
+        Area(shape: Burst(radius: 1), hits: All),
+        Delay(ticks: 300),
+    ],
+)

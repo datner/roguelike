@@ -133,6 +133,13 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
             sheet.armor.slashing, sheet.armor.blunt, sheet.armor.piercing
         )),
     ]));
+    let armor = sheet.armor;
+    if (armor.fire, armor.cold, armor.shock) != (0, 0, 0) {
+        lines.push(Line::from(vec![
+            dim("Resist "),
+            Span::raw(format!("F{} C{} E{}", armor.fire, armor.cold, armor.shock)),
+        ]));
+    }
     lines.push(Line::from(vec![
         dim("Dmg "),
         Span::raw(format!("{damage} {kinds}")),

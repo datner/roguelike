@@ -514,6 +514,9 @@ mod tests {
         slashing: 3,
         blunt: 0,
         piercing: 1,
+        fire: 0,
+        cold: 0,
+        shock: 0,
     };
 
     #[test]
@@ -551,6 +554,7 @@ mod tests {
                     slashing,
                     piercing,
                     blunt: 0,
+                    ..Armor::default()
                 };
                 let both = kinds(armor, &[Slashing, Piercing]);
                 assert!(both <= kinds(armor, &[Slashing]) && both <= kinds(armor, &[Piercing]));

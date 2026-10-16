@@ -12,6 +12,7 @@ pub mod stream {
     pub const MAP: u128 = 1;
     pub const SPAWN: u128 = 2;
     pub const COMBAT: u128 = 3;
+    pub const SPELL: u128 = 4;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,6 +24,8 @@ pub struct Rngs {
     pub spawn: Pcg64,
     /// Attack rolls and anything combat event handlers draw (`Ctx::rng`).
     pub combat: Pcg64,
+    /// Spell outcomes that are not damage: where summons appear, fizzles.
+    pub spell: Pcg64,
 }
 
 impl Rngs {
@@ -32,6 +35,7 @@ impl Rngs {
             map: Pcg64::new(zone, stream::MAP),
             spawn: Pcg64::new(zone, stream::SPAWN),
             combat: Pcg64::new(world, stream::COMBAT),
+            spell: Pcg64::new(world, stream::SPELL),
         }
     }
 }
@@ -52,6 +56,7 @@ mod tests {
         let fresh = Rngs::new(5, 5);
         assert_ne!(fresh.map, fresh.spawn);
         assert_ne!(fresh.spawn, fresh.combat);
+        assert_ne!(fresh.combat, fresh.spell);
 
         let mut a = fresh.clone();
         let mut b = fresh;

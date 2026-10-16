@@ -3,11 +3,12 @@
 
 use hecs::{Entity, World};
 
+use crate::blueprint::ResolvedBlueprint;
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
     Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Mana, Name, PartKind,
-    Quiver, SpawnSeq, Speed, Spell, Stats, Throwable,
+    Quiver, Scroll, Shape, SpawnSeq, Speed, Spell, Stats, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -194,6 +195,18 @@ pub(crate) fn known_spells(state: &GameState) -> Vec<Entity> {
         .collect()
 }
 
+/// What the player can cast: the spells they know, then the scrolls they
+/// carry.
+pub(crate) fn castable(state: &GameState) -> Vec<Entity> {
+    let mut castable = known_spells(state);
+    castable.extend(
+        carried(state)
+            .into_iter()
+            .filter(|&item| state.world.satisfies::<(&Spell, &Scroll)>(item)),
+    );
+    castable
+}
+
 /// One price a cast takes, as the discipline that takes it describes it:
 /// "2 mana", "6 turn recharge".
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,6 +222,8 @@ pub struct CostLine {
 pub struct CastPreview {
     pub costs: Vec<CostLine>,
     pub blocked: Option<String>,
+    /// Chance, out of 10 000, that the cast fizzles once paid for.
+    pub fizzle_bp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,15 +232,19 @@ pub struct SpellView {
     /// Bare noun, e.g. "firebolt".
     pub name: String,
     pub range: i32,
-    /// Damage range before the target's defences.
-    pub damage: (i32, i32),
+    /// The ground it covers; `None` for a bolt.
+    pub shape: Option<Shape>,
+    /// Damage range before the target's defences; `None` if it does none.
+    pub damage: Option<(i32, i32)>,
+    /// How many creatures it calls, and what they are.
+    pub summons: Option<(u32, String)>,
     pub preview: CastPreview,
 }
 
-/// The spells the player knows, in the order they were learned.
+/// What the player can cast (`castable`), in that order.
 pub fn spells(state: &GameState) -> Vec<SpellView> {
     let world = &state.world;
-    known_spells(state)
+    castable(state)
         .into_iter()
         .filter_map(|spell| {
             let (ready, blocked) = spell::inspect_cast(state, state.player, spell).ok()?;
@@ -235,10 +254,20 @@ pub fn spells(state: &GameState) -> Vec<SpellView> {
                     .get::<&Name>(spell)
                     .map_or_else(|_| "spell".to_string(), |name| name.0.clone()),
                 range: ready.range,
-                damage: ready.strike.range(),
+                shape: ready.area.map(|area| area.shape),
+                damage: ready.strike.map(Strike::range),
+                summons: ready.summon.map(|summon| {
+                    let noun = state
+                        .blueprints
+                        .by_id(summon.blueprint)
+                        .and_then(ResolvedBlueprint::noun)
+                        .unwrap_or("creature");
+                    (summon.count, noun.to_string())
+                }),
                 preview: CastPreview {
                     costs: ready.costs,
                     blocked,
+                    fizzle_bp: ready.fizzle_bp,
                 },
             })
         })

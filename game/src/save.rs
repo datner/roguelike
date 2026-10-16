@@ -12,13 +12,14 @@ use ron::extensions::Extensions;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
-use crate::blueprint::{BlueprintId, Blueprints, OnHitDef};
+use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
-    Ammo, Appearance, Armor, Attachments, Bleeding, BlocksMovement, Body, CooldownCasting, Dead,
-    Duration, EffectTarget, Energy, Equippable, EquippedOn, Found, Health, Hostile, Inventory,
-    Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position,
-    Projectile, Quiver, Recharging, SpawnSeq, Speed, Spell, SpellDamage, Stats, Throwable, Timed,
-    Weapon,
+    Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
+    BloodCasting, Body, Chain, CooldownCasting, Dead, Delay, Duration, EffectTarget, Energy,
+    Equippable, EquippedOn, Fizzle, Focus, Found, Health, Hostile, Inventory, Item, Launcher, Mana,
+    ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position, Projectile, Quiver, Recharging,
+    Scroll, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Summoned,
+    Throwable, Timed, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -28,7 +29,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 12;
+pub const SAVE_VERSION: u32 = 17;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -192,6 +193,7 @@ enum ComponentKind {
     Quiver,
     Spell,
     SpellDamage,
+    Area,
     Recharging,
     CooldownCasting,
     ManaCasting,
@@ -199,12 +201,24 @@ enum ComponentKind {
     Duration,
     Timed,
     EffectTarget,
+    Summoned,
+    Summon,
+    Binding,
+    SummonLimit,
+    BloodCasting,
+    Scroll,
+    Focus,
+    Fizzle,
+    Chain,
+    Delay,
+    Blast,
+    SpellAi,
     Bleeding,
     OnHit,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 38] = [
+    const ALL: [ComponentKind; 51] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -234,6 +248,7 @@ impl ComponentKind {
         Self::Quiver,
         Self::Spell,
         Self::SpellDamage,
+        Self::Area,
         Self::Recharging,
         Self::CooldownCasting,
         Self::ManaCasting,
@@ -241,6 +256,18 @@ impl ComponentKind {
         Self::Duration,
         Self::Timed,
         Self::EffectTarget,
+        Self::Summoned,
+        Self::Summon,
+        Self::Binding,
+        Self::SummonLimit,
+        Self::BloodCasting,
+        Self::Scroll,
+        Self::Focus,
+        Self::Fizzle,
+        Self::Chain,
+        Self::Delay,
+        Self::Blast,
+        Self::SpellAi,
         Self::Bleeding,
         Self::OnHit,
     ];
@@ -279,6 +306,7 @@ enum SavedComponent {
     Quiver(Quiver),
     Spell(Spell),
     SpellDamage(SpellDamage),
+    Area(Area),
     Recharging(Recharging),
     CooldownCasting(CooldownCasting),
     ManaCasting(ManaCasting),
@@ -286,6 +314,18 @@ enum SavedComponent {
     Duration(Duration),
     Timed(Timed),
     EffectTarget(u32),
+    Summoned(u32),
+    Summon(SummonDef),
+    Binding,
+    SummonLimit(SummonLimit),
+    BloodCasting(BloodCasting),
+    Scroll,
+    Focus(Focus),
+    Fizzle(Fizzle),
+    Chain(Chain),
+    Delay(Delay),
+    Blast(Blast),
+    SpellAi,
     Bleeding(Bleeding),
     OnHit(Vec<OnHitDef>),
 }
@@ -547,6 +587,7 @@ fn save_component(
         ComponentKind::Quiver => copy(entity).map(S::Quiver),
         ComponentKind::Spell => copy(entity).map(S::Spell),
         ComponentKind::SpellDamage => copy(entity).map(S::SpellDamage),
+        ComponentKind::Area => copy(entity).map(S::Area),
         ComponentKind::Recharging => copy(entity).map(S::Recharging),
         ComponentKind::CooldownCasting => copy(entity).map(S::CooldownCasting),
         ComponentKind::ManaCasting => copy(entity).map(S::ManaCasting),
@@ -557,6 +598,33 @@ fn save_component(
             Some(EffectTarget(target)) => Some(S::EffectTarget(refer(target)?)),
             None => None,
         },
+        ComponentKind::Summoned => match copy::<Summoned>(entity) {
+            Some(summoned) => Some(S::Summoned(refer(summoned.owner)?)),
+            None => None,
+        },
+        ComponentKind::Summon => match copy::<Summon>(entity) {
+            Some(summon) => {
+                let blueprint = blueprints
+                    .by_id(summon.blueprint)
+                    .ok_or(SaveError::UnknownBlueprintId(summon.blueprint))?;
+                Some(S::Summon(SummonDef {
+                    blueprint: blueprint.name.clone(),
+                    count: summon.count,
+                    lifetime: summon.lifetime,
+                }))
+            }
+            None => None,
+        },
+        ComponentKind::Binding => copy::<Binding>(entity).map(|_| S::Binding),
+        ComponentKind::SummonLimit => copy(entity).map(S::SummonLimit),
+        ComponentKind::BloodCasting => copy(entity).map(S::BloodCasting),
+        ComponentKind::Scroll => copy::<Scroll>(entity).map(|_| S::Scroll),
+        ComponentKind::Focus => copy(entity).map(S::Focus),
+        ComponentKind::Fizzle => copy(entity).map(S::Fizzle),
+        ComponentKind::Chain => copy(entity).map(S::Chain),
+        ComponentKind::Delay => copy(entity).map(S::Delay),
+        ComponentKind::Blast => copy(entity).map(S::Blast),
+        ComponentKind::SpellAi => copy::<SpellAi>(entity).map(|_| S::SpellAi),
         ComponentKind::Bleeding => copy(entity).map(S::Bleeding),
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
@@ -620,6 +688,7 @@ fn load_component(
         S::Quiver(c) => builder.add(c),
         S::Spell(c) => builder.add(c),
         S::SpellDamage(c) => builder.add(c),
+        S::Area(c) => builder.add(c),
         S::Recharging(c) => builder.add(c),
         S::CooldownCasting(c) => builder.add(c),
         S::ManaCasting(c) => builder.add(c),
@@ -627,6 +696,26 @@ fn load_component(
         S::Duration(c) => builder.add(c),
         S::Timed(c) => builder.add(c),
         S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
+        S::Summoned(owner) => builder.add(Summoned {
+            owner: entity(owner)?,
+        }),
+        S::Summon(def) => builder.add(Summon {
+            blueprint: blueprints
+                .id(&def.blueprint)
+                .ok_or(LoadError::UnknownBlueprint(def.blueprint))?,
+            count: def.count,
+            lifetime: def.lifetime,
+        }),
+        S::Binding => builder.add(Binding),
+        S::SummonLimit(c) => builder.add(c),
+        S::BloodCasting(c) => builder.add(c),
+        S::Scroll => builder.add(Scroll),
+        S::Focus(c) => builder.add(c),
+        S::Fizzle(c) => builder.add(c),
+        S::Chain(c) => builder.add(c),
+        S::Delay(c) => builder.add(c),
+        S::Blast(c) => builder.add(c),
+        S::SpellAi => builder.add(SpellAi),
         S::Bleeding(c) => builder.add(c),
         S::OnHit(entries) => builder.add(OnHit(
             entries
@@ -928,6 +1017,76 @@ mod tests {
             crate::spell::check_cast(&loaded, loaded.player, known[0], (3, 1)),
             Err("Your firebolt is not ready.".to_string())
         );
+    }
+
+    #[test]
+    fn a_summon_its_binding_and_the_spell_that_called_it_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let wolf_id = state.blueprints.id("SpiritWolf").unwrap();
+        let summon = Summon {
+            blueprint: wolf_id,
+            count: 1,
+            lifetime: 3000,
+        };
+        thing("summon wolf")
+            .spell(crate::entity::School::Arcane, 5, 3)
+            .with(summon)
+            .attached_to(player)
+            .make(&mut state);
+        let _ = state.world.insert_one(player, SummonLimit { max: 2 });
+        let wolf = thing("spirit wolf")
+            .at(2, 1)
+            .health(8)
+            .summoned_by(player)
+            .make(&mut state);
+        crate::effect::bind(&mut state, wolf, 3000);
+
+        let loaded = reload(&state, test_blueprints());
+        let spell = crate::view::known_spells(&loaded)[0];
+        let summon_after = *loaded.world.get::<&Summon>(spell).unwrap();
+        assert_eq!(
+            summon_after.blueprint,
+            loaded.blueprints.id("SpiritWolf").unwrap()
+        );
+        assert_eq!((summon_after.count, summon_after.lifetime), (1, 3000));
+        let (wolf, summoned) = loaded
+            .world
+            .query::<(Entity, &Summoned)>()
+            .iter()
+            .map(|(entity, summoned)| (entity, *summoned))
+            .next()
+            .unwrap();
+        assert_eq!(summoned.owner, loaded.player);
+        let bound = crate::holding::attached(&loaded.world, wolf)
+            .into_iter()
+            .any(|effect| loaded.world.satisfies::<(&Binding, &Timed)>(effect));
+        assert!(bound);
+        assert_eq!(
+            loaded.world.get::<&SummonLimit>(loaded.player).unwrap().max,
+            2
+        );
+    }
+
+    #[test]
+    fn a_spells_area_survives_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let spell = thing("fireball")
+            .spell(crate::entity::School::Pyromancy, 6, 4)
+            .spell_damage(3, 6)
+            .area(
+                crate::entity::Shape::Burst { radius: 1 },
+                crate::entity::Hits::All,
+                1,
+            )
+            .attached_to(player)
+            .make(&mut state);
+        let before = *state.world.get::<&Area>(spell).unwrap();
+
+        let loaded = reload(&state, test_blueprints());
+        let known = crate::view::known_spells(&loaded);
+        assert_eq!(*loaded.world.get::<&Area>(known[0]).unwrap(), before);
     }
 
     #[test]

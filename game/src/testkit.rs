@@ -7,9 +7,9 @@ use hecs::Entity;
 
 use crate::cell::Rgb;
 use crate::entity::{
-    Ammo, AmmoKind, Appearance, Armor, DamageType, DamageTypes, Energy, Equippable, Found, Health,
-    Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, School, SpawnSeq, Speed,
-    Spell, SpellDamage, Stat, Stats, Throwable, Weapon,
+    Ammo, AmmoKind, Appearance, Area, Armor, DamageType, DamageTypes, Energy, Equippable, Found,
+    Health, Hits, Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, School,
+    Shape, SpawnSeq, Speed, Spell, SpellDamage, Stat, Stats, Summoned, Throwable, Weapon,
 };
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
@@ -84,7 +84,19 @@ impl Spawn {
     }
 
     pub(crate) fn spell_damage(self, min: i32, max: i32) -> Self {
-        self.with(SpellDamage { min, max })
+        self.with(SpellDamage {
+            min,
+            max,
+            types: DamageTypes::default(),
+        })
+    }
+
+    pub(crate) fn area(self, shape: Shape, hits: Hits, falloff: i32) -> Self {
+        self.with(Area {
+            shape,
+            hits,
+            falloff,
+        })
     }
 
     pub(crate) fn launcher(self, range: i32, ammo: AmmoKind, stat: Stat) -> Self {
@@ -133,6 +145,10 @@ impl Spawn {
             agility,
             ..Stats::AVERAGE
         })
+    }
+
+    pub(crate) fn summoned_by(self, owner: Entity) -> Self {
+        self.with(Summoned { owner })
     }
 
     pub(crate) fn hostile(self) -> Self {

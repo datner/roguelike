@@ -1,0 +1,13 @@
+// A single fireball on paper (ADR 0014): anyone carrying it can read it. It
+// claims its own cast, needs no discipline or stat, and crumbles once read.
+(
+    components: [
+        Name("scroll of fireball"),
+        Appearance(glyph: '?', fg: (255, 90, 20), bg: (0, 0, 0)),
+        Item,
+        Spell(school: Pyromancy, range: 6, power: 4),
+        SpellDamage(min: 3, max: 6, types: [Fire]),
+        Area(shape: Burst(radius: 1), hits: All),
+        Scroll,
+    ],
+)

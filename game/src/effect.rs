@@ -8,10 +8,11 @@ use hecs::Entity;
 use crate::blueprint::BlueprintId;
 use crate::blueprint::ResolvedBlueprint;
 use crate::command::{Command, DamageCause};
-use crate::entity::{Bleeding, Duration, EffectTarget, Name, Timed};
+use crate::entity::{Binding, Blast, Bleeding, Duration, EffectTarget, Name, Position, Timed};
 use crate::grammar::Subject;
 use crate::holding;
 use crate::spawn::Spawn;
+use crate::spell;
 use crate::state::GameState;
 use crate::time::{Tick, Timer};
 
@@ -120,7 +121,7 @@ pub(crate) fn modify_duration(state: &mut GameState, effect: Entity, change: Dur
 }
 
 /// Expire at the effect's current end, or right now if that has passed.
-fn schedule_expiry(state: &mut GameState, effect: Entity) {
+pub(crate) fn schedule_expiry(state: &mut GameState, effect: Entity) {
     let Ok(timed) = state.world.get::<&Timed>(effect).map(|t| *t) else {
         return;
     };
@@ -148,8 +149,40 @@ pub(crate) fn expire_effect(state: &mut GameState, effect: Entity) {
         let subject = Subject::of(&state.world, target);
         state.log.push(subject.sentence("stop", &name));
     }
+    let binding = state.world.satisfies::<&Binding>(effect);
+    let blast = state.world.get::<&Blast>(effect).ok().map(|blast| *blast);
+    let at = state
+        .world
+        .get::<&Position>(effect)
+        .ok()
+        .map(|pos| (pos.x, pos.y));
     holding::detach(&mut state.world, target, effect);
     let _ = state.world.despawn(effect);
+    if binding {
+        state.commands.push_back(Command::Dismiss(target));
+    }
+    if let (Some(blast), Some(at)) = (blast, at) {
+        spell::detonate(state, target, at, blast);
+    }
+}
+
+/// Holds `summon` in the world for `lifetime` ticks from now: a timed
+/// `Binding` effect on it, which dismisses it on expiry. Being an effect,
+/// `ModifyDuration` lengthens or shortens it like any other.
+pub(crate) fn bind(state: &mut GameState, summon: Entity, lifetime: u64) {
+    let timed = Timed {
+        start: state.now,
+        duration: lifetime,
+    };
+    let spawn = Spawn::blueprint("Binding")
+        .with(timed)
+        .with(EffectTarget(summon))
+        .with(Binding)
+        .attached_to(summon);
+    match state.spawn(spawn) {
+        Ok(effect) => schedule_expiry(state, effect),
+        Err(err) => state.log.push(format!("Error: cannot bind summon: {err}")),
+    }
 }
 
 /// `BleedTick` applier: damages the target and queues the next tick, but

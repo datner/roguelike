@@ -5,7 +5,7 @@
 
 use game::camera;
 use game::{
-    Dir, GameState, ItemRef, ItemView, PlayerAction, Rgb, Shot, SpellView, aim, aim_range,
+    Dir, GameState, ItemRef, ItemView, PlayerAction, Rgb, Shape, Shot, SpellView, aim, aim_range,
     aim_targets,
 };
 use ratatui::Frame;
@@ -65,17 +65,33 @@ pub fn spell_lines(spells: &[SpellView]) -> Vec<Line<'static>> {
     spells
         .iter()
         .map(|spell| {
-            let (low, high) = spell.damage;
+            let shape = match spell.shape {
+                None => String::new(),
+                Some(Shape::Burst { radius }) => format!("  burst {radius}"),
+                Some(Shape::Cone) => "  cone".to_string(),
+                Some(Shape::Beam) => "  beam".to_string(),
+                Some(Shape::Nova { radius }) => format!("  nova {radius}"),
+            };
+            let damage = spell
+                .damage
+                .map_or_else(String::new, |(low, high)| format!("  {low}-{high}"));
+            let summons = spell
+                .summons
+                .as_ref()
+                .map_or_else(String::new, |(count, noun)| format!("  {count} {noun}"));
             let mut spans = vec![Span::raw(format!(
-                "{}  r{}  {low}-{high}",
+                "{}  r{}{shape}{damage}{summons}",
                 spell.name, spell.range
             ))];
-            let costs: Vec<String> = spell
+            let mut costs: Vec<String> = spell
                 .preview
                 .costs
                 .iter()
                 .map(|cost| format!("{} {}", cost.amount, cost.resource))
                 .collect();
+            if spell.preview.fizzle_bp > 0 {
+                costs.push(format!("{}% fizzle", spell.preview.fizzle_bp / 100));
+            }
             if !costs.is_empty() {
                 spans.push(Span::styled(format!("  {}", costs.join(", ")), dim));
             }
@@ -198,6 +214,16 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
         format!(" {}", kinds.join("+"))
     };
     let (low, high) = shot.damage;
+    if !shot.summons.is_empty() {
+        return format!("Calls {} here  {keys}", shot.summons.len());
+    }
+    if !shot.area.is_empty() {
+        return match shot.caught {
+            0 => format!("Catches no one  {keys}"),
+            1 => format!("Catches 1: {low}-{high}{kinds}  {keys}"),
+            n => format!("Catches {n}: {low}-{high}{kinds} each  {keys}"),
+        };
+    }
     match shot.target {
         Some(target) => format!("{target}: {low}-{high}{kinds}  {keys}"),
         None => format!("Lands here  {keys}"),
@@ -206,9 +232,10 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
 
 const PATH: Rgb = Rgb(110, 90, 20);
 const LANDING: Rgb = Rgb(170, 60, 20);
+pub(crate) const AREA: Rgb = Rgb(120, 40, 90);
 
-/// Marks the missile's path and landing tile on the already-drawn map, and
-/// reverses the cursor's tile.
+/// Marks the missile's path, a spell's area and the landing tile on the
+/// already-drawn map, and reverses the cursor's tile.
 pub fn draw_aim(frame: &mut Frame, map: Rect, state: &GameState, aiming: &Aiming) {
     let Some(shot) = aim(state, aiming.shot, aiming.cursor) else {
         return;
@@ -229,6 +256,12 @@ pub fn draw_aim(frame: &mut Frame, map: Rect, state: &GameState, aiming: &Aiming
     };
     for &tile in &shot.path {
         mark(tile, Style::new().bg(color(PATH)));
+    }
+    for &tile in &shot.area {
+        mark(tile, Style::new().bg(color(AREA)));
+    }
+    for &tile in &shot.summons {
+        mark(tile, Style::new().bg(color(AREA)));
     }
     mark(shot.landing, Style::new().bg(color(LANDING)));
     mark(aiming.cursor, Style::new().add_modifier(Modifier::REVERSED));
@@ -302,6 +335,35 @@ mod tests {
         assert_eq!(
             chooser.handle(OverlayInput::Select, &items),
             Some(ChooserAction::Pick(items[0]))
+        );
+    }
+
+    #[test]
+    fn a_spell_line_shows_its_price_its_fizzle_chance_and_why_not() {
+        let spell = SpellView {
+            spell: item(9),
+            name: "scroll of fireball".to_string(),
+            range: 6,
+            shape: Some(Shape::Burst { radius: 1 }),
+            damage: Some((3, 6)),
+            summons: None,
+            preview: game::CastPreview {
+                costs: vec![game::CostLine {
+                    resource: "scroll".to_string(),
+                    amount: 1,
+                }],
+                blocked: Some("You can't see that spot.".to_string()),
+                fizzle_bp: 1_400,
+            },
+        };
+        let line: String = spell_lines(&[spell])[0]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert_eq!(
+            line,
+            "scroll of fireball  r6  burst 1  3-6  1 scroll, 14% fizzle  You can't see that spot."
         );
     }
 

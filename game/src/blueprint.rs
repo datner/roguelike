@@ -21,10 +21,11 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
-    Ammo, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, CooldownCasting, Duration,
-    Equippable, Health, Hostile, Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry,
-    PartKind, Player, Projectile, Quiver, School, Speed, Spell, SpellDamage, Stats, Throwable,
-    Weapon,
+    Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
+    BodyPart, Chain, CooldownCasting, Delay, Duration, Equippable, Fizzle, Focus, Health, Hostile,
+    Item, Launcher, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
+    Projectile, Quiver, School, Scroll, Speed, Spell, SpellAi, SpellDamage, Stats, Summon,
+    SummonLimit, Throwable, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -60,12 +61,32 @@ pub enum ComponentDef {
     Quiver(Quiver),
     Spell(Spell),
     SpellDamage(SpellDamage),
+    Area(Area),
+    Summon(SummonDef),
+    Binding,
+    SummonLimit(SummonLimit),
+    BloodCasting(BloodCasting),
+    Scroll,
+    Focus(Focus),
+    Fizzle(Fizzle),
+    Chain(Chain),
+    Delay(Delay),
+    Blast(Blast),
+    SpellAi,
     CooldownCasting(CooldownCasting),
     ManaCasting(ManaCasting),
     Mana(Mana),
     Bleeding(Bleeding),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
+}
+
+/// A `Summon` as written in RON: the creature by blueprint name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SummonDef {
+    pub blueprint: String,
+    pub count: u32,
+    pub lifetime: u64,
 }
 
 /// An `OnHitEntry` as written in RON: the effect by blueprint name.
@@ -98,6 +119,17 @@ impl ComponentDef {
             ComponentDef::Launcher(c) => builder.add(c),
             ComponentDef::Spell(c) => builder.add(c),
             ComponentDef::SpellDamage(c) => builder.add(c),
+            ComponentDef::Area(c) => builder.add(c),
+            ComponentDef::Binding => builder.add(Binding),
+            ComponentDef::SummonLimit(c) => builder.add(c),
+            ComponentDef::BloodCasting(c) => builder.add(c),
+            ComponentDef::Scroll => builder.add(Scroll),
+            ComponentDef::Focus(c) => builder.add(c),
+            ComponentDef::Fizzle(c) => builder.add(c),
+            ComponentDef::Chain(c) => builder.add(c),
+            ComponentDef::Delay(c) => builder.add(c),
+            ComponentDef::Blast(c) => builder.add(c),
+            ComponentDef::SpellAi => builder.add(SpellAi),
             ComponentDef::CooldownCasting(c) => builder.add(c),
             ComponentDef::ManaCasting(c) => builder.add(c),
             ComponentDef::Mana(c) => builder.add(c),
@@ -106,6 +138,8 @@ impl ComponentDef {
             ComponentDef::Duration(c) => builder.add(c),
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
+            // Holds a name; spawned from `ResolvedBlueprint::summon` instead.
+            ComponentDef::Summon(_) => return,
         };
     }
 }
@@ -118,6 +152,9 @@ pub struct Blueprint {
     /// Blueprint names spawned as separate entities and attached to this one.
     /// `None` inherits the parent's list; `Some` (even empty) replaces it.
     pub equipment: Option<Vec<String>>,
+    /// Spells the creature knows, spawned as separate entities and attached
+    /// (ADR 0014). `None` inherits the parent's; `Some` (even empty) replaces.
+    pub spells: Option<Vec<String>>,
 }
 
 impl Blueprint {
@@ -131,12 +168,15 @@ impl Blueprint {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedBlueprint {
     pub name: String,
-    /// Every declared component except `OnHit`, which lives in `on_hit`.
+    /// Every declared component except `OnHit` and `Summon`, which hold
+    /// names and live in `on_hit` and `summon` with ids.
     pub components: Vec<ComponentDef>,
     pub on_hit: Option<OnHit>,
+    pub summon: Option<Summon>,
     pub equipment: Vec<BlueprintId>,
     /// The `Body` part each `equipment` entry is spawned on, index for index.
     pub equipped_on: Vec<u32>,
+    pub spells: Vec<BlueprintId>,
 }
 
 impl ResolvedBlueprint {
@@ -154,6 +194,14 @@ impl ResolvedBlueprint {
     pub fn duration(&self) -> Option<u64> {
         self.components.iter().find_map(|c| match c {
             ComponentDef::Duration(Duration(ticks)) => Some(*ticks),
+            _ => None,
+        })
+    }
+
+    /// What things made from this are called (their `Name`).
+    pub fn noun(&self) -> Option<&str> {
+        self.components.iter().find_map(|c| match c {
+            ComponentDef::Name(name) => Some(name.0.as_str()),
             _ => None,
         })
     }
@@ -191,6 +239,14 @@ pub enum BlueprintError {
         owner: String,
         effect: String,
     },
+    UnknownSummon {
+        owner: String,
+        summon: String,
+    },
+    UnknownSpell {
+        owner: String,
+        spell: String,
+    },
     EffectWithoutDuration {
         owner: String,
         effect: String,
@@ -227,6 +283,12 @@ impl std::fmt::Display for BlueprintError {
                     f,
                     "blueprint {owner:?} applies unknown effect {effect:?} on hit"
                 )
+            }
+            Self::UnknownSpell { owner, spell } => {
+                write!(f, "blueprint {owner:?} knows unknown spell {spell:?}")
+            }
+            Self::UnknownSummon { owner, summon } => {
+                write!(f, "blueprint {owner:?} summons unknown {summon:?}")
             }
             Self::EffectWithoutDuration { owner, effect } => write!(
                 f,
@@ -301,6 +363,7 @@ impl Blueprints {
         for (name, blueprint) in flat {
             let mut components = Vec::with_capacity(blueprint.components.len());
             let mut on_hit = None;
+            let mut summon = None;
             for component in blueprint.components {
                 match component {
                     ComponentDef::OnHit(entries) => {
@@ -315,6 +378,13 @@ impl Blueprints {
                             .collect::<Result<_, BlueprintError>>()?;
                         on_hit = Some(OnHit(entries));
                     }
+                    ComponentDef::Summon(def) => {
+                        summon = Some(Summon {
+                            blueprint: id_of(&def.blueprint)?,
+                            count: def.count,
+                            lifetime: def.lifetime,
+                        });
+                    }
                     other => components.push(other),
                 }
             }
@@ -324,12 +394,20 @@ impl Blueprints {
                 .flatten()
                 .map(id_of)
                 .collect::<Result<_, _>>()?;
+            let spells = blueprint
+                .spells
+                .iter()
+                .flatten()
+                .map(id_of)
+                .collect::<Result<_, _>>()?;
             resolved.push(ResolvedBlueprint {
                 name,
                 components,
                 on_hit,
+                summon,
                 equipment,
                 equipped_on: Vec::new(),
+                spells,
             });
         }
         check_equipment_cycles(&resolved)?;
@@ -383,10 +461,17 @@ impl Blueprints {
         if let Some(on_hit) = &blueprint.on_hit {
             builder.add(on_hit.clone());
         }
+        if let Some(summon) = blueprint.summon {
+            builder.add(summon);
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
             holding::put_on(world, owner, item, part);
+        }
+        for &spell in &blueprint.spells {
+            let spell = self.spawn_id(world, spell)?;
+            holding::attach(world, owner, spell);
         }
         Ok(owner)
     }
@@ -435,6 +520,7 @@ fn check_disciplines(flat: &BTreeMap<String, Blueprint>) -> Result<(), Blueprint
             let school = match component {
                 ComponentDef::CooldownCasting(rule) => rule.school,
                 ComponentDef::ManaCasting(rule) => rule.school,
+                ComponentDef::BloodCasting(rule) => rule.school,
                 _ => continue,
             };
             if schools.contains(&school) {
@@ -501,7 +587,7 @@ fn check_equipment_cycles(resolved: &[ResolvedBlueprint]) -> Result<(), Blueprin
         }
         marks[id] = Mark::Open;
         path.push(id);
-        for item in &resolved[id].equipment {
+        for item in resolved[id].equipment.iter().chain(&resolved[id].spells) {
             visit(resolved, item.0 as usize, marks, path)?;
         }
         path.pop();
@@ -531,6 +617,17 @@ fn check_references(raw: &BTreeMap<String, Blueprint>) -> Result<(), BlueprintEr
                 item: item.clone(),
             });
         }
+        if let Some(spell) = blueprint
+            .spells
+            .iter()
+            .flatten()
+            .find(|spell| !raw.contains_key(*spell))
+        {
+            return Err(BlueprintError::UnknownSpell {
+                owner: owner.clone(),
+                spell: spell.clone(),
+            });
+        }
         let effects = blueprint
             .components
             .iter()
@@ -543,6 +640,21 @@ fn check_references(raw: &BTreeMap<String, Blueprint>) -> Result<(), BlueprintEr
                 return Err(BlueprintError::UnknownEffect {
                     owner: owner.clone(),
                     effect: entry.effect.clone(),
+                });
+            }
+        }
+        let summons = blueprint
+            .components
+            .iter()
+            .filter_map(|component| match component {
+                ComponentDef::Summon(def) => Some(&def.blueprint),
+                _ => None,
+            });
+        for summon in summons {
+            if !raw.contains_key(summon) {
+                return Err(BlueprintError::UnknownSummon {
+                    owner: owner.clone(),
+                    summon: summon.clone(),
                 });
             }
         }
@@ -593,6 +705,9 @@ fn resolve_one(
     if blueprint.equipment.is_some() {
         flat.equipment = blueprint.equipment.clone();
     }
+    if blueprint.spells.is_some() {
+        flat.spells = blueprint.spells.clone();
+    }
 
     resolved.insert(name.to_string(), flat);
     Ok(())
@@ -611,6 +726,7 @@ mod tests {
             inherits: inherits.map(str::to_string),
             components,
             equipment: None,
+            spells: None,
         }
     }
 
@@ -721,6 +837,47 @@ mod tests {
                 assert_eq!((owner.as_str(), school), ("Mage", School::Pyromancy));
             }
             other => panic!("expected SchoolClaimedTwice, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn known_spells_are_inherited_replaced_and_checked() {
+        let with_spells = |mut blueprint: Blueprint, spells: Option<&[&str]>| {
+            blueprint.spells = spells.map(|names| names.iter().map(|s| s.to_string()).collect());
+            blueprint
+        };
+        let raw = |child: Option<&[&str]>| {
+            BTreeMap::from([
+                ("Bolt".to_string(), bp(None, vec![])),
+                ("Nova".to_string(), bp(None, vec![])),
+                (
+                    "Mage".to_string(),
+                    with_spells(bp(None, vec![]), Some(&["Bolt"])),
+                ),
+                (
+                    "Apprentice".to_string(),
+                    with_spells(bp(Some("Mage"), vec![]), child),
+                ),
+            ])
+        };
+        let spells = |child| {
+            let blueprints = Blueprints::resolve(raw(child)).unwrap();
+            blueprints
+                .get("Apprentice")
+                .unwrap()
+                .spells
+                .iter()
+                .map(|&id| blueprints.by_id(id).unwrap().name.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(spells(None), ["Bolt"]);
+        assert_eq!(spells(Some(&["Nova"])), ["Nova"]);
+        assert!(spells(Some(&[])).is_empty());
+        match Blueprints::resolve(raw(Some(&["Nope"]))) {
+            Err(BlueprintError::UnknownSpell { owner, spell }) => {
+                assert_eq!((owner.as_str(), spell.as_str()), ("Apprentice", "Nope"));
+            }
+            other => panic!("expected UnknownSpell, got {other:?}"),
         }
     }
 

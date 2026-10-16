@@ -27,6 +27,7 @@ pub use blueprint::{
 pub mod ai;
 pub mod aim;
 pub mod ammo;
+pub mod area;
 pub mod camera;
 pub mod combat;
 pub mod command;
@@ -43,6 +44,7 @@ pub mod prio;
 pub mod ranged;
 pub mod rng;
 pub mod save;
+pub mod side;
 pub mod spawn;
 pub mod spell;
 pub mod state;
@@ -57,10 +59,10 @@ pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use effect::DurationChange;
 pub use entity::{
-    Ammo, AmmoKind, Appearance, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType,
-    DamageTypes, Dead, Duration, Energy, Equippable, EquippedOn, Found, Health, Hostile, Item,
-    Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Position, Projectile, Quiver,
-    SpawnSeq, Speed, Stat, Stats, Throwable, Timed, Weapon,
+    Ammo, AmmoKind, Appearance, Area, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType,
+    DamageTypes, Dead, Duration, Energy, Equippable, EquippedOn, Found, Health, Hits, Hostile,
+    Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Position, Projectile, Quiver,
+    Shape, SpawnSeq, Speed, Stat, Stats, Throwable, Timed, Weapon,
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
 pub use grammar::Subject;

@@ -1,0 +1,12 @@
+// What "summon wolf" calls (ADR 0015): a quick, light fighter on its
+// summoner's side, held in the world by a `Binding` until it runs out.
+(
+    inherits: "Creature",
+    components: [
+        Name("spirit wolf"),
+        Appearance(glyph: 'w', fg: (150, 200, 255), bg: (0, 0, 0)),
+        Health(current: 8, max: 8),
+        Melee(min: 2, max: 4),
+        Speed(120),
+    ],
+)

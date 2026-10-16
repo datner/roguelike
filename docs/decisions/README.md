@@ -22,6 +22,8 @@ Point at code by module path (`game/src/combat.rs`), component, type or `Command
 | [0012](0012-damage-types.md) | Damage kinds, per-kind armor, multi-kind blows use the weakest spot | Accepted |
 | [0013](0013-ranged-attacks.md) | Aimed throws and shots: tile targets, line flight, no to-hit roll | Accepted |
 | [0014](0014-spells-and-disciplines.md) | Spells say what they do; the caster's disciplines say what casting costs | Accepted |
+| [0015](0015-sides-and-summons.md) | Two derived sides; summons are spawns held by a timed `Binding`; one shared view | Accepted |
+| [0016](0016-terrain-elements-and-runes.md) | Timed map overlay, statuses as effects with damage handlers, runes as a discipline (not built) | Proposed |
 
 ## Template
 

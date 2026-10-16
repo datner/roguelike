@@ -4,10 +4,11 @@
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{BlocksMovement, Found, Hostile, Item, Position};
+use crate::entity::{BlocksMovement, Dead, Found, Item, Position};
 use crate::grammar::Subject;
 use crate::input::{Dir, PlayerAction};
 use crate::map::{Grid, Tile};
+use crate::side;
 use crate::state::GameState;
 use crate::time::take_turn;
 
@@ -144,13 +145,18 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
     })
 }
 
+/// An enemy of the player in view: hostiles and their summons, never
+/// the player's own.
 fn visible_hostile(state: &GameState) -> Option<Entity> {
     state
         .world
-        .query::<(Entity, &Position, &Hostile)>()
+        .query::<(Entity, &Position)>()
+        .without::<&Dead>()
         .iter()
-        .find(|(_, pos, _)| flag(&state.visible, pos.x, pos.y))
-        .map(|(entity, _, _)| entity)
+        .find(|&(entity, pos)| {
+            flag(&state.visible, pos.x, pos.y) && side::enemies(&state.world, state.player, entity)
+        })
+        .map(|(entity, _)| entity)
 }
 
 /// Known open ground next to ground never seen.

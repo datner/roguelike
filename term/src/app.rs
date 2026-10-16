@@ -534,6 +534,45 @@ mod tests {
             screen.contains("magic missile  r8  3-5  3 mana"),
             "{screen}"
         );
+        assert!(
+            screen.contains("fireball  r6  burst 1  3-6  12 turn recharge"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("arcane lance  r8  beam  3-5  6 mana"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("summon wolf  r5  1 spirit wolf  9 mana"),
+            "{screen}"
+        );
+    }
+
+    #[test]
+    fn aiming_an_area_spell_marks_its_ground() {
+        let state = state();
+        let fireball = spells(&state)
+            .into_iter()
+            .find(|spell| spell.name == "fireball")
+            .unwrap()
+            .spell;
+        let shot = Shot::Cast(fireball);
+        let aiming = Aiming::new(&state, shot).unwrap();
+        let (origin, _) = game::aim_range(&state, shot).unwrap();
+        // With nothing in view the cursor rests on the player, so the burst
+        // is centred there; its second tile is a neighbour.
+        let area = game::aim(&state, shot, origin).unwrap().area;
+        let tile = area[1];
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Aim(aiming))))
+            .unwrap();
+        let screen = (
+            u16::try_from(30 + tile.0 - origin.0).unwrap(),
+            u16::try_from(10 + tile.1 - origin.1).unwrap(),
+        );
+        let cell = terminal.backend().buffer().cell(screen).unwrap();
+        assert_eq!(cell.bg, crate::widgets::color(targeting::AREA));
     }
 
     #[test]

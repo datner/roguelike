@@ -1,0 +1,11 @@
+// A pyromancer's focus, worn on the head (ADR 0014: `ModifyCast`): fire
+// spells reach a tile further and burn a point hotter.
+(
+    components: [
+        Name("ember circlet"),
+        Appearance(glyph: '^', fg: (255, 140, 40), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Head),
+        Focus(school: Pyromancy, range: 1, damage: 1),
+    ],
+)

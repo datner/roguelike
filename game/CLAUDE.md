@@ -13,7 +13,7 @@ can't show at a glance.
 - `zone.rs` — `place_exit` uses no RNG; changing the generator's draw order or `data/cave.ron` changes every seeded world (ADR 0009).
 - `entity.rs` — plain data only. `Attachments` = in use (parts fire); `Inventory` = carried, inert; equipped = attached + `EquippedOn` (ADR 0010).
 - `holding.rs` — every change to `Attachments`, `Inventory` or `EquippedOn` goes through here. Save and event dispatch read them directly.
-- `blueprint.rs` — inheritance: the child's field wins (per component variant; `equipment` absent inherits, present replaces, `[]` clears). Names are validated at load and resolved to runtime-only `BlueprintId`s: never serialize one, persist names. `equipment` must fit the owner's `Body` (checked at load).
+- `blueprint.rs` — inheritance: the child's field wins (per component variant; `equipment` and `spells` absent inherit, present replace, `[]` clears). Names are validated at load and resolved to runtime-only `BlueprintId`s: never serialize one, persist names. `equipment` must fit the owner's `Body` (checked at load).
 - `spawn.rs`/`state.rs` — `GameState::spawn(Spawn)` is the only way to create entities (clippy bans `World::spawn`); it assigns `SpawnSeq` (and `Energy` to anything with `Speed`). Describe placement and holder on the `Spawn` rather than inserting them afterwards.
 - `command.rs` — the only place the world is mutated during play. `GameState::run(command)` queues and applies one command; push several and apply once only when they must share a drain. Commands involving a `Dead` entity are skipped in one check; a new variant lists its entities in `Command::participants`.
 - `event.rs` — handlers get `&World`, the map, an RNG and an output `Vec<Command>`; they never mutate the world.
@@ -24,9 +24,11 @@ can't show at a glance.
 - `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.
 - `ammo.rs` — a nocked arrow is the launcher's own `Inventory`, a quiver's arrows are the quiver's: never add a new holder list for them. `Fire` takes the nocked arrow first, then an *equipped* quiver.
 - `ranged.rs` — `Trail`s are animation-only: `GameState.trails` is never read by the simulation or saved.
-- `spell.rs` — a cast fires `CheckCast` then `PayCost` at the caster; resources, their rules and the stat a spell scales with belong to discipline parts (`CooldownCasting`, `ManaCasting`), never to `cast` or the spell data; pools are `value` + `as_of` computed on read (ADR 0014).
+- `spell.rs` — a cast runs `ModifyCast` (caster), `CheckCast` (spell, then caster), `CastRisk`, `PayCost` (whoever claimed); resources, their rules and the stat a spell scales with belong to discipline parts (`CooldownCasting`, `ManaCasting`, `BloodCasting`, a `Scroll`), never to `cast` or the spell data; pools are `value` + `as_of` computed on read. Payloads (`SpellDamage`, `Area`, `Chain`, `Summon`, `Delay`) are read in `footprint`/`cast` only, and `footprint` is shared with `aim` and `ai::spell_at` (ADR 0014).
+- `area.rs` — pure geometry: what a shape covers is decided here and nowhere else; `spell::footprint` is the one caller, for both the cast and `aim`, so the preview and the cast agree.
 - `ranged.rs`/`aim.rs` — flight is `ranged::flight` (a line, first creature or wall wins); `aim` previews through the same functions the command uses, so keep them shared (ADR 0013). Missile damage is untyped by `AfterHit`: only melee fires it.
-- `ai.rs` — all perception goes through `can_see_player` (ADR 0007).
+- `ai.rs` — perception of the player goes through `can_see_player` (ADR 0007), of anyone else through `perceives` (both in the player's view, ADR 0015); never compute a view per actor.
+- `side.rs` — who is an enemy is `side::enemies`, never a check for `Hostile`: summons take their owner's side (ADR 0015).
 - `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.

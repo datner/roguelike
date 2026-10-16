@@ -43,10 +43,21 @@ This is a Cargo workspace with two crates:
     bow and 12 arrows.
   - Spells (ADR 0014): a spell is a part attached to its caster; how it is
     paid for, and which stat it scales with, is the caster's discipline for
-    its school. You start knowing firebolt (pyromancy: a recharge, scales
-    with Willpower) and magic missile (arcane: mana that regenerates over
-    time, scales with Intelligence). `spells` lists them for frontends with
-    what each cast would cost.
+    its school. You start with pyromancy (firebolt, and the fireball that
+    bursts where it lands: a recharge, scales with Willpower) and arcane
+    magic (magic missile, and the arcane lance, a beam through every foe in
+    line: mana that regenerates over time, scales with Intelligence),
+    plus a delayed fire rune, chain lightning and a spirit-wolf summoning.
+    Casting runs `ModifyCast` (a worn focus), `CheckCast` (the spell, then
+    the caster), `CastRisk` (armor makes casting fizzle) and `PayCost`.
+    Parts make a spell an area (burst, cone, beam, nova), a chain, a
+    delayed rune or a summoning; spells deal fire, cold or shock, resisted
+    per element. Scrolls cast themselves and crumble. Goblin shamans cast
+    blood bolts with their own health. `spells` lists what the player can
+    cast, with what each would cost.
+  - Sides and summons (ADR 0015): hostiles and the player's side, a summon
+    on its owner's. AI goes for the nearest enemy it perceives; summons
+    last until their binding runs out or their owner dies.
   - Auto-explore: `explore_step` walks the player, one turn at a time,
     to the nearest unfound item they know of, then to unexplored ground,
     then to the exit, stopping as soon as a hostile is in view.
@@ -66,8 +77,8 @@ This is a Cargo workspace with two crates:
     by `Speed`, a timer queue, and timed effects (e.g. bleeding) whose
     durations are stored relative to their start. `take_turn` applies
     the player's action and runs the world until the player is ready
-    again. Hostile creatures (goblins) chase and attack the player once
-    they can see them.
+    again. Hostile creatures (goblins) chase and attack the nearest enemy
+    they can see: the player or the player's summons.
   - Field of view (ADR 0007): symmetric shadowcasting with a circular
     radius, recomputed each player turn. The view shows what the player
     sees; terrain seen before stays on screen dimmed, without creatures.
@@ -131,8 +142,16 @@ In game:
   miss land intact; ones that hit may break. Arrows you pick up fill your
   quiver first.
 - `c`: cast a spell you know (one turn). A list shows each spell's range,
-  damage and price (firebolt: a 6-turn recharge; magic missile: 3 mana,
-  shown as MP in the side panel), and why it can't be cast now, if so; `Enter` picks one and aiming works as for `t`. Spells ignore armor.
+  shape, damage and price (firebolt: a 6-turn recharge; magic missile: 3
+  mana, shown as MP in the side panel), and why it can't be cast now, if
+  so; `Enter` picks one and aiming works as for `t`. An area spell marks
+  the ground it would cover and the status bar says how many it catches:
+  a burst is aimed at a spot, a beam or cone in a direction. A fireball
+  burns you too if you stand in it. Elemental spells are resisted by the
+  matching resistance (shown as Resist in the side panel), not by armor;
+  wearing armor gives a chance to fizzle, shown in the list. Scrolls you
+  carry are listed too and crumble once read. A summoning shows where its
+  creatures will appear; walking into your own summon swaps places.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

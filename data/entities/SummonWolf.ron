@@ -1,0 +1,11 @@
+// An arcane summoning (ADR 0015): a spirit wolf appears on the free ground
+// nearest the aimed spot and fights for the caster for 30 turns. No
+// `SpellDamage`, so it is placed rather than thrown.
+(
+    components: [
+        Name("summon wolf"),
+        Appearance(glyph: 'w', fg: (150, 200, 255), bg: (0, 0, 0)),
+        Spell(school: Arcane, range: 5, power: 3),
+        Summon(blueprint: "SpiritWolf", count: 1, lifetime: 3000),
+    ],
+)

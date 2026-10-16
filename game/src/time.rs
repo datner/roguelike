@@ -19,7 +19,7 @@ use crate::entity::{Dead, Energy, SpawnSeq, Speed};
 use crate::equipment::equipped;
 use crate::input::PlayerAction;
 use crate::state::GameState;
-use crate::view::{carried, held, known_spells};
+use crate::view::{carried, castable, held};
 
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -171,7 +171,7 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
             }
         }
         PlayerAction::Cast { spell, at } => {
-            let Some(spell) = spell.find(&state.world, &known_spells(state)) else {
+            let Some(spell) = spell.find(&state.world, &castable(state)) else {
                 state.log.push("You don't know that spell.");
                 return;
             };

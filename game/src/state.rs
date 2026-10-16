@@ -25,6 +25,8 @@ use crate::zone::{CaveParams, ZoneCoord, generate_cave, place_exit, start_positi
 
 /// Goblins placed in a new zone (fewer if the cave has no room).
 pub const GOBLINS: usize = 6;
+/// Goblin shamans placed in a new zone, after the goblins and items.
+pub const SHAMANS: usize = 1;
 /// Closest a goblin may start to the player, in steps.
 pub const GOBLIN_MIN_DISTANCE: i32 = 12;
 /// Items scattered on the floor of a new zone, each drawn from
@@ -103,7 +105,6 @@ impl GameState {
         cave: &CaveParams,
     ) -> Result<Self, BlueprintError> {
         let mut state = Self::bare(seed, blueprints, cave)?;
-        state.teach_spells()?;
         state.populate()?;
         Ok(state)
     }
@@ -122,15 +123,6 @@ impl GameState {
         let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
         place_exit(&mut map, (x, y));
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
-    }
-
-    /// The player knows firebolt and magic missile from the start, under the
-    /// cooldown and mana disciplines `Player.ron` gives them (ADR 0014).
-    fn teach_spells(&mut self) -> Result<(), BlueprintError> {
-        for spell in ["Firebolt", "MagicMissile"] {
-            self.spawn(Spawn::blueprint(spell).attached_to(self.player))?;
-        }
-        Ok(())
     }
 
     /// Arrows in the player's quiver at the start: a bow is no use without,
@@ -157,7 +149,24 @@ impl GameState {
         else {
             return Ok(());
         };
-        for _ in 0..GOBLINS {
+        self.place("Goblin", GOBLINS, from)?;
+        // After the goblins, so adding items left their placement unchanged.
+        self.scatter_items(from)?;
+        // After the items, for the same reason.
+        self.place("GoblinShaman", SHAMANS, from)?;
+        self.log.push("Goblins prowl these caves.");
+        Ok(())
+    }
+
+    /// Up to `count` of `blueprint`, each on a free tile at least
+    /// `GOBLIN_MIN_DISTANCE` from `from`.
+    fn place(
+        &mut self,
+        blueprint: &str,
+        count: usize,
+        from: (i32, i32),
+    ) -> Result<(), BlueprintError> {
+        for _ in 0..count {
             let occupied: Vec<(i32, i32)> = self
                 .world
                 .query::<&Position>()
@@ -173,11 +182,8 @@ impl GameState {
             ) else {
                 break;
             };
-            self.spawn(Spawn::blueprint("Goblin").at(x, y))?;
+            self.spawn(Spawn::blueprint(blueprint).at(x, y))?;
         }
-        // After the goblins, so adding items left their placement unchanged.
-        self.scatter_items(from)?;
-        self.log.push("Goblins prowl these caves.");
         Ok(())
     }
 
@@ -389,11 +395,11 @@ pub(crate) mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::blueprint::{Blueprint, ComponentDef};
+    use crate::blueprint::{Blueprint, ComponentDef, SummonDef};
     use crate::combat::roll_melee;
     use crate::entity::{
-        Armor, Attachments, Bleeding, BodyPart, Duration, Equippable, Found, Health, Melee, Name,
-        PartKind, School, Spell, SpellDamage,
+        Area, Armor, Attachments, Bleeding, BodyPart, DamageTypes, Duration, Equippable, Found,
+        Health, Hits, Melee, Name, PartKind, School, Shape, Spell, SpellDamage,
     };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
@@ -406,6 +412,7 @@ pub(crate) mod tests {
             inherits: None,
             components,
             equipment: Some(equipment.iter().map(|s| s.to_string()).collect()),
+            spells: None,
         }
     }
 
@@ -488,7 +495,11 @@ pub(crate) mod tests {
                             range: 7,
                             power: 2,
                         }),
-                        ComponentDef::SpellDamage(SpellDamage { min: 3, max: 6 }),
+                        ComponentDef::SpellDamage(SpellDamage {
+                            min: 3,
+                            max: 6,
+                            types: DamageTypes::default(),
+                        }),
                     ],
                     &[],
                 ),
@@ -503,7 +514,123 @@ pub(crate) mod tests {
                             range: 8,
                             power: 1,
                         }),
-                        ComponentDef::SpellDamage(SpellDamage { min: 2, max: 4 }),
+                        ComponentDef::SpellDamage(SpellDamage {
+                            min: 2,
+                            max: 4,
+                            types: DamageTypes::default(),
+                        }),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "Fireball".to_string(),
+                blueprint(
+                    vec![
+                        name("fireball"),
+                        ComponentDef::Spell(Spell {
+                            school: School::Pyromancy,
+                            range: 6,
+                            power: 4,
+                        }),
+                        ComponentDef::SpellDamage(SpellDamage {
+                            min: 2,
+                            max: 5,
+                            types: DamageTypes::default(),
+                        }),
+                        ComponentDef::Area(Area {
+                            shape: Shape::Burst { radius: 1 },
+                            hits: Hits::All,
+                            falloff: 0,
+                        }),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "ArcaneLance".to_string(),
+                blueprint(
+                    vec![
+                        name("arcane lance"),
+                        ComponentDef::Spell(Spell {
+                            school: School::Arcane,
+                            range: 8,
+                            power: 2,
+                        }),
+                        ComponentDef::SpellDamage(SpellDamage {
+                            min: 2,
+                            max: 4,
+                            types: DamageTypes::default(),
+                        }),
+                        ComponentDef::Area(Area {
+                            shape: Shape::Beam,
+                            hits: Hits::Enemies,
+                            falloff: 0,
+                        }),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "SummonWolf".to_string(),
+                blueprint(
+                    vec![
+                        name("summon wolf"),
+                        ComponentDef::Spell(Spell {
+                            school: School::Arcane,
+                            range: 5,
+                            power: 3,
+                        }),
+                        ComponentDef::Summon(SummonDef {
+                            blueprint: "SpiritWolf".to_string(),
+                            count: 1,
+                            lifetime: 3000,
+                        }),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "SpiritWolf".to_string(),
+                blueprint(
+                    vec![
+                        name("spirit wolf"),
+                        ComponentDef::BlocksMovement,
+                        ComponentDef::Health(Health { current: 8, max: 8 }),
+                        ComponentDef::Melee(Melee { min: 2, max: 4 }),
+                        ComponentDef::Speed(Speed(120)),
+                    ],
+                    &[],
+                ),
+            ),
+            (
+                "Binding".to_string(),
+                blueprint(vec![ComponentDef::Binding], &[]),
+            ),
+            (
+                "Rune".to_string(),
+                blueprint(
+                    vec![ComponentDef::Appearance(Appearance {
+                        glyph: 'o',
+                        fg: Rgb(255, 120, 40),
+                        bg: Rgb(0, 0, 0),
+                    })],
+                    &[],
+                ),
+            ),
+            (
+                "GoblinShaman".to_string(),
+                blueprint(
+                    vec![
+                        name("goblin shaman"),
+                        ComponentDef::BlocksMovement,
+                        ComponentDef::Health(Health {
+                            current: 10,
+                            max: 10,
+                        }),
+                        ComponentDef::Melee(Melee { min: 1, max: 3 }),
+                        ComponentDef::Speed(Speed(100)),
+                        ComponentDef::Hostile,
                     ],
                     &[],
                 ),

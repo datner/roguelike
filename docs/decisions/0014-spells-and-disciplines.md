@@ -46,6 +46,51 @@ spell would fix one way of paying for every caster.
   `DamageCause::Spell`, which is untyped, so armor passes it (like effect
   damage). The damage roll is one combat-stream draw, only on a hit.
 
+- **Areas are a spell part, `Area { shape, hits, falloff }`**; a spell
+  without one is a bolt. The shape decides how it is aimed: a `Burst`
+  flies like a bolt and goes off where it lands (a point, checked like a
+  missile); a `Cone` (fixed 90°) or a `Beam` (through creatures, to its
+  range or a wall) takes a direction, any tile but the caster's; a `Nova`
+  surrounds the caster and is not aimed. `area::tiles` is pure and walls
+  block it through the same shadowcasting as sight (ADR 0007), so an area
+  never reaches round a corner. `spell::footprint` works out the flight,
+  the tiles and who is caught, for both the cast and `aim`.
+- **Everyone caught takes their own roll**, from the combat stream in
+  `SpawnSeq` order, less `falloff` per tile from the centre. `hits` is
+  `All` (the caster too), `Enemies` or `Allies`; until there are factions,
+  a side is whether a creature is `Hostile`.
+
+- **The pipeline is `ModifyCast` → `CheckCast` → `CastRisk` → `PayCost`.**
+  `ModifyCast` (at the caster) lets worn parts change range, power and
+  damage first; a `Focus` is the first such part. `CheckCast` is asked of
+  the spell itself, then of the caster: a `Scroll` claims its own cast
+  (carried, so the caster's events never reach it), and a discipline skips
+  a cast already claimed, so no caster pays for a scroll. `CastRisk` sums
+  a fizzle chance (`Fizzle`: armor worn against a stat); `PayCost` goes to
+  whoever claimed. A fizzle is paid for and does nothing, one spell-stream
+  draw, made only when the chance is above zero.
+- **Blood magic** (`BloodCasting`) is a third discipline: health per
+  power, refused when it would leave the caster at 0. It needed nothing
+  from the pipeline but the `caster` field.
+
+- **Elements are damage types.** `Fire`, `Cold` and `Shock` join
+  `DamageType`, and `Armor` grows a resistance for each, read the same way
+  (ADR 0012). `SpellDamage.types` carries them, `DamageCause::Spell` is
+  typed, and untyped spells (raw force, blood) still pass all armor. Armor
+  *weight* (fizzling) counts the physical kinds only.
+- **More payloads, same pipeline.** `Chain { jumps, reach }` carries a bolt
+  on to the nearest enemy not yet hit, with open ground between. `Delay {
+  ticks }` lays a `Rune` where the spell lands: a timed effect on the
+  caster, holding the damage rolled-for at cast time (`Blast`), that
+  bursts on expiry through `effect::expire_effect`. Both are read in
+  `footprint` and `cast`; neither touches pricing.
+- **Creatures know spells from data** (`spells:` in a blueprint, like
+  `equipment`: inherited unless replaced, checked at load, spawned
+  attached). `SpellAi` makes a creature cast: the first spell, in the
+  order learned, that `ready_cast` and `check_target` allow and whose
+  footprint hits its target and none of its own side. The goblin shaman
+  pays with blood.
+
 ## Consequences
 
 - A new way to pay is a part plus two handlers and RON; `cast` is unchanged.
@@ -56,10 +101,15 @@ spell would fix one way of paying for every caster.
   `ready_cast`, so the spell list and the aim cursor show what the cast
   will do and cost; a new discipline's price reaches the UI through its
   `CostLine`s.
-- Not yet: areas and cones, summons, casting by AI, elemental damage types,
-  mana regeneration scaling with a stat.
+- Not yet: element interactions, terrain-making spells and rune
+  composition (proposed in ADR 0016), heat, wands and reagents, cone
+  widths other than 90°, mana regeneration scaling with a stat.
 - `SAVE_VERSION` 11 (`Spell`, `SpellDamage`, `Recharging`, `CooldownCasting`);
   12 (`ManaCasting`, `Mana`, `Stats` gains Intelligence and Willpower,
-  `SpellDamage` loses `stat`).
-- `ModifyCast` (equipment and perks adjusting a cast) is planned between
-  check and pay, and left out until something needs it.
+  `SpellDamage` loses `stat`); 13 (`Area`); 15 (`BloodCasting`, `Scroll`,
+  `Focus`, `Fizzle`); 16 (`Chain`); 17 (`Delay`, `Blast`, `SpellAi`,
+  elemental `DamageType`s and `Armor` resistances). Summons are ADR 0015.
+- One goblin shaman joins each new zone, placed after the items, so the
+  goblins and items of a seed stay where they were.
+- New loot (the scroll of fireball, the ember circlet) changes which items
+  seeded worlds scatter: the pick is by index into every `Item` blueprint.

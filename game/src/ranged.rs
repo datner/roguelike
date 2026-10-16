@@ -521,6 +521,7 @@ mod tests {
                     slashing,
                     piercing,
                     blunt: 0,
+                    ..Armor::default()
                 })
                 .attached_to(goblin)
                 .make(&mut state);

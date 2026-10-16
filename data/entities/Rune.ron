@@ -1,0 +1,8 @@
+// A delayed spell waiting on the ground (ADR 0014): a timed effect on its
+// caster, laid where the spell landed, that bursts when it expires. No
+// `Name`, so it starts and stops silently; the burst says so itself.
+(
+    components: [
+        Appearance(glyph: '°', fg: (255, 120, 40), bg: (0, 0, 0)),
+    ],
+)

@@ -11,6 +11,7 @@ use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
     Armor, BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, SpawnSeq,
+    Summoned,
 };
 use crate::equipment;
 use crate::event::{Ctx, settle};
@@ -45,9 +46,11 @@ pub(crate) enum DamageCause {
         attacker: Entity,
         types: DamageTypes,
     },
-    /// A spell: untyped, so armor passes it, and not an `AfterHit` source.
+    /// A spell, resisted by armor of its kinds (none for raw force), and not
+    /// an `AfterHit` source.
     Spell {
         caster: Entity,
+        types: DamageTypes,
     },
     Effect {
         effect: Entity,
@@ -58,8 +61,10 @@ impl DamageCause {
     /// What armor can resist. Effect damage is of no kind, so it passes.
     pub(crate) fn types(self) -> DamageTypes {
         match self {
-            Self::Melee { types, .. } | Self::Ranged { types, .. } => types,
-            Self::Effect { .. } | Self::Spell { .. } => DamageTypes::default(),
+            Self::Melee { types, .. } | Self::Ranged { types, .. } | Self::Spell { types, .. } => {
+                types
+            }
+            Self::Effect { .. } => DamageTypes::default(),
         }
     }
 }
@@ -143,6 +148,14 @@ pub(crate) enum Command {
     Die {
         entity: Entity,
     },
+    /// `item`, which `holder` carries, is used up (a read scroll).
+    UseUp {
+        holder: Entity,
+        item: Entity,
+    },
+    /// A summon leaves: its binding ran out or its owner died. Despawned
+    /// with what it holds, like a death but without one.
+    Dismiss(Entity),
     /// Spawn the effect `blueprint` (which must carry a `Duration`), start it
     /// now, and attach it to `target`.
     ApplyEffect {
@@ -198,6 +211,8 @@ impl Command {
                 [Some(target), None]
             }
             Command::Die { entity } => [Some(entity), None],
+            Command::Dismiss(entity) => [Some(entity), None],
+            Command::UseUp { holder, item } => [Some(holder), Some(item)],
             Command::ModifyDuration { effect, .. }
             | Command::ExpireEffect(effect)
             | Command::BleedTick(effect) => [Some(effect), None],
@@ -262,6 +277,8 @@ pub(crate) fn apply_commands(state: &mut GameState) {
                 cause,
             } => deal_damage(state, target, amount, cause),
             Command::Die { entity } => die(state, entity),
+            Command::Dismiss(entity) => dismiss(state, entity),
+            Command::UseUp { holder, item } => use_up(state, holder, item),
             Command::ApplyEffect { target, blueprint } => {
                 effect::apply_effect(state, target, blueprint);
             }
@@ -385,6 +402,18 @@ fn log_wall_bump(state: &mut GameState, entity: Entity) {
     state.log.push(mover.sentence("bump", "into a wall"));
 }
 
+/// `a` and `b` trade tiles.
+fn swap_places(state: &mut GameState, a: Entity, b: Entity) {
+    let (Ok(at_a), Ok(at_b)) = (
+        state.world.get::<&Position>(a).map(|p| *p),
+        state.world.get::<&Position>(b).map(|p| *p),
+    ) else {
+        return;
+    };
+    let _ = state.world.insert_one(a, at_b);
+    let _ = state.world.insert_one(b, at_a);
+}
+
 fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
     let Some(target) = destination(state, entity, dir) else {
         return;
@@ -404,6 +433,15 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
         .find(|&(other, pos, _)| other != entity && (pos.x, pos.y) == target)
         .map(|(other, _, _)| other);
     if let Some(victim) = victim {
+        // Walking into your own summon trades places with it.
+        let own = state
+            .world
+            .get::<&Summoned>(victim)
+            .is_ok_and(|summoned| summoned.owner == entity);
+        if own {
+            swap_places(state, entity, victim);
+            return;
+        }
         state.commands.push_back(Command::Attack {
             attacker: entity,
             target: victim,
@@ -582,12 +620,46 @@ fn die(state: &mut GameState, entity: Entity) {
     }
     let dying = Subject::of(&state.world, entity);
     state.log.push(dying.sentence("die", ""));
+    let summons: Vec<Entity> = state
+        .world
+        .query::<(Entity, &Summoned)>()
+        .iter()
+        .filter(|&(_, summoned)| summoned.owner == entity)
+        .map(|(summon, _)| summon)
+        .collect();
+    for summon in summons {
+        state.commands.push_back(Command::Dismiss(summon));
+    }
     if entity == state.player {
         state.game_over = true;
         let _ = state.world.insert_one(entity, Dead);
         return;
     }
+    despawn_with_holdings(state, entity);
+}
 
+/// `Command::UseUp` applier.
+fn use_up(state: &mut GameState, holder: Entity, item: Entity) {
+    if !holding::carried(&state.world, holder).contains(&item) {
+        return;
+    }
+    let used = Subject::of(&state.world, item);
+    state.log.push(used.sentence("crumble", "to dust"));
+    holding::unstow(&mut state.world, holder, item);
+    despawn_with_holdings(state, item);
+}
+
+/// `Command::Dismiss` applier.
+fn dismiss(state: &mut GameState, entity: Entity) {
+    if !state.world.contains(entity) {
+        return;
+    }
+    let leaving = Subject::of(&state.world, entity);
+    state.log.push(leaving.sentence("fade", "away"));
+    despawn_with_holdings(state, entity);
+}
+
+fn despawn_with_holdings(state: &mut GameState, entity: Entity) {
     let mut doomed = vec![entity];
     while let Some(next) = doomed.pop() {
         doomed.extend(holding::attached(&state.world, next));

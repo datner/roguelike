@@ -12,6 +12,19 @@
         CooldownCasting(school: Pyromancy, ticks_per_power: 300, stat: Willpower),
         ManaCasting(school: Arcane, mana_per_power: 3, stat: Intelligence),
         Mana(value: 10, max: 10, regen_ticks: 200),
+        SummonLimit(max: 2),
+        // Armor gets in the way: 5% per point worn, 1% less per point of
+        // Willpower modifier. Unarmored, casting never fizzles.
+        Fizzle(base_bp: 0, per_armor_bp: 500, per_modifier_bp: 100, stat: Willpower),
     ],
     equipment: ["ShortBow", "Quiver"],
+    spells: [
+        "Firebolt",
+        "Fireball",
+        "FireRune",
+        "MagicMissile",
+        "ArcaneLance",
+        "ChainLightning",
+        "SummonWolf",
+    ],
 )

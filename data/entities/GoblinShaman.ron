@@ -1,0 +1,14 @@
+// A goblin who bleeds for its magic (ADR 0014, blood magic; `SpellAi`):
+// it casts blood bolts while it can spare the health, then fights like
+// any goblin.
+(
+    inherits: "Goblin",
+    components: [
+        Name("goblin shaman"),
+        Appearance(glyph: 'g', fg: (200, 80, 80), bg: (0, 0, 0)),
+        Health(current: 10, max: 10),
+        BloodCasting(school: Hemomancy, hp_per_power: 1, stat: Willpower),
+        SpellAi,
+    ],
+    spells: ["BloodBolt"],
+)

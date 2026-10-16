@@ -6,28 +6,50 @@
 use std::ops::ControlFlow;
 
 use hecs::{Entity, World};
+use rand::RngExt;
+use rand_pcg::Pcg64;
 
+use crate::area;
 use crate::cell::Rgb;
 use crate::combat::{Strike, roll_strike};
 use crate::command::{Command, DamageCause, dispatch};
 use crate::cost::TICKS_PER_TURN;
+use crate::effect;
 use crate::entity::{
-    Appearance, CooldownCasting, DamageTypes, Mana, ManaCasting, Name, Recharging, School, Spell,
-    SpellDamage, Stat, Stats, Timed,
+    Appearance, Area, Blast, BlocksMovement, BloodCasting, Chain, CooldownCasting, DamageTypes,
+    Dead, Delay, EffectTarget, Fizzle, Focus, Health, Hits, Mana, ManaCasting, Name, Position,
+    Recharging, School, Scroll, Shape, SpawnSeq, Spell, SpellDamage, Stat, Stats, Summon,
+    SummonLimit, Summoned, Timed,
 };
 use crate::event::{Ctx, EventRegistry, settle};
-use crate::grammar::Subject;
+use crate::grammar::{Subject, capitalize};
 use crate::holding;
+use crate::map::Tile;
 use crate::prio;
 use crate::ranged::{self, Trail, check_range, flight};
+use crate::side;
+use crate::spawn::Spawn;
 use crate::state::GameState;
 use crate::time::Tick;
-use crate::view::CostLine;
+use crate::view::{CostLine, total_armor};
 
-/// Asked of the caster before a cast. A discipline for the spell's school
-/// sets `claimed`, the `stat` the spell scales with, and describes its price
-/// in `costs` (even when it then refuses, so a list can show the price); one
-/// that cannot pay sets `blocked` to the reason.
+/// Fired at the caster first, so worn foci and perks can change a cast
+/// before anyone prices it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ModifyCast {
+    pub school: School,
+    pub range: i32,
+    pub power: i32,
+    /// Added to the damage roll.
+    pub damage: i32,
+}
+
+/// Asked before a cast: first of the spell itself (a scroll pays its own
+/// way), then of the caster. A discipline for the spell's school sets
+/// `claimed`, the `stat` the spell scales with, and describes its price in
+/// `costs` (even when it then refuses, so a list can show the price); one
+/// that cannot pay sets `blocked` to the reason. A cast already claimed is
+/// left alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckCast {
     pub caster: Entity,
@@ -36,9 +58,20 @@ pub(crate) struct CheckCast {
     pub power: i32,
     pub now: Tick,
     pub claimed: bool,
+    /// Claimed by the spell's own parts: `PayCost` goes to the spell.
+    pub self_paid: bool,
     pub stat: Option<Stat>,
     pub blocked: Option<String>,
     pub costs: Vec<CostLine>,
+}
+
+/// Fired at the caster once a cast is allowed: what could make it fizzle,
+/// as a chance out of 10 000.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CastRisk {
+    pub caster: Entity,
+    pub school: School,
+    pub fizzle_bp: u32,
 }
 
 /// Fired at the caster as the cast happens: every discipline that claimed
@@ -54,7 +87,7 @@ pub(crate) struct PayCost {
 
 pub(crate) fn register(registry: &mut EventRegistry) {
     registry.on::<CheckCast, CooldownCasting>(prio::COOLDOWN, |ctx, rule, mut ev| {
-        if rule.school != ev.school {
+        if rule.school != ev.school || ev.claimed {
             return ControlFlow::Continue(ev);
         }
         ev.claimed = true;
@@ -88,7 +121,7 @@ pub(crate) fn register(registry: &mut EventRegistry) {
     });
 
     registry.on::<CheckCast, ManaCasting>(prio::MANA, |ctx, rule, mut ev| {
-        if rule.school != ev.school {
+        if rule.school != ev.school || ev.claimed {
             return ControlFlow::Continue(ev);
         }
         ev.claimed = true;
@@ -117,6 +150,110 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         }
         ControlFlow::Continue(ev)
     });
+
+    registry.on::<CheckCast, SummonLimit>(prio::SUMMON_LIMIT, |ctx, limit, mut ev| {
+        let Ok(summon) = ctx.world.get::<&Summon>(ev.spell).map(|summon| *summon) else {
+            return ControlFlow::Continue(ev);
+        };
+        let held = ctx
+            .world
+            .query::<&Summoned>()
+            .iter()
+            .filter(|summoned| summoned.owner == ev.caster)
+            .count();
+        if held + summon.count as usize > limit.max as usize {
+            ev.blocked = Some("You can't hold any more summons.".to_string());
+            return ControlFlow::Break(ev);
+        }
+        ControlFlow::Continue(ev)
+    });
+
+    registry.on::<CheckCast, BloodCasting>(prio::BLOOD, |ctx, rule, mut ev| {
+        if rule.school != ev.school || ev.claimed {
+            return ControlFlow::Continue(ev);
+        }
+        ev.claimed = true;
+        ev.stat = Some(rule.stat);
+        let price = blood_price(rule, ev.power);
+        ev.costs.push(CostLine {
+            resource: "HP".to_string(),
+            amount: u64::try_from(price).unwrap_or(0),
+        });
+        let health = ctx
+            .world
+            .get::<&Health>(ev.caster)
+            .map_or(0, |health| health.current);
+        if health <= price {
+            ev.blocked = Some("That would kill you.".to_string());
+            return ControlFlow::Break(ev);
+        }
+        ControlFlow::Continue(ev)
+    });
+    registry.on::<PayCost, BloodCasting>(prio::BLOOD, |ctx: &mut Ctx<'_>, rule, ev| {
+        if rule.school == ev.school {
+            ctx.out.push(Command::DealDamage {
+                target: ev.caster,
+                amount: blood_price(rule, ev.power),
+                cause: DamageCause::Spell {
+                    caster: ev.caster,
+                    types: DamageTypes::default(),
+                },
+            });
+        }
+        ControlFlow::Continue(ev)
+    });
+
+    // Fired at the scroll itself, which is carried and so not reached
+    // through the caster's events.
+    registry.on::<CheckCast, Scroll>(prio::SCROLL, |_, _, mut ev| {
+        if ev.claimed {
+            return ControlFlow::Continue(ev);
+        }
+        ev.claimed = true;
+        ev.self_paid = true;
+        ev.costs.push(CostLine {
+            resource: "scroll".to_string(),
+            amount: 1,
+        });
+        ControlFlow::Continue(ev)
+    });
+    registry.on::<PayCost, Scroll>(prio::SCROLL, |ctx: &mut Ctx<'_>, _, ev| {
+        ctx.out.push(Command::UseUp {
+            holder: ev.caster,
+            item: ev.spell,
+        });
+        ControlFlow::Continue(ev)
+    });
+
+    registry.on::<ModifyCast, Focus>(prio::FOCUS, |_, focus, mut ev| {
+        if focus.school == ev.school {
+            ev.range += focus.range;
+            ev.power = (ev.power + focus.power).max(0);
+            ev.damage += focus.damage;
+        }
+        ControlFlow::Continue(ev)
+    });
+
+    registry.on::<CastRisk, Fizzle>(prio::FIZZLE, |ctx, rule, mut ev| {
+        let armor = total_armor(ctx.world, ev.caster);
+        let worn = i64::from(armor.weight()).max(0);
+        let modifier = ctx
+            .world
+            .get::<&Stats>(ev.caster)
+            .map_or(0, |stats| stats.modifier(rule.stat));
+        let chance = i64::from(rule.base_bp) + i64::from(rule.per_armor_bp) * worn
+            - i64::from(rule.per_modifier_bp) * i64::from(modifier);
+        let chance = u32::try_from(chance.max(0)).unwrap_or(u32::MAX);
+        ev.fizzle_bp = ev.fizzle_bp.saturating_add(chance).min(FIZZLE_CERTAIN);
+        ControlFlow::Continue(ev)
+    });
+}
+
+/// A fizzle chance of 10 000 out of 10 000.
+const FIZZLE_CERTAIN: u32 = 10_000;
+
+fn blood_price(rule: &BloodCasting, power: i32) -> i32 {
+    power.max(0) * rule.hp_per_power
 }
 
 fn recharge_ticks(rule: &CooldownCasting, power: i32) -> u64 {
@@ -132,17 +269,36 @@ fn mana_price(rule: &ManaCasting, power: i32) -> u32 {
 #[derive(Debug, Clone)]
 pub(crate) struct Ready {
     pub range: i32,
-    pub strike: Strike,
+    /// `None` for a spell that does no damage, such as a pure summoning.
+    pub strike: Option<Strike>,
+    pub summon: Option<Summon>,
+    /// A bolt that leaps on; ignored for an area.
+    pub chain: Option<Chain>,
+    /// Goes off later, from a rune; needs an `Area` and damage.
+    pub delay: Option<Delay>,
     /// What the claiming disciplines will take, as they describe it.
     pub costs: Vec<CostLine>,
+    /// The ground it covers; `None` for a bolt, which hits the first
+    /// creature on its line.
+    pub area: Option<Area>,
+    /// Chance, out of 10 000, that it fizzles once paid for.
+    pub fizzle_bp: u32,
     school: School,
     power: i32,
+    /// Who `PayCost` goes to: the caster, or the spell for a scroll.
+    payer: Entity,
 }
 
 /// What `spell` hits for when `caster` casts it: its dice plus the caster's
-/// modifier for `stat` (the claiming discipline's), untyped. `None` if it
-/// does no damage.
-fn strike(world: &World, caster: Entity, spell: Entity, stat: Option<Stat>) -> Option<Strike> {
+/// modifier for `stat` (the claiming discipline's) and `extra` (from
+/// `ModifyCast`), untyped. `None` if it does no damage.
+fn strike(
+    world: &World,
+    caster: Entity,
+    spell: Entity,
+    stat: Option<Stat>,
+    extra: i32,
+) -> Option<Strike> {
     let damage = *world.get::<&SpellDamage>(spell).ok()?;
     let bonus = world
         .get::<&Stats>(caster)
@@ -152,10 +308,17 @@ fn strike(world: &World, caster: Entity, spell: Entity, stat: Option<Stat>) -> O
     Some(Strike {
         min: damage.min,
         max: damage.max,
-        bonus,
-        types: DamageTypes::default(),
+        bonus: bonus + extra,
+        types: damage.types,
         weapon: None,
     })
+}
+
+/// Whether `actor` can try to cast `spell`: they know it (it is in their
+/// `Attachments`) or carry it as a scroll.
+fn has(world: &World, actor: Entity, spell: Entity) -> bool {
+    holding::attached(world, actor).contains(&spell)
+        || (world.satisfies::<&Scroll>(spell) && holding::carried(world, actor).contains(&spell))
 }
 
 /// `actor` casting `spell`: they must know it and a discipline must claim
@@ -177,11 +340,13 @@ pub(crate) fn inspect_cast(
     spell: Entity,
 ) -> Result<(Ready, Option<String>), String> {
     let world = &state.world;
-    let known = holding::attached(world, actor).contains(&spell);
+    let known = has(world, actor, spell);
+    let does_something =
+        world.satisfies::<&SpellDamage>(spell) || world.satisfies::<&Summon>(spell);
     let (true, Ok(data), true) = (
         known,
         world.get::<&Spell>(spell).map(|s| *s),
-        world.satisfies::<&SpellDamage>(spell),
+        does_something,
     ) else {
         return Err("You don't know that spell.".to_string());
     };
@@ -197,34 +362,62 @@ pub(crate) fn inspect_cast(
         rng: &mut rng,
         out: &mut out,
     };
-    let check = settle(state.events.fire(
+    let modified = settle(state.events.fire(
         &mut ctx,
         actor,
-        CheckCast {
-            caster: actor,
-            spell,
+        ModifyCast {
             school: data.school,
+            range: data.range,
             power: data.power,
-            now: state.now,
-            claimed: false,
-            stat: None,
-            blocked: None,
-            costs: Vec::new(),
+            damage: 0,
         },
     ));
+    let asked = CheckCast {
+        caster: actor,
+        spell,
+        school: data.school,
+        power: modified.power,
+        now: state.now,
+        claimed: false,
+        self_paid: false,
+        stat: None,
+        blocked: None,
+        costs: Vec::new(),
+    };
+    // The spell's own parts first; the caster's disciplines skip a claimed
+    // cast, but a caster's veto (a summon limit) still applies.
+    let asked = settle(state.events.fire(&mut ctx, spell, asked));
+    let check = if asked.blocked.is_some() {
+        asked
+    } else {
+        settle(state.events.fire(&mut ctx, actor, asked))
+    };
     let blocked = match check.blocked {
         Some(reason) => Some(reason),
         None if !check.claimed => Some(format!("You have no way to cast {name}.")),
         None => None,
     };
-    let strike = strike(world, actor, spell, check.stat)
-        .ok_or_else(|| "You don't know that spell.".to_string())?;
+    let risk = settle(state.events.fire(
+        &mut ctx,
+        actor,
+        CastRisk {
+            caster: actor,
+            school: data.school,
+            fizzle_bp: 0,
+        },
+    ));
     let ready = Ready {
-        range: data.range,
-        strike,
+        range: modified.range,
+        strike: strike(world, actor, spell, check.stat, modified.damage),
+        summon: world.get::<&Summon>(spell).ok().map(|summon| *summon),
+        chain: world.get::<&Chain>(spell).ok().map(|chain| *chain),
+        delay: world.get::<&Delay>(spell).ok().map(|delay| *delay),
         costs: check.costs,
+        area: world.get::<&Area>(spell).ok().map(|area| *area),
+        fizzle_bp: risk.fizzle_bp,
         school: data.school,
-        power: data.power,
+        power: modified.power,
+        payer: if check.self_paid { spell } else { actor },
     };
     Ok((ready, blocked))
 }
@@ -236,22 +429,232 @@ pub(crate) fn check_cast(
     spell: Entity,
     at: (i32, i32),
 ) -> Result<(), String> {
-    check_range(state, actor, ready_cast(state, actor, spell)?.range, at)
+    check_target(state, actor, &ready_cast(state, actor, spell)?, at)
 }
 
-/// Applies `Command::Cast`: pays the cost, then the bolt flies to the first
-/// creature or wall on the line and the first creature takes `DealDamage`.
-/// The damage roll is one combat-stream draw, made only when something is hit.
+/// Whether `at` is a tile the spell can be aimed at. Bolts and bursts are
+/// aimed at a point, which must be in range and in view; cones and beams at
+/// a direction, any tile but the caster's; a nova is not aimed at all.
+pub(crate) fn check_target(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    at: (i32, i32),
+) -> Result<(), String> {
+    match ready.area.map(|area| area.shape) {
+        None | Some(Shape::Burst { .. }) => check_range(state, actor, ready.range, at),
+        Some(Shape::Cone | Shape::Beam) => match ranged::position(state, actor) {
+            Some(from) if from == at => Err("You can't aim at yourself.".to_string()),
+            Some(_) => Ok(()),
+            None => Err("You can't aim from nowhere.".to_string()),
+        },
+        Some(Shape::Nova { .. }) => Ok(()),
+    }
+}
+
+/// Where a cast at a tile goes and whom it catches: one answer for the cast
+/// and for the aim preview.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Footprint {
+    /// The bolt's flight, or a burst's before it bursts; empty for shapes
+    /// that don't fly.
+    pub path: Vec<(i32, i32)>,
+    /// Where a missile comes down, or the aimed tile for the rest.
+    pub landing: (i32, i32),
+    /// The tiles an area covers, nearest its centre first; empty for a bolt.
+    pub area: Vec<(i32, i32)>,
+    /// Where falloff is measured from.
+    pub centre: (i32, i32),
+    /// The creatures it affects, in `SpawnSeq` order (a chain's in the order
+    /// it leaps).
+    pub caught: Vec<Entity>,
+    /// Where its summons appear, in the order they are called.
+    pub placed: Vec<(i32, i32)>,
+}
+
+/// `rng` is the spell stream, which placing summons draws from: the cast
+/// passes the real one, a preview a clone, so both place them alike.
+pub(crate) fn footprint(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    at: (i32, i32),
+    rng: &mut Pcg64,
+) -> Option<Footprint> {
+    let from = ranged::position(state, actor)?;
+    let shape = ready.area.map(|area| area.shape);
+    // Bolts and bursts fly; a spell that only summons is placed, not thrown.
+    let flies = match shape {
+        None => ready.strike.is_some(),
+        Some(Shape::Burst { .. }) => true,
+        Some(Shape::Cone | Shape::Beam | Shape::Nova { .. }) => false,
+    };
+    let flight = flies.then(|| flight(state, actor, from, at, ready.range));
+    let landing = flight.as_ref().map_or(at, |flight| flight.landing);
+    let mut path = flight
+        .as_ref()
+        .map_or_else(Vec::new, |flight| flight.path.clone());
+    let (tiles, centre, mut caught) = match ready.area {
+        Some(area) => {
+            let tiles = area::tiles(&state.map, area.shape, from, landing, ready.range);
+            let caught = caught(&state.world, actor, area.hits, &tiles);
+            (tiles, area::centre(area.shape, from, landing), caught)
+        }
+        None => {
+            let hit = flight.as_ref().and_then(|flight| flight.hit);
+            (Vec::new(), landing, hit.into_iter().collect())
+        }
+    };
+    if let (None, Some(chain)) = (ready.area, ready.chain) {
+        jump(state, actor, chain, &mut caught, &mut path);
+    }
+    let placed = ready.summon.map_or_else(Vec::new, |summon| {
+        placement(state, landing, summon.count, rng)
+    });
+    Some(Footprint {
+        path,
+        landing,
+        area: tiles,
+        centre,
+        caught,
+        placed,
+    })
+}
+
+/// Carries a bolt on from its last victim to the nearest enemy of `actor`
+/// not yet hit, within `chain.reach` and with open ground between (ties by
+/// `SpawnSeq`), up to `chain.jumps` times. Each jump's line joins `path`, so
+/// the animation follows it.
+fn jump(
+    state: &GameState,
+    actor: Entity,
+    chain: Chain,
+    caught: &mut Vec<Entity>,
+    path: &mut Vec<(i32, i32)>,
+) {
+    let world = &state.world;
+    let creatures: Vec<(Entity, (i32, i32), SpawnSeq)> = world
+        .query::<(Entity, &Position, &SpawnSeq)>()
+        .with::<&Health>()
+        .without::<&Dead>()
+        .iter()
+        .filter(|&(other, _, _)| other != actor && side::enemies(world, actor, other))
+        .map(|(other, pos, seq)| (other, (pos.x, pos.y), *seq))
+        .collect();
+    for _ in 0..chain.jumps {
+        let Some(&last) = caught.last() else {
+            return;
+        };
+        let Some(from) = ranged::position(state, last) else {
+            return;
+        };
+        let next = creatures
+            .iter()
+            .filter(|(other, at, _)| {
+                !caught.contains(other)
+                    && ranged::distance(from, *at) <= chain.reach
+                    && ranged::line(from, *at)
+                        .into_iter()
+                        .all(|(x, y)| Tile::is_open(state.map.get(x, y)))
+            })
+            .min_by_key(|(_, at, seq)| (ranged::distance(from, *at), *seq));
+        let Some(&(next, at, _)) = next else {
+            return;
+        };
+        path.extend(ranged::line(from, at));
+        caught.push(next);
+    }
+}
+
+/// How far from the aimed spot a summon may appear.
+const SUMMON_REACH: i32 = 2;
+
+/// Up to `count` free tiles nearest `at`: open ground in view of it, within
+/// `SUMMON_REACH`, with no creature or blocker. Tiles equally near are
+/// shuffled from the spell stream, ring by ring and only as far as needed,
+/// so where summons appear is fair but seeded.
+fn placement(state: &GameState, at: (i32, i32), count: u32, rng: &mut Pcg64) -> Vec<(i32, i32)> {
+    let count = count as usize;
+    let ring = |(x, y): (i32, i32)| (x - at.0).pow(2) + (y - at.1).pow(2);
+    let mut free: Vec<(i32, i32)> = area::tiles(
+        &state.map,
+        Shape::Nova {
+            radius: SUMMON_REACH,
+        },
+        at,
+        at,
+        0,
+    )
+    .into_iter()
+    .filter(|&tile| !occupied(&state.world, tile))
+    .collect();
+    let mut start = 0;
+    while start < free.len() && start < count {
+        let key = ring(free[start]);
+        let end = free[start..]
+            .iter()
+            .position(|&tile| ring(tile) != key)
+            .map_or(free.len(), |len| start + len);
+        let group = &mut free[start..end];
+        for i in (1..group.len()).rev() {
+            group.swap(i, rng.random_range(0..=i));
+        }
+        start = end;
+    }
+    free.truncate(count);
+    free
+}
+
+fn occupied(world: &World, tile: (i32, i32)) -> bool {
+    world
+        .query::<(&Position, Option<&Health>, Option<&BlocksMovement>)>()
+        .iter()
+        .any(|(pos, health, blocks)| {
+            (pos.x, pos.y) == tile && (health.is_some() || blocks.is_some())
+        })
+}
+
+/// Living creatures standing on `tiles` whom `hits` lets the spell affect,
+/// in `SpawnSeq` order.
+fn caught(world: &World, caster: Entity, hits: Hits, tiles: &[(i32, i32)]) -> Vec<Entity> {
+    let mut standing: Vec<(SpawnSeq, Entity)> = world
+        .query::<(Entity, &Position, &SpawnSeq)>()
+        .with::<&Health>()
+        .without::<&Dead>()
+        .iter()
+        .filter(|&(_, pos, _)| tiles.contains(&(pos.x, pos.y)))
+        .map(|(entity, _, seq)| (*seq, entity))
+        .collect();
+    standing.sort_by_key(|&(seq, _)| seq);
+    let ours = side::side(world, caster);
+    standing
+        .into_iter()
+        .map(|(_, entity)| entity)
+        .filter(|&entity| match hits {
+            Hits::All => true,
+            Hits::Enemies => side::side(world, entity) != ours,
+            Hits::Allies => side::side(world, entity) == ours,
+        })
+        .collect()
+}
+
+/// Applies `Command::Cast`: pays the cost, then works out the footprint and
+/// gives every creature caught `DealDamage`. Each takes one combat-stream
+/// roll, in `SpawnSeq` order, less the area's falloff for its distance from
+/// the centre; a bolt that hits nothing draws nothing.
 pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32, i32)) {
     let Ok(ready) = ready_cast(state, actor, spell) else {
         return;
     };
-    let Some(from) = ranged::position(state, actor) else {
+    let mut rng = state.rngs.spell.clone();
+    let footprint = footprint(state, actor, &ready, at, &mut rng);
+    state.rngs.spell = rng;
+    let Some(footprint) = footprint else {
         return;
     };
     let _ = dispatch(
         state,
-        actor,
+        ready.payer,
         PayCost {
             caster: actor,
             spell,
@@ -261,38 +664,166 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
         },
     );
 
-    let flight = flight(state, actor, from, at, ready.range);
-    if !flight.path.is_empty() {
-        let (glyph, fg) = state
-            .world
-            .get::<&Appearance>(spell)
-            .map_or(('*', Rgb(255, 140, 40)), |look| (look.glyph, look.fg));
-        state.trails.push(Trail {
-            glyph,
-            fg,
-            path: flight.path.clone(),
-        });
-    }
-
     let name = state
         .world
         .get::<&Name>(spell)
         .map_or_else(|_| "spell".to_string(), |name| name.0.clone());
-    let aimed = flight.hit.map_or_else(String::new, |target| {
-        format!(" at {}", Subject::of(&state.world, target).noun())
-    });
+    // One spell-stream draw, and only when there is a chance at all, so
+    // casters who never fizzle leave the stream untouched.
+    if ready.fizzle_bp > 0 && state.rngs.spell.random_range(0..FIZZLE_CERTAIN) < ready.fizzle_bp {
+        let caster = Subject::of(&state.world, actor);
+        state.log.push(format!(
+            "{} {name} fizzles.",
+            capitalize(&caster.possessive())
+        ));
+        return;
+    }
+
+    // The flight, then the area spreading from its centre; a delayed spell
+    // only flies now.
+    let (glyph, fg) = state
+        .world
+        .get::<&Appearance>(spell)
+        .map_or(('*', Rgb(255, 140, 40)), |look| (look.glyph, look.fg));
+    let spreads = if ready.delay.is_some() {
+        Vec::new()
+    } else {
+        footprint.area.clone()
+    };
+    for path in [&footprint.path, &spreads, &footprint.placed] {
+        if !path.is_empty() {
+            state.trails.push(Trail {
+                glyph,
+                fg,
+                path: path.clone(),
+            });
+        }
+    }
+
+    let aimed = match (ready.area, footprint.caught.first()) {
+        (None, Some(&target)) => format!(" at {}", Subject::of(&state.world, target).noun()),
+        _ => String::new(),
+    };
     let message = Subject::of(&state.world, actor).sentence("cast", &format!("{name}{aimed}"));
     state.log.push(message);
 
-    let Some(target) = flight.hit else {
+    if let (Some(delay), Some(strike), Some(area)) = (ready.delay, ready.strike, ready.area) {
+        lay_rune(state, actor, footprint.landing, delay, strike, area);
         return;
+    }
+    if let Some(strike) = ready.strike {
+        let falloff = ready.area.map_or(0, |area| area.falloff);
+        for &target in &footprint.caught {
+            let hit = roll_strike(&mut state.rngs.combat, strike);
+            let away = ranged::position(state, target)
+                .map_or(0, |at| ranged::distance(footprint.centre, at));
+            state.commands.push_back(Command::DealDamage {
+                target,
+                amount: (hit.amount - falloff * away).max(0),
+                cause: DamageCause::Spell {
+                    caster: actor,
+                    types: strike.types,
+                },
+            });
+        }
+    }
+    if let Some(summon) = ready.summon {
+        call(state, actor, summon, &footprint.placed);
+    }
+}
+
+/// Leaves a delayed spell's rune at `at`: a timed effect on `caster`
+/// carrying the damage as rolled-for now, which bursts on expiry (`detonate`).
+fn lay_rune(
+    state: &mut GameState,
+    caster: Entity,
+    at: (i32, i32),
+    delay: Delay,
+    strike: Strike,
+    area: Area,
+) {
+    let blast = Blast {
+        min: strike.min,
+        max: strike.max,
+        bonus: strike.bonus,
+        types: strike.types,
+        area,
     };
-    let hit = roll_strike(&mut state.rngs.combat, ready.strike);
-    state.commands.push_back(Command::DealDamage {
-        target,
-        amount: hit.amount,
-        cause: DamageCause::Spell { caster: actor },
+    let timed = Timed {
+        start: state.now,
+        duration: delay.ticks,
+    };
+    let spawn = Spawn::blueprint("Rune")
+        .at(at.0, at.1)
+        .with(timed)
+        .with(EffectTarget(caster))
+        .with(blast)
+        .attached_to(caster);
+    match state.spawn(spawn) {
+        Ok(rune) => {
+            state.log.push("A rune glows on the ground.");
+            effect::schedule_expiry(state, rune);
+        }
+        Err(err) => state.log.push(format!("Error: cannot lay a rune: {err}")),
+    }
+}
+
+/// A rune's burst, from `effect::expire_effect`: the same as an area cast
+/// centred on the rune, for `caster`. A cone or beam has no direction left,
+/// so it bursts on the rune's tile alone.
+pub(crate) fn detonate(state: &mut GameState, caster: Entity, at: (i32, i32), blast: Blast) {
+    let radius = match blast.area.shape {
+        Shape::Burst { radius } | Shape::Nova { radius } => radius,
+        Shape::Cone | Shape::Beam => 0,
+    };
+    let tiles = area::tiles(&state.map, Shape::Burst { radius }, at, at, 0);
+    let caught = caught(&state.world, caster, blast.area.hits, &tiles);
+    state.log.push("The rune bursts!");
+    state.trails.push(Trail {
+        glyph: '*',
+        fg: Rgb(255, 90, 20),
+        path: tiles,
     });
+    let strike = Strike {
+        min: blast.min,
+        max: blast.max,
+        bonus: blast.bonus,
+        types: blast.types,
+        weapon: None,
+    };
+    for target in caught {
+        let hit = roll_strike(&mut state.rngs.combat, strike);
+        let away = ranged::position(state, target).map_or(0, |pos| ranged::distance(at, pos));
+        state.commands.push_back(Command::DealDamage {
+            target,
+            amount: (hit.amount - blast.area.falloff * away).max(0),
+            cause: DamageCause::Spell {
+                caster,
+                types: blast.types,
+            },
+        });
+    }
+}
+
+/// Spawns `summon`'s creatures on `tiles`, on `caster`'s side, each held by
+/// a `Binding` for the summon's lifetime.
+fn call(state: &mut GameState, caster: Entity, summon: Summon, tiles: &[(i32, i32)]) {
+    if tiles.is_empty() {
+        state.log.push("Nothing answers: there is no room.");
+    }
+    for &(x, y) in tiles {
+        let spawn = Spawn::id(summon.blueprint)
+            .at(x, y)
+            .with(Summoned { owner: caster });
+        match state.spawn(spawn) {
+            Ok(creature) => {
+                let message = Subject::of(&state.world, creature).sentence("appear", "");
+                state.log.push(message);
+                effect::bind(state, creature, summon.lifetime);
+            }
+            Err(err) => state.log.push(format!("Error: cannot summon: {err}")),
+        }
+    }
 }
 
 /// Applies `Command::Recharge`: the spell cannot be cast for `duration`
@@ -319,7 +850,7 @@ pub(crate) fn spend_mana(state: &mut GameState, caster: Entity, amount: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::{Armor, Health};
+    use crate::entity::{Armor, Binding, Health};
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, see_everything, thing};
@@ -389,6 +920,46 @@ mod tests {
         assert_eq!(Armor::uniform(5).against(DamageTypes::default()), 0);
         cast_at(&mut state, spell, (3, 1));
         assert_eq!(health(&state, target), 7);
+    }
+
+    #[test]
+    fn an_elemental_spell_is_resisted_by_its_element_alone() {
+        use crate::entity::DamageType;
+        let (mut state, spell) = caster();
+        let _ = state.world.insert_one(
+            spell,
+            SpellDamage {
+                min: 3,
+                max: 3,
+                types: DamageTypes::single(DamageType::Fire),
+            },
+        );
+        let plated = thing("goblin")
+            .at(3, 1)
+            .health(10)
+            .armor(5)
+            .hostile()
+            .make(&mut state);
+        cast_at(&mut state, spell, (3, 1));
+        assert_eq!(health(&state, plated), 7, "plate does not stop fire");
+
+        let _ = state.world.remove_one::<Recharging>(spell);
+        let _ = state.world.insert_one(
+            plated,
+            Armor {
+                fire: 2,
+                ..Armor::default()
+            },
+        );
+        let aimed = crate::aim::aim(
+            &state,
+            crate::aim::Shot::Cast(crate::view::ItemRef::of(&state.world, spell).unwrap()),
+            (3, 1),
+        )
+        .unwrap();
+        assert_eq!(aimed.damage, (1, 1), "the preview takes the resistance off");
+        cast_at(&mut state, spell, (3, 1));
+        assert_eq!(health(&state, plated), 6);
     }
 
     #[test]
@@ -493,7 +1064,7 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(
             (listed[0].name.as_str(), listed[0].range, listed[0].damage),
-            ("firebolt", 6, (3, 3))
+            ("firebolt", 6, Some((3, 3)))
         );
         assert_eq!(
             listed[0].preview,
@@ -503,6 +1074,7 @@ mod tests {
                     amount: 6,
                 }],
                 blocked: None,
+                fizzle_bp: 0,
             }
         );
 
@@ -518,9 +1090,14 @@ mod tests {
     fn the_same_seed_and_casts_give_the_same_damage() {
         let run = || {
             let (mut state, spell) = caster();
-            let _ = state
-                .world
-                .insert_one(spell, SpellDamage { min: 1, max: 6 });
+            let _ = state.world.insert_one(
+                spell,
+                SpellDamage {
+                    min: 1,
+                    max: 6,
+                    types: DamageTypes::default(),
+                },
+            );
             let target = goblin(&mut state, 3);
             cast_at(&mut state, spell, (3, 1));
             health(&state, target)
@@ -650,7 +1227,735 @@ mod tests {
             crate::view::CastPreview {
                 costs: vec![price],
                 blocked: Some("Not enough mana.".to_string()),
+                fizzle_bp: 0,
             }
         );
+    }
+
+    /// A pyromancy spell of `shape` for the player in `caster()`: range 6,
+    /// 3 damage, no falloff.
+    fn shaped(state: &mut GameState, shape: Shape, hits: Hits) -> Entity {
+        thing("blast")
+            .spell(School::Pyromancy, 6, 1)
+            .spell_damage(3, 3)
+            .area(shape, hits, 0)
+            .attached_to(state.player)
+            .make(state)
+    }
+
+    fn creature(state: &mut GameState, at: (i32, i32), hostile: bool) -> Entity {
+        let spawn = thing("goblin").at(at.0, at.1).health(10);
+        if hostile { spawn.hostile() } else { spawn }.make(state)
+    }
+
+    #[test]
+    fn a_burst_hits_everyone_in_its_radius_and_no_one_outside() {
+        let (mut state, _) = caster();
+        let blast = shaped(&mut state, Shape::Burst { radius: 1 }, Hits::All);
+        let below = goblin(&mut state, 5);
+        let _ = state.world.insert_one(below, Position { x: 5, y: 2 });
+        let beside = goblin(&mut state, 6);
+        let outside = goblin(&mut state, 8);
+        cast_at(&mut state, blast, (5, 1));
+        assert_eq!(
+            (
+                health(&state, below),
+                health(&state, beside),
+                health(&state, outside)
+            ),
+            (7, 7, 10)
+        );
+        assert_eq!(last_log(&state), "The goblin takes 3 damage.");
+    }
+
+    #[test]
+    fn a_burst_goes_off_on_the_first_creature_in_its_way() {
+        let (mut state, _) = caster();
+        let blast = shaped(&mut state, Shape::Burst { radius: 1 }, Hits::All);
+        let near = goblin(&mut state, 4);
+        let aimed = goblin(&mut state, 6);
+        cast_at(&mut state, blast, (6, 1));
+        assert_eq!((health(&state, near), health(&state, aimed)), (7, 10));
+    }
+
+    #[test]
+    fn hits_decides_whether_the_caster_and_their_side_are_caught() {
+        let run = |hits| {
+            let (mut state, _) = caster();
+            let blast = shaped(&mut state, Shape::Burst { radius: 1 }, hits);
+            let foe = creature(&mut state, (2, 2), true);
+            let friend = creature(&mut state, (3, 2), false);
+            let _ = state.world.insert_one(
+                state.player,
+                Health {
+                    current: 20,
+                    max: 20,
+                },
+            );
+            cast_at(&mut state, blast, (2, 1));
+            let player = state.player;
+            (
+                health(&state, player),
+                health(&state, foe),
+                health(&state, friend),
+            )
+        };
+        assert_eq!(run(Hits::All), (17, 7, 7));
+        assert_eq!(run(Hits::Enemies), (20, 7, 10));
+        assert_eq!(run(Hits::Allies), (17, 10, 7));
+    }
+
+    #[test]
+    fn a_beam_passes_through_every_creature_on_its_line() {
+        let (mut state, _) = caster();
+        let beam = shaped(&mut state, Shape::Beam, Hits::Enemies);
+        let near = goblin(&mut state, 3);
+        let far = goblin(&mut state, 7);
+        let beyond = goblin(&mut state, 8);
+        cast_at(&mut state, beam, (2, 1));
+        assert_eq!(
+            (
+                health(&state, near),
+                health(&state, far),
+                health(&state, beyond)
+            ),
+            (7, 7, 10),
+            "range 6 from x = 1 ends at x = 7"
+        );
+    }
+
+    #[test]
+    fn a_cone_catches_what_is_ahead_and_spares_what_is_beside() {
+        let (mut state, _) = caster();
+        let cone = shaped(&mut state, Shape::Cone, Hits::Enemies);
+        let ahead = creature(&mut state, (4, 2), true);
+        let beside = creature(&mut state, (1, 4), true);
+        cast_at(&mut state, cone, (2, 1));
+        assert_eq!((health(&state, ahead), health(&state, beside)), (7, 10));
+    }
+
+    #[test]
+    fn cones_and_beams_take_a_direction_and_novas_take_nothing() {
+        let (mut state, _) = caster();
+        let player = state.player;
+        let cone = shaped(&mut state, Shape::Cone, Hits::Enemies);
+        let nova = shaped(&mut state, Shape::Nova { radius: 1 }, Hits::Enemies);
+        assert_eq!(
+            check_cast(&state, player, cone, (1, 1)),
+            Err("You can't aim at yourself.".to_string())
+        );
+        state.visible.set(30, 1, false);
+        assert_eq!(
+            check_cast(&state, player, cone, (30, 1)),
+            Ok(()),
+            "any direction"
+        );
+        assert_eq!(check_cast(&state, player, nova, (1, 1)), Ok(()));
+    }
+
+    #[test]
+    fn a_nova_surrounds_the_caster() {
+        let (mut state, _) = caster();
+        let nova = shaped(&mut state, Shape::Nova { radius: 1 }, Hits::Enemies);
+        let next = creature(&mut state, (2, 2), true);
+        let away = goblin(&mut state, 4);
+        cast_at(&mut state, nova, (1, 1));
+        assert_eq!((health(&state, next), health(&state, away)), (7, 10));
+    }
+
+    #[test]
+    fn falloff_takes_damage_off_per_tile_from_the_centre() {
+        let (mut state, _) = caster();
+        let blast = thing("blast")
+            .spell(School::Pyromancy, 6, 1)
+            .spell_damage(3, 3)
+            .area(Shape::Burst { radius: 2 }, Hits::All, 1)
+            .attached_to(state.player)
+            .make(&mut state);
+        let centre = goblin(&mut state, 5);
+        let edge = goblin(&mut state, 7);
+        // The burst goes off on the first goblin, at x = 5.
+        cast_at(&mut state, blast, (7, 1));
+        assert_eq!((health(&state, centre), health(&state, edge)), (7, 9));
+    }
+
+    #[test]
+    fn everyone_caught_rolls_in_spawn_order_from_the_combat_stream() {
+        let run = || {
+            let (mut state, _) = caster();
+            let blast = thing("blast")
+                .spell(School::Pyromancy, 6, 1)
+                .spell_damage(1, 6)
+                .area(Shape::Burst { radius: 1 }, Hits::All, 0)
+                .attached_to(state.player)
+                .make(&mut state);
+            let goblins: Vec<Entity> = (4..=6).map(|x| goblin(&mut state, x)).collect();
+            let _ = state.world.insert_one(goblins[0], Position { x: 5, y: 2 });
+            cast_at(&mut state, blast, (5, 1));
+            goblins
+                .iter()
+                .map(|&goblin| health(&state, goblin))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(run(), run());
+    }
+
+    const LIFETIME: u64 = 3000;
+
+    /// `caster()` plus a pyromancy spell calling `count` spirit wolves.
+    fn summoner(count: u32) -> (GameState, Entity) {
+        let (mut state, _) = caster();
+        let wolf = state.blueprints.id("SpiritWolf").unwrap();
+        let call = thing("summon wolf")
+            .spell(School::Pyromancy, 5, 1)
+            .with(Summon {
+                blueprint: wolf,
+                count,
+                lifetime: LIFETIME,
+            })
+            .attached_to(state.player)
+            .make(&mut state);
+        (state, call)
+    }
+
+    fn summons_of(state: &GameState, owner: Entity) -> Vec<Entity> {
+        state
+            .world
+            .query::<(Entity, &Summoned)>()
+            .iter()
+            .filter(|&(_, summoned)| summoned.owner == owner)
+            .map(|(entity, _)| entity)
+            .collect()
+    }
+
+    fn binding(state: &GameState, summon: Entity) -> Entity {
+        holding::attached(&state.world, summon)
+            .into_iter()
+            .find(|&effect| state.world.satisfies::<&Binding>(effect))
+            .unwrap()
+    }
+
+    fn position_of(state: &GameState, entity: Entity) -> (i32, i32) {
+        ranged::position(state, entity).unwrap()
+    }
+
+    #[test]
+    fn a_summoning_calls_creatures_beside_the_spot_on_the_casters_side() {
+        let (mut state, call) = summoner(2);
+        let player = state.player;
+        cast_at(&mut state, call, (4, 4));
+        let wolves = summons_of(&state, player);
+        assert_eq!(wolves.len(), 2);
+        assert_eq!(
+            position_of(&state, wolves[0]),
+            (4, 4),
+            "the spot itself first"
+        );
+        assert_eq!(ranged::distance((4, 4), position_of(&state, wolves[1])), 1);
+        assert!(!side::enemies(&state.world, player, wolves[0]));
+        assert_eq!(last_log(&state), "The spirit wolf appears.");
+        let held = *state
+            .world
+            .get::<&Timed>(binding(&state, wolves[0]))
+            .unwrap();
+        assert_eq!(held.duration, LIFETIME);
+    }
+
+    #[test]
+    fn summons_skip_taken_ground() {
+        let (mut state, call) = summoner(1);
+        let player = state.player;
+        goblin(&mut state, 4);
+        cast_at(&mut state, call, (4, 1));
+        let wolf = summons_of(&state, player)[0];
+        assert_ne!(position_of(&state, wolf), (4, 1));
+        assert_eq!(ranged::distance((4, 1), position_of(&state, wolf)), 1);
+    }
+
+    #[test]
+    fn where_summons_appear_is_seeded() {
+        let run = || {
+            let (mut state, call) = summoner(3);
+            cast_at(&mut state, call, (6, 6));
+            let player = state.player;
+            summons_of(&state, player)
+                .into_iter()
+                .map(|wolf| position_of(&state, wolf))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(run(), run());
+    }
+
+    #[test]
+    fn a_summon_is_dismissed_when_its_binding_runs_out_unless_extended() {
+        let (mut state, call) = summoner(2);
+        let player = state.player;
+        cast_at(&mut state, call, (4, 4));
+        let wolves = summons_of(&state, player);
+        let lasting = binding(&state, wolves[1]);
+        state.run(Command::ModifyDuration {
+            effect: lasting,
+            change: crate::effect::DurationChange::AddTicks(1000),
+        });
+
+        state.now = state.now.after(LIFETIME);
+        let fading = binding(&state, wolves[0]);
+        state.run(Command::ExpireEffect(fading));
+        state.run(Command::ExpireEffect(lasting));
+        assert!(!state.world.contains(wolves[0]));
+        assert!(state.world.contains(wolves[1]), "extended past now");
+        assert_eq!(last_log(&state), "The spirit wolf fades away.");
+    }
+
+    #[test]
+    fn summons_leave_with_their_owner() {
+        let (mut state, _) = caster();
+        let shaman = goblin(&mut state, 6);
+        let imp = thing("imp")
+            .at(7, 1)
+            .health(3)
+            .summoned_by(shaman)
+            .make(&mut state);
+        state.run(Command::Die { entity: shaman });
+        assert!(!state.world.contains(imp));
+        assert_eq!(last_log(&state), "The imp fades away.");
+    }
+
+    #[test]
+    fn a_summon_limit_refuses_a_cast_that_would_go_over() {
+        let (mut state, call) = summoner(2);
+        let player = state.player;
+        let _ = state.world.insert_one(player, SummonLimit { max: 3 });
+        assert_eq!(check_cast(&state, player, call, (4, 4)), Ok(()));
+        cast_at(&mut state, call, (4, 4));
+        let _ = state.world.remove_one::<Recharging>(call);
+        assert_eq!(
+            check_cast(&state, player, call, (6, 6)),
+            Err("You can't hold any more summons.".to_string())
+        );
+    }
+
+    #[test]
+    fn a_summoning_is_placed_not_thrown_and_needs_a_visible_spot() {
+        let (mut state, call) = summoner(1);
+        let player = state.player;
+        goblin(&mut state, 2);
+        state.visible.set(4, 4, false);
+        assert_eq!(
+            check_cast(&state, player, call, (4, 4)),
+            Err("You can't see that spot.".to_string())
+        );
+        cast_at(&mut state, call, (4, 1));
+        let wolf = summons_of(&state, player)[0];
+        assert_eq!(
+            position_of(&state, wolf),
+            (4, 1),
+            "not stopped by the goblin"
+        );
+    }
+}
+
+#[cfg(test)]
+mod paying_tests {
+    use super::*;
+    use crate::entity::{Armor, Health};
+    use crate::state::tests::bare_state;
+    use crate::testkit::{see_everything, thing};
+
+    fn health(state: &GameState, who: Entity) -> i32 {
+        state.world.get::<&Health>(who).unwrap().current
+    }
+
+    fn goblin(state: &mut GameState, x: i32) -> Entity {
+        thing("goblin").at(x, 1).health(10).hostile().make(state)
+    }
+
+    fn cast_at(state: &mut GameState, spell: Entity, at: (i32, i32)) {
+        let player = state.player;
+        state.run(Command::Cast {
+            actor: player,
+            spell,
+            at,
+        });
+    }
+
+    /// The player with blood magic for Hemomancy and a power-2 bolt of it.
+    fn blood_mage() -> (GameState, Entity) {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        let _ = state.world.insert_one(
+            player,
+            BloodCasting {
+                school: School::Hemomancy,
+                hp_per_power: 2,
+                stat: Stat::Willpower,
+            },
+        );
+        let bolt = thing("blood bolt")
+            .spell(School::Hemomancy, 6, 2)
+            .spell_damage(5, 5)
+            .attached_to(player)
+            .make(&mut state);
+        (state, bolt)
+    }
+
+    #[test]
+    fn blood_magic_costs_health_and_refuses_what_would_kill() {
+        let (mut state, bolt) = blood_mage();
+        let player = state.player;
+        let target = goblin(&mut state, 3);
+        let before = health(&state, player);
+        cast_at(&mut state, bolt, (3, 1));
+        assert_eq!(health(&state, player), before - 4);
+        assert_eq!(health(&state, target), 5);
+
+        let _ = state.world.insert_one(
+            player,
+            Health {
+                current: 4,
+                max: 20,
+            },
+        );
+        assert_eq!(
+            check_cast(&state, player, bolt, (3, 1)),
+            Err("That would kill you.".to_string())
+        );
+    }
+
+    /// A carried scroll of a power-4 pyromancy burst.
+    fn scroll(state: &mut GameState) -> Entity {
+        let player = state.player;
+        thing("scroll of fireball")
+            .item()
+            .spell(School::Pyromancy, 6, 4)
+            .spell_damage(3, 3)
+            .with(Scroll)
+            .carried_by(player)
+            .make(state)
+    }
+
+    #[test]
+    fn a_scroll_needs_no_discipline_and_is_used_up() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        let scroll = scroll(&mut state);
+        let target = goblin(&mut state, 3);
+        assert_eq!(check_cast(&state, player, scroll, (3, 1)), Ok(()));
+        cast_at(&mut state, scroll, (3, 1));
+        assert_eq!(health(&state, target), 7);
+        assert!(!state.world.contains(scroll));
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "The scroll of fireball crumbles to dust.")
+        );
+    }
+
+    #[test]
+    fn a_casters_discipline_never_pays_for_a_scroll() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        let _ = state.world.insert_one(
+            player,
+            CooldownCasting {
+                school: School::Pyromancy,
+                ticks_per_power: 300,
+                stat: Stat::Willpower,
+            },
+        );
+        let scroll = scroll(&mut state);
+        let listed = crate::view::spells(&state);
+        assert_eq!(listed[0].preview.costs.len(), 1);
+        assert_eq!(listed[0].preview.costs[0].resource, "scroll");
+        cast_at(&mut state, scroll, (3, 1));
+        assert!(state.commands.is_empty());
+        assert!(
+            !state.world.query::<&Recharging>().iter().any(|_| true),
+            "nothing recharges"
+        );
+    }
+
+    #[test]
+    fn a_scroll_on_the_floor_or_in_someone_elses_pack_cannot_be_read() {
+        let mut state = bare_state();
+        let player = state.player;
+        let lying = thing("scroll")
+            .item()
+            .spell(School::Pyromancy, 6, 1)
+            .spell_damage(1, 1)
+            .with(Scroll)
+            .at(2, 1)
+            .make(&mut state);
+        assert_eq!(
+            check_cast(&state, player, lying, (3, 1)),
+            Err("You don't know that spell.".to_string())
+        );
+    }
+
+    #[test]
+    fn a_worn_focus_changes_the_cast_and_a_carried_one_does_nothing() {
+        let (mut state, bolt) = blood_mage();
+        let player = state.player;
+        let focus = Focus {
+            school: School::Hemomancy,
+            range: 2,
+            power: -1,
+            damage: 1,
+        };
+        let worn = thing("bone circlet")
+            .item()
+            .with(focus)
+            .equipped_on(player, 0)
+            .make(&mut state);
+        let ready = ready_cast(&state, player, bolt).unwrap();
+        assert_eq!((ready.range, ready.power), (8, 1));
+        assert_eq!(ready.strike.map(Strike::range), Some((6, 6)));
+        assert_eq!(ready.costs[0].amount, 2, "one power at 2 HP each");
+
+        crate::equipment::unequip(&mut state, player, worn);
+        let ready = ready_cast(&state, player, bolt).unwrap();
+        assert_eq!((ready.range, ready.power), (6, 2));
+    }
+
+    fn fizzling(state: &mut GameState) {
+        let player = state.player;
+        let _ = state.world.insert_one(
+            player,
+            Fizzle {
+                base_bp: 0,
+                per_armor_bp: 2_500,
+                per_modifier_bp: 0,
+                stat: Stat::Willpower,
+            },
+        );
+    }
+
+    #[test]
+    fn armor_makes_casting_fizzle_and_a_fizzle_still_costs() {
+        let (mut state, bolt) = blood_mage();
+        let player = state.player;
+        fizzling(&mut state);
+        assert_eq!(ready_cast(&state, player, bolt).unwrap().fizzle_bp, 0);
+        let _ = state.world.insert_one(player, Armor::uniform(2));
+        // 3 kinds × 2 points × 25%: certain.
+        assert_eq!(ready_cast(&state, player, bolt).unwrap().fizzle_bp, 10_000);
+        assert_eq!(crate::view::spells(&state)[0].preview.fizzle_bp, 10_000);
+
+        let target = goblin(&mut state, 3);
+        let before = health(&state, player);
+        cast_at(&mut state, bolt, (3, 1));
+        assert!(
+            state
+                .log
+                .recent(3)
+                .any(|line| line == "Your blood bolt fizzles.")
+        );
+        assert_eq!(health(&state, target), 10);
+        assert_eq!(health(&state, player), before - 4, "paid all the same");
+    }
+
+    #[test]
+    fn without_a_chance_to_fizzle_the_spell_stream_is_untouched() {
+        let (mut state, bolt) = blood_mage();
+        fizzling(&mut state);
+        goblin(&mut state, 3);
+        let before = state.rngs.spell.clone();
+        cast_at(&mut state, bolt, (3, 1));
+        assert_eq!(state.rngs.spell, before);
+    }
+}
+
+#[cfg(test)]
+mod complex_tests {
+    use super::*;
+    use crate::entity::SpellAi;
+    use crate::state::tests::bare_state;
+    use crate::testkit::{see_everything, thing};
+
+    fn health(state: &GameState, who: Entity) -> i32 {
+        state.world.get::<&Health>(who).unwrap().current
+    }
+
+    fn creature(state: &mut GameState, at: (i32, i32), hostile: bool) -> Entity {
+        let spawn = thing("goblin").at(at.0, at.1).health(10);
+        if hostile { spawn.hostile() } else { spawn }.make(state)
+    }
+
+    fn cast_at(state: &mut GameState, spell: Entity, at: (i32, i32)) {
+        let player = state.player;
+        state.run(Command::Cast {
+            actor: player,
+            spell,
+            at,
+        });
+    }
+
+    /// The player with a cooldown discipline for pyromancy and `spell`.
+    fn with_spell(spell: crate::spawn::Spawn) -> (GameState, Entity) {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        let _ = state.world.insert_one(
+            player,
+            CooldownCasting {
+                school: School::Pyromancy,
+                ticks_per_power: 100,
+                stat: Stat::Willpower,
+            },
+        );
+        let spell = spell.attached_to(player).make(&mut state);
+        (state, spell)
+    }
+
+    fn chain_bolt() -> crate::spawn::Spawn {
+        thing("chain lightning")
+            .spell(School::Pyromancy, 6, 1)
+            .spell_damage(3, 3)
+            .with(Chain { jumps: 2, reach: 3 })
+    }
+
+    #[test]
+    fn a_chain_leaps_to_the_nearest_enemies_and_spares_friends() {
+        let (mut state, chain) = with_spell(chain_bolt());
+        let first = creature(&mut state, (3, 1), true);
+        let friend = creature(&mut state, (4, 1), false);
+        let second = creature(&mut state, (5, 2), true);
+        let far = creature(&mut state, (12, 1), true);
+        cast_at(&mut state, chain, (3, 1));
+        assert_eq!(
+            (
+                health(&state, first),
+                health(&state, friend),
+                health(&state, second),
+                health(&state, far),
+            ),
+            (7, 10, 7, 10),
+            "two leaps were allowed but only one enemy is within reach"
+        );
+    }
+
+    #[test]
+    fn a_chain_never_hits_the_same_creature_twice() {
+        let (mut state, chain) = with_spell(chain_bolt());
+        let only = creature(&mut state, (3, 1), true);
+        cast_at(&mut state, chain, (3, 1));
+        assert_eq!(health(&state, only), 7);
+    }
+
+    fn rune_spell() -> crate::spawn::Spawn {
+        thing("fire rune")
+            .spell(School::Pyromancy, 6, 1)
+            .spell_damage(4, 4)
+            .area(Shape::Burst { radius: 1 }, Hits::All, 0)
+            .with(Delay { ticks: 300 })
+    }
+
+    fn rune(state: &GameState) -> Entity {
+        state
+            .world
+            .query::<(Entity, &Blast)>()
+            .iter()
+            .map(|(entity, _)| entity)
+            .next()
+            .unwrap()
+    }
+
+    #[test]
+    fn a_delayed_spell_leaves_a_rune_that_bursts_on_who_is_there_then() {
+        let (mut state, spell) = with_spell(rune_spell());
+        let early = creature(&mut state, (5, 2), true);
+        cast_at(&mut state, spell, (5, 1));
+        assert_eq!(health(&state, early), 10, "nothing happens yet");
+        let rune = rune(&state);
+        assert_eq!(ranged::position(&state, rune), Some((5, 1)));
+
+        let _ = state.world.insert_one(early, Position { x: 9, y: 9 });
+        let late = creature(&mut state, (6, 1), true);
+        state.now = state.now.after(300);
+        state.run(Command::ExpireEffect(rune));
+        assert!(!state.world.contains(rune));
+        assert_eq!((health(&state, early), health(&state, late)), (10, 6));
+    }
+
+    #[test]
+    fn a_rune_waits_for_its_timestamps_and_can_be_delayed() {
+        let (mut state, spell) = with_spell(rune_spell());
+        let victim = creature(&mut state, (5, 2), true);
+        cast_at(&mut state, spell, (5, 1));
+        let rune = rune(&state);
+        state.run(Command::ModifyDuration {
+            effect: rune,
+            change: crate::effect::DurationChange::AddTicks(200),
+        });
+        state.now = state.now.after(300);
+        state.run(Command::ExpireEffect(rune));
+        assert!(state.world.contains(rune), "not due yet");
+        assert_eq!(health(&state, victim), 10);
+        state.now = state.now.after(200);
+        state.run(Command::ExpireEffect(rune));
+        assert_eq!(health(&state, victim), 6);
+    }
+
+    /// A goblin shaman at `at` with blood magic and a blood bolt.
+    fn shaman(state: &mut GameState, at: (i32, i32), health: i32) -> Entity {
+        let shaman = thing("goblin shaman")
+            .at(at.0, at.1)
+            .health(health)
+            .hostile()
+            .with(BloodCasting {
+                school: School::Hemomancy,
+                hp_per_power: 1,
+                stat: Stat::Willpower,
+            })
+            .with(SpellAi)
+            .make(state);
+        thing("blood bolt")
+            .spell(School::Hemomancy, 5, 2)
+            .spell_damage(2, 4)
+            .attached_to(shaman)
+            .make(state);
+        shaman
+    }
+
+    #[test]
+    fn a_shaman_casts_at_the_player_in_view_and_range() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let shaman = shaman(&mut state, (4, 1), 10);
+        let command = crate::ai::decide(&state, shaman);
+        assert!(
+            matches!(command, Command::Cast { actor, at: (1, 1), .. } if actor == shaman),
+            "{command:?}"
+        );
+        state.run(command);
+        assert_eq!(health(&state, shaman), 8, "two HP of blood");
+        assert!(health(&state, state.player) < 20);
+    }
+
+    #[test]
+    fn a_shaman_too_weak_to_bleed_fights_by_hand() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let shaman = shaman(&mut state, (4, 1), 2);
+        assert_eq!(
+            crate::ai::decide(&state, shaman),
+            Command::TryMove(shaman, crate::input::Dir::W)
+        );
+    }
+
+    #[test]
+    fn a_shaman_will_not_bolt_through_its_own_side() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let shaman = shaman(&mut state, (4, 1), 10);
+        creature(&mut state, (3, 1), true);
+        assert!(!matches!(
+            crate::ai::decide(&state, shaman),
+            Command::Cast { .. }
+        ));
     }
 }
