@@ -10,8 +10,8 @@ use rand_pcg::Pcg64;
 use crate::command::{Command, DamageCause, dispatch};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{
-    Armor, DamageType, DamageTypes, Deflect, Graze, Health, Launcher, Melee, OnHit, Projectile,
-    Stat, Stats, Throwable, Weapon,
+    Armor, DamageType, DamageTypes, Deflect, Footwork, Graze, Health, Launcher, Melee, OnHit,
+    Projectile, Stat, Stats, Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
@@ -60,6 +60,7 @@ pub(crate) struct AfterHit {
 pub(crate) fn register(registry: &mut EventRegistry) {
     registry.on(prio::ARMOR, armor_reduces_damage);
     registry.on(prio::ON_HIT, on_hit_applies_effects);
+    registry.on(prio::FOOTWORK, footwork_steadies_dodges);
 }
 
 /// Rolls every entry on the combat stream, even at 0 or 10 000 bp, so the
@@ -78,6 +79,18 @@ fn on_hit_applies_effects(
                 blueprint: entry.effect,
             });
         }
+    }
+    ControlFlow::Continue(ev)
+}
+
+/// A defender with `Footwork` dodges perfectly more often.
+fn footwork_steadies_dodges(
+    _ctx: &mut Ctx<'_>,
+    footwork: &Footwork,
+    mut ev: AttackOdds,
+) -> ControlFlow<AttackOdds, AttackOdds> {
+    if ev.asking == ev.defender {
+        ev.perfect_bp = ev.perfect_bp.saturating_add(footwork.perfect_bp);
     }
     ControlFlow::Continue(ev)
 }
@@ -209,6 +222,9 @@ const BP_PER_DEFENCE_LEVEL: u32 = 100;
 pub(crate) struct AttackOdds {
     pub attacker: Entity,
     pub defender: Entity,
+    /// Which of the two is being asked now, so a part on either knows
+    /// whether its holder gives the blow or takes it.
+    pub asking: Entity,
     pub hit_bp: u32,
     /// Asked only after a miss: dodged so cleanly that no graze is rolled.
     pub perfect_bp: u32,
@@ -310,6 +326,7 @@ pub(crate) fn odds(
     let mut ev = AttackOdds {
         attacker,
         defender,
+        asking: attacker,
         hit_bp: u32::try_from(hit_bp).unwrap_or(0),
         perfect_bp: BP_PER_DEFENCE_LEVEL * level(core.map(|c| c.poise)),
         graze_bp,
@@ -324,8 +341,9 @@ pub(crate) fn odds(
         rng: &mut rng,
         out: &mut scratch,
     };
-    for target in [attacker, defender] {
-        ev = settle(state.events.fire(&mut ctx, target, ev));
+    for asking in [attacker, defender] {
+        ev.asking = asking;
+        ev = settle(state.events.fire(&mut ctx, asking, ev));
     }
     ev
 }
@@ -987,6 +1005,7 @@ mod odds_tests {
         AttackOdds {
             attacker: Entity::DANGLING,
             defender: Entity::DANGLING,
+            asking: Entity::DANGLING,
             hit_bp,
             perfect_bp,
             graze_bp,

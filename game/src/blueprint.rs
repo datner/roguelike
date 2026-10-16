@@ -20,12 +20,13 @@ use hecs::{Entity, EntityBuilder, World};
 use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
+use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
-    BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus, Graze,
-    Health, Hostile, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry,
-    PartKind, Player, Projectile, Quiver, School, Scroll, Skills, Speed, Spell, SpellAi,
-    SpellDamage, Stats, Summon, SummonLimit, Throwable, Trains, Weapon,
+    BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus,
+    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
+    OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School, Scroll, Skills,
+    Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Throwable, Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -87,6 +88,8 @@ pub enum ComponentDef {
     Learner,
     Graze(Graze),
     Deflect(Deflect),
+    Proficiency,
+    Footwork(Footwork),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -150,6 +153,8 @@ impl ComponentDef {
             ComponentDef::Learner => builder.add(Learner),
             ComponentDef::Graze(c) => builder.add(c),
             ComponentDef::Deflect(c) => builder.add(c),
+            ComponentDef::Proficiency => builder.add(Proficiency),
+            ComponentDef::Footwork(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
             ComponentDef::Skills(_) | ComponentDef::Trains(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
@@ -240,6 +245,8 @@ pub struct Blueprints {
     ids: BTreeMap<String, BlueprintId>,
     /// The skill list (`data/skills.ron`), which blueprints name skills from.
     skills: SkillBook,
+    /// What skill combinations inspire (`data/discoveries.ron`, ADR 0018).
+    discoveries: Vec<Discovery>,
 }
 
 #[derive(Debug)]
@@ -276,6 +283,11 @@ pub enum BlueprintError {
     /// `data/skills.ron` lacks a skill the code names (`skill::Core`).
     MissingSkill(String),
     TooManySkills,
+    /// A discovery names a skill or proficiency blueprint that doesn't exist.
+    UnknownInDiscovery {
+        discovery: String,
+        what: String,
+    },
     EffectWithoutDuration {
         owner: String,
         effect: String,
@@ -322,6 +334,12 @@ impl std::fmt::Display for BlueprintError {
             Self::DuplicateSkill(name) => write!(f, "skill {name:?} is listed twice"),
             Self::MissingSkill(name) => write!(f, "the skill list lacks {name:?}"),
             Self::TooManySkills => write!(f, "too many skills"),
+            Self::UnknownInDiscovery { discovery, what } => {
+                write!(
+                    f,
+                    "discovery {discovery:?} names unknown {what:?} (or not a proficiency)"
+                )
+            }
             Self::UnknownSummon { owner, summon } => {
                 write!(f, "blueprint {owner:?} summons unknown {summon:?}")
             }
@@ -356,7 +374,8 @@ impl Blueprints {
     /// and every blueprint in `entities/`.
     pub fn load(data: &Path) -> Result<Self, BlueprintError> {
         let skills = SkillBook::load(&data.join("skills.ron"))?;
-        Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)
+        Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
+            .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)
     }
 
     /// Reads every `*.ron` file in `dir`, named by file stem.
@@ -494,12 +513,23 @@ impl Blueprints {
             resolved,
             ids,
             skills,
+            discoveries: Vec::new(),
         })
     }
 
     /// Every skill there is.
     pub fn skills(&self) -> &SkillBook {
         &self.skills
+    }
+
+    /// These blueprints with `defs` as their discoveries, every name checked.
+    pub fn with_discoveries(mut self, defs: Vec<DiscoveryDef>) -> Result<Self, BlueprintError> {
+        self.discoveries = discovery::resolve(defs, &self)?;
+        Ok(self)
+    }
+
+    pub(crate) fn discoveries(&self) -> &[Discovery] {
+        &self.discoveries
     }
 
     pub fn id(&self, name: &str) -> Option<BlueprintId> {

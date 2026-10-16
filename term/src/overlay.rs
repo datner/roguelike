@@ -2,7 +2,7 @@
 //! an equipment view, and the skills the player has learned. Pure state plus drawing; `app::run` feeds it keys and
 //! performs the actions it returns.
 
-use game::{Domain, ItemView, PartView, PlayerAction, SkillView};
+use game::{Domain, IdeaView, ItemView, PartView, PlayerAction, SkillView};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
@@ -26,6 +26,8 @@ pub struct Contents<'a> {
     pub inventory: &'a [ItemView],
     pub equipment: &'a [PartView],
     pub skills: &'a [SkillView],
+    pub proficiencies: &'a [String],
+    pub ideas: &'a [IdeaView],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,7 +223,7 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
         ),
         (Tab::Skills, _, _) => (
             tabs(Tab::Skills),
-            skill_rows(contents.skills),
+            skill_rows(contents),
             "Tab inventory  Esc close",
         ),
         (Tab::Inventory, _, _) => {
@@ -297,9 +299,10 @@ fn item_rows(items: &[ItemView], selected: usize) -> Vec<Line<'static>> {
         .collect()
 }
 
-/// The skills under a heading per domain: name, level, and XP toward the
-/// next level.
-fn skill_rows(skills: &[SkillView]) -> Vec<Line<'static>> {
+/// The skills under a heading per domain (name, level, XP toward the next
+/// level), then the proficiencies attained and the half-formed ideas.
+fn skill_rows(contents: &Contents) -> Vec<Line<'static>> {
+    let skills = contents.skills;
     if skills.is_empty() {
         return vec![Line::from("You have learned nothing yet.")];
     }
@@ -309,15 +312,14 @@ fn skill_rows(skills: &[SkillView]) -> Vec<Line<'static>> {
         .max()
         .unwrap_or(0);
     let dim = Style::new().add_modifier(Modifier::DIM);
+    let heading =
+        |text: &'static str| Line::styled(text, Style::new().add_modifier(Modifier::BOLD));
     let mut rows = Vec::new();
     let mut domain = None;
     for skill in skills {
         if domain != Some(skill.domain) {
             domain = Some(skill.domain);
-            rows.push(Line::styled(
-                domain_name(skill.domain),
-                Style::new().add_modifier(Modifier::BOLD),
-            ));
+            rows.push(heading(domain_name(skill.domain)));
         }
         let progress = match skill.next {
             Some(next) => format!("  {}/{next} xp", skill.xp),
@@ -327,6 +329,33 @@ fn skill_rows(skills: &[SkillView]) -> Vec<Line<'static>> {
             Span::raw(format!("  {:<width$}  {:>2}", skill.name, skill.level)),
             Span::styled(progress, dim),
         ]));
+    }
+    if !contents.proficiencies.is_empty() {
+        rows.push(heading("Proficiencies"));
+        rows.extend(
+            contents
+                .proficiencies
+                .iter()
+                .map(|p| Line::from(format!("  {p}"))),
+        );
+    }
+    if !contents.ideas.is_empty() {
+        rows.push(heading("Ideas"));
+        for idea in contents.ideas {
+            let met: Vec<String> = idea
+                .met
+                .iter()
+                .map(|(skill, level)| format!("{skill} {level}"))
+                .collect();
+            let more = match idea.unmet {
+                0 => String::new(),
+                n => format!(" + {n} more"),
+            };
+            rows.push(Line::from(vec![
+                Span::raw("  ? "),
+                Span::styled(format!("{}{more}", met.join(", ")), dim),
+            ]));
+        }
     }
     rows
 }
@@ -432,6 +461,8 @@ mod tests {
             inventory: &inventory,
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Down, &contents), None);
@@ -458,6 +489,8 @@ mod tests {
             inventory: &inventory,
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Nock, &contents), None);
@@ -481,6 +514,8 @@ mod tests {
             inventory: &inventory,
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         assert!(screen(&Overlay::new(Tab::Inventory), &contents).contains("quiver (3/20)"));
     }
@@ -491,6 +526,8 @@ mod tests {
             inventory: &[],
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Select, &contents), None);
@@ -513,6 +550,8 @@ mod tests {
                     inventory: &three,
                     equipment: &[],
                     skills: &[],
+                    proficiencies: &[],
+                    ideas: &[],
                 },
             );
         }
@@ -521,6 +560,8 @@ mod tests {
             inventory: one,
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         assert_eq!(
             overlay.handle(OverlayInput::Drop, &contents),
@@ -537,6 +578,8 @@ mod tests {
                 inventory: &inventory,
                 equipment: &[],
                 skills: &[],
+                proficiencies: &[],
+                ideas: &[],
             },
         );
         assert!(screen.contains("Inventory"));
@@ -567,6 +610,8 @@ mod tests {
             inventory: &[],
             equipment: &equipment,
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -585,6 +630,8 @@ mod tests {
             inventory: &inventory,
             equipment: &equipment,
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -614,6 +661,8 @@ mod tests {
             inventory: &inventory,
             equipment: &equipment,
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         assert_eq!(overlay.handle(OverlayInput::Select, &contents), None);
@@ -629,6 +678,8 @@ mod tests {
             inventory: &inventory,
             equipment: &equipment,
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::Down, &contents);
@@ -650,6 +701,8 @@ mod tests {
             inventory: &[],
             equipment: &equipment,
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Inventory);
         assert_eq!(overlay.handle(OverlayInput::Equipment, &contents), None);
@@ -687,6 +740,8 @@ mod tests {
             inventory: &[],
             equipment: &[],
             skills: &skills,
+            proficiencies: &[],
+            ideas: &[],
         };
         let mut overlay = Overlay::new(Tab::Equipment);
         overlay.handle(OverlayInput::SwitchTab, &contents);
@@ -708,6 +763,8 @@ mod tests {
             inventory: &[],
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         assert!(
             screen(&Overlay::new(Tab::Skills), &empty).contains("You have learned nothing yet.")
@@ -723,7 +780,31 @@ mod tests {
             inventory: &inventory,
             equipment: &[],
             skills: &[],
+            proficiencies: &[],
+            ideas: &[],
         };
         assert!(screen(&Overlay::new(Tab::Inventory), &contents).contains("trains slash, dagger"));
+    }
+
+    #[test]
+    fn the_skills_tab_lists_proficiencies_and_half_formed_ideas() {
+        let skills = [skill("Dodge", Domain::Defence, 4, 800, Some(1250))];
+        let ideas = [IdeaView {
+            name: "Fencing".into(),
+            met: vec![("Dodge".into(), 4)],
+            unmet: 1,
+        }];
+        let contents = Contents {
+            inventory: &[],
+            equipment: &[],
+            skills: &skills,
+            proficiencies: &["footwork".to_string()],
+            ideas: &ideas,
+        };
+        let shown = screen(&Overlay::new(Tab::Skills), &contents);
+        for line in ["Proficiencies", "  footwork", "Ideas", "Dodge 4 + 1 more"] {
+            assert!(shown.contains(line), "{line:?} in\n{shown}");
+        }
+        assert!(!shown.contains("Fencing"), "an idea's name stays hidden");
     }
 }

@@ -41,6 +41,10 @@ This is a Cargo workspace with two crates:
     turned aside by a buckler, or be dodged perfectly.
     Casting trains Magic, the school and the spell's form; skill there
     strengthens spells and makes them fizzle less.
+  - Discovery (ADR 0018): reaching combinations of skills inspires a
+    discovery from `data/discoveries.ron`, granting a proficiency (a part
+    attached to you, such as Footwork). Half-formed ideas show in the
+    skills panel.
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
     piercing (a set; punches are blunt), armor resists each kind, and a
     blow of several kinds goes through the weakest spot.

@@ -236,3 +236,7 @@ listing what changed, what was left out, and follow-ups.
   applied in `inspect_cast` (not a `CastRisk` handler: handlers can't see the skill book); training in
   `cast` on catching an enemy. Left out: discipline skills (no effect to read them yet); summonings and
   runes don't train.
+- **6** (ADR 0018): `discovery.rs` (`DiscoveryDef`/`Requirement`/`Grant`, `inspire` from the end of
+  `skill::train`, `ideas`, `proficiencies`), `data/discoveries.ron`, `Blueprints::with_discoveries`;
+  parts `Proficiency`, `Footwork`, `Discovered`; `AttackOdds.asking`; `Footwork.ron` (Dodge 4 + Poise 2).
+  The skills panel lists proficiencies and ideas (an idea's name stays hidden). `SAVE_VERSION` 21.

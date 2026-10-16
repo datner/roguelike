@@ -438,6 +438,8 @@ pub(crate) fn train(
             "{whose} {name} skill rises to {level}."
         )));
     }
+    // Only uses with stakes reach here, so only they can inspire.
+    crate::discovery::inspire(state, learner);
 }
 
 /// After a blow between enemies, both sides learn from it. The attacker

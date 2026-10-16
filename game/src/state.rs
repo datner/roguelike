@@ -680,6 +680,18 @@ pub(crate) mod tests {
         bare_state_seeded(1)
     }
 
+    /// `bare_state` with other content, such as the real `data/`.
+    pub(crate) fn bare_state_with(blueprints: Blueprints) -> GameState {
+        GameState::with_map(
+            1,
+            Rngs::new(1, 1),
+            room(),
+            Position { x: 1, y: 1 },
+            blueprints,
+        )
+        .unwrap()
+    }
+
     /// `bare_state` with `seed`'s RNG streams.
     pub(crate) fn bare_state_seeded(seed: u64) -> GameState {
         let rngs = Rngs::new(seed, seed);

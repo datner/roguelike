@@ -15,11 +15,12 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
-    BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Duration, EffectTarget,
-    Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Found, Graze, Health, Hostile,
-    Inventory, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player,
-    Position, Projectile, Quiver, Recharging, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
-    SpellDamage, Stats, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
+    BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Discovered, Duration,
+    EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
+    Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
+    OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
+    Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Summon, SummonLimit, Summoned,
+    Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -30,7 +31,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 20;
+pub const SAVE_VERSION: u32 = 21;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -226,10 +227,13 @@ enum ComponentKind {
     Familiarity,
     Graze,
     Deflect,
+    Proficiency,
+    Footwork,
+    Discovered,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 57] = [
+    const ALL: [ComponentKind; 60] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -287,6 +291,9 @@ impl ComponentKind {
         Self::Familiarity,
         Self::Graze,
         Self::Deflect,
+        Self::Proficiency,
+        Self::Footwork,
+        Self::Discovered,
     ];
 }
 
@@ -353,6 +360,9 @@ enum SavedComponent {
     Familiarity(Vec<(String, String, u32)>),
     Graze(Graze),
     Deflect(Deflect),
+    Proficiency,
+    Footwork(Footwork),
+    Discovered(Discovered),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -689,6 +699,9 @@ fn save_component(
         ComponentKind::Learner => marker::<Learner>(entity, S::Learner),
         ComponentKind::Graze => copy(entity).map(S::Graze),
         ComponentKind::Deflect => copy(entity).map(S::Deflect),
+        ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
+        ComponentKind::Footwork => copy(entity).map(S::Footwork),
+        ComponentKind::Discovered => copy(entity).map(S::Discovered),
         ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
             Some(Familiarity(entries)) => Some(S::Familiarity(
                 entries
@@ -817,6 +830,9 @@ fn load_component(
         S::Learner => builder.add(Learner),
         S::Graze(c) => builder.add(c),
         S::Deflect(c) => builder.add(c),
+        S::Proficiency => builder.add(Proficiency),
+        S::Footwork(c) => builder.add(c),
+        S::Discovered(c) => builder.add(c),
         S::Familiarity(entries) => {
             let mut familiarity = entries
                 .into_iter()
@@ -1061,6 +1077,34 @@ mod tests {
             2500
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn discoveries_and_proficiencies_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, Discovered(vec!["Footwork".into()]))
+            .unwrap();
+        thing("footwork")
+            .with(Proficiency)
+            .with(Footwork { perfect_bp: 500 })
+            .attached_to(player)
+            .make(&mut state);
+
+        let loaded = reload(&state, test_blueprints());
+        let player = loaded.player;
+        assert_eq!(
+            *loaded.world.get::<&Discovered>(player).unwrap(),
+            Discovered(vec!["Footwork".into()])
+        );
+        let footwork = crate::holding::attached(&loaded.world, player)[0];
+        assert!(loaded.world.satisfies::<&Proficiency>(footwork));
+        assert_eq!(
+            *loaded.world.get::<&Footwork>(footwork).unwrap(),
+            Footwork { perfect_bp: 500 }
+        );
     }
 
     #[test]

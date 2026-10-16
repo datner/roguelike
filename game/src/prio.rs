@@ -34,6 +34,9 @@ pub const FOCUS: i32 = 100;
 /// `CastRisk`: the caster's chance to fizzle.
 pub const FIZZLE: i32 = 100;
 
+/// `AttackOdds`: a defender's `Footwork` adds to its perfect-dodge chance.
+pub const FOOTWORK: i32 = 100;
+
 /// `AttackOdds`, tests only: `testkit::SureHits` makes every blow its
 /// holder gives or takes land, after everything else has had its say.
 #[cfg(test)]

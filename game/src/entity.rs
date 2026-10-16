@@ -771,3 +771,19 @@ pub struct Learner;
 /// (its `Name`), sorted; repetition makes a use teach less (ADR 0017).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Familiarity(pub Vec<(SkillId, String, u32)>);
+
+/// Marks a proficiency (ADR 0018): a passive qualification attached to the
+/// creature that attained it, whose other parts do the work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Proficiency;
+
+/// Proficiency part: dodging perfectly is `perfect_bp` (out of 10 000) more
+/// likely when the holder is attacked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Footwork {
+    pub perfect_bp: u32,
+}
+
+/// The discoveries a learner has made, by name, sorted (ADR 0018).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Discovered(pub Vec<String>);

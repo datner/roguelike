@@ -1,0 +1,9 @@
+// Proficiency (ADR 0018): light on your feet. Perfect dodges come 5% more
+// often, so more blows meet nothing at all.
+(
+    components: [
+        Name("footwork"),
+        Proficiency,
+        Footwork(perfect_bp: 500),
+    ],
+)

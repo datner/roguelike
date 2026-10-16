@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use game::{
     Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
-    cycle_explore_items, equipment_view, explore_step, fire_step, inventory_view, random_seed,
-    render_view, skills, spells, take_trails, take_turn, throwables,
+    cycle_explore_items, equipment_view, explore_step, fire_step, ideas, inventory_view,
+    proficiencies, random_seed, render_view, skills, spells, take_trails, take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -153,10 +153,13 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                         };
                         let (inventory, equipment, skills) =
                             (inventory_view(state), equipment_view(state), skills(state));
+                        let (proficiencies, ideas) = (proficiencies(state), ideas(state));
                         let contents = Contents {
                             inventory: &inventory,
                             equipment: &equipment,
                             skills: &skills,
+                            proficiencies: &proficiencies,
+                            ideas: &ideas,
                         };
                         match overlay.handle(input, &contents) {
                             Some(OverlayAction::Close) => modal = None,
@@ -409,10 +412,13 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
         Some(Modal::Overlay(overlay)) => {
             let (inventory, equipment, skills) =
                 (inventory_view(state), equipment_view(state), skills(state));
+            let (proficiencies, ideas) = (proficiencies(state), ideas(state));
             let contents = Contents {
                 inventory: &inventory,
                 equipment: &equipment,
                 skills: &skills,
+                proficiencies: &proficiencies,
+                ideas: &ideas,
             };
             overlay::draw(frame, chunks[0], overlay, &contents);
         }
