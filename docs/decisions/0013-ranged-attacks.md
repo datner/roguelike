@@ -65,3 +65,11 @@ or the rendering seam.
   versatility is tuned in data.
 - `SAVE_VERSION` 10 (`Throwable`, `Ammo`, `Projectile`, `Launcher`, `Quiver`).
 - AI does not throw or shoot yet.
+
+## Amendment (ADR 0017): blows can miss
+
+Melee blows no longer always land: each resolves to a hit, graze,
+deflection, miss or perfect dodge (`combat::odds` / `combat::resolve`, ADR
+0017). Missiles still always hit whoever is first in line until the skills
+plan's slice 4 gives them the same odds; the flight path itself stays
+RNG-free.

@@ -18,7 +18,7 @@ can't show at a glance.
 - `command.rs` — the only place the world is mutated during play. `GameState::run(command)` queues and applies one command; push several and apply once only when they must share a drain. Commands involving a `Dead` entity are skipped in one check; a new variant lists its entities in `Command::participants`.
 - `event.rs` — handlers get `&World`, the map, an RNG and an output `Vec<Command>`; they never mutate the world.
 - `prio.rs` — every handler priority, as a named constant (never inline). Unique per event type (`on` panics on a duplicate).
-- `combat.rs` — armor resists typed (melee) damage per kind, summed over worn pieces; untyped effect damage passes (ADR 0012). Damage previews run on a cloned combat stream.
+- `combat.rs` — armor resists typed (melee) damage per kind, summed over worn pieces; untyped effect damage passes (ADR 0012). Damage previews run on a cloned combat stream. A blow resolves through `combat::odds` (the `AttackOdds` event, side-effect free) then `combat::resolve` (ADR 0017); tests about what a hit does use `testkit::sure_hits`.
 - `fov.rs` — refreshed once per player turn, never per actor; AI sight reuses it (ADR 0007).
 - `save.rs` — a new component needs a `ComponentKind` and a `SavedComponent` variant (remap any `Entity`/`BlueprintId` both ways); any format change bumps `SAVE_VERSION` (ADR 0008).
 - `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.

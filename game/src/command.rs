@@ -6,7 +6,7 @@ use hecs::Entity;
 
 use crate::ammo;
 use crate::blueprint::BlueprintId;
-use crate::combat::{AfterHit, BeforeTakeDamage, Damaged, roll_strike, strike};
+use crate::combat::{self, AfterHit, BeforeTakeDamage, Damaged, Outcome, roll_strike, strike};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
@@ -41,6 +41,8 @@ pub(crate) enum DamageCause {
     Melee {
         attacker: Entity,
         types: DamageTypes,
+        /// A graze, not a full hit: `AfterHit` says so (ADR 0017).
+        graze: bool,
     },
     /// Thrown or fired: armored against like a blow, but not an `AfterHit`
     /// source, so a missile never triggers its thrower's on-hit parts.
@@ -539,18 +541,61 @@ fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
         return;
     };
     let used = skill::melee(&state.world, skills, &strike);
-    let hit = roll_strike(&mut state.rngs.combat, strike);
-    state.commands.push_back(Command::DealDamage {
-        target,
-        amount: hit.amount,
-        cause: DamageCause::Melee {
-            attacker,
-            types: hit.types,
-        },
-    });
+    let odds = combat::odds(state, &strike, attacker, target);
+    let outcome = combat::resolve(&mut state.rngs.combat, &odds);
+    let striker = Subject::of(&state.world, attacker);
+    let struck = Subject::of(&state.world, target);
+    match outcome {
+        Outcome::Hit | Outcome::Graze => {
+            let hit = roll_strike(&mut state.rngs.combat, strike);
+            let graze = outcome == Outcome::Graze;
+            if graze {
+                state.log.push(striker.sentence("graze", struck.noun()));
+            }
+            state.commands.push_back(Command::DealDamage {
+                target,
+                amount: if graze { hit.amount / 2 } else { hit.amount },
+                cause: DamageCause::Melee {
+                    attacker,
+                    types: hit.types,
+                    graze,
+                },
+            });
+        }
+        Outcome::Miss => state.log.push(striker.sentence("miss", struck.noun())),
+        Outcome::PerfectDodge => {
+            state.log.push(struck.sentence("dodge", "perfectly"));
+            let _ = dispatch(
+                state,
+                target,
+                combat::PerfectDodge {
+                    attacker,
+                    defender: target,
+                },
+            );
+        }
+        Outcome::Deflected(by) => {
+            let item = Subject::of(&state.world, by);
+            state.log.push(capitalize(&format!(
+                "{} {} turns {} blow.",
+                struck.possessive(),
+                item.noun().trim_start_matches("the "),
+                striker.possessive()
+            )));
+            let _ = dispatch(
+                state,
+                target,
+                combat::Deflected {
+                    attacker,
+                    defender: target,
+                    by,
+                },
+            );
+        }
+    }
     // Only a fight teaches: hitting a friend or a summon of your own does not.
     if side::enemies(&state.world, attacker, target) {
-        skill::train(state, attacker, &used, target, skill::BASE_XP);
+        skill::after_blow(state, &used, &odds, outcome);
     }
 }
 
@@ -609,7 +654,10 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
     if remaining <= 0 {
         state.commands.push_back(Command::Die { entity: target });
     }
-    if let DamageCause::Melee { attacker, .. } = cause {
+    if let DamageCause::Melee {
+        attacker, graze, ..
+    } = cause
+    {
         let _ = dispatch(
             state,
             attacker,
@@ -617,6 +665,7 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
                 attacker,
                 target,
                 amount: dealt,
+                graze,
             },
         );
     }
@@ -684,7 +733,7 @@ pub(crate) mod tests {
     use crate::entity::{DamageType, Melee};
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
-    use crate::testkit::{last_log, thing};
+    use crate::testkit::{last_log, sure_hits, thing};
 
     /// For damage tests that don't care where the hit came from; an effect
     /// cause never triggers on-hit effects.
@@ -696,12 +745,15 @@ pub(crate) mod tests {
     pub(crate) const BLOW: DamageCause = DamageCause::Melee {
         attacker: Entity::DANGLING,
         types: DamageTypes::single(DamageType::Blunt),
+        graze: false,
     };
 
     /// A goblin (8 HP, 1 AV leather armor) east of the player, who hits for
     /// exactly `damage`.
     fn facing_goblin(damage: i32) -> (GameState, Entity, Entity) {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let goblin = state.spawn(Spawn::blueprint("Goblin").at(2, 1)).unwrap();
         let armor = holding::attached(&state.world, goblin)[0];
         state

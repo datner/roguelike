@@ -5,12 +5,17 @@
 
 use hecs::Entity;
 
+use std::ops::ControlFlow;
+
 use crate::cell::Rgb;
+use crate::combat::{AttackOdds, CERTAIN};
 use crate::entity::{
     Ammo, AmmoKind, Appearance, Area, Armor, DamageType, DamageTypes, Energy, Equippable, Found,
     Health, Hits, Hostile, Item, Launcher, Melee, Name, PartKind, Projectile, Quiver, School,
     Shape, SpawnSeq, Speed, Spell, SpellDamage, Stat, Stats, Summoned, Throwable, Weapon,
 };
+use crate::event::{Ctx, EventRegistry};
+use crate::prio;
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
 
@@ -191,4 +196,27 @@ pub(crate) fn see_everything(state: &mut GameState) {
             state.visible.set(x, y, true);
         }
     }
+}
+
+/// Test part: every blow its holder gives or takes lands, for tests about
+/// what a hit does rather than whether it lands (ADR 0017).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SureHits;
+
+pub(crate) fn register(events: &mut EventRegistry) {
+    events.on(
+        prio::SURE_HITS,
+        |_: &mut Ctx<'_>, _: &SureHits, mut ev: AttackOdds| {
+            ev.hit_bp = CERTAIN;
+            ControlFlow::Continue(ev)
+        },
+    );
+}
+
+/// Makes `entity`'s blows, given and taken, land (`SureHits`).
+pub(crate) fn sure_hits(state: &mut GameState, entity: Entity) {
+    state
+        .world
+        .insert_one(entity, SureHits)
+        .expect("entity exists");
 }

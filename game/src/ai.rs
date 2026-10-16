@@ -208,7 +208,7 @@ mod tests {
     use crate::input::PlayerAction;
     use crate::spawn::Spawn;
     use crate::state::tests::bare_state;
-    use crate::testkit::{last_log, see_everything, thing};
+    use crate::testkit::{last_log, see_everything, sure_hits, thing};
     use crate::time::{Tick, take_turn};
 
     /// Player at (1, 1) plus a scheduled goblin at `at`.
@@ -233,6 +233,8 @@ mod tests {
     #[test]
     fn an_adjacent_goblin_attacks() {
         let (mut state, goblin) = with_goblin(Position { x: 2, y: 2 });
+        let player = state.player;
+        sure_hits(&mut state, player);
         assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::NW));
         wait(&mut state);
         assert_eq!(position(&state, goblin), Position { x: 2, y: 2 });
@@ -318,6 +320,8 @@ mod tests {
     #[test]
     fn the_player_dying_ends_the_game() {
         let (mut state, goblin) = with_goblin(Position { x: 2, y: 1 });
+        let player = state.player;
+        sure_hits(&mut state, player);
         state
             .world
             .insert_one(goblin, Melee { min: 50, max: 50 })

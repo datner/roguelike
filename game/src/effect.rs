@@ -223,7 +223,7 @@ mod tests {
     use super::*;
     use crate::entity::{Energy, Health, Melee, OnHit, OnHitEntry};
     use crate::state::tests::bare_state;
-    use crate::testkit::{last_log, thing};
+    use crate::testkit::{last_log, sure_hits, thing};
     use crate::time::{Step, step};
 
     /// Bare state with an unscheduled player, so only timers move the clock.
@@ -470,10 +470,13 @@ mod tests {
     /// makes the victim bleed.
     fn bleeding_striker() -> (GameState, Entity) {
         let mut state = quiet_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let dummy = thing("dummy").health(100).make(&mut state);
         let certain_bleed = OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp: 10_000,
+            on_graze: false,
         }]);
         let player = state.player;
         state

@@ -33,6 +33,12 @@ This is a Cargo workspace with two crates:
   - Stats and weapons (ADR 0011): creatures have Strength, Agility, Intelligence and Willpower; a
     hit rolls the wielded weapon's dice (or natural melee) plus the
     modifier of the stat that weapon uses. `character_sheet` sums it up.
+  - Skills (ADR 0017): flat, overlapping skills from `data/skills.ron`
+    (Melee, Dagger, Slash, Dodge, …) grow as the player uses them on
+    enemies, less each time against the same kind of foe. A blow's level
+    is the weighted average of the skills it uses; it raises hit chance
+    and damage. A blow that misses may still graze (half damage), be
+    turned aside by a buckler, or be dodged perfectly.
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
     piercing (a set; punches are blunt), armor resists each kind, and a
     blow of several kinds goes through the weakest spot.

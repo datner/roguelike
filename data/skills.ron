@@ -9,4 +9,9 @@
     (name: "Slash", domain: Martial, weight: 2),
     (name: "Blunt", domain: Martial, weight: 2),
     (name: "Dagger", domain: Martial, weight: 3),
+
+    // Defence: how you avoid being hurt.
+    (name: "Dodge", domain: Defence, weight: 1),
+    (name: "Poise", domain: Defence, weight: 1),
+    (name: "Deflection", domain: Defence, weight: 1),
 ]

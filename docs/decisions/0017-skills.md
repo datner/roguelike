@@ -55,3 +55,33 @@ cannot be ground out by repetition. The build plan is
   kind. Fine while names are kinds; revisit if names become personal.
 - Two-handed weapons and dual wielding need a grip model first; one-handed
   and empty-offhand skills come from equipment state (plan slice 3).
+
+## Blows can miss (plan slice 1b)
+
+- **Five outcomes.** A blow rolls to hit; a miss then rolls the defender's
+  perfect dodge, which skips the graze roll entirely; otherwise the
+  weapon's graze chance (`Graze`, 30% by default) makes it a graze or a
+  miss; a graze then meets the best `Deflect` the defender wears, which
+  turns it aside. A graze deals half the rolled damage and fires `AfterHit`
+  with `graze: true`; an `OnHit` entry applies on one only if `on_graze`.
+- **Hit chance** is 75% between equals, ±4% per point of the attacker's
+  accuracy (effective level + weapon stat modifier) over the defender's
+  Dodge level + Agility modifier, clamped to 5–95%. Poise gives 1% perfect
+  dodge per level; Deflection adds 1% per level to worn `Deflect`.
+- **Parts adjust the odds through `AttackOdds`**, fired at the attacker,
+  then the defender, after the base chances are set (an ability making
+  every dodge perfect sets `perfect_bp` to certain). `combat::odds` runs it
+  on a cloned RNG with a scratch buffer, so asking changes nothing; the
+  attack resolves exactly those odds.
+- **A roll is drawn only when its chance is neither 0 nor certain**, so
+  creatures without the parts involved leave the combat stream untouched.
+  This changes the combat stream's draw order (seeded fights differ).
+- **Perfect dodges and deflections are outcomes** with their own events
+  (`PerfectDodge`, `Deflected { by }`) and log lines, for reactions to come
+  (a riposte, a shield bash). Nothing reacts yet.
+- **Learning from a blow.** The attacker's skills gain `BASE_XP × (2 − hit
+  chance)` on a hit and half `BASE_XP` otherwise. A learning defender
+  trains Dodge and Poise (plus Deflection when wearing a deflector):
+  `BASE_XP`, or `BASE_XP × (2 − perfect chance)` for a perfect dodge.
+- Tests about what a hit does give the attacker (or defender) the test-only
+  `testkit::SureHits` part, registered only under `cfg(test)`.

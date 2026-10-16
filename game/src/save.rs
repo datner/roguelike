@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
-    BloodCasting, Body, Chain, CooldownCasting, Dead, Delay, Duration, EffectTarget, Energy,
-    Equippable, EquippedOn, Familiarity, Fizzle, Focus, Found, Health, Hostile, Inventory, Item,
-    Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player, Position,
-    Projectile, Quiver, Recharging, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage,
-    Stats, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
+    BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Duration, EffectTarget,
+    Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Found, Graze, Health, Hostile,
+    Inventory, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, Player,
+    Position, Projectile, Quiver, Recharging, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
+    SpellDamage, Stats, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -30,7 +30,7 @@ use crate::state::{GameState, MessageLog, event_registry};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 19;
+pub const SAVE_VERSION: u32 = 20;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -224,10 +224,12 @@ enum ComponentKind {
     Trains,
     Learner,
     Familiarity,
+    Graze,
+    Deflect,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 55] = [
+    const ALL: [ComponentKind; 57] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -283,6 +285,8 @@ impl ComponentKind {
         Self::Trains,
         Self::Learner,
         Self::Familiarity,
+        Self::Graze,
+        Self::Deflect,
     ];
 }
 
@@ -347,6 +351,8 @@ enum SavedComponent {
     Learner,
     /// Uses by skill name and kind of thing.
     Familiarity(Vec<(String, String, u32)>),
+    Graze(Graze),
+    Deflect(Deflect),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -656,6 +662,7 @@ fn save_component(
                         Ok(OnHitDef {
                             effect: blueprint.name.clone(),
                             chance_bp: entry.chance_bp,
+                            on_graze: entry.on_graze,
                         })
                     })
                     .collect::<Result<_, SaveError>>()?,
@@ -680,6 +687,8 @@ fn save_component(
             None => None,
         },
         ComponentKind::Learner => marker::<Learner>(entity, S::Learner),
+        ComponentKind::Graze => copy(entity).map(S::Graze),
+        ComponentKind::Deflect => copy(entity).map(S::Deflect),
         ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
             Some(Familiarity(entries)) => Some(S::Familiarity(
                 entries
@@ -783,6 +792,7 @@ fn load_component(
                     Ok(OnHitEntry {
                         effect,
                         chance_bp: entry.chance_bp,
+                        on_graze: entry.on_graze,
                     })
                 })
                 .collect::<Result<_, LoadError>>()?,
@@ -805,6 +815,8 @@ fn load_component(
             builder.add(Trains(ids))
         }
         S::Learner => builder.add(Learner),
+        S::Graze(c) => builder.add(c),
+        S::Deflect(c) => builder.add(c),
         S::Familiarity(entries) => {
             let mut familiarity = entries
                 .into_iter()
@@ -1049,6 +1061,30 @@ mod tests {
             2500
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn graze_and_deflect_chances_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        thing("rapier")
+            .weapon(1, 6, Stat::Agility)
+            .with(Graze(4_000))
+            .equipped_on(player, 2)
+            .make(&mut state);
+        thing("buckler")
+            .with(Deflect(2_000))
+            .equipped_on(player, 3)
+            .make(&mut state);
+
+        let loaded = reload(&state, test_blueprints());
+        let worn = crate::equipment::equipped(&loaded.world, loaded.player);
+        let has = |part| worn.iter().find(|&&(_, on)| on == part).unwrap().0;
+        assert_eq!(*loaded.world.get::<&Graze>(has(2)).unwrap(), Graze(4_000));
+        assert_eq!(
+            *loaded.world.get::<&Deflect>(has(3)).unwrap(),
+            Deflect(2_000)
+        );
     }
 
     #[test]

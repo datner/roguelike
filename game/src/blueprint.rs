@@ -22,10 +22,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
-    BodyPart, Chain, CooldownCasting, Delay, Duration, Equippable, Fizzle, Focus, Health, Hostile,
-    Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player,
-    Projectile, Quiver, School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Summon,
-    SummonLimit, Throwable, Trains, Weapon,
+    BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus, Graze,
+    Health, Hostile, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name, OnHit, OnHitEntry,
+    PartKind, Player, Projectile, Quiver, School, Scroll, Skills, Speed, Spell, SpellAi,
+    SpellDamage, Stats, Summon, SummonLimit, Throwable, Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -85,6 +85,8 @@ pub enum ComponentDef {
     /// Skills by name that using this trains.
     Trains(Vec<String>),
     Learner,
+    Graze(Graze),
+    Deflect(Deflect),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -100,6 +102,9 @@ pub struct SummonDef {
 pub struct OnHitDef {
     pub effect: String,
     pub chance_bp: u32,
+    /// Whether a graze applies it too (`OnHitEntry::on_graze`).
+    #[serde(default)]
+    pub on_graze: bool,
 }
 
 impl ComponentDef {
@@ -143,6 +148,8 @@ impl ComponentDef {
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             ComponentDef::Learner => builder.add(Learner),
+            ComponentDef::Graze(c) => builder.add(c),
+            ComponentDef::Deflect(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
             ComponentDef::Skills(_) | ComponentDef::Trains(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
@@ -427,6 +434,7 @@ impl Blueprints {
                                 Ok(OnHitEntry {
                                     effect: id_of(&entry.effect)?,
                                     chance_bp: entry.chance_bp,
+                                    on_graze: entry.on_graze,
                                 })
                             })
                             .collect::<Result<_, BlueprintError>>()?;
@@ -1036,6 +1044,7 @@ mod tests {
             Some(OnHit(vec![OnHitEntry {
                 effect: id("Bleeding"),
                 chance_bp: 2500,
+                on_graze: false,
             }]))
         );
         assert!(
@@ -1119,6 +1128,7 @@ mod tests {
         ComponentDef::OnHit(vec![OnHitDef {
             effect: effect.to_string(),
             chance_bp: 5000,
+            on_graze: false,
         }])
     }
 
@@ -1255,6 +1265,7 @@ mod tests {
             OnHit(vec![OnHitEntry {
                 effect: blueprints.id("Cut").unwrap(),
                 chance_bp: 5000,
+                on_graze: false,
             }])
         );
     }

@@ -215,3 +215,8 @@ listing what changed, what was left out, and follow-ups.
   `Core` skills; `level`, `effective`, `melee`, `train`), parts `Skills` (levels in RON, XP at runtime),
   `Trains`, `Learner`, `Familiarity` (keyed by the subject's `Name`). Training is a call from
   `command::attack`, not a `Command`. `Strike.level` carries the effective level. `SAVE_VERSION` 19.
+- **1b** (ADR 0017, amendment to 0013): `AttackOdds` / `combat::odds` / `combat::resolve` /
+  `Outcome`; `Graze`, `Deflect` parts; `OnHitEntry.on_graze`; `DamageCause::Melee.graze`,
+  `AfterHit.graze`; `PerfectDodge` and `Deflected` events (no handlers); skills Dodge, Poise,
+  Deflection; `Strike.accuracy`; `skill::after_blow`; `Buckler.ron`; test-only `SureHits`.
+  `SAVE_VERSION` 20. Not shown in `term` yet: there is no melee target view to show odds in.

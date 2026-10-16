@@ -33,3 +33,8 @@ pub const FOCUS: i32 = 100;
 
 /// `CastRisk`: the caster's chance to fizzle.
 pub const FIZZLE: i32 = 100;
+
+/// `AttackOdds`, tests only: `testkit::SureHits` makes every blow its
+/// holder gives or takes land, after everything else has had its say.
+#[cfg(test)]
+pub const SURE_HITS: i32 = 10_000;

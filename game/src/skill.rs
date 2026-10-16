@@ -10,7 +10,7 @@ use hecs::{Entity, World};
 use serde::{Deserialize, Serialize};
 
 use crate::blueprint::BlueprintError;
-use crate::combat::Strike;
+use crate::combat::{AttackOdds, CERTAIN, Outcome, Strike};
 use crate::entity::{DamageType, Familiarity, Learner, Name, Skills, Trains};
 use crate::grammar::{Subject, capitalize};
 use crate::state::GameState;
@@ -45,11 +45,12 @@ pub(crate) struct Core {
     pub pierce: SkillId,
     pub slash: SkillId,
     pub blunt: SkillId,
+    pub dodge: SkillId,
+    pub poise: SkillId,
+    pub deflection: SkillId,
 }
 
 impl Core {
-    const NAMES: [&str; 5] = ["Melee", "Unarmed", "Pierce", "Slash", "Blunt"];
-
     /// The skill trained by striking with `kind`, if any.
     fn of_damage(self, kind: DamageType) -> Option<SkillId> {
         match kind {
@@ -98,19 +99,26 @@ impl SkillBook {
                 .copied()
                 .ok_or_else(|| BlueprintError::MissingSkill(name.to_string()))
         };
-        let [melee, unarmed, pierce, slash, blunt] = Core::NAMES;
         let core = Core {
-            melee: core_id(melee)?,
-            unarmed: core_id(unarmed)?,
-            pierce: core_id(pierce)?,
-            slash: core_id(slash)?,
-            blunt: core_id(blunt)?,
+            melee: core_id("Melee")?,
+            unarmed: core_id("Unarmed")?,
+            pierce: core_id("Pierce")?,
+            slash: core_id("Slash")?,
+            blunt: core_id("Blunt")?,
+            dodge: core_id("Dodge")?,
+            poise: core_id("Poise")?,
+            deflection: core_id("Deflection")?,
         };
         Ok(Self {
             defs,
             ids,
             core: Some(core),
         })
+    }
+
+    /// The skills the code names, if the book has them (not an empty one).
+    pub(crate) fn core(&self) -> Option<Core> {
+        self.core
     }
 
     pub fn id(&self, name: &str) -> Option<SkillId> {
@@ -265,6 +273,39 @@ pub(crate) fn train(
     }
 }
 
+/// After a blow between enemies, both sides learn from it. The attacker
+/// trains the skills it `used`: a hit teaches more the less likely it was, a
+/// miss or graze teaches half. A learning defender trains Dodge and Poise
+/// (and Deflection if it wore something to deflect with); a perfect dodge
+/// teaches up to double, more the less likely it was.
+pub(crate) fn after_blow(
+    state: &mut GameState,
+    used: &[SkillId],
+    odds: &AttackOdds,
+    outcome: Outcome,
+) {
+    let unlikely = |bp: u32| BASE_XP * (2 * CERTAIN - bp.min(CERTAIN)) / CERTAIN;
+    let xp = match outcome {
+        Outcome::Hit => unlikely(odds.hit_bp),
+        _ => BASE_XP / 2,
+    };
+    train(state, odds.attacker, used, odds.defender, xp);
+
+    let Some(core) = state.blueprints.skills().core() else {
+        return;
+    };
+    let mut guard = vec![core.dodge, core.poise];
+    if odds.deflector.is_some() {
+        guard.push(core.deflection);
+    }
+    guard.sort();
+    let xp = match outcome {
+        Outcome::PerfectDodge => unlikely(odds.perfect_bp),
+        _ => BASE_XP,
+    };
+    train(state, odds.defender, &guard, odds.attacker, xp);
+}
+
 impl Skills {
     pub(crate) fn xp(&self, skill: SkillId) -> u32 {
         self.0
@@ -308,7 +349,7 @@ pub(crate) mod tests {
     use crate::command::Command;
     use crate::entity::{Health, Stat};
     use crate::state::tests::bare_state;
-    use crate::testkit::thing;
+    use crate::testkit::{sure_hits, thing};
 
     fn def(name: &str, domain: Domain, weight: u32) -> SkillDef {
         SkillDef {
@@ -327,6 +368,9 @@ pub(crate) mod tests {
             def("Slash", Domain::Martial, 2),
             def("Blunt", Domain::Martial, 2),
             def("Dagger", Domain::Martial, 3),
+            def("Dodge", Domain::Defence, 1),
+            def("Poise", Domain::Defence, 1),
+            def("Deflection", Domain::Defence, 1),
         ])
         .unwrap()
     }
@@ -422,6 +466,8 @@ pub(crate) mod tests {
     #[test]
     fn every_four_levels_add_a_point_of_damage_and_the_preview_agrees() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let target = goblin(&mut state, 2);
         let base = player_strike(&state).range();
         let player = state.player;
@@ -448,6 +494,7 @@ pub(crate) mod tests {
     fn hitting_an_enemy_trains_every_skill_used_less_each_time() {
         let mut state = bare_state();
         let player = state.player;
+        sure_hits(&mut state, player);
         state.world.insert_one(player, Learner).unwrap();
         let target = goblin(&mut state, 2);
         let attack = Command::Attack {

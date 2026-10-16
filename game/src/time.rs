@@ -298,7 +298,7 @@ mod tests {
     use crate::entity::{Health, Position};
     use crate::input::{Dir, InputEvent};
     use crate::state::tests::{bare_state, test_blueprints};
-    use crate::testkit::{blank, last_log};
+    use crate::testkit::{blank, last_log, sure_hits};
     use crate::zone::tests::test_cave;
 
     /// A state whose player is not scheduled, so `step` never stops for input.
@@ -491,6 +491,7 @@ mod tests {
                 },
             )
             .unwrap();
+        sure_hits(&mut state, player);
         // TryMove, Attack, DealDamage and one pad per hostile's action.
         pad_hits(&mut state, 1);
         assert!(4 * HOSTILES as usize > MAX_COMMANDS_PER_STEP);
@@ -514,6 +515,7 @@ mod tests {
     fn a_self_feeding_loop_within_one_step_still_hits_the_cap() {
         let mut state = unscheduled_player();
         let player = state.player;
+        sure_hits(&mut state, player);
         // Every hit queues another hit: an endless chain inside one action.
         state.events.on::<Damaged, Health>(i32::MAX, |ctx, _, ev| {
             ctx.out.push(Command::DealDamage {

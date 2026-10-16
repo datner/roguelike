@@ -1,0 +1,11 @@
+// A small shield for the off hand: it doesn't stop a clean blow, but it
+// turns a fifth of the grazes that would get through (ADR 0017).
+(
+    components: [
+        Name("buckler"),
+        Appearance(glyph: ']', fg: (150, 120, 80), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Hand),
+        Deflect(2000),
+    ],
+)

@@ -737,7 +737,20 @@ pub struct OnHitEntry {
     pub effect: BlueprintId,
     /// Out of `effect::BASIS_POINTS`.
     pub chance_bp: u32,
+    /// Whether a graze is enough: a poisoned needle's is, a bleeding cut's
+    /// is not.
+    pub on_graze: bool,
 }
+
+/// Weapon part: the chance, out of 10 000, that a blow which misses still
+/// grazes (ADR 0017). Forgiving weapons graze more; without it, the default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Graze(pub u32);
+
+/// Equipment part: the chance, out of 10 000, to turn a graze aside
+/// entirely (a buckler, a pauldron). Only the best one worn counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Deflect(pub u32);
 
 /// What a creature has learned: XP per skill, sorted by id (ADR 0017).
 /// Levels are derived (`skill::level`), never stored. Built from

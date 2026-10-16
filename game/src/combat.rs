@@ -10,13 +10,13 @@ use rand_pcg::Pcg64;
 use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{
-    Armor, DamageType, DamageTypes, Health, Launcher, Melee, OnHit, Projectile, Stat, Stats,
-    Throwable, Weapon,
+    Armor, DamageType, DamageTypes, Deflect, Graze, Health, Launcher, Melee, OnHit, Projectile,
+    Stat, Stats, Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::prio;
-use crate::skill::{self, SkillBook};
+use crate::skill::{self, SkillBook, SkillId};
 use crate::state::GameState;
 
 /// Fired at a target before damage is applied. Handlers may rewrite `amount`
@@ -52,6 +52,8 @@ pub(crate) struct AfterHit {
     pub attacker: Entity,
     pub target: Entity,
     pub amount: i32,
+    /// Only a graze: on-hit effects apply only if meant for grazes.
+    pub graze: bool,
 }
 
 pub(crate) fn register(registry: &mut EventRegistry) {
@@ -61,13 +63,15 @@ pub(crate) fn register(registry: &mut EventRegistry) {
 
 /// Rolls every entry on the combat stream, even at 0 or 10 000 bp, so the
 /// number of draws per hit doesn't depend on the chances.
+/// A graze still rolls every entry but applies only those `on_graze`.
 fn on_hit_applies_effects(
     ctx: &mut Ctx<'_>,
     on_hit: &OnHit,
     ev: AfterHit,
 ) -> ControlFlow<AfterHit, AfterHit> {
     for entry in &on_hit.0 {
-        if ctx.rng.random_range(0..BASIS_POINTS) < u64::from(entry.chance_bp) {
+        let rolled = ctx.rng.random_range(0..BASIS_POINTS) < u64::from(entry.chance_bp);
+        if rolled && (entry.on_graze || !ev.graze) {
             ctx.out.push(Command::ApplyEffect {
                 target: ev.target,
                 blueprint: entry.effect,
@@ -100,6 +104,8 @@ pub(crate) struct Strike {
     pub weapon: Option<Entity>,
     /// The attacker's effective skill level at it (ADR 0017).
     pub level: u32,
+    /// What its hit chance is reckoned from: `level` plus the stat modifier.
+    pub accuracy: i32,
 }
 
 impl Strike {
@@ -148,6 +154,7 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
         types,
         weapon,
         level: 0,
+        accuracy: 0,
     };
     strike.level = skill::effective(
         world,
@@ -155,6 +162,7 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
         attacker,
         &skill::melee(world, skills, &strike),
     );
+    strike.accuracy = bonus + i32::try_from(strike.level).unwrap_or(0);
     strike.bonus += skill::damage_bonus(strike.level);
     Some(strike)
 }
@@ -186,6 +194,153 @@ pub(crate) fn roll_strike(rng: &mut Pcg64, strike: Strike) -> Hit {
     }
 }
 
+/// A certain chance, in basis points.
+pub(crate) const CERTAIN: u32 = 10_000;
+/// Hit chance between equals, and per point of accuracy over defence.
+const EVEN_HIT_BP: i32 = 7_500;
+const HIT_BP_PER_POINT: i32 = 400;
+/// Hit chance never goes past these, so no blow is hopeless or sure.
+const MIN_HIT_BP: i32 = 500;
+const MAX_HIT_BP: i32 = 9_500;
+/// How often a miss grazes, for a weapon without its own `Graze`.
+pub(crate) const DEFAULT_GRAZE_BP: u32 = 3_000;
+/// Perfect-dodge and deflect chance per level of Poise and Deflection.
+const BP_PER_DEFENCE_LEVEL: u32 = 100;
+
+/// The chances of each way a blow can land, in basis points (ADR 0017).
+/// Gathered by firing it at the attacker, then the defender, so parts can
+/// adjust them (an ability that makes every dodge perfect sets
+/// `perfect_bp` to `CERTAIN`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AttackOdds {
+    pub attacker: Entity,
+    pub defender: Entity,
+    pub hit_bp: u32,
+    /// Asked only after a miss: dodged so cleanly that no graze is rolled.
+    pub perfect_bp: u32,
+    /// Asked only after a miss that wasn't a perfect dodge.
+    pub graze_bp: u32,
+    /// Asked only of a graze, and only with a `deflector`.
+    pub deflect_bp: u32,
+    /// The defender's worn item that would turn a graze aside.
+    pub deflector: Option<Entity>,
+}
+
+/// How a blow resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    Hit,
+    /// Half damage, and only on-hit effects meant for grazes.
+    Graze,
+    /// A graze turned aside by this worn item: nothing gets through.
+    Deflected(Entity),
+    Miss,
+    /// No graze is even rolled.
+    PerfectDodge,
+}
+
+/// Fired at the defender after a perfect dodge, for parts that react to it
+/// (a riposte).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PerfectDodge {
+    pub attacker: Entity,
+    pub defender: Entity,
+}
+
+/// Fired at the defender after `by` turned a graze aside, for parts that
+/// react to it (a shield bash, wear on the item).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Deflected {
+    pub attacker: Entity,
+    pub defender: Entity,
+    pub by: Entity,
+}
+
+/// The odds of `strike` against `defender`. The attacker's accuracy against
+/// the defender's Dodge and Agility gives the hit chance; the weapon, the
+/// graze chance; Poise, the perfect-dodge chance; the best `Deflect` worn
+/// plus Deflection, the deflect chance. Then parts adjust them, on a cloned
+/// RNG with their commands discarded, so asking changes nothing.
+pub(crate) fn odds(
+    state: &GameState,
+    strike: &Strike,
+    attacker: Entity,
+    defender: Entity,
+) -> AttackOdds {
+    let world = &state.world;
+    let core = state.blueprints.skills().core();
+    let level =
+        |skill: Option<SkillId>| skill.map_or(0, |id| skill::level(skill::xp(world, defender, id)));
+    let dodge = i32::try_from(level(core.map(|c| c.dodge))).unwrap_or(0)
+        + world
+            .get::<&Stats>(defender)
+            .map_or(0, |stats| stats.modifier(Stat::Agility));
+    let hit_bp =
+        (EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge)).clamp(MIN_HIT_BP, MAX_HIT_BP);
+    let graze_bp = strike
+        .weapon
+        .and_then(|weapon| world.get::<&Graze>(weapon).ok().map(|graze| graze.0))
+        .unwrap_or(DEFAULT_GRAZE_BP);
+    let mut worn = equipped(world, defender);
+    worn.sort_by_key(|&(_, part)| part);
+    let deflector = worn
+        .into_iter()
+        .filter_map(|(item, _)| Some((world.get::<&Deflect>(item).ok()?.0, item)))
+        .fold(None, |best: Option<(u32, Entity)>, (bp, item)| match best {
+            Some((top, _)) if top >= bp => best,
+            _ => Some((bp, item)),
+        });
+    let deflect_bp = deflector.map_or(0, |(bp, _)| {
+        bp + BP_PER_DEFENCE_LEVEL * level(core.map(|c| c.deflection))
+    });
+
+    let mut ev = AttackOdds {
+        attacker,
+        defender,
+        hit_bp: u32::try_from(hit_bp).unwrap_or(0),
+        perfect_bp: BP_PER_DEFENCE_LEVEL * level(core.map(|c| c.poise)),
+        graze_bp,
+        deflect_bp,
+        deflector: deflector.map(|(_, item)| item),
+    };
+    let mut rng = state.rngs.combat.clone();
+    let mut scratch = Vec::new();
+    let mut ctx = Ctx {
+        world,
+        map: &state.map,
+        rng: &mut rng,
+        out: &mut scratch,
+    };
+    for target in [attacker, defender] {
+        ev = settle(state.events.fire(&mut ctx, target, ev));
+    }
+    ev
+}
+
+/// Rolls `odds` on `rng`: hit, else perfect dodge, else graze or miss, and a
+/// graze may be deflected. A chance of 0 or `CERTAIN` draws nothing, so
+/// creatures without the parts involved leave the stream untouched.
+pub(crate) fn resolve(rng: &mut Pcg64, odds: &AttackOdds) -> Outcome {
+    let mut roll = |bp: u32| match bp {
+        0 => false,
+        bp if bp >= CERTAIN => true,
+        bp => rng.random_range(0..BASIS_POINTS) < u64::from(bp),
+    };
+    if roll(odds.hit_bp) {
+        return Outcome::Hit;
+    }
+    if roll(odds.perfect_bp) {
+        return Outcome::PerfectDodge;
+    }
+    if !roll(odds.graze_bp) {
+        return Outcome::Miss;
+    }
+    match odds.deflector {
+        Some(item) if roll(odds.deflect_bp) => Outcome::Deflected(item),
+        _ => Outcome::Graze,
+    }
+}
+
 /// How `shooter` fires `arrow` from `launcher`: the ammunition's dice and
 /// kinds, plus the shooter's modifier for the launcher's stat; and the
 /// arrow's chance (out of 10 000) to break on a hit. `None` if `arrow` is
@@ -207,6 +362,7 @@ pub(crate) fn fire_strike(
         types: projectile.types,
         weapon: None,
         level: 0,
+        accuracy: 0,
     };
     Some((strike, projectile.break_bp))
 }
@@ -225,6 +381,7 @@ pub(crate) fn throw_strike(world: &World, thrower: Entity, missile: Entity) -> O
         types: throwable.types,
         weapon: None,
         level: 0,
+        accuracy: 0,
     })
 }
 
@@ -262,6 +419,7 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
             cause: DamageCause::Melee {
                 attacker,
                 types: hit.types,
+                graze: false,
             },
         },
     ));
@@ -276,7 +434,7 @@ mod tests {
     use crate::spawn::Spawn;
     use crate::state::MessageLog;
     use crate::state::tests::{bare_state, bare_state_seeded};
-    use crate::testkit::{blank, last_log, thing};
+    use crate::testkit::{blank, last_log, sure_hits, thing};
 
     #[test]
     fn stat_modifiers_follow_qud() {
@@ -371,6 +529,7 @@ mod tests {
         OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp,
+            on_graze: false,
         }])
     }
 
@@ -401,6 +560,8 @@ mod tests {
     #[test]
     fn a_certain_on_hit_applies_bleeding() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let (dummy, _) = armored_dummy(&mut state, 0);
         armed_player(&mut state, 10_000);
         player_hits(&mut state, dummy);
@@ -411,6 +572,8 @@ mod tests {
     #[test]
     fn a_kill_shot_logs_the_death_and_applies_nothing() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let (dummy, _) = armored_dummy(&mut state, 0);
         state.world.get::<&mut Health>(dummy).unwrap().current = 3;
         armed_player(&mut state, 10_000);
@@ -446,6 +609,8 @@ mod tests {
     #[test]
     fn on_hit_on_equipment_triggers_for_its_wearers_hits() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let (dummy, _) = armored_dummy(&mut state, 0);
         let on_hit = bleed_on_hit(&state, 10_000);
         let player = state.player;
@@ -522,6 +687,7 @@ mod tests {
         DamageCause::Melee {
             attacker: Entity::DANGLING,
             types: DamageTypes::of(types),
+            graze: false,
         }
     }
 
@@ -634,6 +800,7 @@ mod tests {
     fn a_real_attack_is_resisted_by_the_weapons_kind() {
         let mut state = bare_state();
         let attacker = fighter(&mut state, 16, 16);
+        sure_hits(&mut state, attacker);
         let target = thing("dummy").at(5, 5).health(100).make(&mut state);
         thing("plate")
             .with(Armor {
@@ -653,6 +820,8 @@ mod tests {
     #[test]
     fn preview_is_pure_and_matches_the_next_real_attack() {
         let mut state = bare_state();
+        let player = state.player;
+        sure_hits(&mut state, player);
         let (dummy, _) = armored_dummy(&mut state, 1);
         state.world.get::<&mut Health>(dummy).unwrap().current = 1000;
         state
@@ -688,5 +857,262 @@ mod tests {
         let rock = thing("rock").make(&mut state);
         assert_eq!(preview_damage(&state, state.player, rock), None);
         assert_eq!(preview_damage(&state, rock, state.player), None);
+    }
+}
+
+#[cfg(test)]
+mod odds_tests {
+    use super::*;
+    use crate::entity::{Learner, OnHitEntry, Skills};
+    use crate::skill::xp_for;
+    use crate::state::MessageLog;
+    use crate::state::tests::bare_state;
+    use crate::testkit::{blank, thing};
+
+    /// A 1000 HP dummy beside the player, the player with natural 4-4.
+    fn duel(state: &mut GameState) -> Entity {
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, Melee { min: 4, max: 4 })
+            .unwrap();
+        thing("dummy").health(1000).hostile().at(2, 1).make(state)
+    }
+
+    fn odds_of(state: &GameState, attacker: Entity, defender: Entity) -> AttackOdds {
+        let strike = strike(&state.world, state.blueprints.skills(), attacker).unwrap();
+        odds(state, &strike, attacker, defender)
+    }
+
+    fn learn(state: &mut GameState, creature: Entity, levels: &[(&str, u32)]) {
+        let mut skills = Skills::default();
+        for &(name, level) in levels {
+            let id = state.blueprints.skills().id(name).unwrap();
+            skills.set(id, xp_for(level));
+        }
+        state.world.insert_one(creature, skills).unwrap();
+    }
+
+    fn odds_with(
+        hit_bp: u32,
+        perfect_bp: u32,
+        graze_bp: u32,
+        deflector: Option<Entity>,
+    ) -> AttackOdds {
+        AttackOdds {
+            attacker: Entity::DANGLING,
+            defender: Entity::DANGLING,
+            hit_bp,
+            perfect_bp,
+            graze_bp,
+            deflect_bp: CERTAIN,
+            deflector,
+        }
+    }
+
+    /// Attacks `target` until an attack logs a line containing `marker`, and
+    /// returns the health that attack cost the target. The log then holds
+    /// only that attack's lines.
+    fn attack_until(state: &mut GameState, target: Entity, marker: &str) -> i32 {
+        for _ in 0..500 {
+            let before = state.world.get::<&Health>(target).unwrap().current;
+            state.log = MessageLog::default();
+            state.run(Command::Attack {
+                attacker: state.player,
+                target,
+            });
+            if state
+                .log
+                .recent(usize::MAX)
+                .any(|line| line.contains(marker))
+            {
+                return before - state.world.get::<&Health>(target).unwrap().current;
+            }
+        }
+        panic!("never saw {marker:?}");
+    }
+
+    #[test]
+    fn equals_hit_three_times_in_four_and_the_odds_are_clamped() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let player = state.player;
+        let even = odds_of(&state, player, dummy);
+        assert_eq!(even.hit_bp, 7_500);
+        assert_eq!((even.perfect_bp, even.graze_bp), (0, DEFAULT_GRAZE_BP));
+        assert_eq!((even.deflect_bp, even.deflector), (0, None));
+
+        learn(
+            &mut state,
+            player,
+            &[("Melee", 20), ("Unarmed", 20), ("Blunt", 20)],
+        );
+        assert_eq!(odds_of(&state, player, dummy).hit_bp, 9_500);
+        learn(&mut state, player, &[]);
+        learn(&mut state, dummy, &[("Dodge", 20)]);
+        assert_eq!(odds_of(&state, player, dummy).hit_bp, 500);
+    }
+
+    #[test]
+    fn each_defence_skill_moves_its_own_chance() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let player = state.player;
+        learn(
+            &mut state,
+            dummy,
+            &[("Dodge", 2), ("Poise", 3), ("Deflection", 4)],
+        );
+        let odds = odds_of(&state, player, dummy);
+        assert_eq!(odds.hit_bp, 7_500 - 2 * 400);
+        assert_eq!(odds.perfect_bp, 300);
+        assert_eq!(odds.deflect_bp, 0, "nothing worn to deflect with");
+
+        let buckler = thing("buckler")
+            .with(Deflect(1_000))
+            .equipped_on(dummy, 2)
+            .make(&mut state);
+        thing("pauldron")
+            .with(Deflect(500))
+            .equipped_on(dummy, 0)
+            .make(&mut state);
+        let odds = odds_of(&state, player, dummy);
+        assert_eq!((odds.deflect_bp, odds.deflector), (1_400, Some(buckler)));
+    }
+
+    #[test]
+    fn asking_the_odds_draws_nothing() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let before = state.rngs.combat.clone();
+        odds_of(&state, state.player, dummy);
+        assert_eq!(state.rngs.combat, before);
+    }
+
+    #[test]
+    fn a_roll_is_drawn_only_when_it_could_go_either_way() {
+        let mut rng = bare_state().rngs.combat;
+        let untouched = rng.clone();
+        assert_eq!(
+            resolve(&mut rng, &odds_with(CERTAIN, 0, 0, None)),
+            Outcome::Hit
+        );
+        assert_eq!(
+            resolve(
+                &mut rng,
+                &odds_with(0, CERTAIN, CERTAIN, Some(Entity::DANGLING))
+            ),
+            Outcome::PerfectDodge,
+            "a perfect dodge rolls no graze, so nothing can deflect"
+        );
+        assert_eq!(resolve(&mut rng, &odds_with(0, 0, 0, None)), Outcome::Miss);
+        assert_eq!(
+            resolve(&mut rng, &odds_with(0, 0, CERTAIN, None)),
+            Outcome::Graze
+        );
+        assert_eq!(
+            resolve(&mut rng, &odds_with(0, 0, CERTAIN, Some(Entity::DANGLING))),
+            Outcome::Deflected(Entity::DANGLING)
+        );
+        assert_eq!(rng, untouched);
+
+        let mut once = untouched.clone();
+        once.random_range(0..BASIS_POINTS);
+        resolve(&mut rng, &odds_with(5_000, 0, 0, None));
+        assert_eq!(rng, once);
+    }
+
+    #[test]
+    fn a_graze_halves_the_damage_and_applies_only_effects_meant_for_grazes() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let bleeding = state.blueprints.id("Bleeding").unwrap();
+        let on_hit = |on_graze| {
+            OnHit(vec![OnHitEntry {
+                effect: bleeding,
+                chance_bp: CERTAIN,
+                on_graze,
+            }])
+        };
+        let player = state.player;
+        let charm = blank()
+            .with(on_hit(false))
+            .attached_to(player)
+            .make(&mut state);
+        assert_eq!(attack_until(&mut state, dummy, "You graze the dummy."), 2);
+        assert!(
+            !state
+                .log
+                .recent(usize::MAX)
+                .any(|line| line.contains("bleeding"))
+        );
+
+        state.world.insert_one(charm, on_hit(true)).unwrap();
+        attack_until(&mut state, dummy, "You graze the dummy.");
+        assert!(
+            state
+                .log
+                .recent(usize::MAX)
+                .any(|line| line == "The dummy starts bleeding.")
+        );
+    }
+
+    #[test]
+    fn a_deflected_graze_does_nothing_and_names_what_turned_it() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        thing("buckler")
+            .with(Deflect(CERTAIN))
+            .equipped_on(dummy, 2)
+            .make(&mut state);
+        let lost = attack_until(&mut state, dummy, "turns");
+        assert_eq!(lost, 0);
+        assert!(
+            state
+                .log
+                .recent(1)
+                .any(|line| line == "The dummy's buckler turns your blow.")
+        );
+        attack_until(&mut state, dummy, "You miss the dummy.");
+    }
+
+    #[test]
+    fn a_defender_learns_from_being_attacked_and_most_from_a_perfect_dodge() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.world.insert_one(player, Learner).unwrap();
+        learn(&mut state, player, &[("Poise", 1)]);
+        let goblin = thing("goblin")
+            .health(10)
+            .melee(0, 0)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        let dodge = state.blueprints.skills().id("Dodge").unwrap();
+        let mut gains = Vec::new();
+        for _ in 0..500 {
+            let before = crate::skill::xp(&state.world, player, dodge);
+            state.log = MessageLog::default();
+            state.run(Command::Attack {
+                attacker: goblin,
+                target: player,
+            });
+            gains.push(crate::skill::xp(&state.world, player, dodge) - before);
+            if state
+                .log
+                .recent(usize::MAX)
+                .any(|line| line == "You dodge perfectly.")
+            {
+                break;
+            }
+        }
+        let [.., ordinary, perfect] = gains[..] else {
+            panic!("the first attack was dodged perfectly");
+        };
+        assert!(ordinary > 0);
+        assert!(
+            perfect > 2 * ordinary - 2,
+            "{perfect} vs {ordinary}: nearly double"
+        );
     }
 }

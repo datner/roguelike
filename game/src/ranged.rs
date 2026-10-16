@@ -540,6 +540,7 @@ mod tests {
         let bleed = OnHit(vec![OnHitEntry {
             effect: state.blueprints.id("Bleeding").unwrap(),
             chance_bp: 10_000,
+            on_graze: false,
         }]);
         state.world.insert_one(state.player, bleed).unwrap();
         throw_at(&mut state, knife, (4, 1));

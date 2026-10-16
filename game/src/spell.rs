@@ -309,6 +309,7 @@ fn strike(
         bonus: bonus + extra,
         types: damage.types,
         level: 0,
+        accuracy: 0,
         weapon: None,
     })
 }
@@ -790,6 +791,7 @@ pub(crate) fn detonate(state: &mut GameState, caster: Entity, at: (i32, i32), bl
         types: blast.types,
         weapon: None,
         level: 0,
+        accuracy: 0,
     };
     for target in caught {
         let hit = roll_strike(&mut state.rngs.combat, strike);
