@@ -160,7 +160,7 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
         world,
         skills,
         attacker,
-        &skill::melee(world, skills, &strike),
+        &skill::melee(world, skills, attacker, &strike),
     );
     strike.accuracy = bonus + i32::try_from(strike.level).unwrap_or(0);
     strike.bonus += skill::damage_bonus(strike.level);

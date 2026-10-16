@@ -53,8 +53,12 @@ cannot be ground out by repetition. The build plan is
   `Trains` reading in one function like `skill::melee`.
 - `Familiarity` keys on names, so two creatures sharing a name count as one
   kind. Fine while names are kinds; revisit if names become personal.
-- Two-handed weapons and dual wielding need a grip model first; one-handed
-  and empty-offhand skills come from equipment state (plan slice 3).
+- **How a weapon is held is a skill too** (plan slice 3): a weapon strike
+  adds One-handed (every weapon takes one hand for now) and Empty offhand
+  when the wielder has another hand and nothing is equipped on any of them.
+  They come from equipment state in `skill::melee`, never from data.
+- Two-handed weapons and dual wielding need a grip model and the
+  dual-wielding proficiency first.
 
 ## Blows can miss (plan slice 1b)
 

@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::BlueprintError;
 use crate::combat::{AttackOdds, CERTAIN, Outcome, Strike};
-use crate::entity::{DamageType, Familiarity, Learner, Name, Skills, Trains, Weapon};
+use crate::entity::{
+    Body, DamageType, EquippedOn, Familiarity, Learner, Name, PartKind, Skills, Trains, Weapon,
+};
+use crate::equipment::equipped;
 use crate::grammar::{Subject, capitalize};
 use crate::state::GameState;
 
@@ -48,6 +51,8 @@ pub(crate) struct Core {
     pub dodge: SkillId,
     pub poise: SkillId,
     pub deflection: SkillId,
+    pub one_handed: SkillId,
+    pub empty_offhand: SkillId,
 }
 
 impl Core {
@@ -108,6 +113,8 @@ impl SkillBook {
             dodge: core_id("Dodge")?,
             poise: core_id("Poise")?,
             deflection: core_id("Deflection")?,
+            one_handed: core_id("One-handed")?,
+            empty_offhand: core_id("Empty offhand")?,
         };
         Ok(Self {
             defs,
@@ -192,9 +199,15 @@ pub(crate) fn damage_bonus(level: u32) -> i32 {
 }
 
 /// The skills a melee `strike` uses: Melee, what the weapon trains (Unarmed
-/// for natural attacks) and one skill per kind of damage it deals. Sorted
-/// and without duplicates.
-pub(crate) fn melee(world: &World, book: &SkillBook, strike: &Strike) -> Vec<SkillId> {
+/// for natural attacks), one skill per kind of damage it deals, and how it
+/// is held: One-handed for a weapon in one hand, Empty offhand when every
+/// other hand is free. Sorted and without duplicates.
+pub(crate) fn melee(
+    world: &World,
+    book: &SkillBook,
+    attacker: Entity,
+    strike: &Strike,
+) -> Vec<SkillId> {
     let Some(core) = book.core else {
         return Vec::new();
     };
@@ -204,6 +217,7 @@ pub(crate) fn melee(world: &World, book: &SkillBook, strike: &Strike) -> Vec<Ski
             if let Ok(trains) = world.get::<&Trains>(weapon) {
                 skills.extend(trains.0.iter().copied());
             }
+            skills.extend(grip(world, core, attacker, weapon));
         }
         None => skills.push(core.unarmed),
     }
@@ -211,6 +225,32 @@ pub(crate) fn melee(world: &World, book: &SkillBook, strike: &Strike) -> Vec<Ski
     skills.sort();
     skills.dedup();
     skills
+}
+
+/// How `weapon` is held by whoever wields it. Every weapon takes one hand
+/// for now (no two-handed weapons yet); the off hand is empty when the
+/// wielder has another hand and nothing is equipped on any of them.
+fn grip(world: &World, core: Core, wielder: Entity, weapon: Entity) -> Vec<SkillId> {
+    let Ok(on) = world.get::<&EquippedOn>(weapon).map(|on| on.0) else {
+        return Vec::new();
+    };
+    let mut grip = vec![core.one_handed];
+    let hands: Vec<u32> = world
+        .get::<&Body>(wielder)
+        .map(|body| {
+            (0..)
+                .zip(&body.0)
+                .filter(|&(index, part)| part.kind == PartKind::Hand && index != on)
+                .map(|(index, _)| index)
+                .collect()
+        })
+        .unwrap_or_default();
+    let worn = equipped(world, wielder);
+    let free = |hand: &u32| !worn.iter().any(|&(_, part)| part == *hand);
+    if !hands.is_empty() && hands.iter().all(free) {
+        grip.push(core.empty_offhand);
+    }
+    grip
 }
 
 /// The skills wielding `item` trains beyond the action's own: what it
@@ -387,6 +427,8 @@ pub(crate) mod tests {
             def("Dodge", Domain::Defence, 1),
             def("Poise", Domain::Defence, 1),
             def("Deflection", Domain::Defence, 1),
+            def("One-handed", Domain::Martial, 1),
+            def("Empty offhand", Domain::Martial, 1),
         ])
         .unwrap()
     }
@@ -458,14 +500,30 @@ pub(crate) mod tests {
     fn a_strike_uses_melee_the_tool_and_its_kinds_of_damage() {
         let mut state = bare_state();
         let bare = player_strike(&state);
-        let used = melee(&state.world, state.blueprints.skills(), &bare);
+        let used = melee(&state.world, state.blueprints.skills(), state.player, &bare);
         assert_eq!(names(&state, &used), ["Melee", "Unarmed", "Blunt"]);
 
         let player = state.player;
         knife(&mut state, player);
         let armed = player_strike(&state);
-        let used = melee(&state.world, state.blueprints.skills(), &armed);
-        assert_eq!(names(&state, &used), ["Melee", "Slash", "Dagger"]);
+        let used = melee(
+            &state.world,
+            state.blueprints.skills(),
+            state.player,
+            &armed,
+        );
+        assert_eq!(
+            names(&state, &used),
+            ["Melee", "Slash", "Dagger", "One-handed", "Empty offhand"]
+        );
+
+        // Something in the other hand: still one-handed, no longer empty.
+        thing("buckler").equipped_on(player, 3).make(&mut state);
+        let used = melee(&state.world, state.blueprints.skills(), player, &armed);
+        assert_eq!(
+            names(&state, &used),
+            ["Melee", "Slash", "Dagger", "One-handed"]
+        );
     }
 
     #[test]
@@ -473,9 +531,13 @@ pub(crate) mod tests {
         let mut state = bare_state();
         let player = state.player;
         knife(&mut state, player);
-        // Melee 8 (weight 1), Slash 0 (weight 2), Dagger 4 (weight 3):
-        // (8 + 0 + 12) / 6 = 3, rounded down.
-        learn(&mut state, player, &[("Melee", 8), ("Dagger", 4)]);
+        // Melee 8 (weight 1), Slash 0 (2), Dagger 4 (3), One-handed 6 (1),
+        // Empty offhand 0 (1): (8 + 0 + 12 + 6 + 0) / 8 = 3, rounded down.
+        learn(
+            &mut state,
+            player,
+            &[("Melee", 8), ("Dagger", 4), ("One-handed", 6)],
+        );
         assert_eq!(player_strike(&state).level, 3);
     }
 

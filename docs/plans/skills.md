@@ -224,3 +224,5 @@ listing what changed, what was left out, and follow-ups.
   item `Trains` plus its weapon's damage-kind skills, `skill::of_item`); `InputEvent::Skills` / `s`;
   overlay `Tab::Skills` (grouped by domain; `Tab` cycles inventory → equipment → skills); item rows
   say "trains …".
+- **3**: core skills One-handed and Empty offhand, added by `skill::melee` (now given the attacker)
+  from the wielder's `Body` and equipped items. Natural attacks get neither.

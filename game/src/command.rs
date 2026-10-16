@@ -540,7 +540,7 @@ fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
     let Some(strike) = strike(&state.world, skills, attacker) else {
         return;
     };
-    let used = skill::melee(&state.world, skills, &strike);
+    let used = skill::melee(&state.world, skills, attacker, &strike);
     let odds = combat::odds(state, &strike, attacker, target);
     let outcome = combat::resolve(&mut state.rngs.combat, &odds);
     let striker = Subject::of(&state.world, attacker);
