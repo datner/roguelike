@@ -24,10 +24,10 @@ use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
     BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus,
-    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
-    OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School, Scroll, Skills,
-    Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit, Throwable, Trains,
-    Weapon,
+    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Mana, ManaCasting, Melee,
+    Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School, Scroll,
+    Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit, Throwable,
+    Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -94,6 +94,8 @@ pub enum ComponentDef {
     Footwork(Footwork),
     /// Skills by name; spawned from `ResolvedBlueprint::style`.
     Style(StyleDef),
+    /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
+    Lesson(BTreeMap<String, u32>),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -160,7 +162,10 @@ impl ComponentDef {
             ComponentDef::Proficiency => builder.add(Proficiency),
             ComponentDef::Footwork(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
-            ComponentDef::Skills(_) | ComponentDef::Trains(_) | ComponentDef::Style(_) => return,
+            ComponentDef::Skills(_)
+            | ComponentDef::Trains(_)
+            | ComponentDef::Style(_)
+            | ComponentDef::Lesson(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
             // Holds a name; spawned from `ResolvedBlueprint::summon` instead.
@@ -201,6 +206,7 @@ pub struct ResolvedBlueprint {
     pub skills: Option<Skills>,
     pub trains: Option<Trains>,
     pub style: Option<Style>,
+    pub lesson: Option<Lesson>,
     pub equipment: Vec<BlueprintId>,
     /// The `Body` part each `equipment` entry is spawned on, index for index.
     pub equipped_on: Vec<u32>,
@@ -442,6 +448,7 @@ impl Blueprints {
             let mut learned = None;
             let mut trains = None;
             let mut style = None;
+            let mut lesson = None;
             let skill_id = |skill: &String| {
                 skills
                     .id(skill)
@@ -486,6 +493,13 @@ impl Blueprints {
                         ids.dedup();
                         trains = Some(Trains(ids));
                     }
+                    ComponentDef::Lesson(grants) => {
+                        let grants = grants
+                            .iter()
+                            .map(|(skill, &xp)| Ok((skill_id(skill)?, xp)))
+                            .collect::<Result<Vec<_>, BlueprintError>>()?;
+                        lesson = Some(Lesson(grants));
+                    }
                     ComponentDef::Style(def) => {
                         style = Some(def.resolve(&skills).map_err(|skill| {
                             BlueprintError::UnknownSkill {
@@ -517,6 +531,7 @@ impl Blueprints {
                 skills: learned,
                 trains,
                 style,
+                lesson,
                 equipment,
                 equipped_on: Vec::new(),
                 spells,
@@ -605,6 +620,9 @@ impl Blueprints {
         if let Some(style) = &blueprint.style {
             builder.add(style.clone());
         }
+        if let Some(lesson) = &blueprint.lesson {
+            builder.add(lesson.clone());
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
@@ -626,6 +644,7 @@ fn check_skills(raw: &BTreeMap<String, Blueprint>, book: &SkillBook) -> Result<(
             ComponentDef::Skills(levels) => levels.keys().collect::<Vec<_>>(),
             ComponentDef::Trains(names) => names.iter().collect(),
             ComponentDef::Style(def) => def.names().collect(),
+            ComponentDef::Lesson(grants) => grants.keys().collect(),
             _ => Vec::new(),
         });
         for skill in named {

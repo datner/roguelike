@@ -22,6 +22,7 @@ use crate::entity::{
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
 };
+use crate::entity::{Lesson, Studied};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -32,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 22;
+pub const SAVE_VERSION: u32 = 23;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -232,10 +233,12 @@ enum ComponentKind {
     Footwork,
     Discovered,
     Style,
+    Lesson,
+    Studied,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 61] = [
+    const ALL: [ComponentKind; 63] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -297,6 +300,8 @@ impl ComponentKind {
         Self::Footwork,
         Self::Discovered,
         Self::Style,
+        Self::Lesson,
+        Self::Studied,
     ];
 }
 
@@ -368,6 +373,9 @@ enum SavedComponent {
     Discovered(Discovered),
     /// Skills by name.
     Style(StyleDef),
+    /// XP by skill name.
+    Lesson(Vec<(String, u32)>),
+    Studied(Studied),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -707,6 +715,16 @@ fn save_component(
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
+        ComponentKind::Lesson => match copy::<Lesson>(entity) {
+            Some(Lesson(grants)) => Some(S::Lesson(
+                grants
+                    .into_iter()
+                    .map(|(id, xp)| Ok((skill_name(blueprints.skills(), id)?, xp)))
+                    .collect::<Result<_, SaveError>>()?,
+            )),
+            None => None,
+        },
+        ComponentKind::Studied => copy(entity).map(S::Studied),
         ComponentKind::Style => match copy::<Style>(entity) {
             Some(style) => Some(S::Style(
                 StyleDef::of(&style, blueprints.skills())
@@ -845,6 +863,13 @@ fn load_component(
         S::Proficiency => builder.add(Proficiency),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),
+        S::Lesson(grants) => builder.add(Lesson(
+            grants
+                .into_iter()
+                .map(|(name, xp)| Ok((skill_id(blueprints.skills(), name)?, xp)))
+                .collect::<Result<_, LoadError>>()?,
+        )),
+        S::Studied(c) => builder.add(c),
         S::Style(def) => builder.add(
             def.resolve(blueprints.skills())
                 .map_err(LoadError::UnknownSkill)?,
@@ -1129,6 +1154,33 @@ mod tests {
             1
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn a_lesson_and_what_was_studied_survive_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let dagger = state.blueprints.skills().id("Dagger").unwrap();
+        thing("manual")
+            .item()
+            .with(Lesson(vec![(dagger, 150)]))
+            .carried_by(player)
+            .make(&mut state);
+        state
+            .world
+            .insert_one(player, Studied(vec!["primer".into()]))
+            .unwrap();
+
+        let loaded = reload(&state, test_blueprints());
+        let manual = crate::holding::carried(&loaded.world, loaded.player)[0];
+        assert_eq!(
+            *loaded.world.get::<&Lesson>(manual).unwrap(),
+            Lesson(vec![(dagger, 150)])
+        );
+        assert_eq!(
+            *loaded.world.get::<&Studied>(loaded.player).unwrap(),
+            Studied(vec!["primer".into()])
+        );
     }
 
     #[test]

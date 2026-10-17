@@ -416,14 +416,22 @@ pub(crate) fn train(
         }
         let _ = state.world.insert_one(learner, familiarity);
     }
+    gain(state, learner, &gains);
+    // Only uses with stakes reach here, so only they can inspire.
+    crate::discovery::inspire(state, learner);
+}
 
+/// Adds each `(skill, xp)` to `learner`'s skills and logs every level
+/// gained. The bare gain: no repetition, no styles, no inspiration. Lessons
+/// and practice use it directly; `train` adds those for uses with stakes.
+pub(crate) fn gain(state: &mut GameState, learner: Entity, gains: &[(SkillId, u32)]) {
     let mut learned = state
         .world
         .get::<&Skills>(learner)
         .map(|s| (*s).clone())
         .unwrap_or_default();
     let mut risen = Vec::new();
-    for (skill, gain) in gains {
+    for &(skill, gain) in gains {
         let before = learned.xp(skill);
         let after = before.saturating_add(gain);
         learned.set(skill, after);
@@ -443,8 +451,6 @@ pub(crate) fn train(
             "{whose} {name} skill rises to {level}."
         )));
     }
-    // Only uses with stakes reach here, so only they can inspire.
-    crate::discovery::inspire(state, learner);
 }
 
 /// After a blow between enemies, both sides learn from it. The attacker

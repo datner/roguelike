@@ -7,8 +7,8 @@ use crate::blueprint::ResolvedBlueprint;
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Name, PartKind,
-    Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Style, Throwable,
+    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Lesson, Name,
+    PartKind, Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Style, Throwable,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -52,6 +52,8 @@ pub struct ItemView {
     pub note: Option<String>,
     /// The skills using it trains, by name (ADR 0017), in skill-file order.
     pub trains: Vec<String>,
+    /// It holds a lesson to study.
+    pub lesson: bool,
 }
 
 /// A quiver's load or a launcher's nocked arrow, for display.
@@ -89,6 +91,7 @@ impl ItemView {
             fits: world.get::<&Equippable>(item).ok().map(|e| e.part),
             ammo: world.satisfies::<&Ammo>(item),
             note: note(world, item),
+            lesson: world.satisfies::<&Lesson>(item),
             trains: skill::of_item(world, book, item)
                 .into_iter()
                 .filter_map(|id| book.get(id).map(|def| def.name.clone()))

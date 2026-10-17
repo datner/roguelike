@@ -246,3 +246,8 @@ listing what changed, what was left out, and follow-ups.
   `Grant::Style`; content Fencing (skill, style, discovery), Sword, `Rapier.ron`. The skills panel
   lists styles; Enter follows. `SAVE_VERSION` 22. Left out: penalties and principles gated on the
   current use following the style; inventions.
+- **8** (ADR 0017): `training.rs` (`study`, `practice`, `practice_step`); `skill::gain` split from
+  `train`; parts `Lesson` (XP by name in RON), `Studied`; `Command::Study` (5 turns) and `Practice`;
+  `PlayerAction::Study`/`Practice`; `ItemView.lesson`; `FencingManual.ron`; `p` practises, `r` studies.
+  Practice ceiling is half the best level in the skill's domain (not best counted level: no extra
+  state). `SAVE_VERSION` 23.

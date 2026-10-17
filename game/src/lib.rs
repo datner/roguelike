@@ -52,6 +52,7 @@ pub mod spell;
 pub mod state;
 pub mod style;
 pub mod time;
+pub mod training;
 pub mod view;
 
 #[cfg(test)]
@@ -77,6 +78,7 @@ pub use skill::{Domain, SkillBook, SkillDef};
 pub use state::{GameState, MessageLog, render_view};
 pub use style::{StyleDef, StyleView, styles};
 pub use time::{Tick, Timers, advance, take_turn};
+pub use training::practice_step;
 pub use view::{
     CastPreview, CharacterSheet, CostLine, ItemRef, ItemView, PartView, SkillView, SpellView,
     character_sheet, equipment_view, inventory_view, skills, spells, throwables,

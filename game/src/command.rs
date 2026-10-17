@@ -135,6 +135,13 @@ pub(crate) enum Command {
         spell: Entity,
         duration: u64,
     },
+    /// `actor` studies `item`'s lesson (ADR 0017).
+    Study {
+        actor: Entity,
+        item: Entity,
+    },
+    /// A turn of drills with what `actor` wields.
+    Practice(Entity),
     /// Take up a style `actor` knows, or set aside the one they follow
     /// (ADR 0019).
     FollowStyle {
@@ -215,6 +222,8 @@ impl Command {
             | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
+            Command::Study { actor, item } => [Some(actor), Some(item)],
+            Command::Practice(actor) => [Some(actor), None],
             Command::Recharge { spell, .. } => [Some(spell), None],
             Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
@@ -277,6 +286,8 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
             Command::Cast { actor, spell, at } => spell::cast(state, actor, spell, at),
             Command::FollowStyle { actor, style } => crate::style::follow(state, actor, style),
+            Command::Study { actor, item } => crate::training::study(state, actor, item),
+            Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
             Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),

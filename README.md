@@ -45,6 +45,8 @@ This is a Cargo workspace with two crates:
     discovery from `data/discoveries.ron`, granting a proficiency (a part
     attached to you, such as Footwork). Half-formed ideas show in the
     skills panel.
+  - Training (ADR 0017): manuals teach a chunk of XP once; practice tops
+    skills up to a ceiling. Neither inspires a discovery.
   - Styles (ADR 0019): a discovery can grant a style, such as Fencing. Take
     it up from the skills panel; it grows with every use that follows it
     and gains principles at levels (Fencing ripostes a perfect dodge).
@@ -135,6 +137,9 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
+- `p`: practise: drill with what you wield, a turn at a time, until you
+  can learn no more alone (half your best level in that domain) or an
+  enemy comes into view; any key interrupts it.
 - `i` / `e` / `s`: the inventory / equipment / skills panel over the map.
   `Tab` cycles views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
   view's key again also closes).
@@ -142,6 +147,7 @@ In game:
     On an arrow: `n` nocks it on your bow (a turn, and it overrides the
     quiver: use it for special arrows), `v` puts it in your quiver.
     Item rows say which skills using the item trains.
+    On a manual: `r` studies it (once per kind of manual; it takes a while).
   - Equipment: one row per body part. `Enter` on a filled part unequips;
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).

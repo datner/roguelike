@@ -18,6 +18,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('n') => Some(InputEvent::Move(Dir::SE)),
         KeyCode::Char('.') => Some(InputEvent::Wait),
         KeyCode::Char('x') => Some(InputEvent::Explore),
+        KeyCode::Char('p') => Some(InputEvent::Practice),
         KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('i') => Some(InputEvent::Inventory),
@@ -42,6 +43,8 @@ pub enum OverlayInput {
     Nock,
     /// Put the selected arrow in an equipped quiver.
     Quiver,
+    /// Study the selected item's lesson.
+    Study,
     Close,
     /// Show the inventory view, or close if it is showing.
     Inventory,
@@ -63,6 +66,7 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Char('d') => Some(OverlayInput::Drop),
         KeyCode::Char('n') => Some(OverlayInput::Nock),
         KeyCode::Char('v') => Some(OverlayInput::Quiver),
+        KeyCode::Char('r') => Some(OverlayInput::Study),
         KeyCode::Esc | KeyCode::Char('q') => Some(OverlayInput::Close),
         KeyCode::Char('i') => Some(OverlayInput::Inventory),
         KeyCode::Char('e') => Some(OverlayInput::Equipment),
@@ -228,6 +232,14 @@ mod tests {
 
     #[test]
     fn i_and_e_open_the_panel_and_its_keys_navigate() {
+        assert_eq!(
+            map_key_event(key(KeyCode::Char('p'))),
+            Some(InputEvent::Practice)
+        );
+        assert_eq!(
+            map_overlay_key(key(KeyCode::Char('r'))),
+            Some(OverlayInput::Study)
+        );
         assert_eq!(
             map_key_event(key(KeyCode::Char('s'))),
             Some(InputEvent::Skills)

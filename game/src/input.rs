@@ -52,6 +52,9 @@ pub enum InputEvent {
     Explore,
     /// `explore::cycle_explore_items`: what auto-explore does at items.
     CycleExploreItems,
+    /// Frontend only: practise until done or interrupted, repeating
+    /// `training::practice_step`.
+    Practice,
     /// Frontend only, like `Quit`: open the inventory, equipment or skills
     /// view. No game effect.
     Inventory,
@@ -103,6 +106,10 @@ pub enum PlayerAction {
     },
     /// Take up a known style, or set aside the one followed (ADR 0019).
     FollowStyle(ItemRef),
+    /// Study a carried item's lesson (ADR 0017).
+    Study(ItemRef),
+    /// A turn of drills with what you wield; see `training::practice_step`.
+    Practice,
 }
 
 #[cfg(test)]

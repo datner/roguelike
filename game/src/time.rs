@@ -181,6 +181,17 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 at,
             }
         }
+        PlayerAction::Study(item) => {
+            let Some(item) = item.find(&state.world, &carried(state)) else {
+                state.log.push("You do not carry that.");
+                return;
+            };
+            Command::Study {
+                actor: player,
+                item,
+            }
+        }
+        PlayerAction::Practice => Command::Practice(player),
         PlayerAction::FollowStyle(style) => {
             let known = crate::style::known(&state.world, player);
             let Some(style) = style.find(&state.world, &known) else {
@@ -569,6 +580,7 @@ mod tests {
                 InputEvent::Inventory
                 | InputEvent::Equipment
                 | InputEvent::Skills
+                | InputEvent::Practice
                 | InputEvent::Throw
                 | InputEvent::Fire
                 | InputEvent::Cast => continue,

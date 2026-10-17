@@ -118,6 +118,10 @@ impl Overlay {
                 Some(OverlayAction::Act(PlayerAction::Equip { item, part: None }))
             }
             OverlayInput::Drop => Some(OverlayAction::Act(PlayerAction::Drop(chosen?))),
+            OverlayInput::Study => {
+                let item = items.get(self.selected).filter(|item| item.lesson)?.item;
+                Some(OverlayAction::Act(PlayerAction::Study(item)))
+            }
             OverlayInput::Nock | OverlayInput::Quiver => {
                 let item = items.get(self.selected).filter(|item| item.ammo)?.item;
                 Some(OverlayAction::Act(if input == OverlayInput::Nock {
@@ -243,15 +247,16 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
             },
         ),
         (Tab::Inventory, _, _) => {
-            let ammo = contents
-                .inventory
-                .get(overlay.selected)
-                .is_some_and(|item| item.ammo);
+            let chosen = contents.inventory.get(overlay.selected);
+            let ammo = chosen.is_some_and(|item| item.ammo);
+            let lesson = chosen.is_some_and(|item| item.lesson);
             (
                 tabs(Tab::Inventory),
                 item_rows(contents.inventory, overlay.selected),
                 if ammo {
                     "n nock  v quiver  d drop  Esc close"
+                } else if lesson {
+                    "r study  d drop  Tab equipment  Esc close"
                 } else {
                     "Enter equip  d drop  Tab equipment  Esc close"
                 },
@@ -464,6 +469,7 @@ mod tests {
                 ammo: false,
                 note: None,
                 trains: Vec::new(),
+                lesson: false,
             })
             .collect()
     }
@@ -887,6 +893,28 @@ mod tests {
             Some(OverlayAction::Act(PlayerAction::FollowStyle(ItemRef(
                 SpawnSeq(8)
             ))))
+        );
+    }
+
+    #[test]
+    fn r_studies_a_selected_lesson_and_nothing_else() {
+        let mut inventory = items(&["knife", "manual"]);
+        inventory[1].lesson = true;
+        let contents = Contents {
+            inventory: &inventory,
+            equipment: &[],
+            skills: &[],
+            proficiencies: &[],
+            ideas: &[],
+            styles: &[],
+        };
+        let mut overlay = Overlay::new(Tab::Inventory);
+        assert_eq!(overlay.handle(OverlayInput::Study, &contents), None);
+        overlay.handle(OverlayInput::Down, &contents);
+        assert!(screen(&overlay, &contents).contains("r study"));
+        assert_eq!(
+            overlay.handle(OverlayInput::Study, &contents),
+            Some(OverlayAction::Act(PlayerAction::Study(inventory[1].item)))
         );
     }
 }

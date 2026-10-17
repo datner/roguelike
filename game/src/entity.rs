@@ -816,3 +816,13 @@ pub enum Does {
     /// After a perfect dodge, strike back at once, for free.
     Riposte,
 }
+
+/// Item part: studying it teaches these skills this much XP, once per kind
+/// of thing (its `Name`) for each learner (ADR 0017). Built from
+/// `ComponentDef::Lesson` at load and saved by name, since it holds ids.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lesson(pub Vec<(SkillId, u32)>);
+
+/// The kinds of thing (by `Name`) a learner has already studied, sorted.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Studied(pub Vec<String>);

@@ -116,3 +116,18 @@ cannot be ground out by repetition. The build plan is
   Summonings and runes catch nobody when cast, so they don't train yet;
   neither do disciplines: Channeling or Hemomancy as paying skills wait
   until something reads them (no skill without an effect).
+
+## Lessons and practice (plan slice 8)
+
+- **A lesson** is an item part (`Lesson({"Sword": 200})`): studying it
+  (`Command::Study`, five turns) grants that XP once per kind of thing (its
+  `Name`, recorded in `Studied`). A second copy teaches nothing.
+- **Practice** (`Command::Practice`, a turn; `training::practice_step`
+  repeats it like auto-explore) drills the skills of the current melee
+  strike, 2 XP a turn each, up to a ceiling: half the learner's best level
+  in that skill's domain, never below 2. **Departs from the plan**, which
+  asked for a fraction of the best level reached through counted use: that
+  needs tracking every skill's best counted level; the domain's best level
+  is the same idea without new state.
+- **Neither has stakes**: both go through `skill::gain`, which skips
+  familiarity, styles and inspiration (only `skill::train` has them).

@@ -147,7 +147,7 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
 
 /// An enemy of the player in view: hostiles and their summons, never
 /// the player's own.
-fn visible_hostile(state: &GameState) -> Option<Entity> {
+pub(crate) fn visible_hostile(state: &GameState) -> Option<Entity> {
     state
         .world
         .query::<(Entity, &Position)>()

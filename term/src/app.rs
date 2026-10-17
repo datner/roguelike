@@ -7,8 +7,8 @@ use std::time::Duration;
 use game::{
     Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
     cycle_explore_items, equipment_view, explore_step, fire_step, ideas, inventory_view,
-    proficiencies, random_seed, render_view, skills, spells, styles, take_trails, take_turn,
-    throwables,
+    practice_step, proficiencies, random_seed, render_view, skills, spells, styles, take_trails,
+    take_turn, throwables,
 };
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -244,6 +244,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                     InputEvent::Wait => take_turn(state, PlayerAction::Wait),
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state, character)?,
+                    InputEvent::Practice => practise(terminal, state, character)?,
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
                     InputEvent::Inventory => {
                         modal = Some(Modal::Overlay(Overlay::new(Tab::Inventory)))
@@ -347,6 +348,17 @@ const EXPLORE_STEP_DELAY: Duration = Duration::from_millis(25);
 /// releases are ignored, or releasing the key that started it would stop it.
 fn explore(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
     while explore_step(state) {
+        terminal.draw(|frame| draw(frame, state, character, None))?;
+        if key_pressed_within(EXPLORE_STEP_DELAY)? {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Practises turn by turn, drawing each, until done or a key interrupts.
+fn practise(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
+    while practice_step(state) {
         terminal.draw(|frame| draw(frame, state, character, None))?;
         if key_pressed_within(EXPLORE_STEP_DELAY)? {
             break;
