@@ -41,13 +41,16 @@ This is a Cargo workspace with two crates:
     turned aside by a buckler, or be dodged perfectly.
     Casting trains Magic, the school and the spell's form; skill there
     strengthens spells and makes them fizzle less.
+    Paying trains the discipline (Channeling, Bloodletting, Scroll lore),
+    which makes casts cheaper or scrolls steadier.
   - Discovery (ADR 0018): reaching combinations of skills inspires a
     discovery from `data/discoveries.ron`, granting a proficiency (a part
     attached to you, such as Footwork). Half-formed ideas show in the
     skills panel.
   - Lore (ADR 0017): the first sight of each kind of creature teaches
     Beast lore, which decides what looking (`;`) reveals: health, then
-    armor.
+    armor. The first cast of each spell teaches Arcana, which reveals what
+    other creatures cast.
   - Training (ADR 0017): manuals teach a chunk of XP once; practice tops
     skills up to a ceiling. Neither inspires a discovery.
   - Styles (ADR 0019): a discovery can grant a style, such as Fencing. Take

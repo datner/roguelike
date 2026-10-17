@@ -831,3 +831,8 @@ pub struct Studied(pub Vec<String>);
 /// each teaches Beast lore once (ADR 0017).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Sighted(pub Vec<String>);
+
+/// The spells (by `Name`) the player has cast at least once, sorted: each
+/// teaches Arcana the first time (ADR 0017).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Attuned(pub Vec<String>);

@@ -112,10 +112,17 @@ cannot be ground out by repetition. The build plan is
   the aim preview and the cast agree. **Departs from the plan**: it is not a
   `CastRisk` handler, because handlers can't see the skill book; `cast`
   itself still learns nothing about skills.
-- A cast trains when it catches an enemy (named by the first one).
-  Summonings and runes catch nobody when cast, so they don't train yet;
-  neither do disciplines: Channeling or Hemomancy as paying skills wait
-  until something reads them (no skill without an effect).
+- A cast trains when it catches an enemy (named by the first one), and so
+  does the discipline that paid for it: Channeling (mana), Bloodletting
+  (blood; not "Hemomancy", which is the blood school's skill) or Scroll
+  lore. A cooldown trains none. Summonings and runes catch nobody when
+  cast, so they don't train.
+- **Discipline skills ease their price**: every 4 levels of Channeling or
+  Bloodletting take a point off a mana or HP price (never below 1); Scroll
+  lore lowers a scroll's fizzle chance like magic skill does. The
+  claiming discipline records how it is paid (`CheckCast.way`), and
+  `CheckCast`/`PayCost` carry the caster's levels (`Mastery`), because
+  handlers can't see the skill book.
 
 ## Lessons and practice (plan slice 8)
 
@@ -141,5 +148,7 @@ cannot be ground out by repetition. The build plan is
 - **It decides what looking reveals** (`lore::inspect`, the `;` cursor):
   level 1 a creature's health, level 3 its armor by kind. Below that the
   game says you know too little of its kind.
-- Arcana is left out: spell numbers are already shown in the spell list,
-  so it would be a skill nothing reads.
+- **Arcana** (domain Lore) is trained by novelty too: the first cast of
+  each spell (by name, recorded in `Attuned`). It reads what other
+  creatures cast when looking: their spells from level 1, their damage
+  from level 3.

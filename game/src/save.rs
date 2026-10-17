@@ -22,7 +22,7 @@ use crate::entity::{
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Lesson, Sighted, Studied};
+use crate::entity::{Attuned, Lesson, Sighted, Studied};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 24;
+pub const SAVE_VERSION: u32 = 25;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -236,10 +236,11 @@ enum ComponentKind {
     Lesson,
     Studied,
     Sighted,
+    Attuned,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 64] = [
+    const ALL: [ComponentKind; 65] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -304,6 +305,7 @@ impl ComponentKind {
         Self::Lesson,
         Self::Studied,
         Self::Sighted,
+        Self::Attuned,
     ];
 }
 
@@ -379,6 +381,7 @@ enum SavedComponent {
     Lesson(Vec<(String, u32)>),
     Studied(Studied),
     Sighted(Sighted),
+    Attuned(Attuned),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -729,6 +732,7 @@ fn save_component(
         },
         ComponentKind::Studied => copy(entity).map(S::Studied),
         ComponentKind::Sighted => copy(entity).map(S::Sighted),
+        ComponentKind::Attuned => copy(entity).map(S::Attuned),
         ComponentKind::Style => match copy::<Style>(entity) {
             Some(style) => Some(S::Style(
                 StyleDef::of(&style, blueprints.skills())
@@ -875,6 +879,7 @@ fn load_component(
         )),
         S::Studied(c) => builder.add(c),
         S::Sighted(c) => builder.add(c),
+        S::Attuned(c) => builder.add(c),
         S::Style(def) => builder.add(
             def.resolve(blueprints.skills())
                 .map_err(LoadError::UnknownSkill)?,
@@ -1179,6 +1184,10 @@ mod tests {
             .world
             .insert_one(player, Sighted(vec!["goblin".into()]))
             .unwrap();
+        state
+            .world
+            .insert_one(player, Attuned(vec!["firebolt".into()]))
+            .unwrap();
 
         let loaded = reload(&state, test_blueprints());
         let manual = crate::holding::carried(&loaded.world, loaded.player)[0];
@@ -1193,6 +1202,10 @@ mod tests {
         assert_eq!(
             *loaded.world.get::<&Sighted>(loaded.player).unwrap(),
             Sighted(vec!["goblin".into()])
+        );
+        assert_eq!(
+            *loaded.world.get::<&Attuned>(loaded.player).unwrap(),
+            Attuned(vec!["firebolt".into()])
         );
     }
 

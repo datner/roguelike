@@ -234,8 +234,7 @@ listing what changed, what was left out, and follow-ups.
 - **5** (ADR 0017, 0014 amendment): core Magic, schools, forms (Bolt, Burst, Cone, Beam, Nova, Chain,
   Rune, Summoning), `Domain::Magic`; `skill::cast`, `skill::steadied`; `spell::Ready.skills`; level
   applied in `inspect_cast` (not a `CastRisk` handler: handlers can't see the skill book); training in
-  `cast` on catching an enemy. Left out: discipline skills (no effect to read them yet); summonings and
-  runes don't train.
+  `cast` on catching an enemy. Summonings and runes don't train.
 - **6** (ADR 0018): `discovery.rs` (`DiscoveryDef`/`Requirement`/`Grant`, `inspire` from the end of
   `skill::train`, `ideas`, `proficiencies`), `data/discoveries.ron`, `Blueprints::with_discoveries`;
   parts `Proficiency`, `Footwork`, `Discovered`; `AttackOdds.asking`; `Footwork.ron` (Dodge 4 + Poise 2).
@@ -253,4 +252,9 @@ listing what changed, what was left out, and follow-ups.
   state). `SAVE_VERSION` 23.
 - **9** (ADR 0017): `lore.rs` (`sight` after each FOV update, `inspect`, `look_targets`); Beast lore
   (`Domain::Lore`); `Sighted`; term `Looking` modal on `;` with `look_status`/`draw_look`.
-  `SAVE_VERSION` 24. Left out: Arcana (nothing to read it).
+  `SAVE_VERSION` 24.
+- **5 and 9, completed**: discipline skills Channeling, Bloodletting (the blood school already has
+  "Hemomancy"), Scroll lore; `spell::Way` set by the claiming handler, `Mastery` on `CheckCast`/`PayCost`
+  easing mana and HP prices, Scroll lore steadying scrolls; paying trains the discipline on a cast that
+  counts. Arcana (`lore::first_cast`, `Attuned`) reads a creature's spells when looking.
+  `SAVE_VERSION` 25.

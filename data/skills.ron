@@ -39,7 +39,12 @@
     (name: "Chain", domain: Magic, weight: 2),
     (name: "Rune", domain: Magic, weight: 2),
     (name: "Summoning", domain: Magic, weight: 2),
+    // Disciplines: how a cast is paid for; trained by paying.
+    (name: "Channeling", domain: Magic, weight: 1),
+    (name: "Bloodletting", domain: Magic, weight: 1),
+    (name: "Scroll lore", domain: Magic, weight: 1),
 
     // Lore: what you know of the world, grown by meeting new things.
     (name: "Beast lore", domain: Lore, weight: 1),
+    (name: "Arcana", domain: Lore, weight: 1),
 ]

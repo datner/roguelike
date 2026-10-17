@@ -64,6 +64,28 @@ pub(crate) struct CheckCast {
     pub stat: Option<Stat>,
     pub blocked: Option<String>,
     pub costs: Vec<CostLine>,
+    /// How the claiming discipline takes its price.
+    pub way: Option<Way>,
+    pub mastery: Mastery,
+}
+
+/// How a cast is paid for, set by the discipline that claims it. Decides
+/// which discipline skill paying trains (ADR 0017).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Way {
+    Cooldown,
+    Mana,
+    Blood,
+    Scroll,
+}
+
+/// The caster's levels at paying, carried by the events because a
+/// discipline's handlers can't see the skill book: every 4 levels take a
+/// point off that discipline's price (never below 1).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Mastery {
+    pub channeling: u32,
+    pub bloodletting: u32,
 }
 
 /// Fired at the caster once a cast is allowed: what could make it fizzle,
@@ -84,6 +106,7 @@ pub(crate) struct PayCost {
     pub school: School,
     pub power: i32,
     pub now: Tick,
+    pub mastery: Mastery,
 }
 
 pub(crate) fn register(registry: &mut EventRegistry) {
@@ -91,6 +114,7 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         if rule.school != ev.school || ev.claimed {
             return ControlFlow::Continue(ev);
         }
+        ev.way = Some(Way::Cooldown);
         ev.claimed = true;
         ev.stat = Some(rule.stat);
         ev.costs.push(CostLine {
@@ -125,9 +149,10 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         if rule.school != ev.school || ev.claimed {
             return ControlFlow::Continue(ev);
         }
+        ev.way = Some(Way::Mana);
         ev.claimed = true;
         ev.stat = Some(rule.stat);
-        let price = mana_price(rule, ev.power);
+        let price = mana_price(rule, ev.power, ev.mastery);
         let pool =
             pool(ctx.world, ev.caster).map_or(0, |(mana, rates)| mana.current(rates, ev.now));
         ev.costs.push(CostLine {
@@ -144,7 +169,7 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         if rule.school == ev.school {
             ctx.out.push(Command::SpendMana {
                 caster: ev.caster,
-                amount: mana_price(rule, ev.power),
+                amount: mana_price(rule, ev.power, ev.mastery),
             });
         }
         ControlFlow::Continue(ev)
@@ -171,9 +196,10 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         if rule.school != ev.school || ev.claimed {
             return ControlFlow::Continue(ev);
         }
+        ev.way = Some(Way::Blood);
         ev.claimed = true;
         ev.stat = Some(rule.stat);
-        let price = blood_price(rule, ev.power);
+        let price = blood_price(rule, ev.power, ev.mastery);
         ev.costs.push(CostLine {
             resource: "HP".to_string(),
             amount: u64::try_from(price).unwrap_or(0),
@@ -192,7 +218,7 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         if rule.school == ev.school {
             ctx.out.push(Command::DealDamage {
                 target: ev.caster,
-                amount: blood_price(rule, ev.power),
+                amount: blood_price(rule, ev.power, ev.mastery),
                 cause: DamageCause::Spell {
                     caster: ev.caster,
                     types: DamageTypes::default(),
@@ -210,6 +236,7 @@ pub(crate) fn register(registry: &mut EventRegistry) {
         }
         ev.claimed = true;
         ev.self_paid = true;
+        ev.way = Some(Way::Scroll);
         ev.costs.push(CostLine {
             resource: "scroll".to_string(),
             amount: 1,
@@ -251,16 +278,49 @@ pub(crate) fn register(registry: &mut EventRegistry) {
 /// A fizzle chance of 10 000 out of 10 000.
 const FIZZLE_CERTAIN: u32 = 10_000;
 
-fn blood_price(rule: &BloodCasting, power: i32) -> i32 {
-    power.max(0) * rule.hp_per_power
+/// The skill paying `way` trains: none for a cooldown.
+fn discipline_skill(state: &GameState, way: Way) -> Option<SkillId> {
+    let core = state.blueprints.skills().core()?;
+    match way {
+        Way::Cooldown => None,
+        Way::Mana => Some(core.channeling),
+        Way::Blood => Some(core.bloodletting),
+        Way::Scroll => Some(core.scroll_lore),
+    }
+}
+
+fn discipline_level(state: &GameState, caster: Entity, way: Way) -> u32 {
+    discipline_skill(state, way).map_or(0, |id| skill::level(skill::xp(&state.world, caster, id)))
+}
+
+fn mastery(state: &GameState, caster: Entity) -> Mastery {
+    Mastery {
+        channeling: discipline_level(state, caster, Way::Mana),
+        bloodletting: discipline_level(state, caster, Way::Blood),
+    }
+}
+
+fn blood_price(rule: &BloodCasting, power: i32, mastery: Mastery) -> i32 {
+    let price = power.max(0) * rule.hp_per_power;
+    let eased = i32::try_from(mastery.bloodletting / 4).unwrap_or(0);
+    if price > 0 {
+        (price - eased).max(1)
+    } else {
+        price
+    }
 }
 
 fn recharge_ticks(rule: &CooldownCasting, power: i32) -> u64 {
     u64::try_from(power).unwrap_or(0) * rule.ticks_per_power
 }
 
-fn mana_price(rule: &ManaCasting, power: i32) -> u32 {
-    u32::try_from(power).unwrap_or(0) * rule.mana_per_power
+fn mana_price(rule: &ManaCasting, power: i32, mastery: Mastery) -> u32 {
+    let price = u32::try_from(power).unwrap_or(0) * rule.mana_per_power;
+    if price > 0 {
+        price.saturating_sub(mastery.channeling / 4).max(1)
+    } else {
+        price
+    }
 }
 
 /// A cast as it would go now, checked the same way for the command, the aim
@@ -288,6 +348,9 @@ pub(crate) struct Ready {
     payer: Entity,
     /// The skills it uses (ADR 0017), trained when it catches an enemy.
     skills: Vec<SkillId>,
+    /// How it is paid for, and the caster's skill at paying.
+    way: Option<Way>,
+    mastery: Mastery,
 }
 
 /// What `spell` hits for when `caster` casts it: its dice plus the caster's
@@ -386,6 +449,8 @@ pub(crate) fn inspect_cast(
         stat: None,
         blocked: None,
         costs: Vec::new(),
+        way: None,
+        mastery: mastery(state, actor),
     };
     // The spell's own parts first; the caster's disciplines skip a claimed
     // cast, but a caster's veto (a summon limit) still applies.
@@ -424,11 +489,21 @@ pub(crate) fn inspect_cast(
         delay: world.get::<&Delay>(spell).ok().map(|delay| *delay),
         costs: check.costs,
         area: world.get::<&Area>(spell).ok().map(|area| *area),
-        fizzle_bp: skill::steadied(risk.fizzle_bp, level),
+        // Reading a scroll well is a skill of its own.
+        fizzle_bp: skill::steadied(
+            risk.fizzle_bp,
+            level
+                + match check.way {
+                    Some(Way::Scroll) => discipline_level(state, actor, Way::Scroll),
+                    _ => 0,
+                },
+        ),
         school: data.school,
         power: modified.power,
         payer: if check.self_paid { spell } else { actor },
         skills,
+        way: check.way,
+        mastery: check.mastery,
     };
     Ok((ready, blocked))
 }
@@ -672,6 +747,7 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
             school: ready.school,
             power: ready.power,
             now: state.now,
+            mastery: ready.mastery,
         },
     );
 
@@ -717,6 +793,7 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
     };
     let message = Subject::of(&state.world, actor).sentence("cast", &format!("{name}{aimed}"));
     state.log.push(message);
+    crate::lore::first_cast(state, actor, spell);
 
     if let (Some(delay), Some(strike), Some(area)) = (ready.delay, ready.strike, ready.area) {
         lay_rune(state, actor, footprint.landing, delay, strike, area);
@@ -748,7 +825,11 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
         .copied()
         .find(|&target| side::enemies(&state.world, actor, target));
     if let Some(enemy) = enemy {
-        skill::train(state, actor, &ready.skills, enemy, skill::BASE_XP);
+        // Paying for a cast that counted trains the discipline too.
+        let mut trained = ready.skills.clone();
+        trained.extend(ready.way.and_then(|way| discipline_skill(state, way)));
+        trained.sort();
+        skill::train(state, actor, &trained, enemy, skill::BASE_XP);
     }
 }
 
@@ -1215,7 +1296,7 @@ mod tests {
     /// `caster()` plus the mana discipline for Arcane, a full pool of 10
     /// regaining a point per `REGEN_TICKS`, and an Arcane bolt of `power` 1
     /// (range 8, 2 damage).
-    fn mage() -> (GameState, Entity, Entity) {
+    pub(super) fn mage() -> (GameState, Entity, Entity) {
         let (mut state, firebolt) = caster();
         let player = state.player;
         let _ = state.world.insert(
@@ -1844,6 +1925,81 @@ mod paying_tests {
             .with(Scroll)
             .carried_by(player)
             .make(state)
+    }
+
+    fn learn(state: &mut GameState, levels: &[(&str, u32)]) {
+        let book = state.blueprints.skills();
+        let mut learned = crate::entity::Skills::default();
+        for &(name, level) in levels {
+            learned.set(book.id(name).unwrap(), skill::xp_for(level));
+        }
+        let player = state.player;
+        state.world.insert_one(player, learned).unwrap();
+    }
+
+    fn price(state: &GameState, spell: Entity) -> u64 {
+        ready_cast(state, state.player, spell).unwrap().costs[0].amount
+    }
+
+    #[test]
+    fn discipline_skills_ease_their_price_but_never_below_one() {
+        let (mut state, _, missile) = super::tests::mage();
+        assert_eq!(price(&state, missile), 3);
+        learn(&mut state, &[("Channeling", 8)]);
+        assert_eq!(price(&state, missile), 1);
+        learn(&mut state, &[("Channeling", 20)]);
+        assert_eq!(price(&state, missile), 1);
+
+        let (mut state, bolt) = blood_mage();
+        assert_eq!(price(&state, bolt), 4);
+        learn(&mut state, &[("Bloodletting", 4)]);
+        assert_eq!(price(&state, bolt), 3);
+        let player = state.player;
+        let before = health(&state, player);
+        goblin(&mut state, 3);
+        cast_at(&mut state, bolt, (3, 1));
+        assert_eq!(
+            health(&state, player),
+            before - 3,
+            "the eased price is paid"
+        );
+    }
+
+    #[test]
+    fn scroll_lore_steadies_a_scroll() {
+        let mut state = bare_state();
+        let player = state.player;
+        let fizzle = Fizzle {
+            base_bp: 3_000,
+            per_armor_bp: 0,
+            per_modifier_bp: 0,
+            stat: Stat::Willpower,
+        };
+        state.world.insert_one(player, fizzle).unwrap();
+        let scroll = scroll(&mut state);
+        assert_eq!(ready_cast(&state, player, scroll).unwrap().fizzle_bp, 3_000);
+        learn(&mut state, &[("Scroll lore", 5)]);
+        assert_eq!(ready_cast(&state, player, scroll).unwrap().fizzle_bp, 2_000);
+    }
+
+    #[test]
+    fn paying_for_a_cast_that_counts_trains_the_discipline() {
+        let (mut state, _, missile) = super::tests::mage();
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, crate::entity::Learner)
+            .unwrap();
+        let channeling = state.blueprints.skills().id("Channeling").unwrap();
+        cast_at(&mut state, missile, (6, 1));
+        assert_eq!(
+            skill::xp(&state.world, player, channeling),
+            0,
+            "nobody caught"
+        );
+        goblin(&mut state, 3);
+        cast_at(&mut state, missile, (3, 1));
+        assert_eq!(skill::xp(&state.world, player, channeling), skill::BASE_XP);
     }
 
     #[test]

@@ -125,3 +125,8 @@ spell would fix one way of paying for every caster.
 raises the strike and lowers the fizzle chance by the caster's level at
 them. Disciplines and `cast` are unchanged; a cast that catches an enemy
 trains those skills.
+
+The claiming discipline also sets `CheckCast.way` (cooldown, mana, blood,
+scroll), and `CheckCast`/`PayCost` carry `Mastery`, the caster's
+discipline-skill levels, which the mana and blood handlers use to ease
+their price. Handlers still never see skills directly.

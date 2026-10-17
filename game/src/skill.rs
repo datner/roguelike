@@ -71,6 +71,10 @@ pub(crate) struct Core {
     pub rune: SkillId,
     pub summoning: SkillId,
     pub beast_lore: SkillId,
+    pub channeling: SkillId,
+    pub bloodletting: SkillId,
+    pub scroll_lore: SkillId,
+    pub arcana: SkillId,
 }
 
 impl Core {
@@ -148,6 +152,10 @@ impl SkillBook {
             rune: core_id("Rune")?,
             summoning: core_id("Summoning")?,
             beast_lore: core_id("Beast lore")?,
+            channeling: core_id("Channeling")?,
+            bloodletting: core_id("Bloodletting")?,
+            scroll_lore: core_id("Scroll lore")?,
+            arcana: core_id("Arcana")?,
         };
         Ok(Self {
             defs,
@@ -572,6 +580,10 @@ pub(crate) mod tests {
             def("Rune", Domain::Magic, 2),
             def("Summoning", Domain::Magic, 2),
             def("Beast lore", Domain::Lore, 1),
+            def("Channeling", Domain::Magic, 1),
+            def("Bloodletting", Domain::Magic, 1),
+            def("Scroll lore", Domain::Magic, 1),
+            def("Arcana", Domain::Lore, 1),
         ])
         .unwrap()
     }
