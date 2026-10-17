@@ -149,9 +149,10 @@ In game:
 - `p`: practise: drill with what you wield, a turn at a time, until you
   can learn no more alone (half your best level in that domain) or an
   enemy comes into view; any key interrupts it.
-- `i` / `e` / `s`: the inventory / equipment / skills panel over the map.
-  `Tab` cycles views, `j`/`k` or arrows select, `Esc`/`q` closes (pressing the open
-  view's key again also closes).
+- `i` / `e` / `s` / `S`: the inventory / equipment / skills / styles panel
+  over the map. `Tab` cycles views, `j`/`k` or arrows select (long lists
+  scroll), `Esc`/`q` closes (pressing the open view's key again also
+  closes).
   - Inventory: `Enter` equips on the first part that fits, `d` drops.
     On an arrow: `n` nocks it on your bow (a turn, and it overrides the
     quiver: use it for special arrows), `v` puts it in your quiver.
@@ -161,8 +162,10 @@ In game:
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).
   - Skills: what you have learned, by domain, with each level and the XP
-    toward the next; then your styles (`Enter` takes one up or sets it
-    aside, a turn), proficiencies and half-formed ideas.
+    toward the next.
+  - Styles: your styles (`Enter` takes one up or sets it aside, a turn),
+    proficiencies, techniques (none exist yet) and half-formed ideas. The
+    side panel shows the style you follow.
   - Equipping, unequipping and dropping take a turn each; the panel stays
     open.
 - `t`: throw something (carried or equipped; one turn). A list appears if

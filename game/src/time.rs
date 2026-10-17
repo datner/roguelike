@@ -580,6 +580,7 @@ mod tests {
                 InputEvent::Inventory
                 | InputEvent::Equipment
                 | InputEvent::Skills
+                | InputEvent::Styles
                 | InputEvent::Practice
                 | InputEvent::Look
                 | InputEvent::Throw

@@ -262,6 +262,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                         modal = Some(Modal::Overlay(Overlay::new(Tab::Equipment)))
                     }
                     InputEvent::Skills => modal = Some(Modal::Overlay(Overlay::new(Tab::Skills))),
+                    InputEvent::Styles => modal = Some(Modal::Overlay(Overlay::new(Tab::Styles))),
                     InputEvent::Throw => modal = start_throw(state),
                     InputEvent::Fire => modal = start_fire(state),
                     InputEvent::Cast => modal = start_cast(state),

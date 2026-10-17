@@ -62,6 +62,7 @@ pub enum InputEvent {
     Inventory,
     Equipment,
     Skills,
+    Styles,
     /// Frontend only: pick a throwable and aim it. The throw itself is
     /// `PlayerAction::Throw`.
     Throw,

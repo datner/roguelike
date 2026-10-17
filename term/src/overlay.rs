@@ -36,6 +36,8 @@ pub enum Tab {
     Inventory,
     Equipment,
     Skills,
+    /// Styles, proficiencies, techniques and ideas.
+    Styles,
 }
 
 #[derive(Debug)]
@@ -69,12 +71,16 @@ impl Overlay {
             OverlayInput::Inventory => tab == Tab::Inventory,
             OverlayInput::Equipment => tab == Tab::Equipment,
             OverlayInput::Skills => tab == Tab::Skills,
+            OverlayInput::Styles => tab == Tab::Styles,
             _ => false,
         };
         match input {
             OverlayInput::Close if self.picking.is_some() => self.picking = None,
             OverlayInput::Close => return Some(OverlayAction::Close),
-            OverlayInput::Inventory | OverlayInput::Equipment | OverlayInput::Skills
+            OverlayInput::Inventory
+            | OverlayInput::Equipment
+            | OverlayInput::Skills
+            | OverlayInput::Styles
                 if shown(self.tab) && self.picking.is_none() =>
             {
                 return Some(OverlayAction::Close);
@@ -82,10 +88,12 @@ impl Overlay {
             OverlayInput::Inventory => self.show(Tab::Inventory),
             OverlayInput::Equipment => self.show(Tab::Equipment),
             OverlayInput::Skills => self.show(Tab::Skills),
+            OverlayInput::Styles => self.show(Tab::Styles),
             OverlayInput::SwitchTab => self.show(match self.tab {
                 Tab::Inventory => Tab::Equipment,
                 Tab::Equipment => Tab::Skills,
-                Tab::Skills => Tab::Inventory,
+                Tab::Skills => Tab::Styles,
+                Tab::Styles => Tab::Inventory,
             }),
             _ => {
                 return match (self.tab, self.picking) {
@@ -94,7 +102,11 @@ impl Overlay {
                     (Tab::Equipment, Some(picking)) => {
                         self.handle_picking(input, picking, contents)
                     }
-                    (Tab::Skills, _) => self.handle_styles(input, contents.styles),
+                    (Tab::Skills, _) => {
+                        move_selection(&mut self.selected, input, contents.skills.len());
+                        None
+                    }
+                    (Tab::Styles, _) => self.handle_styles(input, contents.styles),
                 };
             }
         }
@@ -212,16 +224,19 @@ fn fitting<'a>(items: &'a [ItemView], part: &PartView) -> impl Iterator<Item = &
     items.iter().filter(move |item| item.fits == Some(kind))
 }
 
-/// Half the map panel, at least 36×8 where it fits, centred over `area`.
+/// Half the map panel wide and three quarters high, at least 46×8 where it
+/// fits, centred over `area`. A list longer than the panel scrolls so the
+/// selected row stays in view.
 pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Contents) {
-    let width = (area.width / 2).max(36).min(area.width);
-    let height = (area.height / 2).max(8).min(area.height);
+    let width = (area.width / 2).max(46).min(area.width);
+    let height = (area.height * 3 / 4).max(8).min(area.height);
     let panel = area.centered(Constraint::Length(width), Constraint::Length(height));
 
     let picking_part = overlay
         .picking
         .and_then(|picking| contents.equipment.iter().find(|p| p.index == picking.part));
-    let (title, mut rows, hint) = match (overlay.tab, overlay.picking, picking_part) {
+    // The row to keep on screen.
+    let (title, mut rows, focus, hint) = match (overlay.tab, overlay.picking, picking_part) {
         (Tab::Equipment, Some(picking), Some(part)) => (
             Line::from(format!("Equip on {}", part.name)),
             item_rows(
@@ -230,22 +245,37 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
                     .collect::<Vec<_>>(),
                 picking.selected,
             ),
+            Some(picking.selected),
             "Enter equip  Esc back",
         ),
         (Tab::Equipment, _, _) => (
             tabs(Tab::Equipment),
             part_rows(contents.equipment, overlay.selected),
+            Some(overlay.selected),
             "Enter unequip / choose  Tab skills  Esc close",
         ),
-        (Tab::Skills, _, _) => (
-            tabs(Tab::Skills),
-            skill_rows(contents, overlay.selected),
-            if contents.styles.is_empty() {
-                "Tab inventory  Esc close"
-            } else {
-                "Enter follow / set aside  Tab inventory  Esc close"
-            },
-        ),
+        (Tab::Skills, _, _) => {
+            let (rows, focus) = skill_rows(contents, overlay.selected);
+            (
+                tabs(Tab::Skills),
+                rows,
+                focus,
+                "j/k scroll  Tab styles  Esc close",
+            )
+        }
+        (Tab::Styles, _, _) => {
+            let (rows, focus) = way_rows(contents, overlay.selected);
+            (
+                tabs(Tab::Styles),
+                rows,
+                focus,
+                if contents.styles.is_empty() {
+                    "Tab inventory  Esc close"
+                } else {
+                    "Enter follow / set aside  Tab inventory  Esc close"
+                },
+            )
+        }
         (Tab::Inventory, _, _) => {
             let chosen = contents.inventory.get(overlay.selected);
             let ammo = chosen.is_some_and(|item| item.ammo);
@@ -253,6 +283,7 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
             (
                 tabs(Tab::Inventory),
                 item_rows(contents.inventory, overlay.selected),
+                Some(overlay.selected),
                 if ammo {
                     "n nock  v quiver  d drop  Esc close"
                 } else if lesson {
@@ -267,11 +298,19 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
         rows.push(Line::default());
         rows.push(Line::from(notice));
     }
+    let shown = usize::from(panel.height.saturating_sub(2)).max(1);
+    let last_top = rows.len().saturating_sub(shown);
+    let top = focus.map_or(0, |row| (row + 1).saturating_sub(shown).min(last_top));
     let block = Block::bordered()
         .title(title)
         .title_bottom(Line::styled(hint, Style::new().add_modifier(Modifier::DIM)));
     frame.render_widget(Clear, panel);
-    frame.render_widget(Paragraph::new(rows).block(block), panel);
+    frame.render_widget(
+        Paragraph::new(rows)
+            .block(block)
+            .scroll((u16::try_from(top).unwrap_or(u16::MAX), 0)),
+        panel,
+    );
 }
 
 /// Both tab names, the active one highlighted.
@@ -290,6 +329,8 @@ fn tabs(active: Tab) -> Line<'static> {
         tab("Equipment", Tab::Equipment),
         Span::raw(" "),
         tab("Skills", Tab::Skills),
+        Span::raw(" "),
+        tab("Styles", Tab::Styles),
     ])
 }
 
@@ -320,24 +361,24 @@ fn item_rows(items: &[ItemView], selected: usize) -> Vec<Line<'static>> {
         .collect()
 }
 
-/// The skills under a heading per domain (name, level, XP toward the next
-/// level), then the proficiencies attained and the half-formed ideas.
-fn skill_rows(contents: &Contents, selected: usize) -> Vec<Line<'static>> {
+/// The skills under a heading per domain: name, level, and XP toward the
+/// next level. Returns the rows and the selected skill's row, to keep on
+/// screen as the list scrolls.
+fn skill_rows(contents: &Contents, selected: usize) -> (Vec<Line<'static>>, Option<usize>) {
     let skills = contents.skills;
     if skills.is_empty() {
-        return vec![Line::from("You have learned nothing yet.")];
+        return (vec![Line::from("You have learned nothing yet.")], None);
     }
+    let selected = selected.min(skills.len() - 1);
+    let mut focus = None;
     let width = skills
         .iter()
         .map(|skill| skill.name.chars().count())
         .max()
         .unwrap_or(0);
-    let dim = Style::new().add_modifier(Modifier::DIM);
-    let heading =
-        |text: &'static str| Line::styled(text, Style::new().add_modifier(Modifier::BOLD));
     let mut rows = Vec::new();
     let mut domain = None;
-    for skill in skills {
+    for (i, skill) in skills.iter().enumerate() {
         if domain != Some(skill.domain) {
             domain = Some(skill.domain);
             rows.push(heading(domain_name(skill.domain)));
@@ -346,32 +387,53 @@ fn skill_rows(contents: &Contents, selected: usize) -> Vec<Line<'static>> {
             Some(next) => format!("  {}/{next} xp", skill.xp),
             None => "  mastered".to_string(),
         };
-        rows.push(Line::from(vec![
+        let row = Line::from(vec![
             Span::raw(format!("  {:<width$}  {:>2}", skill.name, skill.level)),
-            Span::styled(progress, dim),
-        ]));
-    }
-    if !contents.styles.is_empty() {
-        rows.push(heading("Styles"));
-        let selected = selected.min(contents.styles.len() - 1);
-        for (i, style) in contents.styles.iter().enumerate() {
-            let following = if style.followed { "  following" } else { "" };
-            let row = Line::from(vec![
-                Span::raw(format!("  {}  {:>2}", style.name, style.level)),
-                Span::styled(following, dim),
-            ]);
-            rows.push(highlight(row, i == selected));
+            Span::styled(progress, dim()),
+        ]);
+        if i == selected {
+            focus = Some(rows.len());
         }
+        rows.push(highlight(row, i == selected));
     }
-    if !contents.proficiencies.is_empty() {
-        rows.push(heading("Proficiencies"));
-        rows.extend(
-            contents
-                .proficiencies
-                .iter()
-                .map(|p| Line::from(format!("  {p}"))),
-        );
+    (rows, focus)
+}
+
+/// What the player has made of their skills: styles (the selected one
+/// highlighted), proficiencies, techniques and half-formed ideas. Returns
+/// the rows and the selected style's row, to keep on screen.
+fn way_rows(contents: &Contents, selected: usize) -> (Vec<Line<'static>>, Option<usize>) {
+    let none = |text: &'static str| Line::styled(format!("  {text}"), dim());
+    let mut rows = vec![heading("Styles")];
+    let mut focus = None;
+    if contents.styles.is_empty() {
+        rows.push(none("None discovered yet."));
     }
+    let selected = selected.min(contents.styles.len().saturating_sub(1));
+    for (i, style) in contents.styles.iter().enumerate() {
+        let following = if style.followed { "  following" } else { "" };
+        let row = Line::from(vec![
+            Span::raw(format!("  {}  {:>2}", style.name, style.level)),
+            Span::styled(following, dim()),
+        ]);
+        if i == selected {
+            focus = Some(rows.len());
+        }
+        rows.push(highlight(row, i == selected));
+    }
+    rows.push(heading("Proficiencies"));
+    if contents.proficiencies.is_empty() {
+        rows.push(none("None attained yet."));
+    }
+    rows.extend(
+        contents
+            .proficiencies
+            .iter()
+            .map(|p| Line::from(format!("  {p}"))),
+    );
+    // Techniques don't exist in the game yet; the section says so.
+    rows.push(heading("Techniques"));
+    rows.push(none("None known yet."));
     if !contents.ideas.is_empty() {
         rows.push(heading("Ideas"));
         for idea in contents.ideas {
@@ -386,11 +448,19 @@ fn skill_rows(contents: &Contents, selected: usize) -> Vec<Line<'static>> {
             };
             rows.push(Line::from(vec![
                 Span::raw("  ? "),
-                Span::styled(format!("{}{more}", met.join(", ")), dim),
+                Span::styled(format!("{}{more}", met.join(", ")), dim()),
             ]));
         }
     }
-    rows
+    (rows, focus)
+}
+
+fn heading(text: &'static str) -> Line<'static> {
+    Line::styled(text, Style::new().add_modifier(Modifier::BOLD))
+}
+
+fn dim() -> Style {
+    Style::new().add_modifier(Modifier::DIM)
 }
 
 fn domain_name(domain: Domain) -> &'static str {
@@ -759,6 +829,8 @@ mod tests {
         assert_eq!(overlay.handle(OverlayInput::SwitchTab, &contents), None);
         assert!(screen(&overlay, &contents).contains("You have learned nothing yet."));
         assert_eq!(overlay.handle(OverlayInput::SwitchTab, &contents), None);
+        assert!(screen(&overlay, &contents).contains("None discovered yet."));
+        assert_eq!(overlay.handle(OverlayInput::SwitchTab, &contents), None);
         assert!(screen(&overlay, &contents).contains("You carry nothing."));
         assert_eq!(
             overlay.handle(OverlayInput::Inventory, &contents),
@@ -837,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn the_skills_tab_lists_proficiencies_and_half_formed_ideas() {
+    fn the_styles_tab_lists_proficiencies_techniques_and_half_formed_ideas() {
         let skills = [skill("Dodge", Domain::Defence, 4, 800, Some(1250))];
         let ideas = [IdeaView {
             name: "Fencing".into(),
@@ -852,15 +924,22 @@ mod tests {
             ideas: &ideas,
             styles: &[],
         };
-        let shown = screen(&Overlay::new(Tab::Skills), &contents);
-        for line in ["Proficiencies", "  footwork", "Ideas", "Dodge 4 + 1 more"] {
+        let shown = screen(&Overlay::new(Tab::Styles), &contents);
+        for line in [
+            "Proficiencies",
+            "  footwork",
+            "Techniques",
+            "None known yet.",
+            "Ideas",
+            "Dodge 4 + 1 more",
+        ] {
             assert!(shown.contains(line), "{line:?} in\n{shown}");
         }
         assert!(!shown.contains("Fencing"), "an idea's name stays hidden");
     }
 
     #[test]
-    fn the_skills_tab_follows_the_selected_style() {
+    fn the_styles_tab_follows_the_selected_style() {
         let styles = [
             StyleView {
                 style: ItemRef(SpawnSeq(7)),
@@ -884,7 +963,7 @@ mod tests {
             ideas: &[],
             styles: &styles,
         };
-        let mut overlay = Overlay::new(Tab::Skills);
+        let mut overlay = Overlay::new(Tab::Styles);
         let shown = screen(&overlay, &contents);
         assert!(shown.contains("fencing   2  following"), "{shown}");
         assert!(shown.contains("brawling   0"));
@@ -917,5 +996,50 @@ mod tests {
             overlay.handle(OverlayInput::Study, &contents),
             Some(OverlayAction::Act(PlayerAction::Study(inventory[1].item)))
         );
+    }
+
+    #[test]
+    fn long_views_scroll_and_keep_the_selection_in_sight() {
+        let names: Vec<String> = (0..30).map(|i| format!("Skill{i:02}")).collect();
+        let skills: Vec<SkillView> = names
+            .iter()
+            .map(|name| skill(name, Domain::Martial, 1, 60, Some(200)))
+            .collect();
+        let styles: Vec<StyleView> = (0..20)
+            .map(|i| StyleView {
+                style: ItemRef(SpawnSeq(i)),
+                name: format!("style{i:02}"),
+                level: 0,
+                followed: false,
+            })
+            .collect();
+        let contents = Contents {
+            inventory: &[],
+            equipment: &[],
+            skills: &skills,
+            proficiencies: &[],
+            ideas: &[],
+            styles: &styles,
+        };
+        let mut overlay = Overlay::new(Tab::Skills);
+        assert!(!screen(&overlay, &contents).contains("Skill29"));
+        for _ in 0..40 {
+            overlay.handle(OverlayInput::Down, &contents);
+        }
+        let bottom = screen(&overlay, &contents);
+        assert!(
+            bottom.contains("Skill29") && !bottom.contains("Skill00"),
+            "{bottom}"
+        );
+        for _ in 0..40 {
+            overlay.handle(OverlayInput::Up, &contents);
+        }
+        assert!(screen(&overlay, &contents).contains("Skill00"));
+
+        let mut overlay = Overlay::new(Tab::Styles);
+        for _ in 0..19 {
+            overlay.handle(OverlayInput::Down, &contents);
+        }
+        assert!(screen(&overlay, &contents).contains("style19"));
     }
 }

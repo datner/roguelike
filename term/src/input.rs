@@ -25,6 +25,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('i') => Some(InputEvent::Inventory),
         KeyCode::Char('e') => Some(InputEvent::Equipment),
         KeyCode::Char('s') => Some(InputEvent::Skills),
+        KeyCode::Char('S') => Some(InputEvent::Styles),
         KeyCode::Char('t') => Some(InputEvent::Throw),
         KeyCode::Char('f') => Some(InputEvent::Fire),
         KeyCode::Char('c') => Some(InputEvent::Cast),
@@ -53,6 +54,8 @@ pub enum OverlayInput {
     Equipment,
     /// Show the skills view, or close if it is showing.
     Skills,
+    /// Show the styles view, or close if it is showing.
+    Styles,
     SwitchTab,
 }
 
@@ -72,6 +75,7 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
         KeyCode::Char('i') => Some(OverlayInput::Inventory),
         KeyCode::Char('e') => Some(OverlayInput::Equipment),
         KeyCode::Char('s') => Some(OverlayInput::Skills),
+        KeyCode::Char('S') => Some(OverlayInput::Styles),
         KeyCode::Tab => Some(OverlayInput::SwitchTab),
         _ => None,
     }

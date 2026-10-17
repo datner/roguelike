@@ -2,7 +2,7 @@
 //! status. Each `Panel` supplies a title and lines; `draw` stacks them in
 //! `PANELS` order. Hidden on narrow terminals so the map keeps its room.
 
-use game::{DamageType, ExploreItems, GameState, Stat, character_sheet, equipment_view};
+use game::{DamageType, ExploreItems, GameState, Stat, character_sheet, equipment_view, styles};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -153,6 +153,17 @@ fn character_lines(state: &GameState) -> Vec<Line<'static>> {
     ]));
     let wielding = sheet.wielding.unwrap_or_else(|| "bare hands".to_string());
     lines.push(Line::from(vec![dim("Wielding "), Span::raw(wielding)]));
+    let followed: Vec<String> = styles(state)
+        .into_iter()
+        .filter(|style| style.followed)
+        .map(|style| format!("{} {}", style.name, style.level))
+        .collect();
+    if !followed.is_empty() {
+        lines.push(Line::from(vec![
+            dim("Style "),
+            Span::raw(followed.join(", ")),
+        ]));
+    }
     lines.push(Line::from(vec![
         dim("Speed "),
         Span::raw(sheet.speed.to_string()),
