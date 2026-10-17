@@ -398,6 +398,7 @@ fn domain_name(domain: Domain) -> &'static str {
         Domain::Martial => "Martial",
         Domain::Defence => "Defence",
         Domain::Magic => "Magic",
+        Domain::Lore => "Lore",
     }
 }
 

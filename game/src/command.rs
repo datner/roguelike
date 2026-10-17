@@ -311,7 +311,10 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::ExpireEffect(effect) => effect::expire_effect(state, effect),
             Command::BleedTick(effect) => effect::bleed_tick(state, effect),
             Command::AdvanceClock { ticks } => time::advance_clock(state, ticks),
-            Command::UpdateFov => fov::update(state),
+            Command::UpdateFov => {
+                fov::update(state);
+                crate::lore::sight(state);
+            }
             Command::FindItems(finder) => find_items(state, finder),
         }
     }

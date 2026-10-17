@@ -131,3 +131,15 @@ cannot be ground out by repetition. The build plan is
   is the same idea without new state.
 - **Neither has stakes**: both go through `skill::gain`, which skips
   familiarity, styles and inspiration (only `skill::train` has them).
+
+## Lore (plan slice 9)
+
+- **Beast lore** (domain Lore) is trained by novelty: the first sight of
+  each kind of creature (by `Name`, recorded in `Sighted`) when the
+  player's view is refreshed teaches it once, through `skill::gain` (no
+  stakes, so no inspiration).
+- **It decides what looking reveals** (`lore::inspect`, the `;` cursor):
+  level 1 a creature's health, level 3 its armor by kind. Below that the
+  game says you know too little of its kind.
+- Arcana is left out: spell numbers are already shown in the spell list,
+  so it would be a skill nothing reads.

@@ -581,6 +581,7 @@ mod tests {
                 | InputEvent::Equipment
                 | InputEvent::Skills
                 | InputEvent::Practice
+                | InputEvent::Look
                 | InputEvent::Throw
                 | InputEvent::Fire
                 | InputEvent::Cast => continue,

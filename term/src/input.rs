@@ -19,6 +19,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('.') => Some(InputEvent::Wait),
         KeyCode::Char('x') => Some(InputEvent::Explore),
         KeyCode::Char('p') => Some(InputEvent::Practice),
+        KeyCode::Char(';') => Some(InputEvent::Look),
         KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),
         KeyCode::Char('g' | ',') => Some(InputEvent::PickUp),
         KeyCode::Char('i') => Some(InputEvent::Inventory),
@@ -235,6 +236,10 @@ mod tests {
         assert_eq!(
             map_key_event(key(KeyCode::Char('p'))),
             Some(InputEvent::Practice)
+        );
+        assert_eq!(
+            map_key_event(key(KeyCode::Char(';'))),
+            Some(InputEvent::Look)
         );
         assert_eq!(
             map_overlay_key(key(KeyCode::Char('r'))),

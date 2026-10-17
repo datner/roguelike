@@ -826,3 +826,8 @@ pub struct Lesson(pub Vec<(SkillId, u32)>);
 /// The kinds of thing (by `Name`) a learner has already studied, sorted.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Studied(pub Vec<String>);
+
+/// The kinds of creature (by `Name`) the player has laid eyes on, sorted:
+/// each teaches Beast lore once (ADR 0017).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sighted(pub Vec<String>);

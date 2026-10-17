@@ -39,4 +39,7 @@
     (name: "Chain", domain: Magic, weight: 2),
     (name: "Rune", domain: Magic, weight: 2),
     (name: "Summoning", domain: Magic, weight: 2),
+
+    // Lore: what you know of the world, grown by meeting new things.
+    (name: "Beast lore", domain: Lore, weight: 1),
 ]

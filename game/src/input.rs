@@ -52,6 +52,8 @@ pub enum InputEvent {
     Explore,
     /// `explore::cycle_explore_items`: what auto-explore does at items.
     CycleExploreItems,
+    /// Frontend only: a cursor to look at what is in view. No game effect.
+    Look,
     /// Frontend only: practise until done or interrupted, repeating
     /// `training::practice_step`.
     Practice,

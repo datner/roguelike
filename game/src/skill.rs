@@ -30,6 +30,7 @@ pub enum Domain {
     Martial,
     Defence,
     Magic,
+    Lore,
 }
 
 /// One entry of `data/skills.ron`. `weight` is how much the skill counts in
@@ -69,6 +70,7 @@ pub(crate) struct Core {
     pub chain: SkillId,
     pub rune: SkillId,
     pub summoning: SkillId,
+    pub beast_lore: SkillId,
 }
 
 impl Core {
@@ -145,6 +147,7 @@ impl SkillBook {
             chain: core_id("Chain")?,
             rune: core_id("Rune")?,
             summoning: core_id("Summoning")?,
+            beast_lore: core_id("Beast lore")?,
         };
         Ok(Self {
             defs,
@@ -568,6 +571,7 @@ pub(crate) mod tests {
             def("Chain", Domain::Magic, 2),
             def("Rune", Domain::Magic, 2),
             def("Summoning", Domain::Magic, 2),
+            def("Beast lore", Domain::Lore, 1),
         ])
         .unwrap()
     }

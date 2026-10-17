@@ -21,7 +21,7 @@ use crate::menu::{self, Action, Menu};
 use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
 use crate::saves::{self, Loaded};
 use crate::side_panel;
-use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction, Flying};
+use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction, Flying, Looking};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
@@ -207,6 +207,14 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                             None => {}
                         }
                     }
+                    Some(Modal::Look(looking)) => {
+                        let Some(input) = map_aim_key(key) else {
+                            continue;
+                        };
+                        if looking.handle(input, state) {
+                            modal = None;
+                        }
+                    }
                     // Only ever on screen for one frame, between keys.
                     Some(Modal::Flight(_)) => {}
                     Some(Modal::Aim(aiming)) => {
@@ -245,6 +253,7 @@ pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
                     InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
                     InputEvent::Explore => explore(terminal, state, character)?,
                     InputEvent::Practice => practise(terminal, state, character)?,
+                    InputEvent::Look => modal = Looking::new(state).map(Modal::Look),
                     InputEvent::CycleExploreItems => cycle_explore_items(state),
                     InputEvent::Inventory => {
                         modal = Some(Modal::Overlay(Overlay::new(Tab::Inventory)))
@@ -273,6 +282,8 @@ enum Modal {
     /// Picking a spell to cast.
     ChooseSpell(Chooser),
     Aim(Aiming),
+    /// Looking around (`;`).
+    Look(Looking),
     /// A missile mid-flight: drawn for one frame by `animate`, takes no keys.
     Flight(Flying),
 }
@@ -410,6 +421,8 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
 
     let status = if let Some(Modal::Aim(aiming)) = modal {
         targeting::status(state, aiming)
+    } else if let Some(Modal::Look(looking)) = modal {
+        targeting::look_status(state, looking)
     } else if state.game_over {
         format!(
             "You died on turn {}. Press any key to return to the title.",
@@ -448,6 +461,7 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
             targeting::draw_chooser(frame, chunks[0], chooser, "Cast what?", lines);
         }
         Some(Modal::Aim(aiming)) => targeting::draw_aim(frame, chunks[0], state, aiming),
+        Some(Modal::Look(looking)) => targeting::draw_look(frame, chunks[0], state, looking),
         Some(Modal::Flight(flying)) => targeting::draw_missile(frame, chunks[0], state, *flying),
         None => {}
     }

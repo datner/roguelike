@@ -41,6 +41,7 @@ pub mod explore;
 pub mod fov;
 pub mod grammar;
 pub mod holding;
+pub mod lore;
 pub mod prio;
 pub mod ranged;
 pub mod rng;
@@ -70,7 +71,8 @@ pub use entity::{
     Shape, SpawnSeq, Speed, Stat, Stats, Throwable, Timed, Weapon,
 };
 pub use explore::{ExploreItems, cycle_explore_items, explore_step};
-pub use grammar::Subject;
+pub use grammar::{Subject, capitalize};
+pub use lore::{Inspection, inspect, look_targets};
 pub use ranged::{Trail, take_trails};
 pub use rng::Rngs;
 pub use save::{LoadError, SAVE_VERSION, SaveError};

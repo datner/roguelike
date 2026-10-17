@@ -251,3 +251,6 @@ listing what changed, what was left out, and follow-ups.
   `PlayerAction::Study`/`Practice`; `ItemView.lesson`; `FencingManual.ron`; `p` practises, `r` studies.
   Practice ceiling is half the best level in the skill's domain (not best counted level: no extra
   state). `SAVE_VERSION` 23.
+- **9** (ADR 0017): `lore.rs` (`sight` after each FOV update, `inspect`, `look_targets`); Beast lore
+  (`Domain::Lore`); `Sighted`; term `Looking` modal on `;` with `look_status`/`draw_look`.
+  `SAVE_VERSION` 24. Left out: Arcana (nothing to read it).

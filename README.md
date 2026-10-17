@@ -45,6 +45,9 @@ This is a Cargo workspace with two crates:
     discovery from `data/discoveries.ron`, granting a proficiency (a part
     attached to you, such as Footwork). Half-formed ideas show in the
     skills panel.
+  - Lore (ADR 0017): the first sight of each kind of creature teaches
+    Beast lore, which decides what looking (`;`) reveals: health, then
+    armor.
   - Training (ADR 0017): manuals teach a chunk of XP once; practice tops
     skills up to a ceiling. Neither inspires a discovery.
   - Styles (ADR 0019): a discovery can grant a style, such as Fencing. Take
@@ -137,6 +140,9 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
+- `;`: look around: a cursor (`Tab` jumps between creatures in view) and
+  the status bar says what is there, as much as your Beast lore reads.
+  `Esc` or `Enter` stops.
 - `p`: practise: drill with what you wield, a turn at a time, until you
   can learn no more alone (half your best level in that domain) or an
   enemy comes into view; any key interrupts it.

@@ -33,6 +33,7 @@ can't show at a glance.
 - `discovery.rs` — discoveries are checked only from `skill::train` (stakes), never from practice; a proficiency is a blueprint with `Proficiency`, attached to the learner (ADR 0018). `Discovered` is saved by name.
 - `style.rs` — a known style is carried, the followed one attached (ADR 0019); styles never count toward a use's level, only train through `skill::train`. Principles are entries in `Style`, handled by `Style` handlers.
 - `training.rs` — lessons and practice grant XP through `skill::gain` only, never `skill::train`: no stakes, so no familiarity, styles or inspiration (ADR 0017).
+- `lore.rs` — Beast lore grows only by first sightings (`sight`, after `fov::update`); `inspect` is the one place that decides what looking reveals.
 - `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.

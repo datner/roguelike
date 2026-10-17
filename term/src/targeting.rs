@@ -6,7 +6,7 @@
 use game::camera;
 use game::{
     Dir, GameState, ItemRef, ItemView, PlayerAction, Rgb, Shape, Shot, SpellView, aim, aim_range,
-    aim_targets,
+    aim_targets, capitalize, inspect, look_targets,
 };
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -298,6 +298,77 @@ pub fn draw_missile(frame: &mut Frame, map: Rect, state: &GameState, flying: Fly
     }
 }
 
+/// Looking around: a cursor over the map, and the status bar says what is
+/// under it, as much as the player's lore reads (`game::inspect`).
+#[derive(Debug)]
+pub struct Looking {
+    /// World tile.
+    cursor: (i32, i32),
+}
+
+impl Looking {
+    /// The cursor starts on the nearest creature in view, else the player.
+    pub fn new(state: &GameState) -> Option<Self> {
+        let cursor = *look_targets(state).first()?;
+        Some(Self { cursor })
+    }
+
+    /// Moves the cursor or cycles creatures; `true` when looking is over.
+    pub fn handle(&mut self, input: AimInput, state: &GameState) -> bool {
+        match input {
+            AimInput::Move(dir) => {
+                let (dx, dy) = Dir::delta(dir);
+                self.cursor = (self.cursor.0 + dx, self.cursor.1 + dy);
+            }
+            AimInput::Next | AimInput::Previous => {
+                let targets = look_targets(state);
+                let at = targets.iter().position(|&target| target == self.cursor);
+                let next = match (input, at) {
+                    (AimInput::Next, Some(at)) => (at + 1) % targets.len(),
+                    (AimInput::Previous, Some(at)) => (at + targets.len() - 1) % targets.len(),
+                    _ => 0,
+                };
+                if let Some(&tile) = targets.get(next) {
+                    self.cursor = tile;
+                }
+            }
+            AimInput::Confirm | AimInput::Cancel => return true,
+        }
+        false
+    }
+}
+
+/// The status line while looking: what is under the cursor.
+pub fn look_status(state: &GameState, looking: &Looking) -> String {
+    let keys = "Tab: next  Esc: done";
+    match inspect(state, looking.cursor) {
+        None => format!("You see nothing there.  {keys}"),
+        Some(seen) if seen.lines.is_empty() => format!("{}  {keys}", capitalize(&seen.name)),
+        Some(seen) => format!(
+            "{}: {}  {keys}",
+            capitalize(&seen.name),
+            seen.lines.join(", ")
+        ),
+    }
+}
+
+/// Reverses the cursor's tile on the already-drawn map.
+pub fn draw_look(frame: &mut Frame, map: Rect, state: &GameState, looking: &Looking) {
+    let (width, height) = viewport_tiles(map);
+    let view = camera(state, width, height);
+    let (x, y) = view.world_to_screen(looking.cursor);
+    let (x, y) = tile_to_screen(x, y);
+    if !(0..width).contains(&x) || !(0..height).contains(&y) {
+        return;
+    }
+    if let Some(cell) = frame
+        .buffer_mut()
+        .cell_mut((map.x + x as u16, map.y + y as u16))
+    {
+        cell.set_style(Style::new().add_modifier(Modifier::REVERSED));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -401,5 +472,20 @@ mod tests {
             aiming.handle(AimInput::Cancel, &state),
             Some(AimAction::Cancel)
         );
+    }
+
+    #[test]
+    fn looking_starts_on_what_is_nearest_and_says_what_lore_reads() {
+        let state = state();
+        let mut looking = Looking::new(&state).unwrap();
+        let status = look_status(&state, &looking);
+        assert!(
+            status.starts_with("You: health 20/20") || status.contains("know too little"),
+            "{status}"
+        );
+        looking.handle(AimInput::Move(Dir::N), &state);
+        looking.handle(AimInput::Move(Dir::N), &state);
+        assert!(!looking.handle(AimInput::Next, &state));
+        assert!(looking.handle(AimInput::Cancel, &state));
     }
 }
