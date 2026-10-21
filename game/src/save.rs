@@ -17,8 +17,8 @@ use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
     BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Discovered, Duration,
     EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
-    Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Mana, ManaCasting, Melee, Name,
-    OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
+    Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Light, Mana, ManaCasting, Melee,
+    Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
 };
@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 25;
+pub const SAVE_VERSION: u32 = 26;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -229,6 +229,7 @@ enum ComponentKind {
     Familiarity,
     Graze,
     Deflect,
+    Light,
     Proficiency,
     Footwork,
     Discovered,
@@ -240,7 +241,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 65] = [
+    const ALL: [ComponentKind; 66] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -298,6 +299,7 @@ impl ComponentKind {
         Self::Familiarity,
         Self::Graze,
         Self::Deflect,
+        Self::Light,
         Self::Proficiency,
         Self::Footwork,
         Self::Discovered,
@@ -372,6 +374,7 @@ enum SavedComponent {
     Familiarity(Vec<(String, String, u32)>),
     Graze(Graze),
     Deflect(Deflect),
+    Light(Light),
     Proficiency,
     Footwork(Footwork),
     Discovered(Discovered),
@@ -718,6 +721,7 @@ fn save_component(
         ComponentKind::Learner => marker::<Learner>(entity, S::Learner),
         ComponentKind::Graze => copy(entity).map(S::Graze),
         ComponentKind::Deflect => copy(entity).map(S::Deflect),
+        ComponentKind::Light => copy(entity).map(S::Light),
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
@@ -868,6 +872,7 @@ fn load_component(
         S::Learner => builder.add(Learner),
         S::Graze(c) => builder.add(c),
         S::Deflect(c) => builder.add(c),
+        S::Light(c) => builder.add(c),
         S::Proficiency => builder.add(Proficiency),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),

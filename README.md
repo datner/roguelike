@@ -65,7 +65,8 @@ This is a Cargo workspace with two crates:
     feet). Throwing trains Thrown, shooting Archery and Bow. `aim`
     previews a shot for frontends. A quiver holds arrows and
     supplies the bow; a nocked arrow overrides it. You start with a short
-    bow and 12 arrows.
+    bow and 12 arrows, and a torch in the off hand: a held `Light` widens
+    the view (8 tiles to 11) and warms the colour of everything it lights.
   - Spells (ADR 0014): a spell is a part attached to its caster; how it is
     paid for, and which stat it scales with, is the caster's discipline for
     its school. You start with pyromancy (firebolt, and the fireball that

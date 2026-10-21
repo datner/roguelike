@@ -24,10 +24,10 @@ use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
     BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus,
-    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Mana, ManaCasting, Melee,
-    Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School, Scroll,
-    Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit, Throwable,
-    Trains, Weapon,
+    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Mana, ManaCasting,
+    Melee, Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School,
+    Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
+    Throwable, Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
@@ -90,6 +90,7 @@ pub enum ComponentDef {
     Learner,
     Graze(Graze),
     Deflect(Deflect),
+    Light(Light),
     Proficiency,
     Footwork(Footwork),
     /// Skills by name; spawned from `ResolvedBlueprint::style`.
@@ -159,6 +160,7 @@ impl ComponentDef {
             ComponentDef::Learner => builder.add(Learner),
             ComponentDef::Graze(c) => builder.add(c),
             ComponentDef::Deflect(c) => builder.add(c),
+            ComponentDef::Light(c) => builder.add(c),
             ComponentDef::Proficiency => builder.add(Proficiency),
             ComponentDef::Footwork(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.

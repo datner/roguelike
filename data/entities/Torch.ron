@@ -1,0 +1,11 @@
+// Held in a hand, it lights the cave further than eyes alone reach and
+// warms the colour of everything in its glow.
+(
+    components: [
+        Name("torch"),
+        Appearance(glyph: '/', fg: (255, 170, 60), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Hand),
+        Light(radius: 11, tint: (255, 150, 50), tint_bp: 1200),
+    ],
+)

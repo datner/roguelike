@@ -11,7 +11,7 @@ use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Energy, Item, Position, Quiver, SpawnSeq, Speed};
+use crate::entity::{Appearance, Energy, Item, Light, Position, Quiver, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -341,6 +341,7 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
         },
     );
     let flag = |flags: &Grid<bool>, x, y| flags.get(x, y) == Some(&true);
+    let lit = lit_by(state);
 
     for screen_y in 0..camera.height {
         for screen_x in 0..camera.width {
@@ -364,6 +365,10 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
             if let Some(cell) = grid.get_mut(screen_x, screen_y) {
                 cell.glyph = glyph;
                 cell.fg = if visible { fg } else { dim(fg) };
+                if visible && let Some(light) = lit(x, y) {
+                    cell.fg = tint(cell.fg, light);
+                    cell.bg = tint(cell.bg, light);
+                }
             }
         }
     }
@@ -381,11 +386,38 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
         let (screen_x, screen_y) = camera.world_to_screen((pos.x, pos.y));
         if let Some(cell) = grid.get_mut(screen_x, screen_y) {
             cell.glyph = glyph;
-            cell.fg = fg;
+            cell.fg = lit(pos.x, pos.y).map_or(fg, |light| tint(fg, light));
         }
     }
 
     grid
+}
+
+/// The light, if any, that the player's held light casts on a tile: every
+/// tile in view within its radius. Tiles out of view stay untouched, so
+/// remembered ground never glows.
+fn lit_by(state: &GameState) -> impl Fn(i32, i32) -> Option<Light> + '_ {
+    let source = fov::held_light(&state.world, state.player).zip(
+        state
+            .world
+            .get::<&Position>(state.player)
+            .ok()
+            .map(|pos| *pos),
+    );
+    move |x, y| {
+        let (light, at) = source?;
+        let (dx, dy) = (x - at.x, y - at.y);
+        (state.visible.get(x, y) == Some(&true) && dx * dx + dy * dy <= light.radius * light.radius)
+            .then_some(light)
+    }
+}
+
+/// `colour` moved `tint_bp` / 10 000 of the way toward the light's tint.
+fn tint(Rgb(r, g, b): Rgb, light: Light) -> Rgb {
+    let Rgb(tr, tg, tb) = light.tint;
+    let bp = light.tint_bp.min(10_000) as i32;
+    let mix = |c: u8, t: u8| (c as i32 + (t as i32 - c as i32) * bp / 10_000) as u8;
+    Rgb(mix(r, tr), mix(g, tg), mix(b, tb))
 }
 
 /// Remembered terrain: half brightness.
@@ -900,6 +932,41 @@ pub(crate) mod tests {
         assert_eq!((in_view.glyph, in_view.fg), ('.', Rgb(90, 90, 90)));
         let never_seen = view.get(38, 18).unwrap();
         assert_eq!(never_seen.glyph, ' ');
+    }
+
+    #[test]
+    fn a_held_torch_sees_further_and_warms_what_it_lights() {
+        let mut state = bare_state();
+        let player = state.player;
+        let torch = thing("torch")
+            .item()
+            .equipped_on(player, 4)
+            .make(&mut state);
+        let light = Light {
+            radius: 11,
+            tint: Rgb(255, 150, 50),
+            tint_bp: 2_000,
+        };
+        state.world.insert_one(torch, light).unwrap();
+        crate::time::take_turn(&mut state, PlayerAction::Wait);
+
+        // Plain sight stops at 8 tiles; the torch reaches 11.
+        assert_eq!(player_position(&state), Position { x: 1, y: 1 });
+        assert_eq!(state.visible.get(12, 1), Some(&true));
+        assert_eq!(state.visible.get(13, 1), Some(&false));
+
+        let view = render_view(&state, 40, 20);
+        let lit = view.get(10, 1).unwrap();
+        assert_eq!((lit.fg, lit.bg), (Rgb(123, 102, 82), Rgb(51, 30, 10)));
+        let player_cell = view.get(1, 1).unwrap();
+        assert_ne!(player_cell.fg, Rgb(255, 255, 255));
+
+        // Out of hand, it lights nothing.
+        crate::equipment::unequip(&mut state, player, torch);
+        crate::time::take_turn(&mut state, PlayerAction::Wait);
+        assert_eq!(state.visible.get(12, 1), Some(&false));
+        let unlit = *render_view(&state, 40, 20).get(5, 1).unwrap();
+        assert_eq!((unlit.fg, unlit.bg), (Rgb(90, 90, 90), Rgb(0, 0, 0)));
     }
 
     fn knife_at(state: &mut GameState, x: i32, y: i32) -> Entity {

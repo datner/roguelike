@@ -14,6 +14,7 @@ The player needs a field of view and remembered terrain, and hostiles need to st
 
 ## Consequences
 - One FOV per player turn instead of one per actor. Creatures don't block sight, so moving monsters between player turns never invalidates the set.
-- Adding lighting, darkness, blindness, differing sight radii or per-actor senses breaks the assumption: that function must then compute (or cache) the actor's own view. Its doc comment lists the conditions.
+- A held light (a torch) widens only the player's radius. It keeps the assumption on purpose: the bearer is lit, so creatures seeing them as far as they see is the intended cost. Creature-to-creature sight (`perceives`) keeps the base radius.
+- Adding darkness, blindness, other differing sight radii or per-actor senses breaks the assumption: that function must then compute (or cache) the actor's own view. Its doc comment lists the conditions.
 - **Future projectile targeting must use a line consistent with this FOV** (for example, a line that stays within the symmetric sector / Ford's "visible iff centre in sector" rule). A Bresenham line would let you see a target you can't shoot, or shoot one you can't see.
 - Moving into a wall is still refused for every wall, seen or not; costs for bumping unseen walls are out of scope.

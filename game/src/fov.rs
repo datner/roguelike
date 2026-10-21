@@ -5,13 +5,29 @@
 
 use std::ops::RangeInclusive;
 
-use crate::entity::{Appearance, Item, Position, SpawnSeq};
+use hecs::{Entity, World};
+
+use crate::entity::{Appearance, Item, Light, Position, SpawnSeq};
+use crate::equipment;
 use crate::map::{Grid, Map, Tile};
 use crate::state::GameState;
 
 /// Sight radius in tiles. A tile is in range when its squared distance from
 /// the viewer is at most `RADIUS²`, so the view is a circle, not a square.
 pub const RADIUS: i32 = 8;
+
+/// The brightest light `holder` has equipped, if any.
+pub(crate) fn held_light(world: &World, holder: Entity) -> Option<Light> {
+    equipment::equipped(world, holder)
+        .into_iter()
+        .filter_map(|(item, _)| world.get::<&Light>(item).ok().map(|light| *light))
+        .max_by_key(|light| light.radius)
+}
+
+/// How far the player sees: `RADIUS`, or further by the light they hold.
+pub(crate) fn sight_radius(state: &GameState) -> i32 {
+    held_light(&state.world, state.player).map_or(RADIUS, |light| light.radius.max(RADIUS))
+}
 
 /// Recomputes `state.visible` from the player's position, adds it to
 /// `state.seen`, and re-remembers the items on every visible tile. A player
@@ -23,7 +39,7 @@ pub(crate) fn update(state: &mut GameState) {
         .ok()
         .map(|pos| (pos.x, pos.y));
     state.visible = match origin {
-        Some(origin) => compute(&state.map, origin, RADIUS),
+        Some(origin) => compute(&state.map, origin, sight_radius(state)),
         None => Grid::new(state.map.width, state.map.height, false),
     };
     for y in 0..state.map.height {

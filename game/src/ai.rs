@@ -144,7 +144,9 @@ fn perceives(state: &GameState, actor: Entity, me: Position, other: Entity, at: 
 /// - FOV is symmetric (`fov` — Ford's shadowcasting), so "the player sees
 ///   me" equals "I see the player";
 /// - lighting is uniform (no darkness makes one side unseen);
-/// - every actor's sight radius equals the player's (`fov::RADIUS`).
+/// - every actor's sight radius equals the player's (`fov::RADIUS`). A
+///   held light stretches the player's view past it; the player is then
+///   lit, so being seen from as far as they see is the point, not a bug.
 ///
 /// Break any of them and this needs the actor's own view. ADR 0007.
 pub(crate) fn can_see_player(state: &GameState, actor: Entity) -> bool {

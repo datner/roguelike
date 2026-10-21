@@ -515,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn a_new_game_starts_with_a_bow_and_a_stocked_quiver() {
+    fn a_new_game_starts_with_a_bow_a_stocked_quiver_and_a_torch() {
         let state = state();
         assert_eq!(fire_step(&state), FireStep::Aim);
         let worn: Vec<(String, Option<String>)> = equipment_view(&state)
@@ -527,7 +527,8 @@ mod tests {
             worn,
             [
                 ("quiver".to_string(), Some("12/20".to_string())),
-                ("short bow".to_string(), None)
+                ("short bow".to_string(), None),
+                ("torch".to_string(), None)
             ]
         );
     }

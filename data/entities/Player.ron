@@ -30,7 +30,8 @@
         // Willpower modifier. Unarmored, casting never fizzles.
         Fizzle(base_bp: 0, per_armor_bp: 500, per_modifier_bp: 100, stat: Willpower),
     ],
-    equipment: ["ShortBow", "Quiver"],
+    // The bow takes the right hand, so the torch goes in the left.
+    equipment: ["ShortBow", "Quiver", "Torch"],
     spells: [
         "Firebolt",
         "Fireball",

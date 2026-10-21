@@ -752,6 +752,17 @@ pub struct Graze(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Deflect(pub u32);
 
+/// Equipment part: a light source, such as a torch. Held, it lets its
+/// holder see out to `radius` (if that beats plain sight) and tints every
+/// tile it lights `tint_bp` / 10 000 of the way toward `tint`. Only the
+/// brightest one held counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Light {
+    pub radius: i32,
+    pub tint: Rgb,
+    pub tint_bp: u32,
+}
+
 /// What a creature has learned: XP per skill, sorted by id (ADR 0017).
 /// Levels are derived (`skill::level`), never stored. Built from
 /// `ComponentDef::Skills` at load and saved by name, since it holds ids.

@@ -228,13 +228,15 @@ mod tests {
             skills.set(id, skill::xp_for(level));
         }
         state.world.insert(player, (Learner, skills)).unwrap();
-        // The player starts with a bow in one hand; put it away.
-        let bow = crate::view::equipment_view(&state)
-            .into_iter()
-            .find_map(|part| part.item.filter(|item| item.name == "short bow"))
-            .unwrap()
-            .item;
-        take_turn(&mut state, PlayerAction::Unequip(bow));
+        // The player starts with a bow and a torch in hand; put them away.
+        for name in ["short bow", "torch"] {
+            let held = crate::view::equipment_view(&state)
+                .into_iter()
+                .find_map(|part| part.item.filter(|item| item.name == name))
+                .unwrap()
+                .item;
+            take_turn(&mut state, PlayerAction::Unequip(held));
+        }
         let rapier = state.blueprints.id("Rapier").unwrap();
         state.spawn(Spawn::id(rapier).carried_by(player)).unwrap();
         let rapier = inventory_view(&state)
