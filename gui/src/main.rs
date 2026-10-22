@@ -1,4 +1,4 @@
-//! Windowed frontend entry point: CLI args (as `term`'s) and wiring.
+//! Windowed frontend entry point: CLI args and wiring.
 
 use std::path::PathBuf;
 use std::process::ExitCode;

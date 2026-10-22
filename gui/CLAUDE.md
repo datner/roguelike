@@ -7,14 +7,14 @@ eframe/egui (ADR 0020). Thin shell around `front` and `game`: maps keys to `fron
 What each module is for is in the index (`docs/MAP.md`); its API is
 `scripts/map.sh --sigs <path>`.
 
-- `input.rs` — the only place keys are bound, and the same bindings as `term/src/input.rs`. Printable keys come from `Event::Text` (`Press::Char`), named keys from `Event::Key`.
+- `input.rs` — the only place keys are bound; README "Controls" lists every binding. Printable keys come from `Event::Text` (`Press::Char`), named keys from `Event::Key`.
 - `app.rs` — picks the key map from `Session::keys` (or `Menu::typing`), paces `Session::auto_step` on the frame clock, saves through `title::finish` on quit and on window close (`on_exit`).
-- `theme.rs` — the terminal look (fonts, colours, `boxed` titled borders, reverse video). Draw text through `theme::line`/`panels::job` and boxes through `boxed`, so the window keeps reading like `term`; no other fonts, sizes, rounding or shadows.
+- `theme.rs` — the terminal look (fonts, colours, `boxed` titled borders, reverse video). Draw text through `theme::line`/`panels::job` and boxes through `boxed`, so the window keeps its terminal look; no other fonts, sizes, rounding or shadows.
 - `map_view.rs` — the single tile↔pixel mapping (`TILE`, one text cell, `Layout`) and the one `Rgb` → `Color32` conversion. Draws `game::render_layers`, never `render_view` (that bakes light in): backgrounds as one mesh whose corners average the neighbouring light. Which world tiles are shown is `game`'s camera.
 - `panels.rs`, `menu_view.rs` — drawing only, from `front::text`, `Session::status` and `Menu::view`.
 - `fx.rs` — effects (`Session::take_fx`, ADR 0022) on the frame clock: `Effects` schedules them (flights in turn, hits after their flight), marks cells before the map is drawn and draws over it. Any input calls `finish`. Keep them glyphs and text on the cell grid.
 - `sprites.rs` — the atlas texture and frame UVs (ADR 0023). Sprites are off until F2 (`Press::F2`, the window's own setting; never send it to `front`).
-- `modes.rs` — what each `Mode` draws (cursors and aim marks as cell styles before the map is drawn, as `term` styles its buffer; choosers, the panel window) and what the pointer does in it, returned as `front` inputs that `App::show` hands to the session after drawing. A hover only moves a cursor when the pointer moves to a new tile, so it never undoes a key.
+- `modes.rs` — what each `Mode` draws (cursors and aim marks as cell styles before the map is drawn; choosers, the panel window) and what the pointer does in it, returned as `front` inputs that `App::show` hands to the session after drawing. A hover only moves a cursor when the pointer moves to a new tile, so it never undoes a key.
 
 ## Rules
 

@@ -24,8 +24,7 @@ run() {
   fi
 }
 
-# ADR 0001: game (and front, ADR 0020) must not depend on terminal/graphics crates, and term must
-# reach crossterm only through ratatui::crossterm.
+# ADR 0001: game (and front, ADR 0020) must not depend on terminal/graphics crates.
 boundary() {
   local forbidden='^(crossterm|ratatui|termion|termwiz|console|bracket-lib|bracket-terminal|macroquad|bevy|wgpu|winit|sdl2|minifb|pixels|egui|eframe|epaint|egui-wgpu|egui_glow|glow) '
   local bad crate
@@ -38,12 +37,8 @@ boundary() {
       return 1
     fi
   done
-  if cargo tree -p term -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^crossterm '; then
-    echo "term depends on crossterm directly; use ratatui::crossterm instead"
-    return 1
-  fi
   local names
-  for crate in front term gui; do
+  for crate in front gui; do
     # The ECS is game's internals (ADR 0008); frontends go through game functions.
     if cargo tree -p "$crate" -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^hecs ' ||
       grep -rqw hecs "$crate/src"; then

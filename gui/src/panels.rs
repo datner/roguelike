@@ -7,11 +7,11 @@ use front::text::{self, Seg};
 use crate::map_view::{TILE, color};
 use crate::theme::{self, DIM, FG, boxed, title};
 
-/// Width of the side column: `term`'s 30 cells.
+/// Width of the side column: 30 text cells.
 pub const SIDE_WIDTH: f32 = 30.0 * TILE.x;
 /// Log lines shown under the map, newest last.
 const LOG_LINES: usize = 5;
-/// The log and status boxes: `term`'s 7 and 3 rows.
+/// The log and status boxes: 7 and 3 rows.
 pub const BOTTOM_HEIGHT: f32 = 10.0 * TILE.y;
 
 /// `front`'s text as one laid-out line: quiet text dim, glyphs in their
@@ -60,7 +60,7 @@ pub fn bottom(ui: &mut egui::Ui, session: &Session) {
         .map(String::as_str)
         .collect();
     lines.reverse();
-    // Always five rows high, as in `term`.
+    // Always five rows high, so the map doesn't jump.
     lines.resize(LOG_LINES, "");
     boxed(ui, title("Log"), None, |ui| {
         for line in lines {

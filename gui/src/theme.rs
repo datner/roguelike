@@ -163,7 +163,7 @@ fn label_on(ui: &mut Ui, corner: egui::Pos2, width: f32, contents: impl FnOnce(&
         .set(clear, Shape::rect_filled(child.min_rect(), 0.0, BG));
 }
 
-/// One line in reverse video, as `term` marks the selected row.
+/// One line in reverse video, the selected row's mark.
 pub fn reversed(text: &str) -> LayoutJob {
     let mut job = line(text, BG);
     for section in &mut job.sections {

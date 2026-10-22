@@ -1,6 +1,6 @@
 # front crate — what every frontend shares
 
-The keyboard flows, the title menu and save files, shared by `term` and `gui`
+The keyboard flows, the title menu and save files, shared by frontends (today, `gui`)
 (ADR 0020). **No drawing and no key bindings here**, and no game rules: if
 you're about to decide what a move/attack/pickup *does*, it belongs in `game`
 as a `Command`.

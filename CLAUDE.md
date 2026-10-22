@@ -1,4 +1,4 @@
-# Roguelike — Caves of Qud-inspired, Rust, terminal
+# Roguelike — Caves of Qud-inspired, Rust, terminal-looking window
 
 ## Commands
 
@@ -21,13 +21,11 @@ prefix commands with `nix develop --command`.
   `--update` rewrites changed references, committed with the drawing change.
   Run `--check` after any drawing change.
 - `nix flake check` only sees files git tracks: `git add -N` new files first.
-- Play (humans only): `cargo run -p term -- --seed 42` (terminal) or
-  `cargo run -p gui -- --seed 42` (window)
+- Play (humans only): `cargo run -p gui -- --seed 42`
 
-`term` is a full-screen TUI that blocks on keyboard input, and `gui` opens a
-window. **Never run either** — they hang your shell and you can't see them. Verify behaviour with tests in `game` (or
-ratatui's `TestBackend` for `term` widgets), and flows (keys → modes →
-turns) by driving a `front::Session` with inputs.
+`gui` opens a window. **Never run it**: it hangs your shell and you can't see
+it. Verify behaviour with tests in `game`, flows (keys → modes → turns) by
+driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 
 ## Tool usage
 
@@ -69,8 +67,6 @@ turns) by driving a `front::Session` with inputs.
 - `game/` — library: all simulation and logic. See `game/CLAUDE.md`.
 - `front/` — library shared by every frontend: `Session` (keyboard flows),
   title menu, save files; no drawing, no key bindings. See `front/CLAUDE.md`.
-- `term/` — binary: crossterm + ratatui frontend, **frozen** (fallback only
-  for new modes). See `term/CLAUDE.md`.
 - `gui/` — binary: eframe/egui windowed frontend. See `gui/CLAUDE.md`.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,
@@ -84,19 +80,17 @@ turns) by driving a `front::Session` with inputs.
    outputs `Grid<Cell>` and consumes `InputEvent`. `front` draws nothing
    either; frontends only map keys and draw. (ADR 0001, 0020, checked by
    `scripts/check.sh`.)
-2. **crossterm only via `ratatui::crossterm`.** `term` has no direct crossterm
-   dependency, so the versions can't drift.
-3. **Mutation through the command queue.** Input and systems push `Command`s
+2. **Mutation through the command queue.** Input and systems push `Command`s
    onto `GameState.commands`; `apply_commands` drains and applies them. Don't
    mutate the world while iterating a query. (ADR 0002)
-4. **Determinism.** Same seed + same inputs = same state. All randomness comes
+3. **Determinism.** Same seed + same inputs = same state. All randomness comes
    from `GameState.rngs`, one stream per subsystem (map, spawn, combat; ids in
    `game/src/rng.rs`). No `rand::rng()`, no clock, no `HashMap`/`HashSet` in
    `game` — clippy enforces this via `game/clippy.toml`. (ADR 0005,
    superseding 0003)
-5. **Content is data.** New kinds of things are RON blueprints composed from
+4. **Content is data.** New kinds of things are RON blueprints composed from
    reusable parts, not hardcoded spawns. (ADR 0004)
-6. **Time is relative and timestamp-checked.** Timed state stores `start` +
+5. **Time is relative and timestamp-checked.** Timed state stores `start` +
    `duration` against `GameState.now`; never countdowns or stored end ticks.
    "Is it active" is read from timestamps, never from timers; timers are
    idempotent checks. Durations change only via `ModifyDuration`. Scheduling
@@ -108,14 +102,14 @@ turns) by driving a `front::Session` with inputs.
 - Dependencies go in root `[workspace.dependencies]` and are referenced with
   `.workspace = true`. Justify any new crate; prefer std. **Check the current
   API on docs.rs or in `~/.cargo/registry` instead of trusting memory** — e.g.
-  rand 0.10 uses `rand::rng()`, `RngExt::random_range`; ratatui 0.30 uses
-  `frame.area()`, `Block::bordered()`; hecs 0.11 changed its query iterator API.
+  rand 0.10 uses `rand::rng()`, `RngExt::random_range`; egui 0.37 uses
+  `egui::Panel` and `App::ui`; hecs 0.11 changed its query iterator API.
 - No `unwrap`/`expect` in library code outside tests; return `Result` or handle
   `None` (out-of-bounds `Grid::get` = treat as wall).
 - Unit tests sit in `#[cfg(test)] mod tests` next to the code. Tests reading
   `data/` build the path from `env!("CARGO_MANIFEST_DIR")`.
 - Doc-comment the _why_, not the what.
-- Commits: conventional, scoped by crate — `feat(game): …`, `fix(term): …`,
+- Commits: conventional, scoped by crate — `feat(game): …`, `fix(gui): …`,
   `docs: …`. One logical change per commit.
 
 ## Scope discipline

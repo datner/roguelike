@@ -1,15 +1,15 @@
 # roguelike
 
-A terminal roguelike skeleton (Caves of Qud-inspired), structured so the
+A roguelike (Caves of Qud-inspired) in a terminal-looking window, structured so the
 rendering/simulation seam is enforced by the compiler rather than by
 convention.
 
 ## Structure
 
-This is a Cargo workspace with four crates:
+This is a Cargo workspace with three crates:
 
 - `game/` — a library with all simulation and game logic. It has **no**
-  dependency on crossterm, ratatui, or any other terminal/graphics crate —
+  dependency on egui, a terminal crate, or any other graphics crate —
   that's enforced by `game/Cargo.toml` simply never listing one. It exposes:
   - `Cell { glyph, fg, bg }` (with its own `Rgb` type) — the only rendering
     output: `render_view` returns a grid of these exactly the size of the
@@ -130,24 +130,15 @@ This is a Cargo workspace with four crates:
   practice runs), the status text, the title menu, and save files: one per
   character, loaded from the menu and written (atomically) on quit. No
   drawing and no key bindings.
-- `term/` — the terminal frontend, frozen: it keeps working but gets no new
-  features, and screens added later only say to use the window. Crossterm (reached only through
-  `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
-  raw key events to `front`'s inputs, renders `Grid<Cell>` through a
-  clipped custom `MapWidget`, and owns all terminal lifecycle concerns
-  (raw mode, alternate screen, Kitty keyboard protocol enhancement when
-  supported, panic-safe restore). Its UI is the map, log and status, a
-  side column of panels (hidden under 80 columns), a hovering panel for
-  inventory and equipment, and the title menu, all drawn from `front`'s
-  state and `game`'s views.
-
 - `gui/` — the windowed frontend (eframe/egui, ADR 0020), on the same
   `front` crate with the same keys: the title menu, then the map with a
   side column (character sheet, equipment) and a strip for the log and
   status. Run it with `cargo run -p gui -- --seed 42`. It looks like the
   terminal, in one bundled font (DejaVu Sans Mono, licence in
   `gui/assets`), and animates hits, misses, deaths and flights
-  (`game::fx`). Still being built: see `docs/plans/gui.md`.
+  (`game::fx`). Its build plan was `docs/plans/gui.md`. (A terminal
+  frontend, `term`, came first; it was retired once the window had
+  everything, and lives on in git history.)
 
 ## Controls
 
@@ -240,16 +231,17 @@ In game:
   is kept.
 
 Moving, attacking (by moving into a creature), bumping a wall and waiting
-each take one turn. The status bar shows the current turn. On terminals at least 80
-columns wide, a side column shows the character (HP, stats, armor,
-damage and its kinds, weapon, auto-explore setting) and what each body part holds.
+each take one turn. The status bar shows where you are and the current
+turn. A side column shows where you are and what comes next, the character
+(HP, stats, armor, damage and its kinds, weapon, auto-explore setting) and
+what each body part holds.
 
 ## Running
 
 ```bash
-nix develop --command cargo run -p term
+nix develop --command cargo run -p gui
 # or, with a fixed seed:
-nix develop --command cargo run -p term -- --seed 42
+nix develop --command cargo run -p gui -- --seed 42
 ```
 
 Each character has one save, `<saves>/<name>.ron`. The game opens on the
@@ -261,7 +253,7 @@ menu.
 
 With direnv installed and `direnv allow`'d in this directory, the `nix
 develop` shell activates automatically and you can just run `cargo run -p
-term`.
+gui`.
 
 ## Development
 
@@ -272,10 +264,6 @@ nix develop --command cargo clippy --workspace --all-targets -- -D warnings
 
 ## Notes on the rendering seam
 
-- One map tile currently renders as one terminal character. The
-  tile-to-screen mapping lives in a single function,
-  `term::widgets::map_widget::tile_to_screen` (with `viewport_tiles`, its
-  inverse for the map panel's size), so switching to two characters per
-  tile (terminal cells are roughly 1:2, width:height) later means editing
-  only those. Which world tiles the viewport shows is `game`'s business
-  (`game::camera`).
+- The tile↔pixel mapping lives in one place, `gui::map_view` (`TILE`,
+  `Layout`, `viewport_tiles`); which world tiles the viewport shows is
+  `game`'s business (`game::camera`).

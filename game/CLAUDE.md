@@ -8,7 +8,7 @@ What each module is for is in the index (`docs/MAP.md`); its API is
 `scripts/map.sh --sigs <path>`. This list keeps only the rules the code
 can't show at a glance.
 
-- `input.rs`/`view.rs` — the seam: `term` passes a `PlayerAction` and reads plain views. Anything taking or returning a hecs type stays `pub(crate)`; items cross as `ItemRef` (their `SpawnSeq`).
+- `input.rs`/`view.rs` — the seam: frontends pass a `PlayerAction` and reads plain views. Anything taking or returning a hecs type stays `pub(crate)`; items cross as `ItemRef` (their `SpawnSeq`).
 - `map.rs` — `Tile::is_open` is the one walk/see-through check. Out-of-bounds `Grid::get` is `None`: treat it as wall. Tests use `map::tests::room` (hand-built 40×20), never the generator.
 - `zone.rs` — `place_stairs_down` uses no RNG; changing the generator's draw order or a dungeon's cave tuning changes every seeded world (ADR 0009).
 - `dive.rs` — a floor exists only while the player is on it; `dive::build` is the one way to make one (new game and stairs alike), its seed from `floor_seed`. Only the player, what they hold and their summons cross floors.
@@ -28,7 +28,7 @@ can't show at a glance.
 - `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.
 - `ammo.rs` — a nocked arrow is the launcher's own `Inventory`, a quiver's arrows are the quiver's: never add a new holder list for them. `Fire` takes the nocked arrow first, then an *equipped* quiver.
 - `tiles.rs` — sprites are names in content and saves, `SpriteId`s at runtime (never saved); `Cell.sprite` is set only on tiles in view (ADR 0023). Frames turn on the frontend's clock (`Sprite::frame`).
-- `light.rs` — light is data (`render_layers`: unlit cells plus a `Lit` per tile); `render_view` bakes it for `term`. Only tiles in view are lit, fading with distance; no RNG, no clock.
+- `light.rs` — light is data (`render_layers`: unlit cells plus a `Lit` per tile); `render_view` bakes it in, for a frontend that can only colour cells. Only tiles in view are lit, fading with distance; no RNG, no clock.
 - `fx.rs` — effects are animation-only: `GameState.fx` is never read by the simulation or saved. Push positioned ones through `fx::at`, which drops what the player can't see (ADR 0022).
 - `spell.rs` — a cast runs `ModifyCast` (caster), `CheckCast` (spell, then caster), `CastRisk`, `PayCost` (whoever claimed); resources, their rules and the stat a spell scales with belong to discipline parts (`CooldownCasting`, `ManaCasting`, `BloodCasting`, a `Scroll`), never to `cast` or the spell data; pools are `value` + `as_of` computed on read. Payloads (`SpellDamage`, `Area`, `Chain`, `Summon`, `Delay`) are read in `footprint`/`cast` only, and `footprint` is shared with `aim` and `ai::spell_at` (ADR 0014). Skill (ADR 0017) is applied in `inspect_cast` only: `skill::cast` names the skills, their level strengthens the strike and steadies the fizzle chance.
 - `area.rs` — pure geometry: what a shape covers is decided here and nowhere else; `spell::footprint` is the one caller, for both the cast and `aim`, so the preview and the cast agree.

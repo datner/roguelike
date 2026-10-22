@@ -19,7 +19,7 @@ use crate::sprites::Atlas;
 use crate::theme::BG;
 
 /// Pause between auto-explore or practice steps, so the walk is visible and
-/// a key press can interrupt it (as in `term`).
+/// a key press can interrupt it.
 const AUTO_STEP_DELAY: Duration = Duration::from_millis(25);
 /// How often the window redraws for animated sprites.
 const SPRITE_FRAME: Duration = Duration::from_millis(50);

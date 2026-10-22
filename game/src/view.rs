@@ -1,5 +1,5 @@
 //! Read-only views of the player's state for frontends: plain data, no hecs
-//! types, so `term` can draw panels without touching the world.
+//! types, so frontends can draw panels without touching the world.
 
 use hecs::{Entity, World};
 

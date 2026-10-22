@@ -30,7 +30,7 @@ fn cell_at<'a>(
     grid.get_mut(x, y)
 }
 
-/// Reverse video, `term`'s cursor; on an unlit blank tile, a light block.
+/// Reverse video, the cursor's mark; on an unlit blank tile, a light block.
 fn reverse(cell: &mut Cell) {
     std::mem::swap(&mut cell.fg, &mut cell.bg);
     if cell.bg == Rgb(0, 0, 0) {
@@ -38,8 +38,7 @@ fn reverse(cell: &mut Cell) {
     }
 }
 
-/// Marks on the map's cells before they are drawn, as `term` styles its
-/// buffer: the look cursor, or an aimed shot's path, area and landing tile
+/// Marks on the map's cells before they are drawn: the look cursor, or an aimed shot's path, area and landing tile
 /// as backgrounds (from `game::aim`) and its cursor, in reverse video.
 pub fn mark(grid: &mut Grid<Cell>, layout: &Layout, session: &Session) {
     let state = session.state();
@@ -258,7 +257,7 @@ fn tab_input(tab: front::overlay::Tab) -> OverlayInput {
 }
 
 /// A row to pick: in the widget's text colour, so hovering brightens it,
-/// and all of it in reverse video when selected, as in `term`.
+/// and all of it in reverse video when selected.
 fn row(segs: Vec<Seg>, selected: bool) -> LayoutJob {
     let mut job = job(segs, PLACEHOLDER);
     if selected {
@@ -269,7 +268,7 @@ fn row(segs: Vec<Seg>, selected: bool) -> LayoutJob {
     job
 }
 
-/// A box in the middle of the map, as `term`'s overlay: at least 46 cells
+/// A box in the middle of the map: at least 46 cells
 /// wide.
 fn centred_window(ui: &egui::Ui, id: &str, contents: impl FnOnce(&mut egui::Ui)) {
     egui::Window::new(id)
@@ -282,8 +281,7 @@ fn centred_window(ui: &egui::Ui, id: &str, contents: impl FnOnce(&mut egui::Ui))
         .show(ui.ctx(), contents);
 }
 
-/// A list to pick from: a click picks the row, keys move and pick as in
-/// `term`.
+/// A list to pick from: a click picks the row, as Enter does.
 fn chooser_window(ui: &egui::Ui, title: &str, rows: Vec<Vec<Seg>>, selected: usize) -> Vec<Input> {
     let mut inputs = Vec::new();
     centred_window(ui, title, |ui| {

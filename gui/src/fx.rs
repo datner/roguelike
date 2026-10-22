@@ -8,7 +8,7 @@ use game::{Cell, Fx, GameState, Grid, Outcome, Rgb};
 use crate::map_view::{Layout, TILE, color, screen_tile};
 use crate::theme::{BG, FG, TEXT};
 
-/// Time a missile spends on each tile it crosses, as in `term`.
+/// Time a missile spends on each tile it crosses.
 pub const STEP: Duration = Duration::from_millis(40);
 /// How long damage and outcome words take to rise and fade.
 pub const RISE: Duration = Duration::from_millis(800);

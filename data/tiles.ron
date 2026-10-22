@@ -1,4 +1,4 @@
-// Sprites (ADR 0023) for frontends that draw them; `term` shows glyphs.
+// Sprites (ADR 0023) for frontends that draw them; the window shows them on F2.
 // `atlas` is beside this file; `cell` is one sprite in pixels, the shape of
 // a terminal cell. A sprite's `frames` are atlas cells (column, row), shown
 // `frame_ms` each in turn. Blueprints name a sprite in `Appearance(sprite:)`.

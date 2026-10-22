@@ -507,7 +507,7 @@ fn skilled(
     not(test),
     expect(
         dead_code,
-        reason = "for a future look/target UI; needs an intent-level API before term can use it"
+        reason = "for a future look/target UI; needs an intent-level API before a frontend can use it"
     )
 )]
 pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity) -> Option<i32> {

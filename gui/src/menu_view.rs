@@ -1,4 +1,4 @@
-//! Draws the title menu (`front::menu`): new game, continue, load, and save management, in `term`'s box.
+//! Draws the title menu (`front::menu`): new game, continue, load, and save management, in a titled box.
 
 use eframe::egui::{self, Align2, Frame, Vec2};
 use front::menu::{Body, Menu};
@@ -6,7 +6,7 @@ use front::menu::{Body, Menu};
 use crate::map_view::TILE;
 use crate::theme::{self, BG, DIM, FG, boxed, title};
 
-/// `term`'s 48 cells.
+/// 48 text cells.
 const WIDTH: f32 = 48.0 * TILE.x;
 
 pub fn draw(ui: &mut egui::Ui, menu: &Menu) {
