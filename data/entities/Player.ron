@@ -5,7 +5,7 @@
         Player,
         // Skills grow by use (ADR 0017); only the player learns.
         Learner,
-        Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0)),
+        Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
         Health(current: 20, max: 20),
         Melee(min: 2, max: 4),
         // Sharper of mind and will than the average creature: spells scale

@@ -8,7 +8,7 @@ What each module is for is in the index (`docs/MAP.md`); its API is
 `scripts/map.sh --sigs <path>`.
 
 - `input.rs` — the only place keys are bound; update README "Controls" when bindings change, and keep `gui`'s bindings the same.
-- `app.rs` — turn-based, no tick timer; picks the key map from `Session::keys`, paces `Session::auto_step` and polls briefly between steps so a key can interrupt; animates `Session::take_trails` after each input.
+- `app.rs` — turn-based, no tick timer; picks the key map from `Session::keys`, paces `Session::auto_step` and polls briefly between steps so a key can interrupt; animates the flights in `Session::take_fx` after each input (the other effects are `gui`'s).
 - `menu.rs`, `overlay.rs`, `targeting.rs` — drawing only, from `front`'s state accessors and views.
 - `tui.rs` — every terminal mode you enable must be undone on restore, including on panic.
 - `side_panel.rs` — a new panel is a `Panel` variant plus its place in `PANELS`.

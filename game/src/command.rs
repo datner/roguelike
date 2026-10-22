@@ -16,6 +16,7 @@ use crate::entity::{
 use crate::equipment;
 use crate::event::{Ctx, settle};
 use crate::fov;
+use crate::fx::{self, Fx};
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::input::Dir;
@@ -603,6 +604,12 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
     .dealt();
     let victim = Subject::of(&state.world, target);
     if dealt == 0 {
+        if amount > 0 {
+            fx::at(state, target, |at| Fx::Outcome {
+                at,
+                kind: fx::Outcome::Absorbed,
+            });
+        }
         state.log.push(if amount > 0 {
             capitalize(&format!("{} armor absorbs the blow.", victim.possessive()))
         } else {
@@ -620,6 +627,13 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
         health.current
     };
     let blocked = amount - dealt;
+    let to_player = target == state.player;
+    fx::at(state, target, |at| Fx::Damage {
+        at,
+        amount: dealt,
+        blocked,
+        to_player,
+    });
     state.log.push(if blocked > 0 {
         victim.sentence("take", &format!("{dealt} damage ({blocked} blocked)"))
     } else {
@@ -665,6 +679,7 @@ fn die(state: &mut GameState, entity: Entity) {
     }
     let dying = Subject::of(&state.world, entity);
     state.log.push(dying.sentence("die", ""));
+    fx::at(state, entity, |at| Fx::Death { at });
     let summons: Vec<Entity> = state
         .world
         .query::<(Entity, &Summoned)>()
@@ -888,6 +903,24 @@ pub(crate) mod tests {
         assert_eq!(
             *state.world.get::<&Position>(state.player).unwrap(),
             Position { x: 2, y: 1 }
+        );
+    }
+
+    #[test]
+    fn blows_and_a_kill_the_player_sees_are_effects() {
+        let (mut state, _, _) = facing_goblin(5);
+        state.visible.set(2, 1, true);
+        bump_east(&mut state);
+        bump_east(&mut state);
+        let hit = Fx::Damage {
+            at: (2, 1),
+            amount: 4,
+            blocked: 1,
+            to_player: false,
+        };
+        assert_eq!(
+            fx::take_fx(&mut state),
+            [hit.clone(), hit, Fx::Death { at: (2, 1) }]
         );
     }
 

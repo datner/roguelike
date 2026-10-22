@@ -20,6 +20,10 @@ pub struct Appearance {
     pub glyph: char,
     pub fg: Rgb,
     pub bg: Rgb,
+    /// A sprite from `data/tiles.ron`, for frontends that draw them
+    /// (ADR 0023). By name, so saves and blueprints share it.
+    #[serde(default)]
+    pub sprite: Option<String>,
 }
 
 /// Marker component: an entity with this blocks movement onto its tile.

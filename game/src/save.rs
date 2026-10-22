@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 26;
+pub const SAVE_VERSION: u32 = 27;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -518,7 +518,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
     let visible = Grid::new(map.width, map.height, false);
 
     let mut state = GameState {
-        trails: Vec::new(),
+        fx: Vec::new(),
         world,
         map,
         log: save.log,

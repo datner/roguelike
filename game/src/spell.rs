@@ -22,6 +22,7 @@ use crate::entity::{
     SummonLimit, Summoned, Timed,
 };
 use crate::event::{Ctx, EventRegistry, settle};
+use crate::fx::Fx;
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::map::Tile;
@@ -779,11 +780,11 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
     };
     for path in [&footprint.path, &spreads, &footprint.placed] {
         if !path.is_empty() {
-            state.trails.push(Trail {
+            state.fx.push(Fx::Flight(Trail {
                 glyph,
                 fg,
                 path: path.clone(),
-            });
+            }));
         }
     }
 
@@ -880,11 +881,11 @@ pub(crate) fn detonate(state: &mut GameState, caster: Entity, at: (i32, i32), bl
     let tiles = area::tiles(&state.map, Shape::Burst { radius }, at, at, 0);
     let caught = caught(&state.world, caster, blast.area.hits, &tiles);
     state.log.push("The rune bursts!");
-    state.trails.push(Trail {
+    state.fx.push(Fx::Flight(Trail {
         glyph: '*',
         fg: Rgb(255, 90, 20),
         path: tiles,
-    });
+    }));
     let strike = Strike {
         min: blast.min,
         max: blast.max,

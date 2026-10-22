@@ -3,9 +3,9 @@
 (
     components: [
         Name("torch"),
-        Appearance(glyph: '/', fg: (255, 170, 60), bg: (0, 0, 0)),
+        Appearance(glyph: '/', fg: (255, 170, 60), bg: (0, 0, 0), sprite: "torch"),
         Item,
         Equippable(part: Hand),
-        Light(radius: 11, tint: (255, 150, 50), tint_bp: 1200),
+        Light(radius: 11, tint: (255, 150, 50), tint_bp: 2400),
     ],
 )

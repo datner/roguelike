@@ -15,6 +15,7 @@ use crate::entity::{
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
+use crate::fx::{self, Fx};
 use crate::grammar::{Subject, capitalize};
 use crate::prio;
 use crate::skill::{self, Launch, SkillBook, SkillId};
@@ -376,6 +377,16 @@ pub(crate) fn resolve(rng: &mut Pcg64, odds: &AttackOdds) -> Outcome {
 /// `PerfectDodge` or `Deflected` at the target. A hit says nothing here:
 /// the damage it deals is logged when dealt.
 pub(crate) fn announce(state: &mut GameState, attacker: Entity, target: Entity, outcome: Outcome) {
+    let shown = match outcome {
+        Outcome::Hit => None,
+        Outcome::Graze => Some(fx::Outcome::Graze),
+        Outcome::Miss => Some(fx::Outcome::Miss),
+        Outcome::PerfectDodge => Some(fx::Outcome::Dodge),
+        Outcome::Deflected(_) => Some(fx::Outcome::Deflect),
+    };
+    if let Some(kind) = shown {
+        fx::at(state, target, |at| Fx::Outcome { at, kind });
+    }
     let striker = Subject::of(&state.world, attacker);
     let struck = Subject::of(&state.world, target);
     match outcome {
@@ -769,6 +780,28 @@ mod tests {
         });
         assert_eq!(health(&state, dummy), 10);
         assert_eq!(last_log(&state), "The dummy's armor absorbs the blow.");
+    }
+
+    #[test]
+    fn what_a_blow_did_is_an_effect_where_the_player_sees() {
+        let mut state = bare_state();
+        let (dummy, _) = armored_dummy(&mut state, 2);
+        state.visible.set(5, 5, true);
+        state.run(Command::DealDamage {
+            target: dummy,
+            amount: 2,
+            cause: BLOW,
+        });
+        let player = state.player;
+        announce(&mut state, player, dummy, Outcome::Miss);
+        let outcome = |kind| Fx::Outcome { at: (5, 5), kind };
+        assert_eq!(
+            fx::take_fx(&mut state),
+            [outcome(fx::Outcome::Absorbed), outcome(fx::Outcome::Miss)]
+        );
+        state.visible.set(5, 5, false);
+        announce(&mut state, player, dummy, Outcome::Graze);
+        assert!(fx::take_fx(&mut state).is_empty(), "unseen");
     }
 
     #[test]

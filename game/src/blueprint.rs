@@ -11,6 +11,7 @@
 //! is checked and turned into a `BlueprintId` at load, so a typo fails
 //! loading instead of surfacing mid-game.
 
+use crate::tiles::Tiles;
 use std::collections::BTreeMap;
 use std::fs;
 use std::mem::discriminant;
@@ -260,6 +261,8 @@ pub struct Blueprints {
     skills: SkillBook,
     /// What skill combinations inspire (`data/discoveries.ron`, ADR 0018).
     discoveries: Vec<Discovery>,
+    /// Sprites (`data/tiles.ron`, ADR 0023).
+    tiles: Tiles,
 }
 
 #[derive(Debug)]
@@ -318,6 +321,13 @@ pub enum BlueprintError {
         owner: String,
         school: School,
     },
+    /// `owner` (a blueprint, or "terrain") names a sprite `tiles.ron` lacks.
+    UnknownSprite {
+        owner: String,
+        sprite: String,
+    },
+    SpriteWithoutFrames(String),
+    TooManySprites,
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -326,6 +336,11 @@ impl std::fmt::Display for BlueprintError {
             Self::Io(path, err) => write!(f, "{}: {err}", path.display()),
             Self::Parse(path, err) => write!(f, "{}:{err}", path.display()),
             Self::UnknownBlueprint(name) => write!(f, "unknown blueprint {name:?}"),
+            Self::UnknownSprite { owner, sprite } => {
+                write!(f, "{owner:?} names unknown sprite {sprite:?}")
+            }
+            Self::SpriteWithoutFrames(name) => write!(f, "sprite {name:?} has no frames"),
+            Self::TooManySprites => write!(f, "too many sprites"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -377,7 +392,7 @@ impl std::fmt::Display for BlueprintError {
 
 impl std::error::Error for BlueprintError {}
 
-fn ron_options() -> ron::Options {
+pub(crate) fn ron_options() -> ron::Options {
     ron::Options::default()
         .with_default_extension(Extensions::UNWRAP_VARIANT_NEWTYPES | Extensions::IMPLICIT_SOME)
 }
@@ -388,7 +403,8 @@ impl Blueprints {
     pub fn load(data: &Path) -> Result<Self, BlueprintError> {
         let skills = SkillBook::load(&data.join("skills.ron"))?;
         Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
-            .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)
+            .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
+            .with_tiles(Tiles::load(data)?)
     }
 
     /// Reads every `*.ron` file in `dir`, named by file stem.
@@ -546,6 +562,7 @@ impl Blueprints {
             ids,
             skills,
             discoveries: Vec::new(),
+            tiles: Tiles::default(),
         })
     }
 
@@ -558,6 +575,31 @@ impl Blueprints {
     pub fn with_discoveries(mut self, defs: Vec<DiscoveryDef>) -> Result<Self, BlueprintError> {
         self.discoveries = discovery::resolve(defs, &self)?;
         Ok(self)
+    }
+
+    /// Every sprite a blueprint names must be in `tiles`.
+    pub fn with_tiles(mut self, tiles: Tiles) -> Result<Self, BlueprintError> {
+        for blueprint in &self.resolved {
+            for component in &blueprint.components {
+                if let ComponentDef::Appearance(Appearance {
+                    sprite: Some(sprite),
+                    ..
+                }) = component
+                    && tiles.id(sprite).is_none()
+                {
+                    return Err(BlueprintError::UnknownSprite {
+                        owner: blueprint.name.clone(),
+                        sprite: sprite.clone(),
+                    });
+                }
+            }
+        }
+        self.tiles = tiles;
+        Ok(self)
+    }
+
+    pub fn tiles(&self) -> &Tiles {
+        &self.tiles
     }
 
     pub(crate) fn discoveries(&self) -> &[Discovery] {

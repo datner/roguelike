@@ -11,7 +11,7 @@ use crate::camera::camera;
 use crate::cell::{Cell, Rgb};
 use crate::combat;
 use crate::command::Command;
-use crate::entity::{Appearance, Energy, Item, Light, Position, Quiver, SpawnSeq, Speed};
+use crate::entity::{Appearance, Energy, Item, Position, Quiver, SpawnSeq, Speed};
 use crate::event::EventRegistry;
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -89,9 +89,9 @@ pub struct GameState {
     /// What auto-explore does on reaching a floor item. A player setting,
     /// but it decides actions, so it is game state and saved.
     pub explore_items: ExploreItems,
-    /// Missiles launched since the frontend last took them, for animation
-    /// only: never read by the simulation, never saved (ADR 0013).
-    pub(crate) trails: Vec<crate::ranged::Trail>,
+    /// Effects since the frontend last took them, for animation only:
+    /// never read by the simulation, never saved (ADR 0022).
+    pub(crate) fx: Vec<crate::fx::Fx>,
 }
 
 impl GameState {
@@ -245,7 +245,7 @@ impl GameState {
             remembered_items: no_items,
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
-            trails: Vec::new(),
+            fx: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
         state.stock_quivers()?;
@@ -328,8 +328,23 @@ pub(crate) fn event_registry() -> EventRegistry {
 /// A `width` × `height` view through the camera following the player
 /// (`camera::camera`). Visible tiles show terrain and whatever stands there;
 /// remembered tiles show the terrain and the item last seen there, dimmed;
-/// never-seen tiles and padding outside the zone stay blank.
+/// never-seen tiles and padding outside the zone stay blank. The player's
+/// held light is baked into the colours (`light`).
 pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
+    let (mut cells, light) = crate::light::render_layers(state, width, height);
+    for y in 0..cells.height {
+        for x in 0..cells.width {
+            if let (Some(cell), Some(Some(lit))) = (cells.get_mut(x, y), light.get(x, y)) {
+                cell.fg = crate::light::tint(cell.fg, *lit);
+                cell.bg = crate::light::tint(cell.bg, *lit);
+            }
+        }
+    }
+    cells
+}
+
+/// `render_view` before light.
+pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
     let camera = camera(state, width, height);
     let mut grid = Grid::new(
         camera.width,
@@ -338,10 +353,11 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
             glyph: ' ',
             fg: Rgb(200, 200, 200),
             bg: Rgb(0, 0, 0),
+            sprite: None,
         },
     );
+    let tiles = state.blueprints.tiles();
     let flag = |flags: &Grid<bool>, x, y| flags.get(x, y) == Some(&true);
-    let lit = lit_by(state);
 
     for screen_y in 0..camera.height {
         for screen_x in 0..camera.width {
@@ -365,59 +381,39 @@ pub fn render_view(state: &GameState, width: i32, height: i32) -> Grid<Cell> {
             if let Some(cell) = grid.get_mut(screen_x, screen_y) {
                 cell.glyph = glyph;
                 cell.fg = if visible { fg } else { dim(fg) };
-                if visible && let Some(light) = lit(x, y) {
-                    cell.fg = tint(cell.fg, light);
-                    cell.bg = tint(cell.bg, light);
-                }
+                cell.sprite = tiles.terrain(tile).filter(|_| visible);
             }
         }
     }
 
-    let mut shown: Vec<(Position, char, Rgb, bool)> = state
+    let mut shown: Vec<(Position, Cell, bool)> = state
         .world
         .query::<(&Position, &Appearance, Option<&Item>)>()
         .iter()
         .filter(|(pos, _, _)| flag(&state.visible, pos.x, pos.y))
-        .map(|(pos, look, item)| (*pos, look.glyph, look.fg, item.is_some()))
+        .map(|(pos, look, item)| {
+            let shows = Cell {
+                glyph: look.glyph,
+                fg: look.fg,
+                bg: look.bg,
+                sprite: look.sprite.as_deref().and_then(|name| tiles.id(name)),
+            };
+            (*pos, shows, item.is_some())
+        })
         .collect();
     // Items first, so anyone standing on one is drawn over it.
-    shown.sort_by_key(|&(_, _, _, item)| !item);
-    for (pos, glyph, fg, _) in shown {
+    shown.sort_by_key(|&(_, _, item)| !item);
+    for (pos, shows, _) in shown {
         let (screen_x, screen_y) = camera.world_to_screen((pos.x, pos.y));
         if let Some(cell) = grid.get_mut(screen_x, screen_y) {
-            cell.glyph = glyph;
-            cell.fg = lit(pos.x, pos.y).map_or(fg, |light| tint(fg, light));
+            cell.glyph = shows.glyph;
+            cell.fg = shows.fg;
+            // No sprite of its own: its glyph, not the ground's sprite.
+            cell.sprite = shows.sprite;
         }
     }
 
     grid
-}
-
-/// The light, if any, that the player's held light casts on a tile: every
-/// tile in view within its radius. Tiles out of view stay untouched, so
-/// remembered ground never glows.
-fn lit_by(state: &GameState) -> impl Fn(i32, i32) -> Option<Light> + '_ {
-    let source = fov::held_light(&state.world, state.player).zip(
-        state
-            .world
-            .get::<&Position>(state.player)
-            .ok()
-            .map(|pos| *pos),
-    );
-    move |x, y| {
-        let (light, at) = source?;
-        let (dx, dy) = (x - at.x, y - at.y);
-        (state.visible.get(x, y) == Some(&true) && dx * dx + dy * dy <= light.radius * light.radius)
-            .then_some(light)
-    }
-}
-
-/// `colour` moved `tint_bp` / 10 000 of the way toward the light's tint.
-fn tint(Rgb(r, g, b): Rgb, light: Light) -> Rgb {
-    let Rgb(tr, tg, tb) = light.tint;
-    let bp = light.tint_bp.min(10_000) as i32;
-    let mix = |c: u8, t: u8| (c as i32 + (t as i32 - c as i32) * bp / 10_000) as u8;
-    Rgb(mix(r, tr), mix(g, tg), mix(b, tb))
 }
 
 /// Remembered terrain: half brightness.
@@ -434,7 +430,7 @@ pub(crate) mod tests {
     use crate::combat::roll_melee;
     use crate::entity::{
         Area, Armor, Attachments, Bleeding, BodyPart, DamageTypes, Duration, Equippable, Found,
-        Health, Hits, Melee, Name, PartKind, School, Shape, Spell, SpellDamage,
+        Health, Hits, Light, Melee, Name, PartKind, School, Shape, Spell, SpellDamage,
     };
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
@@ -456,6 +452,7 @@ pub(crate) mod tests {
             glyph,
             fg: Rgb(255, 255, 255),
             bg: Rgb(0, 0, 0),
+            sprite: None,
         })
     }
 
@@ -650,6 +647,7 @@ pub(crate) mod tests {
                             glyph: 'o',
                             fg: Rgb(255, 120, 40),
                             bg: Rgb(0, 0, 0),
+                            sprite: None,
                         })],
                         &[],
                     ),
@@ -957,7 +955,8 @@ pub(crate) mod tests {
 
         let view = render_view(&state, 40, 20);
         let lit = view.get(10, 1).unwrap();
-        assert_eq!((lit.fg, lit.bg), (Rgb(123, 102, 82), Rgb(51, 30, 10)));
+        // Nine tiles out of eleven, the glow is down to 875 of its 2 000.
+        assert_eq!((lit.fg, lit.bg), (Rgb(104, 95, 87), Rgb(22, 13, 4)));
         let player_cell = view.get(1, 1).unwrap();
         assert_ne!(player_cell.fg, Rgb(255, 255, 255));
 

@@ -12,6 +12,7 @@ use crate::command::{Command, DamageCause};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{Appearance, Dead, EquippedOn, Found, Health, Position, Throwable};
 use crate::equipment;
+use crate::fx::Fx;
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::map::Tile;
@@ -108,11 +109,6 @@ pub struct Trail {
     pub glyph: char,
     pub fg: Rgb,
     pub path: Vec<(i32, i32)>,
-}
-
-/// The flights since the last call, oldest first.
-pub fn take_trails(state: &mut GameState) -> Vec<Trail> {
-    std::mem::take(&mut state.trails)
 }
 
 /// A missile ready to leave the shooter: what flies, how it hurts and how
@@ -272,11 +268,11 @@ fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
             .world
             .get::<&Appearance>(item)
             .map_or(('*', Rgb(220, 220, 220)), |look| (look.glyph, look.fg));
-        state.trails.push(Trail {
+        state.fx.push(Fx::Flight(Trail {
             glyph,
             fg,
             path: flight.path.clone(),
-        });
+        }));
     }
 
     match ready.container {
@@ -355,6 +351,7 @@ mod tests {
     use super::*;
     use crate::cell::Rgb;
     use crate::entity::{AmmoKind, Armor, DamageType, OnHit, OnHitEntry, Stat};
+    use crate::fx::take_fx;
     use crate::input::PlayerAction;
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, sure_hits, thing};
@@ -489,20 +486,24 @@ mod tests {
                     glyph: '\\',
                     fg: Rgb(1, 2, 3),
                     bg: Rgb(0, 0, 0),
+                    sprite: None,
                 },
             )
             .unwrap();
         throw_at(&mut state, knife, (4, 1));
-        let trails = take_trails(&mut state);
+        let flights: Vec<Fx> = take_fx(&mut state)
+            .into_iter()
+            .filter(|fx| matches!(fx, Fx::Flight(_)))
+            .collect();
         assert_eq!(
-            trails,
-            [Trail {
+            flights,
+            [Fx::Flight(Trail {
                 glyph: '\\',
                 fg: Rgb(1, 2, 3),
                 path: vec![(2, 1), (3, 1), (4, 1)],
-            }]
+            })]
         );
-        assert!(take_trails(&mut state).is_empty());
+        assert!(take_fx(&mut state).is_empty());
     }
 
     #[test]
@@ -511,7 +512,11 @@ mod tests {
         let knife = knife(&mut state);
         state.map.set(2, 1, Tile::Wall);
         throw_at(&mut state, knife, (5, 1));
-        assert!(take_trails(&mut state).is_empty());
+        assert!(
+            !take_fx(&mut state)
+                .iter()
+                .any(|fx| matches!(fx, Fx::Flight(_)))
+        );
     }
 
     #[test]

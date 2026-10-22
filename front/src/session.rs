@@ -1,8 +1,8 @@
 //! A game in progress as a frontend drives it: the state, which mode takes the keys (play, a list, a cursor), auto-explore and practice runs, and the status line. The rules of the keyboard flows live here once, so every frontend behaves the same; frontends only map keys and draw.
 
 use game::{
-    FireStep, GameState, InputEvent, PlayerAction, Shot, Trail, cycle_explore_items, explore_step,
-    fire_step, practice_step, spells, take_trails, take_turn, throwables, travel_step,
+    FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items, explore_step,
+    fire_step, practice_step, spells, take_fx, take_turn, throwables, travel_step,
 };
 
 use crate::input::Input;
@@ -116,10 +116,10 @@ impl Session {
         self.auto = None;
     }
 
-    /// The missile flights since the last call, for the frontend to animate.
-    /// The world has already moved on.
-    pub fn take_trails(&mut self) -> Vec<Trail> {
-        take_trails(&mut self.state)
+    /// The effects since the last call (flights, damage, deaths), for the
+    /// frontend to animate. The world has already moved on.
+    pub fn take_fx(&mut self) -> Vec<Fx> {
+        take_fx(&mut self.state)
     }
 
     /// Any input during a run only stops it.
@@ -406,7 +406,13 @@ mod tests {
         session.handle(Input::Cursor(AimInput::Confirm));
         assert!(session.state().now > before);
         assert!(matches!(session.mode(), Mode::Play));
-        assert!(!session.take_trails().is_empty(), "the arrow flew");
+        assert!(
+            session
+                .take_fx()
+                .iter()
+                .any(|fx| matches!(fx, Fx::Flight(_))),
+            "the arrow flew"
+        );
     }
 
     #[test]

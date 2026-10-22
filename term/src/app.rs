@@ -8,7 +8,7 @@ use front::menu::{Action, Menu};
 use front::overlay::Views;
 use front::session::{Keys, Mode, Outcome, Session};
 use front::title::{self, Next, Setup};
-use game::{render_view, spells, throwables};
+use game::{Fx, render_view, spells, throwables};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -123,7 +123,11 @@ const MISSILE_STEP_DELAY: Duration = Duration::from_millis(40);
 /// world has already resolved the shot, so this is only a picture of how it
 /// got there; any key press cuts it short.
 fn animate(terminal: &mut Term, session: &mut Session) -> io::Result<()> {
-    for trail in session.take_trails() {
+    let flights = session.take_fx().into_iter().filter_map(|fx| match fx {
+        Fx::Flight(trail) => Some(trail),
+        _ => None,
+    });
+    for trail in flights {
         for &at in &trail.path {
             let flying = Flying {
                 glyph: trail.glyph,

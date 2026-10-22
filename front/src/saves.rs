@@ -24,7 +24,7 @@ pub fn path(dir: &Path, character: &str) -> Result<PathBuf, String> {
 pub enum Loaded {
     Saved(Box<GameState>),
     /// No save yet; the blueprints come back for a new game.
-    New(Blueprints),
+    New(Box<Blueprints>),
 }
 
 /// Loads the save at `path` if there is one. Never writes: a save that
@@ -32,7 +32,9 @@ pub enum Loaded {
 pub fn load(path: &Path, blueprints: Blueprints) -> Result<Loaded, String> {
     let text = match fs::read_to_string(path) {
         Ok(text) => text,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Loaded::New(blueprints)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            return Ok(Loaded::New(Box::new(blueprints)));
+        }
         Err(err) => return Err(format!("cannot read {}: {err}", path.display())),
     };
     save::from_ron(&text, blueprints)

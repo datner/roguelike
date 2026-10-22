@@ -40,6 +40,7 @@ impl Spawn {
             glyph,
             fg,
             bg: Rgb(0, 0, 0),
+            sprite: None,
         })
     }
 
