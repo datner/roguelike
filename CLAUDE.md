@@ -13,8 +13,13 @@ prefix commands with `nix develop --command`.
   paragraph, or when `check.sh` says it is stale (sizes are rounded to 100
   lines). `scripts/map.sh --sigs <file or dir>...` prints `pub` signatures.
 - One test: `cargo test -p game <test_name>`
-- Look at the gui: `scripts/shots.sh <scratch dir>` renders every screen to
-  PNGs (needs the GPU), then Read them. Do this after any drawing change.
+- Look at the gui (needs the GPU; not in `check.sh`):
+  `scripts/shots.sh <scratch dir> [shot...] [--crop map|side|bottom]` renders
+  PNGs to Read; `fx` is one strip of an animation's frames.
+  `scripts/shots.sh --check` compares every shot with its reference in
+  `gui/tests/snapshots/` and names the diff image on a mismatch;
+  `--update` rewrites changed references, committed with the drawing change.
+  Run `--check` after any drawing change.
 - `nix flake check` only sees files git tracks: `git add -N` new files first.
 - Play (humans only): `cargo run -p term -- --seed 42` (terminal) or
   `cargo run -p gui -- --seed 42` (window)
@@ -30,7 +35,14 @@ turns) by driving a `front::Session` with inputs.
   Glob; parallel calls beat one chained shell command. Bash is for building,
   testing, running and git; piping _command output_ into `head`/`tail` is fine.
 - A PreToolUse hook rejects `cat`/`head`/`tail`/`sed`/`awk`/`less` on files. If
-  it fires, switch tools; don't hunt for another shell workaround.
+  it fires, switch tools; don't hunt for another shell workaround. This holds
+  even when the harness suggests Bash for reading: the hook and Read's line
+  cap are what keep reads small here.
+- Change code with Edit/Write: the PostToolUse hook formats each Rust file
+  as it's written. Scripts that rewrite files (Python, `sed -i`) skip it;
+  keep them for one-off mechanical changes with no simpler tool.
+- Compile errors: the IDE's diagnostics first; a build only to run something.
+- Pipe test and build output through `grep`/`tail`; never read it whole.
 - For "where is this defined / who uses it", prefer the LSP tool
   (`goToDefinition`, `findReferences`, `incomingCalls`) over Grep: exact, no
   same-name noise. It runs the devShell's rust-analyzer through the project
@@ -46,6 +58,9 @@ turns) by driving a `front::Session` with inputs.
 - Read a whole file only if you're editing it.
 - Read an ADR only when touching its area; `docs/decisions/README.md` has the
   one-line index.
+- An image costs about width × height / 750 tokens: render only the shots a
+  change touches, cropped to the region it touched; after `--check` fails,
+  read the diff image, not the shot.
 
 @docs/MAP.md
 
@@ -117,7 +132,11 @@ turns) by driving a `front::Session` with inputs.
 1. `scripts/check.sh` passes.
 2. README's Structure/Controls updated if user-visible behaviour changed.
 3. New architectural decision? Add an ADR in `docs/decisions/`.
-4. Report, following the rules below.
+4. Commit, without asking (this project overrides the global rule; pushing
+   still needs asking). In a planned task, commit at every slice end and mark
+   the slice done in its `docs/plans/` file first. A commit may not build
+   only when isolating it would take a huge or tangled change.
+5. Report, following the rules below.
 
 ## Reporting
 

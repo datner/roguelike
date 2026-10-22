@@ -23,7 +23,7 @@ several moments and tiles the cropped frames into one contact sheet.
 `gui/tests/snapshots/` and writes a diff image on a mismatch; `--update`
 refreshes them. Needs the GPU, so it stays out of `check.sh` and the flake.
 
-### 5 + 6. Process and reading economy
+### 5 + 6. Process and reading economy — done
 `CLAUDE.md`: commit at slice ends and mark the slice done here; Edit for code,
 Python only for one-offs; diagnostics before rebuilds; read little: locate
 first (`rg -n -C3`, `map.sh --sigs`), then a bounded `Read` (the hooks enforce
