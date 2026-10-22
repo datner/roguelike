@@ -1,5 +1,6 @@
 // What "summon wolf" calls (ADR 0015): a quick, light fighter on its
-// summoner's side, held in the world by a `Binding` until it runs out.
+// summoner's side, held in the world by a `Binding` until it runs out. It
+// goes for the legs: an ability, known from what it is (ADR 0024).
 (
     inherits: "Creature",
     components: [
@@ -8,5 +9,7 @@
         Health(current: 8, max: 8),
         Melee(min: 2, max: 4),
         Speed(120),
+        TechniqueAi,
     ],
+    techniques: ["Trip"],
 )

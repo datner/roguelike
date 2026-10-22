@@ -1709,4 +1709,81 @@ mod tests {
         };
         assert_eq!(run(), run());
     }
+
+    /// A hostile at `at` that knows `technique` (with `area` if given),
+    /// wields a thrusting blade and performs techniques.
+    fn fighter(
+        state: &mut GameState,
+        at: (i32, i32),
+        technique: Technique,
+        area: Option<Area>,
+    ) -> (Entity, Entity) {
+        let fighter = thing("duelist")
+            .at(at.0, at.1)
+            .health(10)
+            .hostile()
+            .with(crate::entity::TechniqueAi)
+            .with(test_body())
+            .make(state);
+        thing("blade")
+            .item()
+            .with(Weapon {
+                min: 2,
+                max: 2,
+                stat: Stat::Agility,
+                types: DamageTypes::of(&[DamageType::Piercing]),
+            })
+            .equipped_on(fighter, 2)
+            .make(state);
+        let mut known = thing("lunge").with(technique).with(Dash { tiles: 1 });
+        if let Some(area) = area {
+            known = known.with(area);
+        }
+        let known = known.attached_to(fighter).make(state);
+        (fighter, known)
+    }
+
+    fn test_body() -> crate::entity::Body {
+        let crate::blueprint::ComponentDef::Body(parts) = crate::state::tests::test_body() else {
+            unreachable!("test_body is a body");
+        };
+        crate::entity::Body(parts)
+    }
+
+    #[test]
+    fn a_creature_lunges_from_two_tiles_and_bumps_while_it_recharges() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let (duelist, known) = fighter(&mut state, (3, 1), lunge(0, Vec::new()), None);
+        assert!(matches!(
+            crate::ai::decide(&state, duelist),
+            Command::Perform { technique, at: (1, 1), .. } if technique == known
+        ));
+        spell::recharge(&mut state, known, 500);
+        assert!(matches!(
+            crate::ai::decide(&state, duelist),
+            Command::TryMove(..)
+        ));
+    }
+
+    #[test]
+    fn a_creature_never_sweeps_its_own_side() {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let all = Area {
+            shape: Shape::Nova { radius: 1 },
+            hits: crate::entity::Hits::All,
+            falloff: 0,
+        };
+        let (duelist, _) = fighter(&mut state, (2, 1), lunge(0, Vec::new()), Some(all));
+        thing("goblin")
+            .at(3, 1)
+            .health(5)
+            .hostile()
+            .make(&mut state);
+        assert!(matches!(
+            crate::ai::decide(&state, duelist),
+            Command::TryMove(..)
+        ));
+    }
 }

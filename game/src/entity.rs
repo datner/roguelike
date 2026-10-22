@@ -332,6 +332,12 @@ pub struct Area {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellAi;
 
+/// AI part: the creature performs the techniques it knows when one would
+/// strike its target and spare its own side, before it bumps or steps
+/// (ADR 0024).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TechniqueAi;
+
 /// Spell part: the spell does not go off when cast but leaves a rune where
 /// it lands, which bursts `ticks` later: a timed effect on the caster (ADR
 /// 0006), so `ModifyDuration` hastens or delays it.

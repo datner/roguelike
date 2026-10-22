@@ -247,6 +247,7 @@ In game:
   slash, vertical slash, stab), listed as one row that becomes the next
   step: each step must follow the one before within two turns, hits harder
   than the last, and the run's blows teach more the longer it goes.
+  Goblins shove you back now and then; spirit wolves trip.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

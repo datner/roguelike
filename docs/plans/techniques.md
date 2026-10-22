@@ -147,9 +147,8 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   restarts the form; XP rises along a run and resets after it; a `Turns` group shows as one row that
   advances; same inputs give the same combo.
 
-### 7. Creatures perform them
-- `techniques:` in a blueprint (inherited unless replaced, `[]` clears, checked at load, spawned
-  attached), exactly as `spells:`.
+### 7. Creatures perform them — done
+- `techniques:` in a blueprint (built in slice 1, so the player could start with the lunge).
 - `TechniqueAi`: before a bump or a step, the first technique `ready` and `check_target` allow that would
   hit its target and none of its own side. In `ai.rs`, next to `SpellAi`.
 - Content: goblins shove; the spirit wolf trips (a natural blow, no needs), an ability in the vision's

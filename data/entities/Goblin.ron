@@ -8,6 +8,9 @@
         Hostile,
         // A little practised with its knife (ADR 0017). Monsters never learn.
         Skills({"Melee": 2, "Dagger": 2, "Slash": 2}),
+        // Its free hand shoves you back now and then (ADR 0024).
+        TechniqueAi,
     ],
     equipment: ["LeatherArmor", "RustyKnife"],
+    techniques: ["Shove"],
 )

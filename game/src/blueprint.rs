@@ -25,7 +25,6 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
-use crate::entity::OffBalance;
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
     Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
@@ -34,6 +33,7 @@ use crate::entity::{
     School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats, Style, Summon,
     SummonLimit, Technique, Throwable, Trains, Weapon,
 };
+use crate::entity::{OffBalance, TechniqueAi};
 use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
@@ -83,6 +83,7 @@ pub enum ComponentDef {
     Delay(Delay),
     Blast(Blast),
     SpellAi,
+    TechniqueAi,
     CooldownCasting(CooldownCasting),
     ManaCasting(ManaCasting),
     Mana(Mana),
@@ -163,6 +164,7 @@ impl ComponentDef {
             ComponentDef::Delay(c) => builder.add(c),
             ComponentDef::Blast(c) => builder.add(c),
             ComponentDef::SpellAi => builder.add(SpellAi),
+            ComponentDef::TechniqueAi => builder.add(TechniqueAi),
             ComponentDef::CooldownCasting(c) => builder.add(c),
             ComponentDef::ManaCasting(c) => builder.add(c),
             ComponentDef::Mana(c) => builder.add(c),
@@ -1589,10 +1591,12 @@ mod tests {
         let goblin = blueprints
             .spawn_id(&mut world, blueprints.id("Goblin").unwrap())
             .unwrap();
+        // Equipment first, then what it knows: the shove.
         let attachments = holding::attached(&world, goblin);
-        assert_eq!(attachments.len(), 2);
+        assert_eq!(attachments.len(), 3);
         assert!(world.satisfies::<&Armor>(attachments[0]));
         assert!(world.satisfies::<&OnHit>(attachments[1]));
+        assert!(world.satisfies::<&Technique>(attachments[2]));
     }
 
     #[test]

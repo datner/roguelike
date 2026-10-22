@@ -24,6 +24,7 @@ use crate::entity::{
 };
 use crate::entity::{
     Attuned, Blow, Dash, Lesson, OffBalance, Performed, Sighted, Stamina, Studied, Technique,
+    TechniqueAi,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -36,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 34;
+pub const SAVE_VERSION: u32 = 35;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -253,10 +254,11 @@ enum ComponentKind {
     Stamina,
     OffBalance,
     Performed,
+    TechniqueAi,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 72] = [
+    const ALL: [ComponentKind; 73] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -329,6 +331,7 @@ impl ComponentKind {
         Self::Stamina,
         Self::OffBalance,
         Self::Performed,
+        Self::TechniqueAi,
     ];
 }
 
@@ -413,6 +416,7 @@ enum SavedComponent {
     Stamina(Stamina),
     OffBalance(OffBalance),
     Performed(Performed),
+    TechniqueAi,
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -805,6 +809,7 @@ fn save_component(
         },
         ComponentKind::OffBalance => copy(entity).map(S::OffBalance),
         ComponentKind::Performed => copy(entity).map(S::Performed),
+        ComponentKind::TechniqueAi => copy::<TechniqueAi>(entity).map(|_| S::TechniqueAi),
         ComponentKind::Blow => copy(entity).map(S::Blow),
         ComponentKind::Dash => copy(entity).map(S::Dash),
         ComponentKind::Stamina => copy(entity).map(S::Stamina),
@@ -974,6 +979,7 @@ fn load_component(
         ),
         S::OffBalance(c) => builder.add(c),
         S::Performed(c) => builder.add(c),
+        S::TechniqueAi => builder.add(TechniqueAi),
         S::Blow(c) => builder.add(c),
         S::Dash(c) => builder.add(c),
         S::Stamina(c) => builder.add(c),

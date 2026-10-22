@@ -64,6 +64,11 @@ turning it on later must not mean a refactor.
   says whether the list shows every step or one row that turns into the
   next.
 
+- **Creatures perform them** with `TechniqueAi`, before a bump or a step:
+  the first technique, in the order known, whose shared check passes and
+  whose footprint strikes the target and none of its own side. Goblins
+  shove; the spirit wolf trips, an ability in the vision's sense.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
@@ -71,6 +76,6 @@ turning it on later must not mean a refactor.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
   a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
   `OffBalance`); 33 (`Technique` bonuses, `Need::Following`); 34 (`Combo`,
-  `Performed`, `Need::Continuing`).
+  `Performed`, `Need::Continuing`); 35 (`TechniqueAi`).
 - The player knows the lunge from their blueprint until manuals and styles
   teach techniques.

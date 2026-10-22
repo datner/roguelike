@@ -6,6 +6,7 @@ use hecs::Entity;
 use crate::command::Command;
 use crate::entity::{
     BlocksMovement, Dead, Health, Hostile, Position, SpawnSeq, Spell, SpellAi, Summoned,
+    TechniqueAi,
 };
 use crate::fov;
 use crate::holding;
@@ -15,6 +16,7 @@ use crate::ranged::line;
 use crate::side;
 use crate::spell;
 use crate::state::GameState;
+use crate::technique;
 
 /// How far a summon with nothing to fight lets its owner get ahead.
 const FOLLOW_DISTANCE: i32 = 2;
@@ -42,6 +44,11 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
             && let Some(cast) = spell_at(state, actor, foe, enemy)
         {
             return cast;
+        }
+        if world.satisfies::<&TechniqueAi>(actor)
+            && let Some(perform) = technique_at(state, actor, foe, enemy)
+        {
+            return perform;
         }
         if chebyshev(me, enemy) == 1 {
             let toward = ((enemy.x - me.x).signum(), (enemy.y - me.y).signum());
@@ -112,6 +119,33 @@ fn spell_at(state: &GameState, actor: Entity, enemy: Entity, at: Position) -> Op
         .map(|spell| Command::Cast {
             actor,
             spell,
+            at: target,
+        })
+}
+
+/// The first technique `actor` knows, in the order learned, that it could
+/// perform at `enemy` now and that would strike it and none of `actor`'s own
+/// side: the same checks and footprint the performance uses.
+fn technique_at(state: &GameState, actor: Entity, enemy: Entity, at: Position) -> Option<Command> {
+    let world = &state.world;
+    let target = (at.x, at.y);
+    technique::known(world, actor)
+        .into_iter()
+        .find(|&known| {
+            let Ok(ready) = technique::ready(state, actor, known) else {
+                return false;
+            };
+            technique::footprint(state, actor, &ready, target).is_ok_and(|footprint| {
+                footprint.targets.contains(&enemy)
+                    && footprint
+                        .targets
+                        .iter()
+                        .all(|&struck| side::enemies(world, actor, struck))
+            })
+        })
+        .map(|technique| Command::Perform {
+            actor,
+            technique,
             at: target,
         })
 }
