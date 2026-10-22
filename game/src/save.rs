@@ -454,6 +454,14 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
     ron::ser::to_string_pretty(&save, config).map_err(SaveError::Ron)
 }
 
+/// The format version `text` was saved in, read without loading the rest,
+/// or `None` if it is not a save.
+pub fn version(text: &str) -> Option<u32> {
+    ron::from_str::<Header>(text)
+        .ok()
+        .map(|header| header.version)
+}
+
 /// Rebuilds a `GameState` from `to_ron` output, resolving blueprint names
 /// against `blueprints`. The visible set is recomputed, not loaded.
 pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadError> {

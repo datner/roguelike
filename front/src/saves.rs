@@ -39,7 +39,29 @@ pub fn load(path: &Path, blueprints: Blueprints) -> Result<Loaded, String> {
     };
     save::from_ron(&text, blueprints)
         .map(|state| Loaded::Saved(Box::new(state)))
-        .map_err(|err| format!("cannot load {}: {err}", path.display()))
+        .map_err(|err| match err {
+            save::LoadError::Version { found, expected } => {
+                let name = path
+                    .file_stem()
+                    .map_or_else(Default::default, |s| s.to_string_lossy());
+                format!(
+                    "{name}'s save is from save version {found} (this build reads {expected}); \
+                     start a new game as {name} to replace it."
+                )
+            }
+            err => format!("cannot load {}: {err}", path.display()),
+        })
+}
+
+/// Whether `character`'s save is from another save format, so this build
+/// can't load it and a new game may take its name (ADR 0008: no
+/// migrations).
+pub fn outdated(dir: &Path, character: &str) -> bool {
+    path(dir, character)
+        .ok()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| save::version(&text))
+        .is_some_and(|version| version != save::SAVE_VERSION)
 }
 
 /// Saves `state` to `path` unless the character is dead, in which case the
@@ -174,6 +196,26 @@ mod tests {
     }
 
     #[test]
+    fn a_save_in_another_format_is_outdated() {
+        let dir = temp_dir("outdated");
+        let current = save::to_ron(&state()).unwrap();
+        fs::write(path(&dir, "now").unwrap(), &current).unwrap();
+        let old = current.replacen(
+            &format!("version: {}", save::SAVE_VERSION),
+            &format!("version: {}", save::SAVE_VERSION - 1),
+            1,
+        );
+        fs::write(path(&dir, "old").unwrap(), old).unwrap();
+        fs::write(path(&dir, "junk").unwrap(), "not a save").unwrap();
+
+        assert!(!outdated(&dir, "now"));
+        assert!(outdated(&dir, "old"));
+        assert!(!outdated(&dir, "junk"), "only a known older format");
+        assert!(!outdated(&dir, "missing"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn quitting_goes_through_the_temp_file() {
         let dir = temp_dir("temp");
         let path = path(&dir, "hero").unwrap();
@@ -227,6 +269,7 @@ mod tests {
             panic!("a save from another version must not load");
         };
         assert!(err.contains("version 999"), "{err}");
+        assert!(err.contains("new game as hero"), "{err}");
         assert_eq!(fs::read_to_string(&path).unwrap(), "(version: 999)");
         assert_eq!(files(&dir), ["hero.ron"]);
         fs::remove_dir_all(dir).unwrap();

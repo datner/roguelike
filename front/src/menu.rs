@@ -8,6 +8,8 @@ use crate::input::MenuInput;
 pub enum Action {
     /// Load the character's save, or start a new game if there is none.
     Play(String),
+    /// Delete the character's outdated save and start a new game.
+    Replace(String),
     Delete(String),
     Rename {
         from: String,
@@ -41,6 +43,8 @@ pub struct Menu {
     screen: Screen,
     /// Most recently saved first, as `saves::list` returns them.
     saves: Vec<String>,
+    /// Saves from another save format, which a new game may replace.
+    outdated: Vec<String>,
     message: Option<String>,
 }
 
@@ -76,6 +80,7 @@ impl Menu {
         Self {
             screen: Screen::Main { selected: NEW },
             saves,
+            outdated: Vec::new(),
             message: None,
         }
     }
@@ -88,6 +93,10 @@ impl Menu {
         if let Screen::Load { selected } | Screen::ConfirmDelete { selected } = &mut self.screen {
             *selected = (*selected).min(last);
         }
+    }
+
+    pub fn set_outdated(&mut self, outdated: Vec<String>) {
+        self.outdated = outdated;
     }
 
     pub fn show(&mut self, message: impl Into<String>) {
@@ -196,6 +205,10 @@ impl Menu {
         }
         let name = text.clone();
         match *naming {
+            Naming::New if self.outdated.contains(&name) => {
+                self.screen = Screen::Main { selected: CONTINUE };
+                Some(Action::Replace(name))
+            }
             Naming::New if self.saves.contains(&name) => {
                 self.show(format!("{name} already has a save; load or delete it."));
                 None
@@ -235,7 +248,7 @@ impl Menu {
             }
             Screen::Load { selected } => (
                 "Load",
-                save_list(&self.saves, *selected),
+                save_list(&self.saves, &self.outdated, *selected),
                 "Enter load  r rename  d delete  Esc back",
             ),
             Screen::ConfirmDelete { selected } => {
@@ -277,7 +290,8 @@ fn is_name_char(c: char) -> bool {
 }
 
 /// A window of at most `VISIBLE_SAVES` rows that keeps the selection in view.
-fn save_list(saves: &[String], selected: usize) -> Body {
+/// An outdated save is listed dimmed, with how to replace it.
+fn save_list(saves: &[String], outdated: &[String], selected: usize) -> Body {
     if saves.is_empty() {
         return Body::Text(vec!["No saves.".to_string()]);
     }
@@ -287,10 +301,17 @@ fn save_list(saves: &[String], selected: usize) -> Body {
         .enumerate()
         .skip(first)
         .take(VISIBLE_SAVES)
-        .map(|(i, name)| Row {
-            text: name.clone(),
-            selected: i == selected,
-            disabled: false,
+        .map(|(i, name)| {
+            let old = outdated.contains(name);
+            Row {
+                text: if old {
+                    format!("{name} (old version: a new game replaces it)")
+                } else {
+                    name.clone()
+                },
+                selected: i == selected,
+                disabled: old,
+            }
         })
         .collect();
     Body::List(rows)
@@ -359,6 +380,20 @@ mod tests {
         assert_eq!(press(&mut menu, &[Select]), None);
         assert!(menu.typing());
         assert!(text(&menu).contains("hero already has a save"));
+    }
+
+    #[test]
+    fn new_game_replaces_an_outdated_save_of_that_name() {
+        let mut menu = menu(&["hero", "old"]);
+        menu.set_outdated(vec!["old".into()]);
+        press(&mut menu, &[Down, Down, Select]);
+        assert!(text(&menu).contains("old (old version: a new game replaces it)"));
+        press(&mut menu, &[Back, Up, Up, Select]);
+        type_text(&mut menu, "old");
+        assert_eq!(
+            press(&mut menu, &[Select]),
+            Some(Action::Replace("old".into()))
+        );
     }
 
     #[test]

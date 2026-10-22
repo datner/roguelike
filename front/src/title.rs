@@ -28,6 +28,10 @@ pub fn perform(menu: &mut Menu, saves_dir: &Path, action: Action) -> Option<Next
     let outcome = match action {
         Action::Quit => return Some(Next::Quit),
         Action::Play(character) => return Some(Next::Play(character)),
+        Action::Replace(character) => match saves::delete(saves_dir, &character) {
+            Ok(()) => return Some(Next::Play(character)),
+            Err(err) => Err(err),
+        },
         Action::Delete(character) => {
             saves::delete(saves_dir, &character).map(|()| format!("Deleted {character}."))
         }
@@ -44,7 +48,15 @@ pub fn perform(menu: &mut Menu, saves_dir: &Path, action: Action) -> Option<Next
 /// Reloads the menu's save list from disk.
 pub fn refresh(menu: &mut Menu, saves_dir: &Path) {
     match saves::list(saves_dir) {
-        Ok(list) => menu.set_saves(list),
+        Ok(list) => {
+            let outdated = list
+                .iter()
+                .filter(|name| saves::outdated(saves_dir, name))
+                .cloned()
+                .collect();
+            menu.set_saves(list);
+            menu.set_outdated(outdated);
+        }
         Err(err) => menu.show(err),
     }
 }
@@ -105,4 +117,22 @@ pub fn finish(game: &Game) -> Result<String, String> {
             format!("{character} died on turn {}.", state.now.turn())
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replacing_deletes_the_old_save_and_plays_the_name() {
+        let dir = std::env::temp_dir().join(format!("roguelike-title-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = saves::path(&dir, "old").unwrap();
+        std::fs::write(&file, "(version: 1)").unwrap();
+        let mut menu = Menu::new(Vec::new());
+        let next = perform(&mut menu, &dir, Action::Replace("old".into()));
+        assert!(matches!(next, Some(Next::Play(name)) if name == "old"));
+        assert!(!file.exists());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

@@ -141,7 +141,9 @@ This is a Cargo workspace with four crates:
 Title menu (New game, Continue, Load):
 
 - Arrow keys or `j`/`k`: select; `Enter`: choose; `Esc` or `q`: back/quit.
-- New game asks for a character name (letters, digits, `-`, `_`).
+- New game asks for a character name (letters, digits, `-`, `_`). A save
+  from an older save format can't load; a new game with its name replaces
+  it (Load marks such saves).
 - Continue resumes the most recently saved character.
 - Load lists saves, newest first: `Enter` loads, `r` renames, `d` deletes
   (with confirmation).
