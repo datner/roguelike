@@ -7,7 +7,7 @@
 (
     name: "the caves",
     arrival: "Goblins prowl these caves.",
-    cave: (
+    generator: Cave(
         wall_chance: 0.45,
         iterations: 5,
         wall_birth: 5,

@@ -2,18 +2,19 @@
 // `.` floor, `@` where you arrive; any other character is an entrance,
 // stairs down into the dungeon `entrances` names for it.
 (
-    arrival: "You are at camp. The way down is to the east.",
+    arrival: "You are at camp. Two ways lead down: the caves to the east, the castle to the west.",
     layout: [
         "##############################",
         "#............................#",
         "#..####..............####....#",
         "#..####..............####....#",
-        "#..####......@.......####..1.#",
+        "#2.####......@.......####..1.#",
         "#..####..............####....#",
         "#............................#",
         "##############################",
     ],
     entrances: {
         '1': "Caves",
+        '2': "Castle",
     },
 )

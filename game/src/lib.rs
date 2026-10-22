@@ -49,6 +49,7 @@ pub mod phase;
 pub mod prio;
 pub mod ranged;
 pub mod rng;
+pub mod rooms;
 pub mod save;
 pub mod side;
 pub mod skill;
@@ -70,7 +71,7 @@ pub use camp::Camp;
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
 pub use dive::{Place, PlaceView, place_view};
-pub use dungeon::{Dungeon, Inhabitant};
+pub use dungeon::{Dungeon, Generator, Inhabitant, Scatter};
 pub use effect::DurationChange;
 pub use entity::{
     Ammo, AmmoKind, Appearance, Area, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType,
@@ -86,6 +87,7 @@ pub use lore::{Inspection, inspect, look_targets};
 pub use phase::{Phase, PhaseView, phases, wait_refusal};
 pub use ranged::Trail;
 pub use rng::Rngs;
+pub use rooms::RoomsParams;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
 pub use skill::{Domain, SkillBook, SkillDef};
 pub use state::{GameState, MessageLog, render_view};

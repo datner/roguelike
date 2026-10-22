@@ -1,0 +1,19 @@
+// A dungeon (game::dungeon); see Caves.ron for the fields. Its floors are
+// built rooms joined by corridors (game::rooms) rather than grown caves.
+(
+    name: "the castle",
+    arrival: "Cold halls open around you; goblins hold the castle.",
+    generator: Rooms(
+        attempts: 60,
+        min_size: 4,
+        max_size: 10,
+    ),
+    creatures: [
+        (blueprint: "Goblin", count: 5, per_floor: 1),
+        (blueprint: "GoblinShaman", count: 1),
+        (blueprint: "GoblinShaman", count: 1, phases: ["Embers"]),
+    ],
+    items: [
+        (count: 4, per_floor: 1),
+    ],
+)

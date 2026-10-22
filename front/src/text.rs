@@ -226,7 +226,7 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
         let floor = GameState::new(3, blueprints).unwrap();
-        assert_eq!(place(&floor), "The caves, floor 1 (the stillness)");
+        assert_eq!(place(&floor), "The castle, floor 1 (the stillness)");
     }
 
     #[test]

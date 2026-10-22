@@ -6,13 +6,12 @@ use serde::{Deserialize, Serialize};
 use rand_pcg::Pcg64;
 
 use crate::camp::Camp;
+use crate::dungeon::Generator;
 use crate::entity::{Position, Summoned};
 use crate::map::{Grid, Map, Tile};
 use crate::rng::Rngs;
 use crate::state::GameState;
-use crate::zone::{
-    CaveParams, ZoneCoord, generate_cave, mix, place_stairs_down, region, start_position, zone_seed,
-};
+use crate::zone::{ZoneCoord, mix, place_stairs_down, region, start_position, zone_seed};
 
 /// Where the player is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,19 +114,21 @@ pub(crate) struct Floor {
     pub near: Vec<(i32, i32)>,
 }
 
-/// Generates `floor` of `dive` into `dungeon`: its cave, the stairs up near
+/// Generates `floor` of `dive` into `dungeon`: its layout, the stairs up near
 /// the centre where you arrive, the stairs down farthest from them.
 pub(crate) fn build(
     world_seed: u64,
-    cave: &CaveParams,
+    generator: &Generator,
     dungeon: &str,
     phase: &str,
     dive: u32,
     floor: u32,
 ) -> Floor {
     let seed = floor_seed(world_seed, dungeon, phase, dive, floor);
-    let (mut map, map_stream) = generate_cave(seed, cave);
-    let arrival = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
+    let (mut map, map_stream, suggested) = generator.generate(seed);
+    let arrival = suggested
+        .or_else(|| start_position(&map))
+        .unwrap_or((map.width / 2, map.height / 2));
     // Before the stairs change any tile: `region` walks plain floor.
     let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
     place_stairs_down(&mut map, arrival);
@@ -249,8 +250,8 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
         state.log.push("The stairs lead nowhere.");
         return;
     };
-    let (cave, name) = (found.cave.clone(), found.name.clone());
-    let next = build(state.seed, &cave, &dungeon, &phase, dive, floor);
+    let (generator, name) = (found.generator.clone(), found.name.clone());
+    let next = build(state.seed, &generator, &dungeon, &phase, dive, floor);
     state.dives = dive;
     enter(
         state,

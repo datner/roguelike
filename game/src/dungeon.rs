@@ -6,7 +6,11 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::blueprint::{BlueprintError, Blueprints, ron_options};
-use crate::zone::CaveParams;
+use rand_pcg::Pcg64;
+
+use crate::map::Map;
+use crate::rooms::{RoomsParams, generate_rooms};
+use crate::zone::{CaveParams, generate_cave};
 
 /// A dungeon, as its file describes it. Known by its file stem.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -16,7 +20,8 @@ pub struct Dungeon {
     pub name: String,
     /// Logged on arriving on each floor.
     pub arrival: String,
-    pub cave: CaveParams,
+    /// How its floors are laid out.
+    pub generator: Generator,
     /// Creatures on each floor, placed in this order.
     pub creatures: Vec<Inhabitant>,
     /// Items scattered on each floor, after the creatures, each drawn from
@@ -51,6 +56,38 @@ impl Scatter {
 fn grow(count: usize, per_floor: usize, floor: u32) -> usize {
     let below = usize::try_from(floor.saturating_sub(1)).unwrap_or(usize::MAX);
     count.saturating_add(per_floor.saturating_mul(below))
+}
+
+/// How a dungeon's floors are laid out: grown caves or built rooms.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub enum Generator {
+    Cave(CaveParams),
+    Rooms(RoomsParams),
+}
+
+impl Generator {
+    pub fn check(&self) -> Result<(), &'static str> {
+        match self {
+            Generator::Cave(params) => params.check(),
+            Generator::Rooms(params) => params.check(),
+        }
+    }
+
+    /// A floor from `zone_seed`, the map stream it leaves, and where to
+    /// arrive if the layout has a better place than the floor nearest the
+    /// middle.
+    pub fn generate(&self, zone_seed: u64) -> (Map, Pcg64, Option<(i32, i32)>) {
+        match self {
+            Generator::Cave(params) => {
+                let (map, stream) = generate_cave(zone_seed, params);
+                (map, stream, None)
+            }
+            Generator::Rooms(params) => {
+                let (map, stream, arrival) = generate_rooms(zone_seed, params);
+                (map, stream, Some(arrival))
+            }
+        }
+    }
 }
 
 /// A kind of creature on a dungeon's floors.
@@ -108,7 +145,7 @@ pub(crate) fn check(
     dungeon: &Dungeon,
     blueprints: &Blueprints,
 ) -> Result<(), BlueprintError> {
-    if let Err(why) = dungeon.cave.check() {
+    if let Err(why) = dungeon.generator.check() {
         return Err(BlueprintError::BadDungeon {
             dungeon: key.to_string(),
             why: why.to_string(),
@@ -146,7 +183,7 @@ pub(crate) mod tests {
         Dungeon {
             name: "the test caves".into(),
             arrival: "Goblins prowl these caves.".into(),
-            cave: test_cave(),
+            generator: Generator::Cave(test_cave()),
             creatures: vec![Inhabitant {
                 blueprint: "Goblin".into(),
                 count: 6,
@@ -180,6 +217,8 @@ pub(crate) mod tests {
         let caves = blueprints.dungeon("Caves").expect("the caves ship");
         assert_eq!(caves.name, "the caves");
         assert!(!caves.creatures.is_empty());
+        let castle = blueprints.dungeon("Castle").expect("the castle ships");
+        assert!(matches!(castle.generator, Generator::Rooms(_)));
     }
 
     #[test]

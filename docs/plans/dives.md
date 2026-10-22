@@ -75,7 +75,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Side panel and status: "Camp", or "The caves, floor 2 (embers)". Log lines on every move between
   places. README Controls (`>`, `<`, `W`) and Structure. Shots for camp and a floor; references updated.
 
-### 6. A second dungeon: the castle
+### 6. A second dungeon: the castle — done
 - A rooms-and-corridors generator chosen by the dungeon's data (`generator: Rooms(...)` beside
   `Cave(...)`), with its own spawn table; camp gets its entrance. Proves themes are data plus a generator.
 - Tests: generator determinism, every room reachable, stairs placed apart.
