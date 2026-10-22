@@ -148,7 +148,6 @@ fn temp_path(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use game::CaveParams;
 
     use super::*;
 
@@ -158,8 +157,7 @@ mod tests {
     }
 
     fn state() -> GameState {
-        let cave = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/cave.ron");
-        GameState::new(3, blueprints(), &CaveParams::load(&cave).unwrap()).unwrap()
+        GameState::new(3, blueprints()).unwrap()
     }
 
     /// A fresh, empty directory under the system temp dir.

@@ -21,19 +21,9 @@ use crate::rng::Rngs;
 use crate::spawn::{Held, Source, Spawn};
 use crate::spell;
 use crate::time::{Tick, Timers};
-use crate::zone::{
-    CaveParams, ZoneCoord, generate_cave, place_stairs_down, start_position, zone_seed,
-};
 
-/// Goblins placed in a new zone (fewer if the cave has no room).
-pub const GOBLINS: usize = 6;
-/// Goblin shamans placed in a new zone, after the goblins and items.
-pub const SHAMANS: usize = 1;
-/// Closest a goblin may start to the player, in steps.
-pub const GOBLIN_MIN_DISTANCE: i32 = 12;
-/// Items scattered on the floor of a new zone, each drawn from
-/// `Blueprints::items` (fewer if the cave has no room or there are none).
-pub const FLOOR_ITEMS: usize = 5;
+/// Closest a creature may start to the player, in steps.
+pub const CREATURE_MIN_DISTANCE: i32 = 12;
 
 /// Arrows the player starts with in their quiver.
 pub const STARTING_ARROWS: usize = 12;
@@ -99,34 +89,38 @@ pub struct GameState {
 }
 
 impl GameState {
-    /// The starting zone: a generated cave, the player on the floor tile
-    /// nearest its centre, the stairs down on the floor farthest from it, then
-    /// `GOBLINS` goblins and `FLOOR_ITEMS` items on free floor, drawn from
-    /// the spawn stream.
-    pub fn new(
-        seed: u64,
-        blueprints: Blueprints,
-        cave: &CaveParams,
-    ) -> Result<Self, BlueprintError> {
-        let mut state = Self::bare(seed, blueprints, cave)?;
+    /// The first floor of the first dungeon (`dive::build`), filled from
+    /// the dungeon's spawn table by the spawn stream.
+    pub fn new(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
+        let mut state = Self::bare(seed, blueprints)?;
         state.populate()?;
         Ok(state)
     }
 
-    /// Just the generated zone (exit included) and the player; no other
+    /// Just the first floor and the player, on its stairs up; no other
     /// entities.
-    pub fn bare(
-        seed: u64,
-        blueprints: Blueprints,
-        cave: &CaveParams,
-    ) -> Result<Self, BlueprintError> {
-        let zone_seed = zone_seed(seed, ZoneCoord::START);
-        let (mut map, map_stream) = generate_cave(zone_seed, cave);
-        let mut rngs = Rngs::new(seed, zone_seed);
-        rngs.map = map_stream;
-        let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
-        place_stairs_down(&mut map, (x, y));
-        Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
+    pub fn bare(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
+        let dungeon = blueprints
+            .first_dungeon()
+            .ok_or(BlueprintError::NoDungeon)?
+            .to_string();
+        let cave = blueprints
+            .dungeon(&dungeon)
+            .ok_or(BlueprintError::NoDungeon)?
+            .cave
+            .clone();
+        let floor = crate::dive::build(seed, &dungeon, &cave, 1, 1);
+        let mut rngs = Rngs::new(seed, 0);
+        rngs.map = floor.map_stream;
+        rngs.spawn = floor.spawn_stream;
+        let (x, y) = floor.arrival;
+        let mut state = Self::with_map(seed, rngs, floor.map, Position { x, y }, blueprints)?;
+        state.place = crate::dive::Place::Floor {
+            dungeon,
+            dive: 1,
+            floor: 1,
+        };
+        Ok(state)
     }
 
     /// Arrows in the player's quiver at the start: a bow is no use without,
@@ -153,17 +147,22 @@ impl GameState {
         else {
             return Ok(());
         };
-        self.place("Goblin", GOBLINS, from)?;
-        // After the goblins, so adding items left their placement unchanged.
-        self.scatter_items(from)?;
-        // After the items, for the same reason.
-        self.place("GoblinShaman", SHAMANS, from)?;
-        self.log.push("Goblins prowl these caves.");
+        let crate::dive::Place::Floor { dungeon, floor, .. } = &self.place;
+        let floor = *floor;
+        let Some(dungeon) = self.blueprints.dungeon(dungeon).cloned() else {
+            return Ok(());
+        };
+        for inhabitant in &dungeon.creatures {
+            self.place(&inhabitant.blueprint, inhabitant.on_floor(floor), from)?;
+        }
+        // After the creatures, so adding items leaves their placement alone.
+        self.scatter_items(dungeon.items, from)?;
+        self.log.push(dungeon.arrival);
         Ok(())
     }
 
     /// Up to `count` of `blueprint`, each on a free tile at least
-    /// `GOBLIN_MIN_DISTANCE` from `from`.
+    /// `CREATURE_MIN_DISTANCE` from `from`.
     fn place(
         &mut self,
         blueprint: &str,
@@ -181,7 +180,7 @@ impl GameState {
                 &self.map,
                 &occupied,
                 from,
-                GOBLIN_MIN_DISTANCE,
+                CREATURE_MIN_DISTANCE,
                 &mut self.rngs.spawn,
             ) else {
                 break;
@@ -191,12 +190,12 @@ impl GameState {
         Ok(())
     }
 
-    fn scatter_items(&mut self, from: (i32, i32)) -> Result<(), BlueprintError> {
+    fn scatter_items(&mut self, count: usize, from: (i32, i32)) -> Result<(), BlueprintError> {
         let pool = self.blueprints.items();
         if pool.is_empty() {
             return Ok(());
         }
-        for _ in 0..FLOOR_ITEMS {
+        for _ in 0..count {
             let occupied: Vec<(i32, i32)> = self
                 .world
                 .query::<&Position>()
@@ -227,6 +226,12 @@ impl GameState {
     ) -> Result<Self, BlueprintError> {
         let unseen = Grid::new(map.width, map.height, false);
         let no_items = Grid::new(map.width, map.height, None);
+        // The first dungeon until the caller says where this is.
+        let place = crate::dive::Place::Floor {
+            dungeon: blueprints.first_dungeon().unwrap_or_default().to_string(),
+            dive: 1,
+            floor: 1,
+        };
 
         let mut log = MessageLog::default();
         log.push(format!("Seed: {seed}"));
@@ -249,7 +254,7 @@ impl GameState {
             remembered_items: no_items,
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
-            place: crate::dive::Place::default(),
+            place,
             fx: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
@@ -441,7 +446,6 @@ pub(crate) mod tests {
     use crate::input::{Dir, PlayerAction};
     use crate::map::tests::room;
     use crate::testkit::{last_log, thing};
-    use crate::zone::tests::test_cave;
     use rand::Rng;
 
     fn blueprint(components: Vec<ComponentDef>, equipment: &[&str]) -> Blueprint {
@@ -707,6 +711,12 @@ pub(crate) mod tests {
             ]),
             crate::skill::tests::book(),
         )
+        .and_then(|blueprints| {
+            blueprints.with_dungeons(BTreeMap::from([(
+                "Test".to_string(),
+                crate::dungeon::tests::test_dungeon(),
+            )]))
+        })
         .expect("test blueprints resolve")
     }
 
@@ -759,14 +769,15 @@ pub(crate) mod tests {
     #[test]
     fn new_spawns_armored_goblins_on_floor_away_from_the_player() {
         for seed in 0..5 {
-            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+            let state = GameState::new(seed, test_blueprints()).unwrap();
             let player = player_position(&state);
             let goblins = goblins(&state);
-            assert_eq!(goblins.len(), GOBLINS, "seed {seed}");
+            let expected = crate::dungeon::tests::test_dungeon().creatures[0].count;
+            assert_eq!(goblins.len(), expected, "seed {seed}");
             for (at, gear) in &goblins {
                 assert_eq!(state.map.get(at.x, at.y), Some(&Tile::Floor));
                 let distance = (at.x - player.x).abs().max((at.y - player.y).abs());
-                assert!(distance >= GOBLIN_MIN_DISTANCE, "seed {seed}: {at:?}");
+                assert!(distance >= CREATURE_MIN_DISTANCE, "seed {seed}: {at:?}");
                 assert!(state.world.satisfies::<&Armor>(gear[0]));
             }
         }
@@ -775,7 +786,7 @@ pub(crate) mod tests {
     #[test]
     fn new_scatters_unfound_items_and_places_a_reachable_exit() {
         for seed in 0..5 {
-            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+            let state = GameState::new(seed, test_blueprints()).unwrap();
             let player = player_position(&state);
             let items: Vec<Position> = state
                 .world
@@ -786,7 +797,8 @@ pub(crate) mod tests {
                     *pos
                 })
                 .collect();
-            assert_eq!(items.len(), FLOOR_ITEMS, "seed {seed}");
+            let expected = crate::dungeon::tests::test_dungeon().items;
+            assert_eq!(items.len(), expected, "seed {seed}");
             for at in &items {
                 assert_eq!(state.map.get(at.x, at.y), Some(&Tile::Floor));
                 let distance = (at.x - player.x).abs().max((at.y - player.y).abs());
@@ -800,22 +812,24 @@ pub(crate) mod tests {
                 .count();
             assert_eq!(exits, 1, "seed {seed}");
         }
-        let a = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
-        let b = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        let a = GameState::new(9, test_blueprints()).unwrap();
+        let b = GameState::new(9, test_blueprints()).unwrap();
         assert_eq!(a.map, b.map);
     }
 
     #[test]
-    fn the_player_starts_on_the_floor_tile_nearest_the_centre() {
-        let state = GameState::bare(3, test_blueprints(), &test_cave()).unwrap();
+    fn the_player_starts_on_the_stairs_up_nearest_the_centre() {
+        let state = GameState::bare(3, test_blueprints()).unwrap();
         let start = player_position(&state);
+        assert_eq!(state.map.get(start.x, start.y), Some(&Tile::StairsUp));
         let (cx, cy) = (state.map.width / 2, state.map.height / 2);
         let dist = |x: i32, y: i32| (x - cx).pow(2) + (y - cy).pow(2);
-        let nearest = crate::map::floor_candidates(&state.map, &[])
+        let nearest_floor = crate::map::floor_candidates(&state.map, &[])
             .into_iter()
             .map(|(x, y)| dist(x, y))
-            .min();
-        assert_eq!(Some(dist(start.x, start.y)), nearest);
+            .min()
+            .unwrap();
+        assert!(dist(start.x, start.y) <= nearest_floor);
     }
 
     fn positions(state: &GameState) -> Vec<(Position, Option<String>)> {
@@ -846,8 +860,8 @@ pub(crate) mod tests {
 
     #[test]
     fn same_seed_yields_identical_map_spawns_and_combat_rolls() {
-        let mut a = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
-        let mut b = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        let mut a = GameState::new(9, test_blueprints()).unwrap();
+        let mut b = GameState::new(9, test_blueprints()).unwrap();
         assert_eq!(a.map, b.map);
         assert_eq!(positions(&a), positions(&b));
         assert_eq!(combat_rolls(&mut a), combat_rolls(&mut b));
@@ -855,9 +869,9 @@ pub(crate) mod tests {
 
     #[test]
     fn an_extra_spawn_draw_leaves_map_and_combat_streams_alone() {
-        let mut fresh = GameState::new(9, test_blueprints(), &test_cave()).unwrap();
+        let mut fresh = GameState::new(9, test_blueprints()).unwrap();
 
-        let mut perturbed = GameState::bare(9, test_blueprints(), &test_cave()).unwrap();
+        let mut perturbed = GameState::bare(9, test_blueprints()).unwrap();
         perturbed.rngs.spawn.next_u64();
         perturbed.populate().unwrap();
 
@@ -870,14 +884,10 @@ pub(crate) mod tests {
     #[test]
     fn spawns_avoid_walls_the_player_and_each_other() {
         for seed in 0..10 {
-            let state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+            let state = GameState::new(seed, test_blueprints()).unwrap();
             let tiles: Vec<Position> = positions(&state).into_iter().map(|(p, _)| p).collect();
             for (i, pos) in tiles.iter().enumerate() {
-                assert_eq!(
-                    state.map.get(pos.x, pos.y),
-                    Some(&Tile::Floor),
-                    "seed {seed}"
-                );
+                assert!(Tile::is_open(state.map.get(pos.x, pos.y)), "seed {seed}");
                 assert!(
                     !tiles[i + 1..].contains(pos),
                     "seed {seed}: overlap at {pos:?}"
@@ -888,7 +898,7 @@ pub(crate) mod tests {
 
     #[test]
     fn missing_player_blueprint_is_an_error() {
-        assert!(GameState::bare(1, Blueprints::default(), &test_cave()).is_err());
+        assert!(GameState::bare(1, Blueprints::default()).is_err());
     }
 
     #[test]
@@ -1029,7 +1039,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_view_is_the_viewport_size_and_centred_on_the_player() {
-        let state = GameState::bare(3, test_blueprints(), &test_cave()).unwrap();
+        let state = GameState::bare(3, test_blueprints()).unwrap();
         let view = render_view(&state, 41, 21);
         assert_eq!((view.width, view.height), (41, 21));
         assert_eq!(view.get(20, 10).map(|cell| cell.glyph), Some('@'));

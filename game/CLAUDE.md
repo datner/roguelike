@@ -10,7 +10,9 @@ can't show at a glance.
 
 - `input.rs`/`view.rs` — the seam: `term` passes a `PlayerAction` and reads plain views. Anything taking or returning a hecs type stays `pub(crate)`; items cross as `ItemRef` (their `SpawnSeq`).
 - `map.rs` — `Tile::is_open` is the one walk/see-through check. Out-of-bounds `Grid::get` is `None`: treat it as wall. Tests use `map::tests::room` (hand-built 40×20), never the generator.
-- `zone.rs` — `place_exit` uses no RNG; changing the generator's draw order or `data/cave.ron` changes every seeded world (ADR 0009).
+- `zone.rs` — `place_stairs_down` uses no RNG; changing the generator's draw order or a dungeon's cave tuning changes every seeded world (ADR 0009).
+- `dive.rs` — a floor exists only while the player is on it; `dive::build` is the one way to make one (new game and stairs alike), its seed from `floor_seed`. Only the player, what they hold and their summons cross floors.
+- `dungeon.rs` — dungeons are data (`data/dungeons/<Key>.ron`), checked against the blueprints at load; spawn counts belong there, never in code.
 - `entity.rs` — plain data only. `Attachments` = in use (parts fire); `Inventory` = carried, inert; equipped = attached + `EquippedOn` (ADR 0010).
 - `holding.rs` — every change to `Attachments`, `Inventory` or `EquippedOn` goes through here. Save and event dispatch read them directly.
 - `blueprint.rs` — inheritance: the child's field wins (per component variant; `equipment` and `spells` absent inherit, present replace, `[]` clears). Names are validated at load and resolved to runtime-only `BlueprintId`s: never serialize one, persist names. `equipment` must fit the owner's `Body` (checked at load).

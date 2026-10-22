@@ -3,7 +3,6 @@
 //! generator that fills them.
 
 use std::collections::VecDeque;
-use std::path::{Path, PathBuf};
 
 use rand::RngExt;
 use rand_pcg::Pcg64;
@@ -54,7 +53,7 @@ pub fn zone_seed(world_seed: u64, zone: ZoneCoord) -> u64 {
     mix(mix(world_seed, bits(zone.x)), bits(zone.y))
 }
 
-/// Tuning for `generate_cave`, loaded from `data/cave.ron`.
+/// Tuning for `generate_cave`, part of a dungeon's data (`data/dungeons/`).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CaveParams {
@@ -71,42 +70,19 @@ pub struct CaveParams {
     pub min_floor_fraction: f64,
 }
 
-#[derive(Debug)]
-pub enum CaveParamsError {
-    Io(PathBuf, std::io::Error),
-    Parse(PathBuf, Box<ron::error::SpannedError>),
-    Invalid(PathBuf, &'static str),
-}
-
-impl std::fmt::Display for CaveParamsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(path, err) => write!(f, "{}: {err}", path.display()),
-            Self::Parse(path, err) => write!(f, "{}: {err}", path.display()),
-            Self::Invalid(path, why) => write!(f, "{}: {why}", path.display()),
-        }
-    }
-}
-
-impl std::error::Error for CaveParamsError {}
-
 impl CaveParams {
-    pub fn load(path: &Path) -> Result<Self, CaveParamsError> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|err| CaveParamsError::Io(path.to_path_buf(), err))?;
-        let params: Self = ron::from_str(&text)
-            .map_err(|err| CaveParamsError::Parse(path.to_path_buf(), Box::new(err)))?;
-        let invalid = |why| Err(CaveParamsError::Invalid(path.to_path_buf(), why));
-        if !(0.0..=1.0).contains(&params.wall_chance) {
-            return invalid("wall_chance must be between 0 and 1");
+    /// Whether these parameters can generate a cave, and why not.
+    pub fn check(&self) -> Result<(), &'static str> {
+        if !(0.0..=1.0).contains(&self.wall_chance) {
+            return Err("wall_chance must be between 0 and 1");
         }
-        if !(0.0..=1.0).contains(&params.min_floor_fraction) {
-            return invalid("min_floor_fraction must be between 0 and 1");
+        if !(0.0..=1.0).contains(&self.min_floor_fraction) {
+            return Err("min_floor_fraction must be between 0 and 1");
         }
-        if params.wall_birth > 8 || params.wall_survival > 8 {
-            return invalid("wall_birth and wall_survival count neighbours, at most 8");
+        if self.wall_birth > 8 || self.wall_survival > 8 {
+            return Err("wall_birth and wall_survival count neighbours, at most 8");
         }
-        Ok(params)
+        Ok(())
     }
 }
 
@@ -277,7 +253,7 @@ pub(crate) mod tests {
         assert_eq!(lone.get(1, 1), Some(&Tile::Floor));
     }
 
-    /// Same values as `data/cave.ron`, inline so retuning the data file
+    /// Same values as the shipped caves, inline so retuning the data file
     /// can't break tests that only need some cave.
     pub(crate) fn test_cave() -> CaveParams {
         CaveParams {
@@ -384,23 +360,13 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_data_file_loads() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/cave.ron");
-        CaveParams::load(&path).expect("data/cave.ron should load");
-    }
-
-    #[test]
     fn out_of_range_parameters_are_refused() {
-        let dir = std::env::temp_dir().join(format!("cave-params-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("cave.ron");
-        std::fs::write(
-            &path,
-            "(wall_chance: 1.5, iterations: 5, wall_birth: 5, wall_survival: 4, min_floor_fraction: 0.3)",
-        )
-        .unwrap();
-        let err = CaveParams::load(&path).unwrap_err();
-        assert!(matches!(err, CaveParamsError::Invalid(_, _)), "{err}");
-        std::fs::remove_dir_all(&dir).unwrap();
+        let mut params = test_cave();
+        assert_eq!(params.check(), Ok(()));
+        params.wall_chance = 1.5;
+        assert!(params.check().is_err());
+        params = test_cave();
+        params.wall_birth = 9;
+        assert!(params.check().is_err());
     }
 }

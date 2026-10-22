@@ -13,13 +13,12 @@ pub mod title;
 pub(crate) mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, CaveParams, GameState};
+    use game::{Blueprints, GameState};
 
     /// A new game from the real data, seed 3.
     pub fn state() -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = Blueprints::load(&data).unwrap();
-        let cave = CaveParams::load(&data.join("cave.ron")).unwrap();
-        GameState::new(3, blueprints, &cave).unwrap()
+        GameState::new(3, blueprints).unwrap()
     }
 }

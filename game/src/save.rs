@@ -87,6 +87,8 @@ pub enum LoadError {
     },
     UnknownBlueprint(String),
     UnknownSkill(String),
+    /// The save is in a dungeon the data no longer has.
+    UnknownDungeon(String),
     BadEntityIndex(u32),
     BadGrid(&'static str),
     /// The entity at this save index has no `SpawnSeq` (ADR 0008).
@@ -105,6 +107,7 @@ impl std::fmt::Display for LoadError {
                 write!(f, "save refers to unknown blueprint {name:?}")
             }
             Self::UnknownSkill(name) => write!(f, "save refers to unknown skill {name:?}"),
+            Self::UnknownDungeon(name) => write!(f, "save is in unknown dungeon {name:?}"),
             Self::BadEntityIndex(index) => write!(f, "save refers to missing entity {index}"),
             Self::BadGrid(which) => write!(f, "save has a malformed {which} grid"),
             Self::MissingSpawnSeq(index) => write!(f, "saved entity {index} has no SpawnSeq"),
@@ -440,7 +443,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         player: must_refer(state.player)?,
         next_spawn_seq: state.next_spawn_seq,
         explore_items: state.explore_items,
-        place: state.place,
+        place: state.place.clone(),
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
@@ -475,6 +478,10 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         });
     }
     let save: Save = ron::from_str(text).map_err(LoadError::Parse)?;
+    let crate::dive::Place::Floor { dungeon, .. } = &save.place;
+    if blueprints.dungeon(dungeon).is_none() {
+        return Err(LoadError::UnknownDungeon(dungeon.clone()));
+    }
 
     let mut world = World::new();
     #[expect(
@@ -934,23 +941,17 @@ mod tests {
     use crate::input::{Dir, PlayerAction};
     use crate::map::Tile;
     use crate::spawn::Spawn;
-    use crate::state::GOBLINS;
     use crate::state::tests::{bare_state, test_blueprints};
     use crate::testkit::thing;
     use crate::time::{Step, step, take_turn};
-    use crate::zone::CaveParams;
 
     fn data_blueprints() -> Blueprints {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         Blueprints::load(&dir).unwrap()
     }
 
-    fn data_cave() -> CaveParams {
-        CaveParams::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/cave.ron")).unwrap()
-    }
-
     fn new_game(seed: u64) -> GameState {
-        GameState::new(seed, data_blueprints(), &data_cave()).unwrap()
+        GameState::new(seed, data_blueprints()).unwrap()
     }
 
     fn reload(state: &GameState, blueprints: Blueprints) -> GameState {
@@ -1045,7 +1046,7 @@ mod tests {
         }
 
         assert!(
-            goblins(&uninterrupted).len() < GOBLINS,
+            goblins(&uninterrupted).len() < goblins(&new_game(42)).len(),
             "the script reaches combat"
         );
         assert_eq!(to_ron(&resumed).unwrap(), to_ron(&uninterrupted).unwrap());

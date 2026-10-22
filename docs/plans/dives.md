@@ -43,7 +43,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   creatures don't; memory is reset; stale timers of despawned entities no-op; a save mid-dive loads on the
   same floor.
 
-### 2. Dungeons are data
+### 2. Dungeons are data — done
 - `data/dungeons/<Name>.ron`: a dungeon's name ("the caves"), arrival line ("Goblins prowl these
   caves."), generator (the cave parameters, moving `data/cave.ron` in), and a spawn table of creatures
   (`blueprint`, `count`, `per_floor` extra for each floor down) and floor items (`count`).

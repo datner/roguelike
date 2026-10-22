@@ -11,8 +11,8 @@
 //! is checked and turned into a `BlueprintId` at load, so a typo fails
 //! loading instead of surfacing mid-game.
 
+use crate::dungeon::{self, Dungeon};
 use crate::tiles::Tiles;
-use crate::zone::{CaveParams, CaveParamsError};
 use std::collections::BTreeMap;
 use std::fs;
 use std::mem::discriminant;
@@ -264,9 +264,10 @@ pub struct Blueprints {
     discoveries: Vec<Discovery>,
     /// Sprites (`data/tiles.ron`, ADR 0023).
     tiles: Tiles,
-    /// How floors are generated (`data/cave.ron`), so a new floor can be
-    /// made mid-game and after a load. `None` makes stairs lead nowhere.
-    cave: Option<CaveParams>,
+    /// The dungeons (`data/dungeons/`), by file stem: how their floors are
+    /// generated and filled, so a floor can be made mid-game and after a
+    /// load.
+    dungeons: BTreeMap<String, Dungeon>,
 }
 
 #[derive(Debug)]
@@ -332,7 +333,12 @@ pub enum BlueprintError {
     },
     SpriteWithoutFrames(String),
     TooManySprites,
-    Cave(CaveParamsError),
+    BadDungeon {
+        dungeon: String,
+        why: String,
+    },
+    /// A new game needs a dungeon to start in.
+    NoDungeon,
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -346,7 +352,8 @@ impl std::fmt::Display for BlueprintError {
             }
             Self::SpriteWithoutFrames(name) => write!(f, "sprite {name:?} has no frames"),
             Self::TooManySprites => write!(f, "too many sprites"),
-            Self::Cave(err) => write!(f, "{err}"),
+            Self::BadDungeon { dungeon, why } => write!(f, "dungeon {dungeon:?}: {why}"),
+            Self::NoDungeon => write!(f, "no dungeons in data/dungeons"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -410,12 +417,8 @@ impl Blueprints {
         let skills = SkillBook::load(&data.join("skills.ron"))?;
         Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
-            .with_tiles(Tiles::load(data)?)
-            .map(|blueprints| {
-                let cave =
-                    CaveParams::load(&data.join("cave.ron")).map_err(BlueprintError::Cave)?;
-                Ok(blueprints.with_cave(cave))
-            })?
+            .with_tiles(Tiles::load(data)?)?
+            .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)
     }
 
     /// Reads every `*.ron` file in `dir`, named by file stem.
@@ -574,7 +577,7 @@ impl Blueprints {
             skills,
             discoveries: Vec::new(),
             tiles: Tiles::default(),
-            cave: None,
+            dungeons: BTreeMap::new(),
         })
     }
 
@@ -614,13 +617,27 @@ impl Blueprints {
         &self.tiles
     }
 
-    pub fn with_cave(mut self, cave: CaveParams) -> Self {
-        self.cave = Some(cave);
-        self
+    /// Every dungeon is checked against these blueprints
+    /// (`dungeon::check`).
+    pub fn with_dungeons(
+        mut self,
+        dungeons: BTreeMap<String, Dungeon>,
+    ) -> Result<Self, BlueprintError> {
+        for (key, dungeon) in &dungeons {
+            dungeon::check(key, dungeon, &self)?;
+        }
+        self.dungeons = dungeons;
+        Ok(self)
     }
 
-    pub fn cave(&self) -> Option<&CaveParams> {
-        self.cave.as_ref()
+    pub fn dungeon(&self, key: &str) -> Option<&Dungeon> {
+        self.dungeons.get(key)
+    }
+
+    /// The dungeon a new game starts in, until there is a camp: the first
+    /// by name.
+    pub fn first_dungeon(&self) -> Option<&str> {
+        self.dungeons.keys().next().map(String::as_str)
     }
 
     pub(crate) fn discoveries(&self) -> &[Discovery] {

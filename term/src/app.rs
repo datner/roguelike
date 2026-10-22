@@ -229,7 +229,7 @@ fn draw(frame: &mut Frame, session: &Session, flying: Option<Flying>) {
 mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, CaveParams, GameState, InputEvent, Shot, Tick};
+    use game::{Blueprints, GameState, InputEvent, Shot, Tick};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
@@ -240,8 +240,7 @@ mod tests {
     fn state() -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = Blueprints::load(&data).unwrap();
-        let cave = CaveParams::load(&data.join("cave.ron")).unwrap();
-        GameState::new(3, blueprints, &cave).unwrap()
+        GameState::new(3, blueprints).unwrap()
     }
 
     fn session() -> Session {

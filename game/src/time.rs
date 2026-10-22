@@ -322,7 +322,6 @@ mod tests {
     use crate::input::{Dir, InputEvent};
     use crate::state::tests::{bare_state, test_blueprints};
     use crate::testkit::{blank, last_log, sure_hits};
-    use crate::zone::tests::test_cave;
 
     /// A state whose player is not scheduled, so `step` never stops for input.
     fn unscheduled_player() -> GameState {
@@ -571,7 +570,7 @@ mod tests {
     }
 
     fn play(seed: u64, script: &[InputEvent]) -> GameState {
-        let mut state = GameState::new(seed, test_blueprints(), &test_cave()).unwrap();
+        let mut state = GameState::new(seed, test_blueprints()).unwrap();
         advance(&mut state);
         for &input in script {
             let action = match input {

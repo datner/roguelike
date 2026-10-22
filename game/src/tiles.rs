@@ -158,8 +158,7 @@ mod tests {
     fn a_new_game_shows_sprites_in_view_and_glyphs_from_memory() {
         let data = data();
         let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
-        let cave = crate::zone::CaveParams::load(&data.join("cave.ron")).unwrap();
-        let mut state = crate::state::GameState::new(3, blueprints, &cave).unwrap();
+        let mut state = crate::state::GameState::new(3, blueprints).unwrap();
         let tiles = state.blueprints.tiles().clone();
         let view = crate::state::render_view(&state, 40, 20);
         let centre = view.get(20, 10).unwrap();

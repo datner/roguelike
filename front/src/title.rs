@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use game::{Blueprints, CaveParams, GameState, random_seed};
+use game::{Blueprints, GameState, random_seed};
 
 use crate::menu::{Action, Menu};
 use crate::saves::{self, Loaded};
@@ -96,10 +96,8 @@ fn load_or_new(setup: &Setup, character: &str, save_path: &Path) -> Result<GameS
             Ok(*state)
         }
         Loaded::New(blueprints) => {
-            let cave = CaveParams::load(&setup.data_dir.join("cave.ron"))
-                .map_err(|err| format!("Failed to load cave parameters: {err}"))?;
             let seed = setup.seed.unwrap_or_else(random_seed);
-            GameState::new(seed, *blueprints, &cave)
+            GameState::new(seed, *blueprints)
                 .map_err(|err| format!("Failed to start a game: {err}"))
         }
     }

@@ -1,9 +1,0 @@
-// Cave generator tuning (game::zone::CaveParams). Changing any value
-// changes every seeded world.
-(
-    wall_chance: 0.45,
-    iterations: 5,
-    wall_birth: 5,
-    wall_survival: 4,
-    min_floor_fraction: 0.35,
-)

@@ -14,9 +14,7 @@ pub use map::{Grid, Map, Tile, random_seed};
 
 pub mod zone;
 
-pub use zone::{
-    CaveParams, CaveParamsError, ZONE_HEIGHT, ZONE_WIDTH, ZoneCoord, generate_cave, zone_seed,
-};
+pub use zone::{CaveParams, ZONE_HEIGHT, ZONE_WIDTH, ZoneCoord, generate_cave, zone_seed};
 
 pub mod blueprint;
 
@@ -34,6 +32,7 @@ pub mod command;
 pub mod cost;
 pub mod discovery;
 pub mod dive;
+pub mod dungeon;
 pub mod effect;
 pub mod entity;
 pub mod equipment;
@@ -68,6 +67,7 @@ pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
 pub use dive::Place;
+pub use dungeon::{Dungeon, Inhabitant};
 pub use effect::DurationChange;
 pub use entity::{
     Ammo, AmmoKind, Appearance, Area, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType,
