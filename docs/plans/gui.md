@@ -53,7 +53,12 @@ throughout; retiring it is a later decision.
 - Tests: every binding; `viewport_tiles`; an `egui_kittest` test if it runs headless, else pure tests.
 - **Checkpoint:** the user launches `gui` once before effects are built on it.
 
-### 3. Effects stream (`Fx`) and the first effects
+### 2b. Terminal look — done
+`theme.rs`: one monospace font on the map's cell grid, black background, `term`'s titled boxes and
+layout (30-cell side column, 7-row log, 3-row status), reverse-video selection and cursors, aim marks as
+cell backgrounds. An ignored `screenshots` test renders each screen to PNGs for review.
+
+### 3. Effects stream (`Fx`) and the first effects — done (ADR 0022)
 - `game/src/fx.rs`: `Fx::{Flight(Trail), Damage { at, amount, blocked }, Outcome { at, kind }, Death
   { at }}`; `GameState.fx` replaces `trails` (never saved, never read by the simulation); `take_fx`
   replaces `take_trails`. Pushed where flights start (`ranged.rs`, `spell.rs`), where damage is logged
@@ -84,13 +89,13 @@ throughout; retiring it is a later decision.
 - `front`: `Auto::Travel(to)`; `Enter` in look mode travels to the looked-at tile (both frontends;
   README Controls). `gui`: click on the map in play travels there.
 
-### 8. Light as data
+### 8. Light as data — done
 - `game`: a public `lighting(state, w, h) -> Grid<Lit>` (tint and strength falling off with distance,
   visible tiles only) split out of `render_view`'s baking, which `term` keeps.
 - `gui`: tile quads as an `egui::Mesh` with per-vertex colours averaged from neighbouring light.
 
-### 9. Sprites and animated tiles
-- ADR 0022: `Appearance` may name a sprite; `data/tiles.ron` maps sprite names to atlas cells and
+### 9. Sprites and animated tiles — done (ADR 0023)
+- ADR 0023: `Appearance` may name a sprite; `data/tiles.ron` maps sprite names to atlas cells and
   frames; `Cell` carries an optional load-time `SpriteId`; `term` ignores it.
 - `game` loads and validates the table; `gui` loads the atlas into a texture, draws sprites with frame
   cycling, falls back to glyphs. A placeholder atlas ships; art is the user's.

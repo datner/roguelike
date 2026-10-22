@@ -92,7 +92,8 @@ This is a Cargo workspace with four crates:
     components, can `inherits` from a parent (resolved at load time), and
     can carry `equipment` spawned as attached entities. Every name a
     blueprint refers to is validated and resolved to a `BlueprintId` at
-    load; a missing one fails loading.
+    load; a missing one fails loading. Sprites a blueprint's `Appearance`
+    names come from `data/tiles.ron` (ADR 0023), checked the same way.
   - On-hit effects: an `OnHit` part on a creature or its equipment rolls
     to apply effects after each melee hit that deals damage. Goblins
     carry a rusty knife that makes the victim bleed a quarter of the time.
@@ -130,9 +131,10 @@ This is a Cargo workspace with four crates:
 - `gui/` — the windowed frontend (eframe/egui, ADR 0020), on the same
   `front` crate with the same keys: the title menu, then the map with a
   side column (character sheet, equipment) and a strip for the log and
-  status. Run it with `cargo run -p gui -- --seed 42`. It bundles DejaVu
-  Sans Mono for glyphs egui's font lacks (licence in `gui/assets`). Still
-  being built: see `docs/plans/gui.md`.
+  status. Run it with `cargo run -p gui -- --seed 42`. It looks like the
+  terminal, in one bundled font (DejaVu Sans Mono, licence in
+  `gui/assets`), and animates hits, misses, deaths and flights
+  (`game::fx`). Still being built: see `docs/plans/gui.md`.
 
 ## Controls
 
@@ -157,7 +159,8 @@ In game:
   hovering the map moves the look or aim cursor, a click goes there
   (travel), fires, or picks a list row, a right click cancels aiming,
   hovering in play shows what looking would, and a right click on a panel
-  row lists what you can do with it.
+  row lists what you can do with it. `F2` switches between glyphs and
+  sprites (`data/tiles.ron`; the shipped atlas is a placeholder).
 - `;`: look around: a cursor (`Tab` jumps between creatures in view) and
   the status bar says what is there, as much as your Beast lore reads.
   `Enter` walks there over ground you know, a step at a time, stopping
