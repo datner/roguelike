@@ -1,5 +1,6 @@
-// A technique (ADR 0024): a strike with the free hand's weight behind it that
+// A technique (ADR 0024): a strike with the body's weight behind it that
 // drives the enemy back two tiles. Weak as a blow; the point is the space.
+// Anyone can shove, armed or not; Brawling invents it.
 (
     components: [
         Name("shove"),
@@ -9,7 +10,6 @@
             reach: 1,
             recharge: 400,
             stamina: 0,
-            requires: [Wielding(["Empty offhand"])],
             riders: [Shove(tiles: 2)],
         ),
         Blow(damage_pct: -50),

@@ -428,7 +428,8 @@ pub(crate) fn train(
         let _ = state.world.insert_one(learner, familiarity);
     }
     gain(state, learner, &gains);
-    // Only uses with stakes reach here, so only they can inspire.
+    // Only uses with stakes reach here, so only they can invent or inspire.
+    crate::style::invent(state, learner);
     crate::discovery::inspire(state, learner);
 }
 

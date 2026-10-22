@@ -65,9 +65,10 @@ This is a Cargo workspace with three crates:
     other creatures cast.
   - Training (ADR 0017): manuals teach a chunk of XP once; practice tops
     skills up to a ceiling. Neither inspires a discovery.
-  - Styles (ADR 0019): a discovery can grant a style, such as Fencing. Take
-    it up from the skills panel; it grows with every use that follows it
-    and gains principles at levels (Fencing ripostes a perfect dodge).
+  - Styles (ADR 0019): a discovery can grant a style, such as Fencing or
+    Brawling. Take it up from the skills panel; it grows with every use
+    that follows it, gains principles at levels (both riposte a perfect
+    dodge) and invents techniques (ADR 0024).
   - Damage types and armor (ADR 0012): blows are slashing, blunt or
     piercing (a set; punches are blunt), armor resists each kind, and a
     blow of several kinds goes through the weakest spot.
@@ -100,7 +101,9 @@ This is a Cargo workspace with three crates:
     skill's level. Area techniques cover ground as spells of their shape do.
     Riders do more on a full hit: a shove, or a timed effect.
     You start knowing only the trip; manuals teach techniques when studied
-    (`Teaches`), and inspiration can bring one (the cleave).
+    (`Teaches`), inspiration can bring one (the cleave), and a followed
+    style invents its own at levels of its skill (Fencing the lunge,
+    Brawling the shove), only in a real fight.
   - Sides and summons (ADR 0015): hostiles and the player's side, a summon
     on its owner's. AI goes for the nearest enemy it perceives; summons
     last until their binding runs out or their owner dies.

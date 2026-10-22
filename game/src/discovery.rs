@@ -166,7 +166,8 @@ pub struct IdeaView {
     pub unmet: usize,
 }
 
-/// The player's half-formed ideas, in file order.
+/// The player's half-formed ideas, in file order, then what their followed
+/// styles are close to inventing.
 pub fn ideas(state: &GameState) -> Vec<IdeaView> {
     let player = state.player;
     let discovered = made(state, player);
@@ -190,6 +191,18 @@ pub fn ideas(state: &GameState) -> Vec<IdeaView> {
                 unmet,
             })
         })
+        // A followed style close to inventing something (ADR 0024).
+        .chain(
+            crate::style::near_inventions(state, player)
+                .into_iter()
+                .filter_map(|(style, level, noun)| {
+                    Some(IdeaView {
+                        name: noun,
+                        met: vec![(book.get(style)?.name.clone(), level)],
+                        unmet: 1,
+                    })
+                }),
+        )
         .collect()
 }
 

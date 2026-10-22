@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 36;
+pub const SAVE_VERSION: u32 = 37;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -794,8 +794,14 @@ fn save_component(
         ComponentKind::Attuned => copy(entity).map(S::Attuned),
         ComponentKind::Style => match copy::<Style>(entity) {
             Some(style) => Some(S::Style(
-                StyleDef::of(&style, blueprints.skills())
-                    .ok_or(SaveError::UnknownSkillId(style.skill))?,
+                with_names(blueprints, |names| StyleDef::of(&style, names)).map_err(|missing| {
+                    match missing {
+                        Missing::SkillId(id) => SaveError::UnknownSkillId(id),
+                        Missing::BlueprintId(id) => SaveError::UnknownBlueprintId(id),
+                        // Saving only looks ids up.
+                        Missing::Skill(_) | Missing::Blueprint(_) => SaveError::DanglingReference,
+                    }
+                })?,
             )),
             None => None,
         },
@@ -980,10 +986,14 @@ fn load_component(
         S::Studied(c) => builder.add(c),
         S::Sighted(c) => builder.add(c),
         S::Attuned(c) => builder.add(c),
-        S::Style(def) => builder.add(
-            def.resolve(blueprints.skills())
-                .map_err(LoadError::UnknownSkill)?,
-        ),
+        S::Style(def) => builder.add(with_names(blueprints, |names| def.resolve(names)).map_err(
+            |missing| match missing {
+                Missing::Skill(name) => LoadError::UnknownSkill(name),
+                Missing::Blueprint(name) => LoadError::UnknownBlueprint(name),
+                Missing::SkillId(id) => LoadError::UnknownSkill(format!("{id:?}")),
+                Missing::BlueprintId(id) => LoadError::UnknownBlueprint(format!("{id:?}")),
+            },
+        )?),
         S::Technique(def) => builder.add(
             with_names(blueprints, |names| def.resolve(names)).map_err(
                 |missing| match missing {
@@ -1362,6 +1372,7 @@ mod tests {
                 from_level: 5,
                 does: crate::entity::Does::Riposte,
             }],
+            invents: vec![(3, state.blueprints.id("Bleeding").unwrap())],
         };
         thing("knifework")
             .with(style.clone())

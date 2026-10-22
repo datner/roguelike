@@ -43,3 +43,13 @@ how they act once developed (`docs/vision.md`). Plan:
 - A riposte is an ordinary queued attack: two fencers can trade ripostes
   until one misses; the command cap bounds the worst case.
 - Inventions (techniques from styles) wait for the techniques plan.
+
+## Amendment (ADR 0024): inventions
+
+A style lists `invents`: techniques it teaches at levels of its skill, once
+reached during a use with stakes (from `skill::train`, like discovery), never
+through practice or lessons. A set-aside style keeps what it invented. The
+ideas journal shows a followed style's invention once its skill is within
+two levels. Fencing invents the lunge at 3; Brawling (Melee and Unarmed,
+discovered at Melee, Unarmed and Dodge 3) invents the shove at 3 and
+ripostes from 4.

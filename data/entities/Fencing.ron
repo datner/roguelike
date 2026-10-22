@@ -1,6 +1,7 @@
 // A style (ADR 0019): a light thrusting blade and nothing in the other hand.
-// Its skill grows with every blow that follows it; at 5, a perfect dodge
-// is answered at once with a free riposte.
+// Its skill grows with every blow that follows it; at 3 it invents the
+// lunge (ADR 0024); at 5, a perfect dodge is answered at once with a free
+// riposte.
 (
     components: [
         Name("fencing"),
@@ -9,6 +10,7 @@
             skill: "Fencing",
             follows: ["Pierce", "One-handed", "Empty offhand"],
             principles: [(from_level: 5, does: Riposte)],
+            invents: [(3, "Lunge")],
         ),
     ],
 )

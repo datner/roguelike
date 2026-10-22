@@ -834,6 +834,8 @@ pub struct Style {
     /// A use follows the style when it uses all of these.
     pub follows: Vec<SkillId>,
     pub principles: Vec<Principle>,
+    /// Techniques it invents at levels of its skill (ADR 0024).
+    pub invents: Vec<(u32, crate::blueprint::BlueprintId)>,
 }
 
 /// What a style does once its skill reaches `from_level`; nothing before.

@@ -1502,6 +1502,7 @@ mod tests {
             skill: dagger,
             follows: Vec::new(),
             principles: Vec::new(),
+            invents: Vec::new(),
         });
         if followed {
             style.attached_to(player).make(state)
@@ -1868,5 +1869,81 @@ mod tests {
         let loaded = crate::save::from_ron(&text, real().blueprints).unwrap();
         assert!(knows(&loaded.world, loaded.player, "lunge"));
         assert!(knows(&loaded.world, loaded.player, "trip"));
+    }
+
+    /// The real player following Fencing at `level`, and a goblin to have
+    /// fought.
+    fn fencer(level: u32) -> (GameState, Entity, Entity) {
+        let mut state = real();
+        let player = state.player;
+        let id = state.blueprints.id("Fencing").unwrap();
+        let fencing = state
+            .spawn(crate::spawn::Spawn::id(id).attached_to(player))
+            .unwrap();
+        let skill = state.blueprints.skills().id("Fencing").unwrap();
+        let mut skills = crate::entity::Skills::default();
+        skills.set(skill, skill::xp_for(level));
+        let _ = state.world.insert_one(player, skills);
+        let goblin = tough_goblin(&mut state, (5, 5));
+        (state, fencing, goblin)
+    }
+
+    #[test]
+    fn a_followed_style_invents_at_its_level_after_a_use_with_stakes() {
+        let (mut state, fencing, goblin) = fencer(3);
+        let player = state.player;
+        let melee = state.blueprints.skills().id("Melee").unwrap();
+        assert!(!knows(&state.world, player, "lunge"));
+
+        skill::train(&mut state, player, &[melee], goblin, skill::BASE_XP);
+        assert!(knows(&state.world, player, "lunge"));
+        assert!(
+            state
+                .log
+                .recent(10)
+                .any(|line| line == "Fencing teaches you something new: the lunge.")
+        );
+
+        skill::train(&mut state, player, &[melee], goblin, skill::BASE_XP);
+        let lunges = known(&state.world, player)
+            .into_iter()
+            .filter(|&t| name(&state.world, t) == "lunge")
+            .count();
+        assert_eq!(lunges, 1);
+
+        // Set aside, the style keeps what it invented.
+        state.run(Command::FollowStyle {
+            actor: player,
+            style: fencing,
+        });
+        assert!(crate::style::followed(&state.world, player).is_empty());
+        assert!(knows(&state.world, player, "lunge"));
+    }
+
+    #[test]
+    fn practice_never_invents() {
+        let (mut state, _, _) = fencer(2);
+        let player = state.player;
+        let fencing = state.blueprints.skills().id("Fencing").unwrap();
+        skill::gain(&mut state, player, &[(fencing, skill::xp_for(5))]);
+        assert!(skill::level(skill::xp(&state.world, player, fencing)) >= 3);
+        assert!(!knows(&state.world, player, "lunge"));
+    }
+
+    #[test]
+    fn a_style_close_to_inventing_shows_in_the_journal() {
+        let (state, _, _) = fencer(1);
+        let idea = crate::discovery::IdeaView {
+            name: "lunge".to_string(),
+            met: vec![("Fencing".to_string(), 1)],
+            unmet: 1,
+        };
+        assert!(crate::discovery::ideas(&state).contains(&idea));
+        let (state, _, _) = fencer(0);
+        assert!(
+            !crate::discovery::ideas(&state)
+                .iter()
+                .any(|idea| idea.name == "lunge")
+        );
     }
 }

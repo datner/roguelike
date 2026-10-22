@@ -74,6 +74,10 @@ turning it on later must not mean a refactor.
   (`Grant::Technique`, ADR 0018). A technique already known by name is not
   learned twice. Only the trip is known from the start.
 
+- **Styles invent** (amending ADR 0019): `Style.invents` attaches a
+  technique when the followed style's skill reaches its level during a use
+  with stakes; the journal hints at it two levels early.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
@@ -81,6 +85,6 @@ turning it on later must not mean a refactor.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
   a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
   `OffBalance`); 33 (`Technique` bonuses, `Need::Following`); 34 (`Combo`,
-  `Performed`, `Need::Continuing`); 35 (`TechniqueAi`); 36 (`Teaches`).
+  `Performed`, `Need::Continuing`); 35 (`TechniqueAi`); 36 (`Teaches`); 37 (`Style` inventions).
 - The player starts knowing only the trip; the rest are found, read,
   inspired or invented.

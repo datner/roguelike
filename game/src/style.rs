@@ -8,15 +8,18 @@ use std::ops::ControlFlow;
 use hecs::{Entity, World};
 use serde::{Deserialize, Serialize};
 
+use crate::blueprint::BlueprintId;
 use crate::combat::PerfectDodge;
 use crate::command::Command;
 use crate::entity::{Does, Principle, Style};
 use crate::event::{Ctx, EventRegistry};
-use crate::grammar::Subject;
+use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::prio;
-use crate::skill::{self, Domain, SkillBook, SkillId};
+use crate::skill::{self, Domain, SkillId};
+use crate::spawn::Spawn;
 use crate::state::GameState;
+use crate::technique::{Missing, Names};
 use crate::view::ItemRef;
 
 /// A `Style` as written in RON and saves: skills by name.
@@ -27,6 +30,9 @@ pub struct StyleDef {
     pub follows: Vec<String>,
     #[serde(default)]
     pub principles: Vec<Principle>,
+    /// Technique blueprints by name, each at a level of its skill.
+    #[serde(default)]
+    pub invents: Vec<(u32, String)>,
 }
 
 impl StyleDef {
@@ -35,9 +41,14 @@ impl StyleDef {
         std::iter::once(&self.skill).chain(&self.follows)
     }
 
-    /// With every skill resolved, or the first name `book` lacks.
-    pub(crate) fn resolve(&self, book: &SkillBook) -> Result<Style, String> {
-        let id = |name: &String| book.id(name).ok_or_else(|| name.clone());
+    /// With every name resolved, or the first one `names` lacks.
+    pub(crate) fn resolve(&self, names: &Names<'_>) -> Result<Style, Missing> {
+        let id = |name: &String| {
+            names
+                .skills
+                .id(name)
+                .ok_or_else(|| Missing::Skill(name.clone()))
+        };
         let mut follows = self.follows.iter().map(id).collect::<Result<Vec<_>, _>>()?;
         follows.sort();
         Ok(Style {
@@ -45,21 +56,44 @@ impl StyleDef {
             skill: id(&self.skill)?,
             follows,
             principles: self.principles.clone(),
+            invents: self
+                .invents
+                .iter()
+                .map(|(level, name)| {
+                    let id =
+                        (names.blueprint)(name).ok_or_else(|| Missing::Blueprint(name.clone()))?;
+                    Ok((*level, id))
+                })
+                .collect::<Result<_, Missing>>()?,
         })
     }
 
-    /// `style` with its skills named, or `None` if `book` lacks one.
-    pub(crate) fn of(style: &Style, book: &SkillBook) -> Option<Self> {
-        let name = |id: SkillId| book.get(id).map(|def| def.name.clone());
-        Some(Self {
+    /// `style` with every id named, or the first one `names` lacks.
+    pub(crate) fn of(style: &Style, names: &Names<'_>) -> Result<Self, Missing> {
+        let name = |id: SkillId| {
+            names
+                .skills
+                .get(id)
+                .map(|def| def.name.clone())
+                .ok_or(Missing::SkillId(id))
+        };
+        Ok(Self {
             domains: style.domains.clone(),
             skill: name(style.skill)?,
             follows: style
                 .follows
                 .iter()
                 .map(|&id| name(id))
-                .collect::<Option<_>>()?,
+                .collect::<Result<_, _>>()?,
             principles: style.principles.clone(),
+            invents: style
+                .invents
+                .iter()
+                .map(|&(level, id)| {
+                    let name = (names.blueprint_name)(id).ok_or(Missing::BlueprintId(id))?;
+                    Ok((level, name))
+                })
+                .collect::<Result<_, Missing>>()?,
         })
     }
 }
@@ -87,6 +121,75 @@ fn riposte(
         });
     }
     ControlFlow::Continue(ev)
+}
+
+/// Each followed style whose skill has reached the level of one of its
+/// inventions teaches it, unless `learner` knows it already (ADR 0024).
+/// Called only from `skill::train`, after a use with stakes.
+pub(crate) fn invent(state: &mut GameState, learner: Entity) {
+    let inventions: Vec<(String, BlueprintId)> = followed(&state.world, learner)
+        .into_iter()
+        .filter_map(|thing| {
+            let style = state.world.get::<&Style>(thing).ok()?;
+            let level = skill::level(skill::xp(&state.world, learner, style.skill));
+            let name = state
+                .world
+                .get::<&crate::entity::Name>(thing)
+                .map_or_else(|_| "your style".to_string(), |name| name.0.clone());
+            Some(
+                style
+                    .invents
+                    .iter()
+                    .filter(|&&(at, _)| level >= at)
+                    .map(|&(_, id)| (name.clone(), id))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .flatten()
+        .collect();
+    for (style, id) in inventions {
+        let Some(noun) = state.blueprints.by_id(id).and_then(|bp| bp.noun()) else {
+            continue;
+        };
+        let noun = noun.to_string();
+        if crate::technique::knows(&state.world, learner, &noun)
+            || state.spawn(Spawn::id(id).attached_to(learner)).is_err()
+        {
+            continue;
+        }
+        let whom = Subject::of(&state.world, learner);
+        state.log.push(capitalize(&format!(
+            "{style} teaches {} something new: the {noun}.",
+            whom.noun()
+        )));
+    }
+}
+
+/// The next techniques `creature`'s followed styles would invent, within
+/// `NEAR` levels: (the style's skill, its level now, the technique's noun).
+pub(crate) fn near_inventions(state: &GameState, creature: Entity) -> Vec<(SkillId, u32, String)> {
+    const NEAR: u32 = 2;
+    let world = &state.world;
+    followed(world, creature)
+        .into_iter()
+        .filter_map(|thing| {
+            world
+                .get::<&Style>(thing)
+                .ok()
+                .map(|style| (*style).clone())
+        })
+        .flat_map(|style| {
+            let level = skill::level(skill::xp(world, creature, style.skill));
+            style
+                .invents
+                .iter()
+                .filter(|&&(at, _)| level < at && level + NEAR >= at)
+                .filter_map(|&(_, id)| state.blueprints.by_id(id).and_then(|bp| bp.noun()))
+                .filter(|noun| !crate::technique::knows(world, creature, noun))
+                .map(|noun| (style.skill, level, noun.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// The styles `creature` follows (attached), in attachment order.

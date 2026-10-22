@@ -168,7 +168,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: studying teaches once; a second copy teaches nothing; a discovery grants one; they survive a
   dive and a save.
 
-### 9. Styles invent
+### 9. Styles invent — done
 - `Style.invents: Vec<(u32, BlueprintId)>`: when a followed style's skill reaches the level during a use
   with stakes (inside `skill::train`, where styles already train), the technique is attached with a log
   line ("Fencing teaches you something new: the lunge."). Practice and lessons never invent (they go
@@ -178,7 +178,9 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Content: Fencing invents Lunge at 3. A second martial style, **Brawling** (follows Melee and Unarmed;
   discovered from Melee, Unarmed and Dodge), with a principle picked from hooks that exist (`AfterHit`,
   `AttackOdds`) and inventing Shove, so a style that invents is not a one-off.
-- ADR 0019's consequence "Inventions wait for the techniques plan" is replaced by a pointer to 0024.
+- ADR 0019 gets an amendment pointing at 0024 (accepted ADRs are amended, not rewritten).
+- As built: the shove needs nothing (an unarmed blow uses no grip skills, so `Empty offhand` would
+  have kept a brawler from it), and Brawling's principle is the riposte, from level 4.
 - Tests: invention fires at the level only with stakes; not from practice; not twice; a style followed
   then set aside keeps what it invented.
 

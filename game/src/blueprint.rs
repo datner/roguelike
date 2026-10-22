@@ -585,10 +585,22 @@ impl Blueprints {
                         lesson = Some(Lesson(grants));
                     }
                     ComponentDef::Style(def) => {
-                        style = Some(def.resolve(&skills).map_err(|skill| {
-                            BlueprintError::UnknownSkill {
+                        let names = Names {
+                            skills: &skills,
+                            blueprint: &|name| ids.get(name).copied(),
+                            blueprint_name: &|_| None,
+                        };
+                        style = Some(def.resolve(&names).map_err(|missing| match missing {
+                            Missing::Blueprint(technique) => BlueprintError::UnknownTechnique {
+                                owner: name.clone(),
+                                technique,
+                            },
+                            Missing::Skill(skill) => BlueprintError::UnknownSkill {
                                 owner: name.clone(),
                                 skill,
+                            },
+                            Missing::SkillId(_) | Missing::BlueprintId(_) => {
+                                BlueprintError::UnknownBlueprint(name.clone())
                             }
                         })?);
                     }
@@ -894,11 +906,16 @@ fn check_effect_durations(
     Ok(())
 }
 
-/// What a manual teaches, and what a creature knows, must be techniques.
+/// What a manual teaches, a creature knows and a style invents must be
+/// techniques.
 fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
     for blueprint in resolved {
         let taught = blueprint.teaches.iter().flat_map(|teaches| &teaches.0);
-        for &id in taught.chain(&blueprint.techniques) {
+        let invented = blueprint
+            .style
+            .iter()
+            .flat_map(|style| style.invents.iter().map(|(_, id)| id));
+        for &id in taught.chain(&blueprint.techniques).chain(invented) {
             let target = &resolved[id.0 as usize];
             if target.technique.is_none() {
                 return Err(BlueprintError::UnknownTechnique {

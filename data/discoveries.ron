@@ -20,6 +20,11 @@
         grants: Style("Fencing"),
     ),
     (
+        name: "Brawling",
+        requires: [Skill("Melee", 3), Skill("Unarmed", 3), Skill("Dodge", 3)],
+        grants: Style("Brawling"),
+    ),
+    (
         name: "the cleave",
         requires: [Skill("Melee", 3), Skill("Slash", 3)],
         grants: Technique("Cleave"),
