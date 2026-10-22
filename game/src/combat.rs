@@ -18,6 +18,7 @@ use crate::event::{Ctx, EventRegistry, settle};
 use crate::fx::{self, Fx};
 use crate::grammar::{Subject, capitalize};
 use crate::prio;
+use crate::side;
 use crate::skill::{self, Launch, SkillBook, SkillId};
 use crate::state::GameState;
 
@@ -136,6 +137,17 @@ impl Strike {
 /// wielder's `Stats` modifier for the weapon's stat, plus the damage bonus of
 /// their skill level at this strike (ADR 0017), is the bonus.
 pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Option<Strike> {
+    blow_strike(world, skills, attacker, &BlowMods::default()).map(|(strike, _)| strike)
+}
+
+/// `strike` shifted by `mods`, with the skills it uses: the weapon's
+/// (`skill::melee`), or `mods.uses` instead.
+pub(crate) fn blow_strike(
+    world: &World,
+    skills: &SkillBook,
+    attacker: Entity,
+    mods: &BlowMods,
+) -> Option<(Strike, Vec<SkillId>)> {
     let mut worn = equipped(world, attacker);
     worn.sort_by_key(|&(_, part)| part);
     let wielded = worn.into_iter().find_map(|(item, _)| {
@@ -171,8 +183,65 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
         level: 0,
         accuracy: 0,
     };
-    let used = skill::melee(world, skills, attacker, &strike);
-    Some(skilled(world, skills, attacker, strike, &used))
+    let used = match mods.uses.as_deref() {
+        Some(uses) => uses.to_vec(),
+        None => skill::melee(world, skills, attacker, &strike),
+    };
+    let mut strike = skilled(world, skills, attacker, strike, &used);
+    strike.accuracy += mods.accuracy;
+    Some((strike, used))
+}
+
+/// How a technique shifts a blow (ADR 0024). The default is a plain bump.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct BlowMods {
+    pub accuracy: i32,
+    /// Percent added to the damage rolled; negative takes it away.
+    pub damage_pct: i32,
+    /// The skills the blow uses, for its level and its training, instead of
+    /// the weapon's: a blow that is not plain weapon work.
+    pub uses: Option<Vec<SkillId>>,
+}
+
+impl BlowMods {
+    /// `amount` of damage after `damage_pct`; never negative.
+    pub(crate) fn scale(&self, amount: i32) -> i32 {
+        (amount * (100 + self.damage_pct) / 100).max(0)
+    }
+}
+
+/// One blow from `attacker` at `target`: the odds, how it lands, the damage,
+/// and what both sides learn from it. A bump is a blow with no mods. `None`
+/// if `attacker` has nothing to strike with.
+pub(crate) fn blow(
+    state: &mut GameState,
+    attacker: Entity,
+    target: Entity,
+    mods: &BlowMods,
+) -> Option<Outcome> {
+    let (strike, used) = blow_strike(&state.world, state.blueprints.skills(), attacker, mods)?;
+    let odds = odds(state, &strike, attacker, target);
+    let outcome = resolve(&mut state.rngs.combat, &odds);
+    announce(state, attacker, target, outcome);
+    if let Outcome::Hit | Outcome::Graze = outcome {
+        let hit = roll_strike(&mut state.rngs.combat, strike);
+        let amount = mods.scale(hit.amount);
+        let graze = outcome == Outcome::Graze;
+        state.commands.push_back(Command::DealDamage {
+            target,
+            amount: if graze { amount / 2 } else { amount },
+            cause: DamageCause::Melee {
+                attacker,
+                types: hit.types,
+                graze,
+            },
+        });
+    }
+    // Only a fight teaches: hitting a friend or a summon of your own does not.
+    if side::enemies(&state.world, attacker, target) {
+        skill::after_blow(state, &used, &odds, outcome);
+    }
+    Some(outcome)
 }
 
 /// One melee hit before armor: how much, and of which kinds.

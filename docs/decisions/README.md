@@ -49,3 +49,4 @@ What this makes easier, what it makes harder, what we'd revisit and when.
 | [0021](0021-shared-front-crate.md) | Frontends share flows, menu and saves through a drawing-free `front` crate | Accepted |
 | [0022](0022-effects-stream.md) | `game::fx`: an animation-only stream of flights, damage, outcomes and deaths the player sees | Accepted |
 | [0023](0023-sprites.md) | Sprites named in `data/tiles.ron` and `Appearance`, drawn by `gui` (F2), glyphs in `term` and for memory | Accepted |
+| [0024](0024-techniques.md) | Techniques: attached like spells, paid in turns, recharge and (dormant) stamina; their blows are ordinary blows | Accepted |

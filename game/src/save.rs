@@ -22,7 +22,7 @@ use crate::entity::{
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Attuned, Lesson, Sighted, Studied};
+use crate::entity::{Attuned, Blow, Dash, Lesson, Sighted, Stamina, Studied, Technique};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -30,10 +30,11 @@ use crate::rng::Rngs;
 use crate::skill::{SkillBook, SkillId};
 use crate::state::{GameState, MessageLog, event_registry};
 use crate::style::StyleDef;
+use crate::technique::TechniqueDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 30;
+pub const SAVE_VERSION: u32 = 31;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -244,10 +245,14 @@ enum ComponentKind {
     Studied,
     Sighted,
     Attuned,
+    Technique,
+    Blow,
+    Dash,
+    Stamina,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 66] = [
+    const ALL: [ComponentKind; 70] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -314,6 +319,10 @@ impl ComponentKind {
         Self::Studied,
         Self::Sighted,
         Self::Attuned,
+        Self::Technique,
+        Self::Blow,
+        Self::Dash,
+        Self::Stamina,
     ];
 }
 
@@ -391,6 +400,11 @@ enum SavedComponent {
     Studied(Studied),
     Sighted(Sighted),
     Attuned(Attuned),
+    /// Skills by name.
+    Technique(TechniqueDef),
+    Blow(Blow),
+    Dash(Dash),
+    Stamina(Stamina),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -769,6 +783,16 @@ fn save_component(
             )),
             None => None,
         },
+        ComponentKind::Technique => match copy::<Technique>(entity) {
+            Some(technique) => Some(S::Technique(
+                TechniqueDef::of(&technique, blueprints.skills())
+                    .map_err(SaveError::UnknownSkillId)?,
+            )),
+            None => None,
+        },
+        ComponentKind::Blow => copy(entity).map(S::Blow),
+        ComponentKind::Dash => copy(entity).map(S::Dash),
+        ComponentKind::Stamina => copy(entity).map(S::Stamina),
         ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
             Some(Familiarity(entries)) => Some(S::Familiarity(
                 entries
@@ -914,6 +938,13 @@ fn load_component(
             def.resolve(blueprints.skills())
                 .map_err(LoadError::UnknownSkill)?,
         ),
+        S::Technique(def) => builder.add(
+            def.resolve(blueprints.skills())
+                .map_err(LoadError::UnknownSkill)?,
+        ),
+        S::Blow(c) => builder.add(c),
+        S::Dash(c) => builder.add(c),
+        S::Stamina(c) => builder.add(c),
         S::Familiarity(entries) => {
             let mut familiarity = entries
                 .into_iter()
@@ -1152,6 +1183,61 @@ mod tests {
         assert_eq!(
             loaded.world.get::<&Projectile>(nocked[0]).unwrap().break_bp,
             2500
+        );
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
+    }
+
+    #[test]
+    fn a_recharging_technique_survives_a_round_trip() {
+        let mut state = bare_state();
+        let player = state.player;
+        let book = state.blueprints.skills();
+        let technique = Technique {
+            domain: crate::skill::Domain::Martial,
+            verb: "lunge".to_string(),
+            reach: 2,
+            recharge: 500,
+            stamina: 1,
+            requires: vec![
+                crate::entity::Need::Wielding(vec![book.id("Pierce").unwrap()]),
+                crate::entity::Need::Skill(book.id("Dagger").unwrap(), 3),
+            ],
+        };
+        let lunge = thing("lunge")
+            .with(technique.clone())
+            .with(Dash { tiles: 1 })
+            .with(Blow {
+                accuracy: 2,
+                damage_pct: 25,
+            })
+            .attached_to(player)
+            .make(&mut state);
+        let _ = state.world.insert_one(
+            player,
+            Stamina(crate::entity::Pool {
+                value: 4,
+                max: 10,
+                as_of: Tick::default(),
+                regen_ticks: 300,
+                growth: Vec::new(),
+            }),
+        );
+        crate::spell::recharge(&mut state, lunge, 500);
+
+        let loaded = reload(&state, test_blueprints());
+        let known = crate::technique::known(&loaded.world, loaded.player);
+        assert_eq!(known.len(), 1);
+        assert_eq!(
+            *loaded.world.get::<&Technique>(known[0]).unwrap(),
+            technique
+        );
+        assert!(
+            loaded
+                .world
+                .get::<&Recharging>(known[0])
+                .unwrap()
+                .0
+                .is_active(loaded.now)
         );
         assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }
@@ -1457,17 +1543,17 @@ mod tests {
             mana_per_power: 3,
             stat: crate::entity::Stat::Intelligence,
         };
-        let pool = Mana {
+        let pool = Mana(crate::entity::Pool {
             value: 10,
             max: 10,
             as_of: Tick::default(),
             regen_ticks: 200,
-            growth: vec![crate::entity::ManaGrowth {
+            growth: vec![crate::entity::PoolGrowth {
                 stat: crate::entity::Stat::Willpower,
                 max: 1,
                 regen_bp: 2_000,
             }],
-        };
+        });
         let _ = state.world.insert(player, (rule, pool));
         state.now = state.now.after(1_000);
         crate::spell::spend_mana(&mut state, player, 4);
@@ -1479,7 +1565,7 @@ mod tests {
             *loaded.world.get::<&ManaCasting>(loaded.player).unwrap(),
             rule
         );
-        assert_eq!(mana, *state.world.get::<&Mana>(player).unwrap());
+        assert_eq!(mana, state.world.get::<&Mana>(player).unwrap().0);
         assert_eq!(mana.growth.len(), 1);
         assert_eq!(mana.current(rates, loaded.now), 7);
     }

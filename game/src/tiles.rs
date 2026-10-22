@@ -192,6 +192,7 @@ mod tests {
                 })],
                 equipment: None,
                 spells: None,
+                techniques: None,
             },
         )]);
         let loaded = Blueprints::resolve(raw)

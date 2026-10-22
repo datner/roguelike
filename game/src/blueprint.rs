@@ -26,17 +26,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Body,
-    BodyPart, Chain, CooldownCasting, Deflect, Delay, Duration, Equippable, Fizzle, Focus,
-    Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Mana, ManaCasting,
-    Melee, Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver, School,
-    Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
-    Throwable, Trains, Weapon,
+    Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
+    Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
+    Focus, Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Mana,
+    ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver,
+    School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats, Style, Summon,
+    SummonLimit, Technique, Throwable, Trains, Weapon,
 };
 use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
 use crate::style::StyleDef;
+use crate::technique::TechniqueDef;
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -101,6 +102,11 @@ pub enum ComponentDef {
     Style(StyleDef),
     /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
     Lesson(BTreeMap<String, u32>),
+    /// Skills by name; spawned from `ResolvedBlueprint::technique`.
+    Technique(TechniqueDef),
+    Blow(Blow),
+    Dash(Dash),
+    Stamina(Stamina),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -167,10 +173,14 @@ impl ComponentDef {
             ComponentDef::Light(c) => builder.add(c),
             ComponentDef::Proficiency => builder.add(Proficiency),
             ComponentDef::Footwork(c) => builder.add(c),
+            ComponentDef::Blow(c) => builder.add(c),
+            ComponentDef::Dash(c) => builder.add(c),
+            ComponentDef::Stamina(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
             ComponentDef::Skills(_)
             | ComponentDef::Trains(_)
             | ComponentDef::Style(_)
+            | ComponentDef::Technique(_)
             | ComponentDef::Lesson(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
@@ -191,6 +201,9 @@ pub struct Blueprint {
     /// Spells the creature knows, spawned as separate entities and attached
     /// (ADR 0014). `None` inherits the parent's; `Some` (even empty) replaces.
     pub spells: Option<Vec<String>>,
+    /// Techniques the creature knows (ADR 0024), spawned and attached like
+    /// `spells`, and inherited or replaced the same way.
+    pub techniques: Option<Vec<String>>,
 }
 
 impl Blueprint {
@@ -217,6 +230,8 @@ pub struct ResolvedBlueprint {
     /// The `Body` part each `equipment` entry is spawned on, index for index.
     pub equipped_on: Vec<u32>,
     pub spells: Vec<BlueprintId>,
+    pub technique: Option<Technique>,
+    pub techniques: Vec<BlueprintId>,
 }
 
 impl ResolvedBlueprint {
@@ -302,6 +317,10 @@ pub enum BlueprintError {
         owner: String,
         spell: String,
     },
+    UnknownTechnique {
+        owner: String,
+        technique: String,
+    },
     UnknownSkill {
         owner: String,
         skill: String,
@@ -379,6 +398,12 @@ impl std::fmt::Display for BlueprintError {
             }
             Self::UnknownSpell { owner, spell } => {
                 write!(f, "blueprint {owner:?} knows unknown spell {spell:?}")
+            }
+            Self::UnknownTechnique { owner, technique } => {
+                write!(
+                    f,
+                    "blueprint {owner:?} knows unknown technique {technique:?}"
+                )
             }
             Self::UnknownSkill { owner, skill } => {
                 write!(f, "blueprint {owner:?} names unknown skill {skill:?}")
@@ -497,6 +522,7 @@ impl Blueprints {
             let mut trains = None;
             let mut style = None;
             let mut lesson = None;
+            let mut technique = None;
             let skill_id = |skill: &String| {
                 skills
                     .id(skill)
@@ -556,6 +582,14 @@ impl Blueprints {
                             }
                         })?);
                     }
+                    ComponentDef::Technique(def) => {
+                        technique = Some(def.resolve(&skills).map_err(|skill| {
+                            BlueprintError::UnknownSkill {
+                                owner: name.clone(),
+                                skill,
+                            }
+                        })?);
+                    }
                     other => components.push(other),
                 }
             }
@@ -567,6 +601,12 @@ impl Blueprints {
                 .collect::<Result<_, _>>()?;
             let spells = blueprint
                 .spells
+                .iter()
+                .flatten()
+                .map(id_of)
+                .collect::<Result<_, _>>()?;
+            let techniques = blueprint
+                .techniques
                 .iter()
                 .flatten()
                 .map(id_of)
@@ -583,6 +623,8 @@ impl Blueprints {
                 equipment,
                 equipped_on: Vec::new(),
                 spells,
+                technique,
+                techniques,
             });
         }
         check_equipment_cycles(&resolved)?;
@@ -743,6 +785,9 @@ impl Blueprints {
         if let Some(lesson) = &blueprint.lesson {
             builder.add(lesson.clone());
         }
+        if let Some(technique) = &blueprint.technique {
+            builder.add(technique.clone());
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
@@ -751,6 +796,10 @@ impl Blueprints {
         for &spell in &blueprint.spells {
             let spell = self.spawn_id(world, spell)?;
             holding::attach(world, owner, spell);
+        }
+        for &technique in &blueprint.techniques {
+            let technique = self.spawn_id(world, technique)?;
+            holding::attach(world, owner, technique);
         }
         Ok(owner)
     }
@@ -764,6 +813,7 @@ fn check_skills(raw: &BTreeMap<String, Blueprint>, book: &SkillBook) -> Result<(
             ComponentDef::Skills(levels) => levels.keys().collect::<Vec<_>>(),
             ComponentDef::Trains(names) => names.iter().collect(),
             ComponentDef::Style(def) => def.names().collect(),
+            ComponentDef::Technique(def) => def.names().collect(),
             ComponentDef::Lesson(grants) => grants.keys().collect(),
             _ => Vec::new(),
         });
@@ -889,7 +939,8 @@ fn check_equipment_cycles(resolved: &[ResolvedBlueprint]) -> Result<(), Blueprin
         }
         marks[id] = Mark::Open;
         path.push(id);
-        for item in resolved[id].equipment.iter().chain(&resolved[id].spells) {
+        let held = resolved[id].equipment.iter().chain(&resolved[id].spells);
+        for item in held.chain(&resolved[id].techniques) {
             visit(resolved, item.0 as usize, marks, path)?;
         }
         path.pop();
@@ -928,6 +979,17 @@ fn check_references(raw: &BTreeMap<String, Blueprint>) -> Result<(), BlueprintEr
             return Err(BlueprintError::UnknownSpell {
                 owner: owner.clone(),
                 spell: spell.clone(),
+            });
+        }
+        if let Some(technique) = blueprint
+            .techniques
+            .iter()
+            .flatten()
+            .find(|technique| !raw.contains_key(*technique))
+        {
+            return Err(BlueprintError::UnknownTechnique {
+                owner: owner.clone(),
+                technique: technique.clone(),
             });
         }
         let effects = blueprint
@@ -1010,6 +1072,9 @@ fn resolve_one(
     if blueprint.spells.is_some() {
         flat.spells = blueprint.spells.clone();
     }
+    if blueprint.techniques.is_some() {
+        flat.techniques = blueprint.techniques.clone();
+    }
 
     resolved.insert(name.to_string(), flat);
     Ok(())
@@ -1029,6 +1094,7 @@ mod tests {
             components,
             equipment: None,
             spells: None,
+            techniques: None,
         }
     }
 
@@ -1180,6 +1246,48 @@ mod tests {
                 assert_eq!((owner.as_str(), spell.as_str()), ("Apprentice", "Nope"));
             }
             other => panic!("expected UnknownSpell, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn known_techniques_are_inherited_replaced_and_checked() {
+        let with = |mut blueprint: Blueprint, techniques: Option<&[&str]>| {
+            blueprint.techniques =
+                techniques.map(|names| names.iter().map(|s| s.to_string()).collect());
+            blueprint
+        };
+        let raw = |child: Option<&[&str]>| {
+            BTreeMap::from([
+                ("Lunge".to_string(), bp(None, vec![])),
+                ("Shove".to_string(), bp(None, vec![])),
+                (
+                    "Duelist".to_string(),
+                    with(bp(None, vec![]), Some(&["Lunge"])),
+                ),
+                (
+                    "Squire".to_string(),
+                    with(bp(Some("Duelist"), vec![]), child),
+                ),
+            ])
+        };
+        let techniques = |child| {
+            let blueprints = Blueprints::resolve(raw(child)).unwrap();
+            blueprints
+                .get("Squire")
+                .unwrap()
+                .techniques
+                .iter()
+                .map(|&id| blueprints.by_id(id).unwrap().name.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(techniques(None), ["Lunge"]);
+        assert_eq!(techniques(Some(&["Shove"])), ["Shove"]);
+        assert!(techniques(Some(&[])).is_empty());
+        match Blueprints::resolve(raw(Some(&["Nope"]))) {
+            Err(BlueprintError::UnknownTechnique { owner, technique }) => {
+                assert_eq!((owner.as_str(), technique.as_str()), ("Squire", "Nope"));
+            }
+            other => panic!("expected UnknownTechnique, got {other:?}"),
         }
     }
 

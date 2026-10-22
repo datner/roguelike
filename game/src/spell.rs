@@ -17,9 +17,9 @@ use crate::cost::TICKS_PER_TURN;
 use crate::effect;
 use crate::entity::{
     Appearance, Area, Blast, BlocksMovement, BloodCasting, Chain, CooldownCasting, DamageTypes,
-    Dead, Delay, EffectTarget, Fizzle, Focus, Health, Hits, Mana, ManaCasting, ManaRates, Name,
-    Position, Recharging, School, Scroll, Shape, SpawnSeq, Spell, SpellDamage, Stat, Stats, Summon,
-    SummonLimit, Summoned, Timed,
+    Dead, Delay, EffectTarget, Fizzle, Focus, Health, Hits, Mana, ManaCasting, Name, Pool,
+    PoolRates, Position, Recharging, School, Scroll, Shape, SpawnSeq, Spell, SpellDamage, Stat,
+    Stats, Summon, SummonLimit, Summoned, Timed,
 };
 use crate::event::{Ctx, EventRegistry, settle};
 use crate::fx::Fx;
@@ -692,7 +692,7 @@ fn placement(state: &GameState, at: (i32, i32), count: u32, rng: &mut Pcg64) -> 
     free
 }
 
-fn occupied(world: &World, tile: (i32, i32)) -> bool {
+pub(crate) fn occupied(world: &World, tile: (i32, i32)) -> bool {
     world
         .query::<(&Position, Option<&Health>, Option<&BlocksMovement>)>()
         .iter()
@@ -948,12 +948,12 @@ pub(crate) fn spend_mana(state: &mut GameState, caster: Entity, amount: u32) {
     };
     let _ = state
         .world
-        .insert_one(caster, mana.spend(amount, rates, state.now));
+        .insert_one(caster, Mana(mana.spend(amount, rates, state.now)));
 }
 
 /// `caster`'s mana pool and its size and pace for their stats.
-pub(crate) fn pool(world: &World, caster: Entity) -> Option<(Mana, ManaRates)> {
-    let mana = Mana::clone(&*world.get::<&Mana>(caster).ok()?);
+pub(crate) fn pool(world: &World, caster: Entity) -> Option<(Pool, PoolRates)> {
+    let mana = world.get::<&Mana>(caster).ok()?.0.clone();
     let stats = world.get::<&Stats>(caster).ok().map(|stats| *stats);
     let rates = mana.rates(stats);
     Some((mana, rates))
@@ -1308,13 +1308,13 @@ mod tests {
                     mana_per_power: MANA_PER_POWER,
                     stat: Stat::Intelligence,
                 },
-                Mana {
+                Mana(Pool {
                     value: 10,
                     max: 10,
                     as_of: state.now,
                     regen_ticks: REGEN_TICKS,
                     growth: Vec::new(),
-                },
+                }),
             ),
         );
         let missile = thing("magic missile")
@@ -1356,20 +1356,20 @@ mod tests {
 
     /// A base pool of 10 regaining a point per 200 ticks, which Intelligence
     /// deepens (+3 a point, +5% pace) and Willpower quickens (+1, +20%).
-    fn grown_pool() -> Mana {
-        use crate::entity::ManaGrowth;
-        Mana {
+    fn grown_pool() -> Pool {
+        use crate::entity::PoolGrowth;
+        Pool {
             value: 99,
             max: 10,
             as_of: Tick::default(),
             regen_ticks: 200,
             growth: vec![
-                ManaGrowth {
+                PoolGrowth {
                     stat: Stat::Intelligence,
                     max: 3,
                     regen_bp: 500,
                 },
-                ManaGrowth {
+                PoolGrowth {
                     stat: Stat::Willpower,
                     max: 1,
                     regen_bp: 2_000,
@@ -1378,7 +1378,7 @@ mod tests {
         }
     }
 
-    fn rates_with(intelligence: i32, willpower: i32) -> ManaRates {
+    fn rates_with(intelligence: i32, willpower: i32) -> PoolRates {
         grown_pool().rates(Some(Stats {
             intelligence,
             willpower,
@@ -1388,7 +1388,7 @@ mod tests {
 
     #[test]
     fn intelligence_deepens_the_pool_and_willpower_quickens_it() {
-        let base = ManaRates {
+        let base = PoolRates {
             max: 10,
             regen_ticks: 200,
         };
@@ -1397,14 +1397,14 @@ mod tests {
         // Modifier +2 each: 10 + 6 capacity at 11 000 pace; 10 + 2 at 14 000.
         assert_eq!(
             rates_with(20, 16),
-            ManaRates {
+            PoolRates {
                 max: 16,
                 regen_ticks: 181,
             }
         );
         assert_eq!(
             rates_with(16, 20),
-            ManaRates {
+            PoolRates {
                 max: 12,
                 regen_ticks: 142,
             }
@@ -1412,7 +1412,7 @@ mod tests {
         // A dull mind (-3) shrinks the pool and slows it.
         assert_eq!(
             rates_with(10, 16),
-            ManaRates {
+            PoolRates {
                 max: 1,
                 regen_ticks: 235,
             }
@@ -1423,12 +1423,12 @@ mod tests {
     fn a_pool_never_shrinks_below_empty_or_slows_below_a_quarter_pace() {
         assert_eq!(
             rates_with(0, 0),
-            ManaRates {
+            PoolRates {
                 max: 0,
                 regen_ticks: 800,
             }
         );
-        let still = Mana {
+        let still = Pool {
             regen_ticks: 0,
             ..grown_pool()
         };
@@ -1442,7 +1442,7 @@ mod tests {
         let _ = state.world.insert(
             player,
             (
-                grown_pool(),
+                Mana(grown_pool()),
                 Stats {
                     willpower: 20,
                     ..Stats::AVERAGE

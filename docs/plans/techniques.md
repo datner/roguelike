@@ -54,7 +54,7 @@ learned from a manual, invented by a followed style, or, for a creature, simply 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first. Every new
 component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_VERSION` bump.
 
-### 1. A technique, end to end in `game`: the lunge
+### 1. A technique, end to end in `game`: the lunge — done
 - `entity.rs`: `Technique { domain, reach, recharge, stamina, requires: Vec<Need> }` (saved by name like
   `Style`, since `Need` holds ids), `Blow { accuracy, damage_pct }`, `Dash { tiles }`, `Stamina` (pool,
   same shape as `Mana`; extract the shared computed-on-read math rather than copying it).

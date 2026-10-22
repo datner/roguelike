@@ -1,0 +1,19 @@
+// A technique (ADR 0024), attached to whoever knows it like a spell. A step
+// toward an enemy two tiles away and a thrust on arrival: the blow is an
+// ordinary blow with what is wielded, a little surer and harder, so it needs
+// a piercing weapon. 500 ticks is five turns at any speed.
+(
+    components: [
+        Name("lunge"),
+        Technique(
+            domain: Martial,
+            verb: "lunge",
+            reach: 2,
+            recharge: 500,
+            stamina: 0,
+            requires: [Wielding(["Pierce"])],
+        ),
+        Dash(tiles: 1),
+        Blow(accuracy: 2, damage_pct: 25),
+    ],
+)

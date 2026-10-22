@@ -114,6 +114,11 @@ pub enum PlayerAction {
         spell: ItemRef,
         at: (i32, i32),
     },
+    /// Perform a known technique at a map tile (ADR 0024).
+    Perform {
+        technique: ItemRef,
+        at: (i32, i32),
+    },
     /// Take up a known style, or set aside the one followed (ADR 0019).
     FollowStyle(ItemRef),
     /// Study a carried item's lesson (ADR 0017).

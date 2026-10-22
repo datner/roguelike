@@ -6,7 +6,7 @@ use hecs::Entity;
 
 use crate::ammo;
 use crate::blueprint::BlueprintId;
-use crate::combat::{self, AfterHit, BeforeTakeDamage, Damaged, Outcome, roll_strike, strike};
+use crate::combat::{self, AfterHit, BeforeTakeDamage, Damaged};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
@@ -22,8 +22,6 @@ use crate::holding;
 use crate::input::Dir;
 use crate::map::Tile;
 use crate::ranged;
-use crate::side;
-use crate::skill;
 use crate::spell;
 use crate::state::GameState;
 use crate::time;
@@ -131,7 +129,14 @@ pub(crate) enum Command {
         spell: Entity,
         at: (i32, i32),
     },
-    /// Start `spell`'s recharge: it cannot be cast for `duration` ticks.
+    /// Perform `technique`, which `actor` knows, at the tile `at` (ADR 0024).
+    Perform {
+        actor: Entity,
+        technique: Entity,
+        at: (i32, i32),
+    },
+    /// Start `spell`'s (or a technique's) recharge: it cannot be used for
+    /// `duration` ticks.
     Recharge {
         spell: Entity,
         duration: u64,
@@ -232,6 +237,9 @@ impl Command {
             | Command::Nock { actor, arrow: item }
             | Command::Quiver { actor, arrow: item } => [Some(actor), Some(item)],
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
+            Command::Perform {
+                actor, technique, ..
+            } => [Some(actor), Some(technique)],
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Study { actor, item } => [Some(actor), Some(item)],
             Command::Practice(actor)
@@ -299,6 +307,11 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Unequip { actor, item } => equipment::unequip(state, actor, item),
             Command::Throw { actor, item, at } => ranged::throw(state, actor, item, at),
             Command::Cast { actor, spell, at } => spell::cast(state, actor, spell, at),
+            Command::Perform {
+                actor,
+                technique,
+                at,
+            } => crate::technique::perform(state, actor, technique, at),
             Command::FollowStyle { actor, style } => crate::style::follow(state, actor, style),
             Command::Study { actor, item } => crate::training::study(state, actor, item),
             Command::Practice(actor) => crate::training::practice(state, actor),
@@ -424,6 +437,16 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         }
         Command::Cast { actor, spell, at } => {
             let Err(message) = spell::check_cast(state, actor, spell, at) else {
+                return false;
+            };
+            state.log.push(message);
+        }
+        Command::Perform {
+            actor,
+            technique,
+            at,
+        } => {
+            let Err(message) = crate::technique::check_perform(state, actor, technique, at) else {
                 return false;
             };
             state.log.push(message);
@@ -597,31 +620,7 @@ fn drop_item(state: &mut GameState, actor: Entity, item: Entity) {
 }
 
 fn attack(state: &mut GameState, attacker: Entity, target: Entity) {
-    let skills = state.blueprints.skills();
-    let Some(strike) = strike(&state.world, skills, attacker) else {
-        return;
-    };
-    let used = skill::melee(&state.world, skills, attacker, &strike);
-    let odds = combat::odds(state, &strike, attacker, target);
-    let outcome = combat::resolve(&mut state.rngs.combat, &odds);
-    combat::announce(state, attacker, target, outcome);
-    if let Outcome::Hit | Outcome::Graze = outcome {
-        let hit = roll_strike(&mut state.rngs.combat, strike);
-        let graze = outcome == Outcome::Graze;
-        state.commands.push_back(Command::DealDamage {
-            target,
-            amount: if graze { hit.amount / 2 } else { hit.amount },
-            cause: DamageCause::Melee {
-                attacker,
-                types: hit.types,
-                graze,
-            },
-        });
-    }
-    // Only a fight teaches: hitting a friend or a summon of your own does not.
-    if side::enemies(&state.world, attacker, target) {
-        skill::after_blow(state, &used, &odds, outcome);
-    }
+    let _ = combat::blow(state, attacker, target, &combat::BlowMods::default());
 }
 
 fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: DamageCause) {

@@ -454,11 +454,11 @@ pub struct Fizzle {
     pub stat: Stat,
 }
 
-/// How one stat grows a mana pool, per point of the caster's modifier for
-/// it: `max` more capacity and `regen_bp` faster regeneration (10 000 =
+/// How one stat grows a pool, per point of its holder's modifier for it:
+/// `max` more capacity and `regen_bp` faster regeneration (10 000 =
 /// twice the pace). A negative modifier shrinks both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ManaGrowth {
+pub struct PoolGrowth {
     pub stat: Stat,
     #[serde(default)]
     pub max: i32,
@@ -466,9 +466,9 @@ pub struct ManaGrowth {
     pub regen_bp: i32,
 }
 
-/// A pool's size and pace for one caster: its base grown by their stats.
+/// A pool's size and pace for one holder: its base grown by their stats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ManaRates {
+pub struct PoolRates {
     pub max: u32,
     /// Ticks per point regained; 0 never regains.
     pub regen_ticks: u64,
@@ -478,30 +478,30 @@ pub struct ManaRates {
 const SLOWEST_PACE_BP: i64 = 2_500;
 const BASE_PACE_BP: i64 = 10_000;
 
-/// Caster part: a mana pool. `value` was the pool at `as_of`; it regains a
-/// point every `regen_ticks` ticks since, up to `max`, computed on read so no
-/// timer runs per tick (ADR 0006). `max` and `regen_ticks` are the base,
-/// which `growth` scales by the caster's stats (`rates`). A `value` above
-/// the maximum reads as full, so a blueprint can start a pool full whatever
-/// the stats.
+/// A pool of something spent and regained (mana, stamina). `value` was the
+/// pool at `as_of`; it regains a point every `regen_ticks` ticks since, up to
+/// `max`, computed on read so no timer runs per tick (ADR 0006). `max` and
+/// `regen_ticks` are the base, which `growth` scales by the holder's stats
+/// (`rates`). A `value` above the maximum reads as full, so a blueprint can
+/// start a pool full whatever the stats.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Mana {
+pub struct Pool {
     pub value: u32,
     pub max: u32,
     #[serde(default)]
     pub as_of: Tick,
     pub regen_ticks: u64,
     #[serde(default)]
-    pub growth: Vec<ManaGrowth>,
+    pub growth: Vec<PoolGrowth>,
 }
 
-impl Mana {
-    /// Capacity and pace for a caster with `stats`. Stats are read now, for
+impl Pool {
+    /// Capacity and pace for a holder with `stats`. Stats are read now, for
     /// the whole stretch since `as_of`: anything that changes a stat should
     /// bank the pool first (`spend(0, ..)`).
-    pub fn rates(&self, stats: Option<Stats>) -> ManaRates {
+    pub fn rates(&self, stats: Option<Stats>) -> PoolRates {
         let modifier = |stat| i64::from(stats.map_or(0, |stats| stats.modifier(stat)));
-        let grown = |per: fn(&ManaGrowth) -> i32| -> i64 {
+        let grown = |per: fn(&PoolGrowth) -> i32| -> i64 {
             self.growth
                 .iter()
                 .map(|growth| i64::from(per(growth)) * modifier(growth.stat))
@@ -516,26 +516,26 @@ impl Mana {
                 u64::try_from(ticks).unwrap_or(u64::MAX).max(1)
             }
         };
-        ManaRates {
+        PoolRates {
             max: u32::try_from(max).unwrap_or(u32::MAX),
             regen_ticks,
         }
     }
 
-    fn regained(&self, rates: ManaRates, now: Tick) -> u64 {
+    fn regained(&self, rates: PoolRates, now: Tick) -> u64 {
         now.since(self.as_of)
             .checked_div(rates.regen_ticks)
             .unwrap_or(0)
     }
 
-    pub fn current(&self, rates: ManaRates, now: Tick) -> u32 {
+    pub fn current(&self, rates: PoolRates, now: Tick) -> u32 {
         let regained = u32::try_from(self.regained(rates, now)).unwrap_or(u32::MAX);
         self.value.saturating_add(regained).min(rates.max)
     }
 
     /// The pool after spending `amount` at `now`. Progress toward the next
     /// point carries over, unless the pool was full and so not regaining.
-    pub fn spend(&self, amount: u32, rates: ManaRates, now: Tick) -> Self {
+    pub fn spend(&self, amount: u32, rates: PoolRates, now: Tick) -> Self {
         let current = self.current(rates, now);
         let as_of = if current == rates.max {
             now
@@ -550,6 +550,18 @@ impl Mana {
         }
     }
 }
+
+/// Caster part: the mana pool spells of a `ManaCasting` school are paid from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Mana(pub Pool);
+
+/// Creature part: the stamina pool techniques are paid from (ADR 0024). No
+/// blueprint has one yet and every technique costs 0, so stamina is off
+/// until content turns it on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Stamina(pub Pool);
 
 /// What a launcher shoots and a quiver holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -851,3 +863,51 @@ pub struct Sighted(pub Vec<String>);
 /// teaches Arcana the first time (ADR 0017).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attuned(pub Vec<String>);
+
+/// A technique (ADR 0024): a special action its holder knows, attached to
+/// them like a spell. It says how it is aimed and what it asks; payload parts
+/// (`Blow`, `Dash`) say what it does. Built from `TechniqueDef` at load (it
+/// holds ids) and saved by name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Technique {
+    pub domain: crate::skill::Domain,
+    /// The log's verb, conjugated for the performer: "lunge" reads "You lunge
+    /// at the goblin." and "The goblin lunges at you."
+    pub verb: String,
+    /// How far away, in tiles, its target may stand.
+    pub reach: i32,
+    /// Ticks before it can be performed again, whatever its holder's speed.
+    pub recharge: u64,
+    /// Taken from the performer's `Stamina`; 0 needs no pool.
+    pub stamina: u32,
+    /// All must hold for it to be performed.
+    pub requires: Vec<Need>,
+}
+
+/// Something a technique asks of its performer. Each is checked in one place
+/// (`technique::unmet`), with its own refusal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Need {
+    /// The blow uses all of these skills: what is wielded and how (a
+    /// thrusting weapon, an empty off hand).
+    Wielding(Vec<SkillId>),
+    /// At least this level of a skill.
+    Skill(SkillId, u32),
+}
+
+/// Technique part: it strikes with what its performer wields, shifted.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Blow {
+    #[serde(default)]
+    pub accuracy: i32,
+    /// Percent added to the damage rolled; negative takes it away.
+    #[serde(default)]
+    pub damage_pct: i32,
+}
+
+/// Technique part: the performer first moves up to `tiles` along the line to
+/// its target, stopping beside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Dash {
+    pub tiles: i32,
+}

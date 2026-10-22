@@ -24,6 +24,7 @@ pub const UNEQUIP: i64 = STANDARD;
 pub const THROW: i64 = STANDARD;
 pub const FIRE: i64 = STANDARD;
 pub const CAST: i64 = STANDARD;
+pub const PERFORM: i64 = STANDARD;
 /// Taking up or setting aside a style: a change of mind, but a turn.
 pub const FOLLOW_STYLE: i64 = STANDARD;
 /// Studying a lesson takes a while.
@@ -52,6 +53,7 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::Throw { actor, .. } => Some((actor, THROW)),
         Command::Fire { actor, .. } => Some((actor, FIRE)),
         Command::Cast { actor, .. } => Some((actor, CAST)),
+        Command::Perform { actor, .. } => Some((actor, PERFORM)),
         Command::FollowStyle { actor, .. } => Some((actor, FOLLOW_STYLE)),
         Command::Study { actor, .. } => Some((actor, STUDY)),
         Command::Practice(actor) => Some((actor, PRACTICE)),

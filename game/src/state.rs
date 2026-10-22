@@ -500,6 +500,7 @@ pub(crate) mod tests {
             components,
             equipment: Some(equipment.iter().map(|s| s.to_string()).collect()),
             spells: None,
+            techniques: None,
         }
     }
 

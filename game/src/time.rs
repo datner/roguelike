@@ -181,6 +181,18 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 at,
             }
         }
+        PlayerAction::Perform { technique, at } => {
+            let known = crate::technique::known(&state.world, player);
+            let Some(technique) = technique.find(&state.world, &known) else {
+                state.log.push("You don't know that technique.");
+                return;
+            };
+            Command::Perform {
+                actor: player,
+                technique,
+                at,
+            }
+        }
         PlayerAction::Study(item) => {
             let Some(item) = item.find(&state.world, &carried(state)) else {
                 state.log.push("You do not carry that.");
