@@ -1,14 +1,16 @@
-//! The terminal look: one monospace font on a grid of cells the size of a map tile, black background, titled boxes with thin borders, the selected row in reverse video. Everything `gui` draws goes through these, so the window reads like `term`.
+//! The terminal look: one monospace font on a grid of text cells (`CELL`), black background, titled boxes with thin borders, the selected row in reverse video. Everything `gui` draws goes through these, so the window reads like `term`.
 
 use eframe::egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
 use eframe::egui::{
     self, Color32, CornerRadius, FontData, FontFamily, FontId, Frame, Margin, Rect, Shadow, Shape,
-    Stroke, TextFormat, TextStyle, Ui, UiBuilder, text::LayoutJob, vec2,
+    Stroke, TextFormat, TextStyle, Ui, UiBuilder, Vec2, text::LayoutJob, vec2,
 };
 
-use crate::map_view::TILE;
-
-/// Text size in points: a glyph of DejaVu Sans Mono fills one `TILE`.
+/// One cell of text, in pixels: a terminal cell, taller than wide. Panels
+/// and boxes are laid out on this grid; the map has its own square tiles
+/// (`map_view::TILE`).
+pub const CELL: Vec2 = vec2(10.0, 20.0);
+/// Text size in points: a glyph of DejaVu Sans Mono fills one `CELL`.
 pub const TEXT: f32 = 16.0;
 /// A terminal's default foreground.
 pub const FG: Color32 = Color32::from_gray(204);
@@ -50,9 +52,9 @@ pub fn apply(ctx: &egui::Context) {
         let spacing = &mut style.spacing;
         spacing.item_spacing = vec2(0.0, 0.0);
         spacing.button_padding = vec2(0.0, 0.0);
-        spacing.interact_size.y = TILE.y;
+        spacing.interact_size.y = CELL.y;
         spacing.window_margin = Margin::ZERO;
-        spacing.menu_margin = Margin::symmetric(TILE.x as i8, (TILE.y / 2.0) as i8);
+        spacing.menu_margin = Margin::symmetric(CELL.x as i8, (CELL.y / 2.0) as i8);
 
         let visuals = &mut style.visuals;
         visuals.dark_mode = true;
@@ -98,7 +100,7 @@ pub fn line(text: &str, colour: Color32) -> LayoutJob {
 /// Adds text to a line, keeping it a row of cells high.
 pub fn append(job: &mut LayoutJob, text: &str, colour: Color32) {
     let format = TextFormat {
-        line_height: Some(TILE.y),
+        line_height: Some(CELL.y),
         ..TextFormat::simple(FontId::monospace(TEXT), colour)
     };
     job.append(text, 0.0, format);
@@ -114,10 +116,10 @@ pub fn boxed<R>(
     hint: Option<&str>,
     contents: impl FnOnce(&mut Ui) -> R,
 ) -> R {
-    let half = TILE.y / 2.0;
+    let half = CELL.y / 2.0;
     let inner = Frame::new()
         .stroke(Stroke::new(1.0, BORDER))
-        .inner_margin(Margin::symmetric(TILE.x as i8, half as i8))
+        .inner_margin(Margin::symmetric(CELL.x as i8, half as i8))
         .outer_margin(Margin {
             top: half as i8,
             bottom: half as i8,
@@ -128,7 +130,7 @@ pub fn boxed<R>(
             contents(ui)
         });
     let border = inner.response.rect.shrink2(vec2(0.0, half));
-    let width = border.width() - 2.0 * TILE.x;
+    let width = border.width() - 2.0 * CELL.x;
     label_on(ui, border.left_top(), width, title);
     if let Some(hint) = hint {
         label_on(ui, border.left_bottom(), width, |ui| {
@@ -150,8 +152,8 @@ pub fn title(text: &str) -> impl FnOnce(&mut Ui) + '_ {
 fn label_on(ui: &mut Ui, corner: egui::Pos2, width: f32, contents: impl FnOnce(&mut Ui)) {
     let clear = ui.painter().add(Shape::Noop);
     let rect = Rect::from_min_size(
-        corner + vec2(TILE.x, -TILE.y / 2.0),
-        vec2(width.max(0.0), TILE.y),
+        corner + vec2(CELL.x, -CELL.y / 2.0),
+        vec2(width.max(0.0), CELL.y),
     );
     let mut child = ui.new_child(
         UiBuilder::new()

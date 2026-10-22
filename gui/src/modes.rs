@@ -10,10 +10,9 @@ use front::targeting::spell_text;
 use front::text::{self, Seg};
 use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, throwables};
 
-use crate::map_view::TILE;
 use crate::map_view::{Layout, screen_tile};
 use crate::panels::{SIDE_WIDTH, job};
-use crate::theme::{self, BG, BRIGHT, DIM, FG, boxed};
+use crate::theme::{self, BG, BRIGHT, CELL, DIM, FG, boxed};
 
 const PATH: Rgb = Rgb(110, 90, 20);
 const LANDING: Rgb = Rgb(170, 60, 20);
@@ -277,7 +276,7 @@ fn centred_window(ui: &egui::Ui, id: &str, contents: impl FnOnce(&mut egui::Ui))
         .resizable(false)
         .frame(Frame::new().fill(BG))
         .anchor(Align2::CENTER_CENTER, vec2(-SIDE_WIDTH / 2.0, 0.0))
-        .fixed_size([56.0 * TILE.x, 0.0])
+        .fixed_size([56.0 * CELL.x, 0.0])
         .show(ui.ctx(), contents);
 }
 

@@ -4,15 +4,16 @@ use eframe::egui::{self, Color32, text::LayoutJob};
 use front::session::{Mode, Session};
 use front::text::{self, Seg};
 
-use crate::map_view::{TILE, color};
+use crate::map_view::color;
+use crate::theme::CELL;
 use crate::theme::{self, DIM, FG, boxed, title};
 
 /// Width of the side column: 30 text cells.
-pub const SIDE_WIDTH: f32 = 30.0 * TILE.x;
+pub const SIDE_WIDTH: f32 = 30.0 * CELL.x;
 /// Log lines shown under the map, newest last.
 const LOG_LINES: usize = 5;
 /// The log and status boxes: 7 and 3 rows.
-pub const BOTTOM_HEIGHT: f32 = 10.0 * TILE.y;
+pub const BOTTOM_HEIGHT: f32 = 10.0 * CELL.y;
 
 /// `front`'s text as one laid-out line: quiet text dim, glyphs in their
 /// colour, the rest in `base`.

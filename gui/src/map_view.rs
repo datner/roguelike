@@ -7,11 +7,10 @@ use game::{Cell, GameState, Grid, Lit, Rgb, camera, tint};
 
 use crate::sprites::Atlas;
 
-use crate::theme::TEXT;
-
-/// One tile in pixels: a terminal cell, the same size as a cell of text
-/// (`theme::TEXT`), so the map and the panels share one grid.
-pub const TILE: Vec2 = vec2(10.0, 20.0);
+/// One map tile in pixels: square, so the world keeps its proportions (a
+/// 160×60 floor is wide, as it should be). Text keeps its own taller cell
+/// (`theme::CELL`).
+pub const TILE: Vec2 = vec2(18.0, 18.0);
 
 /// The one conversion from `game`'s colours to egui's.
 pub fn color(Rgb(r, g, b): Rgb) -> Color32 {
@@ -100,7 +99,7 @@ pub fn draw(
     light: &Grid<Option<Lit>>,
     sprites: Option<(&Atlas, Duration)>,
 ) {
-    let font = FontId::monospace(TEXT);
+    let font = map_font();
     let mut mesh = Mesh::default();
     let mut glyphs = Vec::new();
     let mut images = Vec::new();
@@ -135,7 +134,7 @@ pub fn draw(
                 .and_then(|((atlas, elapsed), sprite)| atlas.uv(sprite, elapsed));
             if let Some(uv) = sprite {
                 let shade = lit.map_or(Rgb(255, 255, 255), |lit| tint(Rgb(255, 255, 255), lit));
-                images.push((rect, uv, color(shade)));
+                images.push((fit(rect, atlas_cell(sprites)), uv, color(shade)));
             } else if cell.glyph != ' ' {
                 let fg = lit.map_or(cell.fg, |lit| tint(cell.fg, lit));
                 glyphs.push((rect, cell.glyph, color(fg)));
@@ -151,6 +150,27 @@ pub fn draw(
     for (rect, ch, fg) in glyphs {
         glyph(painter, rect, ch, fg, &font);
     }
+}
+
+/// Glyphs on the map: as tall as a tile, so they fill it.
+pub fn map_font() -> FontId {
+    FontId::monospace(TILE.y)
+}
+
+/// The atlas's cell shape (width over height), 1 without sprites.
+fn atlas_cell(sprites: Option<(&Atlas, Duration)>) -> f32 {
+    sprites.map_or(1.0, |(atlas, _)| atlas.aspect())
+}
+
+/// A sprite of `aspect` (width over height) as large as fits in `tile`,
+/// centred: the atlas keeps its shape on square tiles.
+pub fn fit(tile: Rect, aspect: f32) -> Rect {
+    let size = if aspect <= 1.0 {
+        vec2(tile.height() * aspect, tile.height())
+    } else {
+        vec2(tile.width(), tile.width() / aspect)
+    };
+    Rect::from_center_size(tile.center(), size)
 }
 
 /// A glyph centred in its tile.
@@ -185,6 +205,15 @@ mod tests {
         assert_eq!(corner_strength(&light, 1, 1), (400 + 800 + 1_200) / 4);
         assert_eq!(corner_strength(&light, 0, 0), 100, "off the grid is dark");
         assert_eq!(corner_strength(&light, 3, 2), 0);
+    }
+
+    #[test]
+    fn a_sprite_keeps_its_shape_in_a_square_tile() {
+        let tile = Rect::from_min_size(pos2(0.0, 0.0), vec2(18.0, 18.0));
+        let tall = fit(tile, 0.5);
+        assert_eq!(tall.size(), vec2(9.0, 18.0));
+        assert_eq!(tall.center(), tile.center());
+        assert_eq!(fit(tile, 2.0).size(), vec2(18.0, 9.0));
     }
 
     #[test]

@@ -32,6 +32,12 @@ impl Atlas {
         })
     }
 
+    /// A cell's width over its height.
+    pub fn aspect(&self) -> f32 {
+        let (w, h) = self.tiles.cell;
+        w as f32 / (h.max(1) as f32)
+    }
+
     pub fn texture(&self) -> egui::TextureId {
         self.texture.id()
     }

@@ -3,11 +3,11 @@
 use eframe::egui::{self, Align2, Frame, Vec2};
 use front::menu::{Body, Menu};
 
-use crate::map_view::TILE;
+use crate::theme::CELL;
 use crate::theme::{self, BG, DIM, FG, boxed, title};
 
 /// 48 text cells.
-const WIDTH: f32 = 48.0 * TILE.x;
+const WIDTH: f32 = 48.0 * CELL.x;
 
 pub fn draw(ui: &mut egui::Ui, menu: &Menu) {
     let view = menu.view();
@@ -43,7 +43,7 @@ pub fn draw(ui: &mut egui::Ui, menu: &Menu) {
                         ui.label(theme::line(&format!("> {text}_"), FG));
                     }
                 }
-                ui.add_space(TILE.y);
+                ui.add_space(CELL.y);
                 if let Some(message) = view.message {
                     ui.label(theme::line(&message, FG));
                 }

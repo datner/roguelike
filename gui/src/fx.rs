@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use eframe::egui::{Align2, Color32, FontId, Painter, Rect, Vec2, vec2};
 use game::{Cell, Fx, GameState, Grid, Outcome, Rgb};
 
-use crate::map_view::{Layout, TILE, color, screen_tile};
+use crate::map_view::{Layout, TILE, color, map_font, screen_tile};
 use crate::theme::{BG, FG, TEXT};
 
 /// Time a missile spends on each tile it crosses.
@@ -151,7 +151,6 @@ impl Effects {
 
     /// Missiles and rising words, over the drawn map.
     pub fn draw(&self, painter: &Painter, state: &GameState, layout: &Layout, now: Instant) {
-        let font = FontId::monospace(TEXT);
         let rect_of = |at| screen_tile(state, layout, at).map(|tile| layout.tile_rect(tile));
         for (fx, t) in self.showing(now) {
             match fx {
@@ -168,7 +167,7 @@ impl Effects {
                         rect.center(),
                         Align2::CENTER_CENTER,
                         trail.glyph,
-                        font.clone(),
+                        map_font(),
                         color(trail.fg),
                     );
                 }
