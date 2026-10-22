@@ -583,9 +583,8 @@ pub(crate) fn footprint(
         .map_or_else(Vec::new, |flight| flight.path.clone());
     let (tiles, centre, mut caught) = match ready.area {
         Some(area) => {
-            let tiles = area::tiles(&state.map, area.shape, from, landing, ready.range);
-            let caught = caught(&state.world, actor, area.hits, &tiles);
-            (tiles, area::centre(area.shape, from, landing), caught)
+            let cover = cover(state, actor, area, from, landing, ready.range);
+            (cover.tiles, cover.centre, cover.caught)
         }
         None => {
             let hit = flight.as_ref().and_then(|flight| flight.hit);
@@ -699,6 +698,34 @@ pub(crate) fn occupied(world: &World, tile: (i32, i32)) -> bool {
         .any(|(pos, health, blocks)| {
             (pos.x, pos.y) == tile && (health.is_some() || blocks.is_some())
         })
+}
+
+/// The ground an area covers and who it affects there.
+pub(crate) struct Cover {
+    /// Nearest the centre first.
+    pub tiles: Vec<(i32, i32)>,
+    /// Where falloff is measured from.
+    pub centre: (i32, i32),
+    /// In `SpawnSeq` order.
+    pub caught: Vec<Entity>,
+}
+
+/// What `area` covers from `from` toward `aim` (out to `range`): one answer
+/// for spells and techniques (ADR 0024).
+pub(crate) fn cover(
+    state: &GameState,
+    actor: Entity,
+    area: Area,
+    from: (i32, i32),
+    aim: (i32, i32),
+    range: i32,
+) -> Cover {
+    let tiles = area::tiles(&state.map, area.shape, from, aim, range);
+    Cover {
+        caught: caught(&state.world, actor, area.hits, &tiles),
+        centre: area::centre(area.shape, from, aim),
+        tiles,
+    }
 }
 
 /// Living creatures standing on `tiles` whom `hits` lets the spell affect,

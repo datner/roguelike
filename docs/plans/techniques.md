@@ -89,7 +89,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: a `front::Session` flow `a` → pick → aim → perform; a blocked technique cannot be picked;
   `scripts/shots.sh --check` with the new shot.
 
-### 3. Areas: cleave and sweep
+### 3. Areas: cleave and sweep — done
 - A technique with an `Area` strikes everyone it catches, one `blow` each in `SpawnSeq` order, each its
   own roll; `hits` decides who counts (`Enemies` for both below).
 - Extract from `spell::footprint` the part that turns a shape into tiles and creatures, so a spell and a

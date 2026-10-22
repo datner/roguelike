@@ -11,7 +11,8 @@ use crate::combat::{self, BlowMods, Strike};
 use crate::command::Command;
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{
-    Blow, Dash, Name, Need, Pool, PoolRates, Position, Recharging, Stamina, Stats, Technique,
+    Area, Blow, Dash, Name, Need, Pool, PoolRates, Position, Recharging, Shape, Stamina, Stats,
+    Technique,
 };
 use crate::grammar::Subject;
 use crate::holding;
@@ -128,6 +129,8 @@ pub(crate) struct Ready {
     pub strike: Strike,
     pub mods: BlowMods,
     pub dash: Option<Dash>,
+    /// The ground it sweeps; `None` strikes the one creature aimed at.
+    pub area: Option<Area>,
     pub stamina: u32,
     pub recharge: u64,
     pub verb: String,
@@ -171,6 +174,7 @@ pub(crate) fn inspect(
         strike,
         mods,
         dash: world.get::<&Dash>(technique).ok().map(|dash| *dash),
+        area: world.get::<&Area>(technique).ok().map(|area| *area),
         stamina: data.stamina,
         recharge: data.recharge,
         verb: data.verb.clone(),
@@ -249,14 +253,18 @@ fn name(world: &World, technique: Entity) -> String {
 /// performer ends up.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Footprint {
-    pub target: Entity,
-    /// Where the performer stands when the blow lands.
+    /// Who the blows fall on, in `SpawnSeq` order for an area.
+    pub targets: Vec<Entity>,
+    /// Where the performer stands when the blows land.
     pub stand: (i32, i32),
+    /// The ground an area technique sweeps; empty for one blow.
+    pub area: Vec<(i32, i32)>,
 }
 
-/// Whether `at` holds an enemy `ready` can strike from where `actor` stands:
-/// in reach, in view, on a straight or diagonal line, with open, empty
-/// ground between.
+/// What `ready` aimed at `at` would strike from where `actor` stands, or why
+/// it can't. One blow needs an enemy on `at`, in reach and view, on a
+/// straight or diagonal line with open, empty ground between. An area is
+/// aimed like a spell of its shape (ADR 0014) and must catch an enemy.
 pub(crate) fn footprint(
     state: &GameState,
     actor: Entity,
@@ -266,6 +274,9 @@ pub(crate) fn footprint(
     let Some(from) = ranged::position(state, actor) else {
         return Err("You can't act from nowhere.".to_string());
     };
+    if let Some(area) = ready.area {
+        return swept(state, actor, ready, area, from, at);
+    }
     if from == at {
         return Err("You can't aim at yourself.".to_string());
     }
@@ -277,7 +288,7 @@ pub(crate) fn footprint(
     if distance > ready.reach {
         return Err("That is out of reach.".to_string());
     }
-    if actor == state.player && !state.visible.get(at.0, at.1).copied().unwrap_or(false) {
+    if !in_view(state, actor, at) {
         return Err("You can't see that spot.".to_string());
     }
     let step = (dx.signum(), dy.signum());
@@ -294,8 +305,57 @@ pub(crate) fn footprint(
         .dash
         .map_or(0, |dash| dash.tiles.clamp(0, distance - 1));
     Ok(Footprint {
-        target,
+        targets: vec![target],
         stand: (from.0 + step.0 * moves, from.1 + step.1 * moves),
+        area: Vec::new(),
+    })
+}
+
+fn in_view(state: &GameState, actor: Entity, at: (i32, i32)) -> bool {
+    actor != state.player || state.visible.get(at.0, at.1).copied().unwrap_or(false)
+}
+
+/// An area technique's footprint: the shape's ground (`spell::cover`, so a
+/// spell and a technique of one shape catch the same creatures), aimed as a
+/// spell of that shape is, catching at least one enemy.
+fn swept(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    area: Area,
+    from: (i32, i32),
+    at: (i32, i32),
+) -> Result<Footprint, String> {
+    match area.shape {
+        Shape::Nova { .. } => {}
+        Shape::Cone | Shape::Beam if from == at => {
+            return Err("You can't aim at yourself.".to_string());
+        }
+        Shape::Cone | Shape::Beam => {}
+        Shape::Burst { .. } => {
+            if ranged::distance(from, at) > ready.reach {
+                return Err("That is out of reach.".to_string());
+            }
+            if !in_view(state, actor, at) {
+                return Err("You can't see that spot.".to_string());
+            }
+        }
+    }
+    let spell::Cover {
+        tiles, mut caught, ..
+    } = spell::cover(state, actor, area, from, at, ready.reach);
+    // A blow never falls on its own performer.
+    caught.retain(|&target| target != actor);
+    if !caught
+        .iter()
+        .any(|&target| side::enemies(&state.world, actor, target))
+    {
+        return Err("No enemy in reach.".to_string());
+    }
+    Ok(Footprint {
+        targets: caught,
+        stand: from,
+        area: tiles,
     })
 }
 
@@ -346,11 +406,17 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
     if actor == state.player && ranged::position(state, actor) != Some(at) {
         state.commands.push_back(Command::FindItems(actor));
     }
-    let target = Subject::of(&state.world, footprint.target);
-    let message =
-        Subject::of(&state.world, actor).sentence(&ready.verb, &format!("at {}", target.noun()));
+    let aimed = match footprint.targets.as_slice() {
+        [target] if ready.area.is_none() => {
+            format!("at {}", Subject::of(&state.world, *target).noun())
+        }
+        _ => String::new(),
+    };
+    let message = Subject::of(&state.world, actor).sentence(&ready.verb, &aimed);
     state.log.push(message);
-    let _ = combat::blow(state, actor, footprint.target, &ready.mods);
+    for target in footprint.targets {
+        let _ = combat::blow(state, actor, target, &ready.mods);
+    }
 }
 
 /// One technique the player knows, for the technique list.
@@ -360,6 +426,8 @@ pub struct TechniqueView {
     /// Bare noun, e.g. "lunge".
     pub name: String,
     pub reach: i32,
+    /// The ground it sweeps; `None` for one blow.
+    pub shape: Option<Shape>,
     /// Damage range before the target's defences.
     pub damage: (i32, i32),
     /// Turns until it can be performed again; 0 when ready.
@@ -385,6 +453,7 @@ pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
                 technique: ItemRef::of(world, technique)?,
                 name: name(world, technique),
                 reach: ready.reach,
+                shape: ready.area.map(|area| area.shape),
                 damage: (ready.mods.scale(low), ready.mods.scale(high)),
                 recharging: left.div_ceil(TICKS_PER_TURN),
                 recharge: ready.recharge.div_ceil(TICKS_PER_TURN),
@@ -702,5 +771,82 @@ mod tests {
             Some("Only in a straight line.")
         );
         assert_eq!(off_line.target, None);
+    }
+
+    /// The player, holding a slashing blade, knowing an area technique.
+    fn sweeper(shape: Shape) -> (GameState, Entity) {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        sure_hits(&mut state, player);
+        wield(&mut state, &[DamageType::Slashing]);
+        let technique = thing("cleave")
+            .with(Technique {
+                verb: "cleave".to_string(),
+                ..lunge(0, Vec::new())
+            })
+            .with(Area {
+                shape,
+                hits: crate::entity::Hits::Enemies,
+                falloff: 0,
+            })
+            .attached_to(player)
+            .make(&mut state);
+        (state, technique)
+    }
+
+    #[test]
+    fn a_cleave_strikes_every_enemy_around_and_spares_allies() {
+        let (mut state, technique) = sweeper(Shape::Nova { radius: 1 });
+        let player = state.player;
+        let east = goblin(&mut state, (2, 1));
+        let south = goblin(&mut state, (1, 2));
+        let far = goblin(&mut state, (3, 1));
+        let wolf = thing("wolf")
+            .at(2, 2)
+            .health(10)
+            .summoned_by(player)
+            .make(&mut state);
+
+        perform(&mut state, technique, (1, 1));
+
+        assert!(health(&state, east) < 10 && health(&state, south) < 10);
+        assert_eq!((health(&state, far), health(&state, wolf)), (10, 10));
+        assert!(state.log.recent(10).any(|line| line == "You cleave."));
+    }
+
+    #[test]
+    fn an_area_with_no_enemy_in_it_is_refused() {
+        let (mut state, technique) = sweeper(Shape::Nova { radius: 1 });
+        goblin(&mut state, (3, 1));
+        refused(&mut state, technique, (1, 1), "No enemy in reach.");
+    }
+
+    #[test]
+    fn a_wall_stops_a_sweep_as_it_stops_a_cone_spell() {
+        let (mut state, technique) = sweeper(Shape::Cone);
+        let behind = goblin(&mut state, (3, 1));
+        let open = (state.map.clone(), behind);
+        if let Some(tile) = state.map.get_mut(2, 1) {
+            *tile = Tile::Wall;
+        }
+        refused(&mut state, technique, (3, 1), "No enemy in reach.");
+
+        state.map = open.0;
+        perform(&mut state, technique, (3, 1));
+        assert!(health(&state, open.1) < 10);
+    }
+
+    #[test]
+    fn an_area_preview_counts_everyone_the_blows_reach() {
+        let (mut state, technique) = sweeper(Shape::Nova { radius: 1 });
+        goblin(&mut state, (2, 1));
+        goblin(&mut state, (2, 2));
+        let shot = crate::aim::Shot::Technique(ItemRef::of(&state.world, technique).unwrap());
+        let aim = crate::aim::aim(&state, shot, (1, 1)).unwrap();
+        // In the room's corner, walls leave four of the nine tiles.
+        assert_eq!((aim.caught, aim.problem, aim.area.len()), (2, None, 4));
+        assert_eq!(aim.chances, None);
+        assert_eq!(techniques(&state)[0].shape, Some(Shape::Nova { radius: 1 }));
     }
 }

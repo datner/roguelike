@@ -50,13 +50,7 @@ impl Chooser {
 /// A spell as a list row: its reach and damage, then the notes a frontend
 /// shows quieter: its price and why it can't be cast now, if it can't.
 pub fn spell_text(spell: &SpellView) -> (String, Vec<String>) {
-    let shape = match spell.shape {
-        None => String::new(),
-        Some(Shape::Burst { radius }) => format!("  burst {radius}"),
-        Some(Shape::Cone) => "  cone".to_string(),
-        Some(Shape::Beam) => "  beam".to_string(),
-        Some(Shape::Nova { radius }) => format!("  nova {radius}"),
-    };
+    let shape = shape_text(spell.shape);
     let damage = spell
         .damage
         .map_or_else(String::new, |(low, high)| format!("  {low}-{high}"));
@@ -82,11 +76,26 @@ pub fn spell_text(spell: &SpellView) -> (String, Vec<String>) {
     (main, notes)
 }
 
+/// The ground a spell or technique covers, as a row's note.
+fn shape_text(shape: Option<Shape>) -> String {
+    match shape {
+        None => String::new(),
+        Some(Shape::Burst { radius }) => format!("  burst {radius}"),
+        Some(Shape::Cone) => "  cone".to_string(),
+        Some(Shape::Beam) => "  beam".to_string(),
+        Some(Shape::Nova { radius }) => format!("  nova {radius}"),
+    }
+}
+
 /// A technique as a list row: its reach and damage, then quieter notes: how
 /// long it recharges, and why it can't be performed now, if it can't.
 pub fn technique_text(technique: &TechniqueView) -> (String, Vec<String>) {
     let (low, high) = technique.damage;
-    let main = format!("{}  r{}  {low}-{high}", technique.name, technique.reach);
+    let shape = shape_text(technique.shape);
+    let main = format!(
+        "{}  r{}{shape}  {low}-{high}",
+        technique.name, technique.reach
+    );
     let mut notes = Vec::new();
     if technique.recharge > 0 {
         notes.push(format!("{} turn recharge", technique.recharge));

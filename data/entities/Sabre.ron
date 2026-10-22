@@ -1,0 +1,12 @@
+// A curved cutting sword: slashing, heavier than a rapier and less
+// forgiving. The edge cleaving and sweeping need (ADR 0024).
+(
+    components: [
+        Name("sabre"),
+        Appearance(glyph: '(', fg: (210, 200, 170), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Hand),
+        Weapon(min: 2, max: 6, stat: Strength, types: [Slashing]),
+        Trains(["Sword"]),
+    ],
+)

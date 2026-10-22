@@ -256,31 +256,39 @@ fn aim_technique(state: &GameState, technique: ItemRef, at: (i32, i32)) -> Optio
     let ready = technique::ready(state, state.player, technique).ok()?;
     let origin = origin(state)?;
     let footprint = technique::footprint(state, state.player, &ready, at);
-    let target = footprint.as_ref().ok().map(|footprint| footprint.target);
+    let targets = footprint
+        .as_ref()
+        .map_or_else(|_| Vec::new(), |footprint| footprint.targets.clone());
+    // One blow is shown after its target's armor and with its odds; an area's
+    // before, since each creature caught meets the blow on its own.
+    let single = targets.first().copied().filter(|_| ready.area.is_none());
     let (low, high) = ready.strike.range();
-    let resisted = target.map_or(0, |target| {
+    let resisted = single.map_or(0, |target| {
         total_armor(&state.world, target).against(ready.strike.types)
     });
     let step = ((at.0 - origin.0).signum(), (at.1 - origin.1).signum());
-    let reach = distance(origin, at).min(ready.reach);
+    let path = match ready.area {
+        Some(_) => Vec::new(),
+        None => (1..=distance(origin, at).min(ready.reach))
+            .map(|k| (origin.0 + step.0 * k, origin.1 + step.1 * k))
+            .collect(),
+    };
     Some(Aim {
         origin,
         range: ready.reach,
-        path: (1..=reach)
-            .map(|k| (origin.0 + step.0 * k, origin.1 + step.1 * k))
-            .collect(),
+        path,
         landing: at,
-        target: target.map(|target| noun(state, target)),
+        target: targets.first().map(|&target| noun(state, target)),
         damage: (
             (ready.mods.scale(low) - resisted).max(0),
             (ready.mods.scale(high) - resisted).max(0),
         ),
         types: ready.strike.types,
         problem: footprint.as_ref().err().cloned(),
-        area: Vec::new(),
-        caught: usize::from(target.is_some()),
+        area: footprint.map_or_else(|_| Vec::new(), |footprint| footprint.area),
+        caught: targets.len(),
         summons: Vec::new(),
-        chances: target.map(|target| {
+        chances: single.map(|target| {
             let odds = combat::odds(state, &ready.strike, state.player, target);
             Chances {
                 hit_bp: odds.hit_bp,

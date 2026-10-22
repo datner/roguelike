@@ -1,0 +1,17 @@
+// A technique (ADR 0024): one wide cut through every enemy around you, each
+// struck on its own by an ordinary blow, a quarter weaker. Needs an edge.
+(
+    components: [
+        Name("cleave"),
+        Technique(
+            domain: Martial,
+            verb: "cleave",
+            reach: 1,
+            recharge: 600,
+            stamina: 0,
+            requires: [Wielding(["Slash"])],
+        ),
+        Area(shape: Nova(radius: 1), hits: Enemies),
+        Blow(damage_pct: -25),
+    ],
+)
