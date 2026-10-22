@@ -30,6 +30,50 @@ pub enum Place {
     },
 }
 
+/// Where the player is, named for reading.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaceView {
+    /// At camp; the phase the next dive will be in.
+    Camp { next_phase: String },
+    Floor {
+        /// "the caves".
+        dungeon: String,
+        floor: u32,
+        /// "the embers".
+        phase: String,
+    },
+}
+
+/// The current place by the names content gives it.
+pub fn place_view(state: &GameState) -> PlaceView {
+    let phase_name = |key: &str| {
+        state
+            .blueprints
+            .phases()
+            .iter()
+            .find(|phase| phase.key == key)
+            .map_or_else(|| key.to_string(), |phase| phase.name.clone())
+    };
+    match &state.place {
+        Place::Camp => PlaceView::Camp {
+            next_phase: phase_name(&state.phase),
+        },
+        Place::Floor {
+            dungeon,
+            phase,
+            floor,
+            ..
+        } => PlaceView::Floor {
+            dungeon: state
+                .blueprints
+                .dungeon(dungeon)
+                .map_or_else(|| dungeon.clone(), |found| found.name.clone()),
+            floor: *floor,
+            phase: phase_name(phase),
+        },
+    }
+}
+
 /// FNV-1a over a name's bytes: stable across builds and platforms, unlike
 /// `std::hash` (ADR 0009).
 fn name_seed(name: &str) -> u64 {

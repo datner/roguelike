@@ -1,8 +1,8 @@
 //! Text the player reads in panels, as rows of segments a frontend styles: the character sheet, the equipment list, an item's name. Built once here so every frontend says the same thing.
 
 use game::{
-    DamageType, ExploreItems, GameState, ItemView, PhaseView, Rgb, Stat, capitalize,
-    character_sheet, equipment_view, inspect, styles,
+    DamageType, ExploreItems, GameState, ItemView, PhaseView, PlaceView, Rgb, Stat, capitalize,
+    character_sheet, equipment_view, inspect, place_view, styles,
 };
 
 /// A run of text and how to show it.
@@ -55,6 +55,40 @@ pub fn item(item: &ItemView) -> Row {
         row.push(quiet(format!(" ({note})")));
     }
     row
+}
+
+/// The place in a few words: "Camp", or "The caves, floor 2 (the embers)".
+pub fn place(state: &GameState) -> String {
+    match place_view(state) {
+        PlaceView::Camp { .. } => "Camp".to_string(),
+        PlaceView::Floor {
+            dungeon,
+            floor,
+            phase,
+        } => format!("{}, floor {floor} ({phase})", capitalize(&dungeon)),
+    }
+}
+
+/// The side panel's account of where you are and what comes next.
+pub fn whereabouts(state: &GameState) -> Vec<Row> {
+    let plain = |text: String| Seg::Plain(text);
+    let quiet = |text: &str| Seg::Quiet(text.to_string());
+    match place_view(state) {
+        PlaceView::Camp { next_phase } => vec![
+            vec![plain("Camp".into())],
+            vec![quiet("Next dive  "), plain(next_phase)],
+            vec![quiet("W waits for another phase")],
+        ],
+        PlaceView::Floor {
+            dungeon,
+            floor,
+            phase,
+        } => vec![
+            vec![plain(format!("{}, floor {floor}", capitalize(&dungeon)))],
+            vec![quiet("Phase  "), plain(phase)],
+            vec![quiet("> deeper  < back to camp")],
+        ],
+    }
 }
 
 /// Health, mana, stats, armor, damage and the rest of the player's sheet.
@@ -182,6 +216,18 @@ pub fn equipment(state: &GameState) -> Vec<Row> {
 mod tests {
     use super::*;
     use crate::tests::state;
+
+    #[test]
+    fn the_place_is_named_by_its_content() {
+        let camp = state();
+        assert_eq!(place(&camp), "Camp");
+        assert_eq!(flat(&whereabouts(&camp)[1]), "Next dive  the stillness");
+
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
+        let floor = GameState::new(3, blueprints).unwrap();
+        assert_eq!(place(&floor), "The caves, floor 1 (the stillness)");
+    }
 
     #[test]
     fn the_sheet_lines_up_labels_and_values() {

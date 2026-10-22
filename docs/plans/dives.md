@@ -71,7 +71,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `term` shows the fallback line.
 - Tests: the phase filters spawns, is fixed through a dive, is saved; the chooser flow in `front`.
 
-### 5. Knowing where you are
+### 5. Knowing where you are — done
 - Side panel and status: "Camp", or "The caves, floor 2 (embers)". Log lines on every move between
   places. README Controls (`>`, `<`, `W`) and Structure. Shots for camp and a floor; references updated.
 

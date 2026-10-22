@@ -36,6 +36,9 @@ fn rows(ui: &mut egui::Ui, rows: Vec<Vec<Seg>>) {
 
 pub fn side(ui: &mut egui::Ui, session: &Session) {
     let state = session.state();
+    boxed(ui, title("Where"), None, |ui| {
+        rows(ui, text::whereabouts(state));
+    });
     boxed(ui, title(session.character()), None, |ui| {
         rows(ui, text::character(state));
     });

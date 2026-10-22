@@ -69,7 +69,7 @@ pub use camera::{Camera, camera};
 pub use camp::Camp;
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
-pub use dive::Place;
+pub use dive::{Place, PlaceView, place_view};
 pub use dungeon::{Dungeon, Inhabitant};
 pub use effect::DurationChange;
 pub use entity::{

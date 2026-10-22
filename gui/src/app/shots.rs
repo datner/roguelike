@@ -12,7 +12,7 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 10] = [
+const SHOTS: [&str; 11] = [
     "menu",
     "play",
     "inventory",
@@ -23,6 +23,7 @@ const SHOTS: [&str; 10] = [
     "sprites",
     "fx",
     "phases",
+    "floor",
 ];
 
 /// The `fx` sheet: this many frames, this far apart, from when the effects
@@ -104,6 +105,8 @@ fn scene(name: &str) -> Harness<'static, App> {
         "spells" => type_text(&mut harness, "c"),
         "aim" => type_text(&mut harness, "f"),
         "phases" => type_text(&mut harness, "W"),
+        // Round the tents to the camp's entrance (data/camp.ron), then down.
+        "floor" => type_text(&mut harness, &format!("kkk{}jjj>", "l".repeat(14))),
         "effects" => {
             // A tenth of the way into their rise.
             let fx = effects_around(player_tile(&mut harness));

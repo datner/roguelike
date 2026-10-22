@@ -425,7 +425,7 @@ mod tests {
     fn status_shows_the_turn() {
         let mut state = state();
         state.now = Tick(250);
-        assert!(screen(&Session::new(state, "hero")).contains("Seed: 3  Turn: 2"));
+        assert!(screen(&Session::new(state, "hero")).contains("Turn: 2  Seed: 3"));
     }
 
     #[test]

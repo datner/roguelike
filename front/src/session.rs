@@ -291,7 +291,12 @@ impl Session {
                 "You died on turn {}. Press any key to return to the title.",
                 state.now.turn()
             ),
-            _ => format!("Seed: {}  Turn: {}", state.seed, state.now.turn()),
+            _ => format!(
+                "{}  Turn: {}  Seed: {}",
+                crate::text::place(state),
+                state.now.turn(),
+                state.seed
+            ),
         }
     }
 }
@@ -564,10 +569,13 @@ mod tests {
     }
 
     #[test]
-    fn status_shows_the_turn_and_announces_game_over() {
+    fn status_shows_the_place_and_turn_and_announces_game_over() {
         let mut state = state();
         state.now = Tick(250);
-        assert_eq!(Session::new(state, "hero").status(), "Seed: 3  Turn: 2");
+        assert_eq!(
+            Session::new(state, "hero").status(),
+            "Camp  Turn: 2  Seed: 3"
+        );
         let mut state = crate::tests::state();
         state.now = Tick(700);
         // What the frontend reads of a death; how dying works is `game`'s.
