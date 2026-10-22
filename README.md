@@ -98,7 +98,8 @@ This is a Cargo workspace with three crates:
     through disciplines. Their blows are ordinary blows, so they land,
     graze and train like a bump. `Need`s gate them on what is wielded or a
     skill's level. Area techniques cover ground as spells of their shape do.
-    You start knowing the lunge, the cleave and the sweep.
+    Riders do more on a full hit: a shove, or a timed effect.
+    You start knowing the lunge, the cleave, the sweep, the shove and the trip.
   - Sides and summons (ADR 0015): hostiles and the player's side, a summon
     on its owner's. AI goes for the nearest enemy it perceives; summons
     last until their binding runs out or their owner dies.
@@ -237,7 +238,9 @@ In game:
   straight line, and the status bar shows the damage after armor and the
   chances. A lunge steps in from two tiles away and strikes; a cleave strikes
   every enemy around you, a sweep those in a cone in front (both need an
-  edge, such as a sabre), each blow rolled on its own.
+  edge, such as a sabre), each blow rolled on its own. A shove (free off
+  hand) drives an enemy back two tiles; a trip leaves it reeling: easier to
+  hit and unable to dodge perfectly, for three turns.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

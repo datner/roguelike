@@ -882,6 +882,30 @@ pub struct Technique {
     pub stamina: u32,
     /// All must hold for it to be performed.
     pub requires: Vec<Need>,
+    /// What else a full hit does, after its damage.
+    pub riders: Vec<Rider>,
+    /// The skills its blow uses, for its level and its training, instead of
+    /// the weapon's: a technique that is not plain weapon work.
+    pub uses: Option<Vec<SkillId>>,
+}
+
+/// What a technique's full hit does besides its damage (ADR 0024). Data, so
+/// a style's bonus can add one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rider {
+    /// Pushes the target straight away from the performer, up to `tiles`,
+    /// stopping at walls and creatures.
+    Shove { tiles: i32 },
+    /// Applies a timed effect to the target (`ApplyEffect`).
+    Effect(crate::blueprint::BlueprintId),
+}
+
+/// Effect part: its target is reeling, so blows at it land more often by
+/// `hit_bp` and it can't dodge perfectly. Active while attached; its expiry
+/// is checked against its timestamps like any effect's (ADR 0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OffBalance {
+    pub hit_bp: u32,
 }
 
 /// Something a technique asks of its performer. Each is checked in one place

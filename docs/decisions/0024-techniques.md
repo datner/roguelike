@@ -40,11 +40,20 @@ turning it on later must not mean a refactor.
   answered by the same functions for the command, refused input, the list
   and, later, aiming and AI.
 
+- **Riders** (`Rider`) are what a full hit does besides its damage:
+  `Shove` (straight back until something stops it, no RNG) and `Effect`
+  (any timed effect blueprint, such as the trip's `OffBalance`). They are
+  applied through `Command::Ride` after the hit's damage, and only if the
+  target lived. Grazes carry none.
+- **`uses`** names the skills a technique's blow is levelled and trained
+  by, instead of the weapon's, for blows that are not weapon work.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
   a part read where the technique is readied and performed.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
-  a `Pool`, saved the same).
+  a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
+  `OffBalance`).
 - The player knows the lunge from their blueprint until manuals and styles
   teach techniques.

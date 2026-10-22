@@ -7,16 +7,21 @@
 use hecs::{Entity, World};
 use serde::{Deserialize, Serialize};
 
-use crate::combat::{self, BlowMods, Strike};
+use crate::blueprint::BlueprintId;
+use std::ops::ControlFlow;
+
+use crate::combat::{self, AttackOdds, BlowMods, Outcome, Strike};
 use crate::command::Command;
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{
-    Area, Blow, Dash, Name, Need, Pool, PoolRates, Position, Recharging, Shape, Stamina, Stats,
-    Technique,
+    Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
+    Stamina, Stats, Technique,
 };
+use crate::event::EventRegistry;
 use crate::grammar::Subject;
 use crate::holding;
 use crate::map::Tile;
+use crate::prio;
 use crate::ranged;
 use crate::side;
 use crate::skill::{self, Domain, SkillBook, SkillId};
@@ -24,7 +29,7 @@ use crate::spell;
 use crate::state::GameState;
 use crate::view::ItemRef;
 
-/// A `Technique` as written in RON and saves: skills by name.
+/// A `Technique` as written in RON and saves: skills and effects by name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TechniqueDef {
     pub domain: Domain,
@@ -38,6 +43,10 @@ pub struct TechniqueDef {
     pub stamina: u32,
     #[serde(default)]
     pub requires: Vec<NeedDef>,
+    #[serde(default)]
+    pub riders: Vec<RiderDef>,
+    #[serde(default)]
+    pub uses: Option<Vec<String>>,
 }
 
 fn one() -> i32 {
@@ -51,30 +60,105 @@ pub enum NeedDef {
     Skill(String, u32),
 }
 
-impl TechniqueDef {
-    /// The skills it names, for checking at load.
-    pub(crate) fn names(&self) -> impl Iterator<Item = &String> {
-        self.requires.iter().flat_map(|need| match need {
-            NeedDef::Wielding(skills) => skills.iter().collect::<Vec<_>>(),
-            NeedDef::Skill(skill, _) => vec![skill],
+/// A `Rider` as written in RON and saves: an effect by blueprint name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RiderDef {
+    Shove { tiles: i32 },
+    Effect(String),
+}
+
+/// A name a `TechniqueDef` gives that the content lacks, or an id saved
+/// content no longer has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Missing {
+    Skill(String),
+    Blueprint(String),
+    SkillId(SkillId),
+    BlueprintId(BlueprintId),
+}
+
+/// Names to ids, while a `TechniqueDef` resolves; ids to names, while a
+/// `Technique` is saved.
+pub(crate) struct Names<'a> {
+    pub skills: &'a SkillBook,
+    pub blueprint: &'a dyn Fn(&str) -> Option<BlueprintId>,
+    pub blueprint_name: &'a dyn Fn(BlueprintId) -> Option<String>,
+}
+
+impl Names<'_> {
+    fn skill(&self, name: &str) -> Result<SkillId, Missing> {
+        self.skills
+            .id(name)
+            .ok_or_else(|| Missing::Skill(name.to_string()))
+    }
+
+    fn skills(&self, names: &[String]) -> Result<Vec<SkillId>, Missing> {
+        let mut ids = names
+            .iter()
+            .map(|name| self.skill(name))
+            .collect::<Result<Vec<_>, _>>()?;
+        ids.sort();
+        Ok(ids)
+    }
+
+    fn skill_name(&self, id: SkillId) -> Result<String, Missing> {
+        self.skills
+            .get(id)
+            .map(|def| def.name.clone())
+            .ok_or(Missing::SkillId(id))
+    }
+
+    fn skill_names(&self, ids: &[SkillId]) -> Result<Vec<String>, Missing> {
+        ids.iter().map(|&id| self.skill_name(id)).collect()
+    }
+
+    fn rider(&self, rider: &RiderDef) -> Result<Rider, Missing> {
+        Ok(match rider {
+            &RiderDef::Shove { tiles } => Rider::Shove { tiles },
+            RiderDef::Effect(name) => Rider::Effect(
+                (self.blueprint)(name).ok_or_else(|| Missing::Blueprint(name.clone()))?,
+            ),
         })
     }
 
-    /// With every skill resolved, or the first name `book` lacks.
-    pub(crate) fn resolve(&self, book: &SkillBook) -> Result<Technique, String> {
-        let id = |name: &String| book.id(name).ok_or_else(|| name.clone());
+    fn rider_def(&self, rider: &Rider) -> Result<RiderDef, Missing> {
+        Ok(match *rider {
+            Rider::Shove { tiles } => RiderDef::Shove { tiles },
+            Rider::Effect(id) => {
+                RiderDef::Effect((self.blueprint_name)(id).ok_or(Missing::BlueprintId(id))?)
+            }
+        })
+    }
+}
+
+impl TechniqueDef {
+    /// The skills it names, for checking at load.
+    pub(crate) fn names(&self) -> impl Iterator<Item = &String> {
+        let needs = self.requires.iter().flat_map(|need| match need {
+            NeedDef::Wielding(skills) => skills.iter().collect::<Vec<_>>(),
+            NeedDef::Skill(skill, _) => vec![skill],
+        });
+        needs.chain(self.uses.iter().flatten())
+    }
+
+    /// The effect blueprints it applies, for checking at load.
+    pub(crate) fn effects(&self) -> impl Iterator<Item = &String> {
+        self.riders.iter().filter_map(|rider| match rider {
+            RiderDef::Effect(name) => Some(name),
+            RiderDef::Shove { .. } => None,
+        })
+    }
+
+    /// With every name resolved, or the first one `names` lacks.
+    pub(crate) fn resolve(&self, names: &Names<'_>) -> Result<Technique, Missing> {
         let requires = self
             .requires
             .iter()
             .map(|need| match need {
-                NeedDef::Wielding(skills) => {
-                    let mut ids = skills.iter().map(id).collect::<Result<Vec<_>, _>>()?;
-                    ids.sort();
-                    Ok(Need::Wielding(ids))
-                }
-                NeedDef::Skill(skill, level) => Ok(Need::Skill(id(skill)?, *level)),
+                NeedDef::Wielding(skills) => Ok(Need::Wielding(names.skills(skills)?)),
+                NeedDef::Skill(skill, level) => Ok(Need::Skill(names.skill(skill)?, *level)),
             })
-            .collect::<Result<_, String>>()?;
+            .collect::<Result<_, Missing>>()?;
         Ok(Technique {
             domain: self.domain,
             verb: self.verb.clone(),
@@ -82,25 +166,29 @@ impl TechniqueDef {
             recharge: self.recharge,
             stamina: self.stamina,
             requires,
+            riders: self
+                .riders
+                .iter()
+                .map(|rider| names.rider(rider))
+                .collect::<Result<_, _>>()?,
+            uses: self
+                .uses
+                .as_ref()
+                .map(|uses| names.skills(uses))
+                .transpose()?,
         })
     }
 
-    /// `technique` with its skills named, or the first id `book` lacks.
-    pub(crate) fn of(technique: &Technique, book: &SkillBook) -> Result<Self, SkillId> {
-        let name = |id: SkillId| book.get(id).map(|def| def.name.clone()).ok_or(id);
+    /// `technique` with every id named, or the first one `names` lacks.
+    pub(crate) fn of(technique: &Technique, names: &Names<'_>) -> Result<Self, Missing> {
         let requires = technique
             .requires
             .iter()
             .map(|need| match need {
-                Need::Wielding(skills) => Ok(NeedDef::Wielding(
-                    skills
-                        .iter()
-                        .map(|&id| name(id))
-                        .collect::<Result<_, _>>()?,
-                )),
-                Need::Skill(skill, level) => Ok(NeedDef::Skill(name(*skill)?, *level)),
+                Need::Wielding(skills) => Ok(NeedDef::Wielding(names.skill_names(skills)?)),
+                Need::Skill(skill, level) => Ok(NeedDef::Skill(names.skill_name(*skill)?, *level)),
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, Missing>>()?;
         Ok(Self {
             domain: technique.domain,
             verb: technique.verb.clone(),
@@ -108,6 +196,16 @@ impl TechniqueDef {
             recharge: technique.recharge,
             stamina: technique.stamina,
             requires,
+            riders: technique
+                .riders
+                .iter()
+                .map(|rider| names.rider_def(rider))
+                .collect::<Result<_, _>>()?,
+            uses: technique
+                .uses
+                .as_ref()
+                .map(|uses| names.skill_names(uses))
+                .transpose()?,
         })
     }
 }
@@ -131,6 +229,8 @@ pub(crate) struct Ready {
     pub dash: Option<Dash>,
     /// The ground it sweeps; `None` strikes the one creature aimed at.
     pub area: Option<Area>,
+    /// What each full hit does besides its damage.
+    pub riders: Vec<Rider>,
     pub stamina: u32,
     pub recharge: u64,
     pub verb: String,
@@ -163,7 +263,7 @@ pub(crate) fn inspect(
     let mods = BlowMods {
         accuracy: blow.accuracy,
         damage_pct: blow.damage_pct,
-        uses: None,
+        uses: data.uses.clone(),
     };
     let Some((strike, used)) = combat::blow_strike(world, state.blueprints.skills(), actor, &mods)
     else {
@@ -175,6 +275,7 @@ pub(crate) fn inspect(
         mods,
         dash: world.get::<&Dash>(technique).ok().map(|dash| *dash),
         area: world.get::<&Area>(technique).ok().map(|area| *area),
+        riders: data.riders.clone(),
         stamina: data.stamina,
         recharge: data.recharge,
         verb: data.verb.clone(),
@@ -415,8 +516,81 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
     let message = Subject::of(&state.world, actor).sentence(&ready.verb, &aimed);
     state.log.push(message);
     for target in footprint.targets {
-        let _ = combat::blow(state, actor, target, &ready.mods);
+        // Riders follow a full hit's damage in the queue, so a target the
+        // blow kills is neither shoved nor affected.
+        if combat::blow(state, actor, target, &ready.mods) == Some(Outcome::Hit) {
+            for rider in &ready.riders {
+                state.commands.push_back(Command::Ride {
+                    actor,
+                    target,
+                    rider: *rider,
+                });
+            }
+        }
     }
+}
+
+/// Applies `Command::Ride`: `rider` on `target`, unless the hit killed it (its
+/// `Die` is queued after the rider, so health is what tells).
+pub(crate) fn ride(state: &mut GameState, actor: Entity, target: Entity, rider: Rider) {
+    let alive = state
+        .world
+        .get::<&crate::entity::Health>(target)
+        .is_ok_and(|health| health.current > 0);
+    if !alive {
+        return;
+    }
+    match rider {
+        Rider::Shove { tiles } => shove(state, actor, target, tiles),
+        Rider::Effect(blueprint) => crate::effect::apply_effect(state, target, blueprint),
+    }
+}
+
+/// `target` moves straight away from `pusher`, a tile at a time, up to
+/// `tiles`, until a wall or a creature stops it. No RNG and no damage from
+/// what it meets.
+fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
+    let (Some(from), Some(start)) = (
+        ranged::position(state, pusher),
+        ranged::position(state, target),
+    ) else {
+        return;
+    };
+    let step = ((start.0 - from.0).signum(), (start.1 - from.1).signum());
+    let mut at = start;
+    for _ in 0..tiles {
+        let next = (at.0 + step.0, at.1 + step.1);
+        if step == (0, 0)
+            || !Tile::is_open(state.map.get(next.0, next.1))
+            || spell::occupied(&state.world, next)
+        {
+            break;
+        }
+        at = next;
+    }
+    let shoved = Subject::of(&state.world, target);
+    if at == start {
+        state.log.push(shoved.sentence("hold", "firm"));
+        return;
+    }
+    if let Ok(mut pos) = state.world.get::<&mut Position>(target) {
+        (pos.x, pos.y) = at;
+    }
+    state.log.push(shoved.sentence("be", "shoved back"));
+    if target == state.player {
+        state.commands.push_back(Command::FindItems(target));
+    }
+}
+
+pub(crate) fn register(registry: &mut EventRegistry) {
+    // A reeling defender is easier to hit and can't dodge perfectly.
+    registry.on::<AttackOdds, OffBalance>(prio::OFF_BALANCE, |_, reeling, mut ev| {
+        if ev.asking == ev.defender {
+            ev.hit_bp = ev.hit_bp.saturating_add(reeling.hit_bp);
+            ev.perfect_bp = 0;
+        }
+        ControlFlow::Continue(ev)
+    });
 }
 
 /// One technique the player knows, for the technique list.
@@ -481,6 +655,8 @@ mod tests {
             recharge: 500,
             stamina,
             requires: needs,
+            riders: Vec::new(),
+            uses: None,
         }
     }
 
@@ -848,5 +1024,156 @@ mod tests {
         assert_eq!((aim.caught, aim.problem, aim.area.len()), (2, None, 4));
         assert_eq!(aim.chances, None);
         assert_eq!(techniques(&state)[0].shape, Some(Shape::Nova { radius: 1 }));
+    }
+
+    /// The player knowing a one-tile technique with `riders`, wielding a
+    /// thrusting blade, every blow landing.
+    fn rider(riders: Vec<Rider>) -> (GameState, Entity) {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        sure_hits(&mut state, player);
+        wield(&mut state, &[DamageType::Piercing]);
+        let technique = thing("shove")
+            .with(Technique {
+                verb: "shove".to_string(),
+                reach: 1,
+                riders,
+                ..lunge(0, Vec::new())
+            })
+            .attached_to(player)
+            .make(&mut state);
+        (state, technique)
+    }
+
+    fn tough_goblin(state: &mut GameState, at: (i32, i32)) -> Entity {
+        thing("goblin")
+            .at(at.0, at.1)
+            .health(100)
+            .hostile()
+            .make(state)
+    }
+
+    #[test]
+    fn a_shove_drives_the_target_straight_back() {
+        let (mut state, technique) = rider(vec![Rider::Shove { tiles: 2 }]);
+        let goblin = tough_goblin(&mut state, (2, 2));
+        perform(&mut state, technique, (2, 2));
+        assert_eq!(at(&state, goblin), (4, 4));
+        assert!(
+            state
+                .log
+                .recent(10)
+                .any(|line| line == "The goblin is shoved back.")
+        );
+    }
+
+    #[test]
+    fn a_shove_stops_at_what_is_in_the_way() {
+        let (mut state, technique) = rider(vec![Rider::Shove { tiles: 3 }]);
+        let goblin = tough_goblin(&mut state, (2, 1));
+        thing("rubble")
+            .at(4, 1)
+            .with(crate::entity::BlocksMovement)
+            .make(&mut state);
+        perform(&mut state, technique, (2, 1));
+        assert_eq!(at(&state, goblin), (3, 1));
+
+        let (mut state, technique) = rider(vec![Rider::Shove { tiles: 3 }]);
+        let goblin = tough_goblin(&mut state, (2, 1));
+        tough_goblin(&mut state, (3, 1));
+        perform(&mut state, technique, (2, 1));
+        assert_eq!(at(&state, goblin), (2, 1));
+        assert_eq!(last_log(&state), "The goblin holds firm.");
+    }
+
+    #[test]
+    fn a_blow_that_kills_shoves_no_one() {
+        let (mut state, technique) = rider(vec![Rider::Shove { tiles: 2 }]);
+        let goblin = thing("goblin")
+            .at(2, 1)
+            .health(1)
+            .hostile()
+            .make(&mut state);
+        perform(&mut state, technique, (2, 1));
+        let gone =
+            !state.world.contains(goblin) || state.world.satisfies::<&crate::entity::Dead>(goblin);
+        assert!(gone);
+        assert!(!state.log.recent(10).any(|line| line.contains("shoved")));
+    }
+
+    #[test]
+    fn an_effect_rider_applies_its_effect_on_a_hit() {
+        let bleeding = bare_state().blueprints.id("Bleeding").unwrap();
+        let (mut state, technique) = rider(vec![Rider::Effect(bleeding)]);
+        let goblin = tough_goblin(&mut state, (2, 1));
+        perform(&mut state, technique, (2, 1));
+        let effects = holding::attached(&state.world, goblin);
+        assert!(
+            effects
+                .iter()
+                .any(|&effect| state.world.satisfies::<&crate::entity::Bleeding>(effect))
+        );
+    }
+
+    #[test]
+    fn a_trip_leaves_the_target_reeling_until_its_time_runs_out() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
+        let mut state = crate::state::tests::bare_state_with(blueprints);
+        see_everything(&mut state);
+        let player = state.player;
+        let trip = known(&state.world, player)
+            .into_iter()
+            .find(|&t| name(&state.world, t) == "trip")
+            .unwrap();
+        let goblin = tough_goblin(&mut state, (2, 1));
+        let odds = |state: &GameState| {
+            let strike = combat::strike(&state.world, state.blueprints.skills(), player).unwrap();
+            combat::odds(state, &strike, player, goblin)
+        };
+        let before = odds(&state);
+
+        sure_hits(&mut state, player);
+        perform(&mut state, trip, (2, 1));
+        let _ = state.world.remove_one::<crate::testkit::SureHits>(player);
+        assert!(
+            state
+                .log
+                .recent(10)
+                .any(|line| line == "The goblin starts reeling.")
+        );
+        let reeling = odds(&state);
+        assert_eq!(reeling.hit_bp, before.hit_bp + 2_000);
+        assert_eq!(reeling.perfect_bp, 0);
+
+        for _ in 0..3 {
+            take_turn(&mut state, PlayerAction::Wait);
+        }
+        assert_eq!(odds(&state), before);
+    }
+
+    #[test]
+    fn a_technique_that_names_its_skills_is_levelled_and_trained_by_them() {
+        let book = crate::skill::tests::book();
+        let unarmed = book.id("Unarmed").unwrap();
+        let (mut state, technique) = rider(Vec::new());
+        let player = state.player;
+        let _ = state.world.insert_one(player, Learner);
+        let mut skills = crate::entity::Skills::default();
+        skills.set(unarmed, skill::xp_for(8));
+        let _ = state.world.insert_one(player, skills);
+        let _ = state.world.get::<&mut Technique>(technique).map(|mut t| {
+            t.uses = Some(vec![unarmed]);
+        });
+        goblin(&mut state, (2, 1));
+
+        let (ready, _) = inspect(&state, player, technique).unwrap();
+        assert_eq!(ready.strike.level, 8);
+        perform(&mut state, technique, (2, 1));
+
+        let pierce = pierce(&state);
+        assert_eq!(skill::xp(&state.world, player, pierce), 0);
+        assert!(skill::xp(&state.world, player, unarmed) > skill::xp_for(8));
     }
 }

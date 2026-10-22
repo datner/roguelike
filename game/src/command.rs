@@ -10,8 +10,8 @@ use crate::combat::{self, AfterHit, BeforeTakeDamage, Damaged};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
-    Armor, BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, SpawnSeq,
-    Summoned,
+    Armor, BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, Rider,
+    SpawnSeq, Summoned,
 };
 use crate::equipment;
 use crate::event::{Ctx, settle};
@@ -135,6 +135,13 @@ pub(crate) enum Command {
         technique: Entity,
         at: (i32, i32),
     },
+    /// What `actor`'s technique does to `target` after a full hit's damage,
+    /// if the target lived (`technique::ride`).
+    Ride {
+        actor: Entity,
+        target: Entity,
+        rider: Rider,
+    },
     /// Start `spell`'s (or a technique's) recharge: it cannot be used for
     /// `duration` ticks.
     Recharge {
@@ -247,6 +254,7 @@ impl Command {
             | Command::Ascend(actor)
             | Command::WaitForPhase { actor, .. } => [Some(actor), None],
             Command::Recharge { spell, .. } => [Some(spell), None],
+            Command::Ride { actor, target, .. } => [Some(actor), Some(target)],
             Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
             Command::DealDamage { target, .. } | Command::ApplyEffect { target, .. } => {
@@ -319,6 +327,11 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
             Command::WaitForPhase { actor, phase } => crate::phase::wait_for(state, actor, phase),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
+            Command::Ride {
+                actor,
+                target,
+                rider,
+            } => crate::technique::ride(state, actor, target, rider),
             Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),
             Command::Nock { actor, arrow } => ammo::nock(state, actor, arrow),

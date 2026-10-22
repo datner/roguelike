@@ -376,6 +376,7 @@ pub(crate) fn event_registry() -> EventRegistry {
     combat::register(&mut events);
     spell::register(&mut events);
     crate::style::register(&mut events);
+    crate::technique::register(&mut events);
     #[cfg(test)]
     crate::testkit::register(&mut events);
     events

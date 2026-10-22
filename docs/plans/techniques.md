@@ -100,13 +100,14 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: cleave hits every adjacent enemy and spares allies; a wall blocks a sweep like a cone spell;
   the preview names everyone the blow will reach.
 
-### 4. Riders and other kinds of blow
-- `riders: Vec<Rider>` on a technique, applied on a hit (a graze only if the rider says so, like
-  `OnHit`). A rider is data, so a style bonus can add one (slice 5). First riders:
+### 4. Riders and other kinds of blow — done
+- `riders: Vec<Rider>` on a technique, applied on a full hit (as built: grazes never carry riders;
+  `Command::Ride` checks the target lived, since its `Die` queues after the rider). A rider is data, so a style bonus can add one (slice 5). First riders:
   - `Shove { tiles }`: pushed straight away from the actor until blocked; `Command::Shove` moves it,
     stopping at walls and creatures (no RNG, no wall damage yet).
-  - `Trip { duration }`: a timed `OffBalance` effect through `ApplyEffect` (ADR 0006) that lowers the
-    target's Dodge in `AttackOdds`, read from timestamps, ended by `ModifyDuration`.
+  - `Effect(blueprint)` (as built, instead of a `Trip` rider): any timed effect through
+    `ApplyEffect`; the trip's is `OffBalance.ron`, an `OffBalance` part that raises the hit chance
+    against its target and takes away its perfect dodge while attached.
 - `Uses { skills }`: the blow's level and its training come from these skills instead of the weapon's
   (`skill::melee`), for techniques that are not plain weapon work. Tested with an in-test qi strike; no
   content needs it yet.

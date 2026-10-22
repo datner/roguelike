@@ -1,0 +1,16 @@
+// A technique (ADR 0024): a low blow at the legs with anything at all, weak
+// but leaving the enemy reeling (`OffBalance.ron`) for three turns.
+(
+    components: [
+        Name("trip"),
+        Technique(
+            domain: Martial,
+            verb: "trip",
+            reach: 1,
+            recharge: 600,
+            stamina: 0,
+            riders: [Effect("OffBalance")],
+        ),
+        Blow(damage_pct: -50),
+    ],
+)

@@ -22,7 +22,9 @@ use crate::entity::{
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Attuned, Blow, Dash, Lesson, Sighted, Stamina, Studied, Technique};
+use crate::entity::{
+    Attuned, Blow, Dash, Lesson, OffBalance, Sighted, Stamina, Studied, Technique,
+};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -30,11 +32,11 @@ use crate::rng::Rngs;
 use crate::skill::{SkillBook, SkillId};
 use crate::state::{GameState, MessageLog, event_registry};
 use crate::style::StyleDef;
-use crate::technique::TechniqueDef;
+use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 31;
+pub const SAVE_VERSION: u32 = 32;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -249,10 +251,11 @@ enum ComponentKind {
     Blow,
     Dash,
     Stamina,
+    OffBalance,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 70] = [
+    const ALL: [ComponentKind; 71] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -323,6 +326,7 @@ impl ComponentKind {
         Self::Blow,
         Self::Dash,
         Self::Stamina,
+        Self::OffBalance,
     ];
 }
 
@@ -405,6 +409,7 @@ enum SavedComponent {
     Blow(Blow),
     Dash(Dash),
     Stamina(Stamina),
+    OffBalance(OffBalance),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -784,12 +789,18 @@ fn save_component(
             None => None,
         },
         ComponentKind::Technique => match copy::<Technique>(entity) {
-            Some(technique) => Some(S::Technique(
-                TechniqueDef::of(&technique, blueprints.skills())
-                    .map_err(SaveError::UnknownSkillId)?,
-            )),
+            Some(technique) => {
+                let def = with_names(blueprints, |names| TechniqueDef::of(&technique, names));
+                Some(S::Technique(def.map_err(|missing| match missing {
+                    Missing::SkillId(id) => SaveError::UnknownSkillId(id),
+                    Missing::BlueprintId(id) => SaveError::UnknownBlueprintId(id),
+                    // Saving only looks ids up.
+                    Missing::Skill(_) | Missing::Blueprint(_) => SaveError::DanglingReference,
+                })?))
+            }
             None => None,
         },
+        ComponentKind::OffBalance => copy(entity).map(S::OffBalance),
         ComponentKind::Blow => copy(entity).map(S::Blow),
         ComponentKind::Dash => copy(entity).map(S::Dash),
         ComponentKind::Stamina => copy(entity).map(S::Stamina),
@@ -802,6 +813,15 @@ fn save_component(
             )),
             None => None,
         },
+    })
+}
+
+/// `f` with a `Technique`'s names and ids looked up in `blueprints`.
+fn with_names<T>(blueprints: &Blueprints, f: impl FnOnce(&Names<'_>) -> T) -> T {
+    f(&Names {
+        skills: blueprints.skills(),
+        blueprint: &|name| blueprints.id(name),
+        blueprint_name: &|id| blueprints.by_id(id).map(|bp| bp.name.clone()),
     })
 }
 
@@ -939,9 +959,16 @@ fn load_component(
                 .map_err(LoadError::UnknownSkill)?,
         ),
         S::Technique(def) => builder.add(
-            def.resolve(blueprints.skills())
-                .map_err(LoadError::UnknownSkill)?,
+            with_names(blueprints, |names| def.resolve(names)).map_err(
+                |missing| match missing {
+                    Missing::Skill(name) => LoadError::UnknownSkill(name),
+                    Missing::Blueprint(name) => LoadError::UnknownBlueprint(name),
+                    Missing::SkillId(id) => LoadError::UnknownSkill(format!("{id:?}")),
+                    Missing::BlueprintId(id) => LoadError::UnknownBlueprint(format!("{id:?}")),
+                },
+            )?,
         ),
+        S::OffBalance(c) => builder.add(c),
         S::Blow(c) => builder.add(c),
         S::Dash(c) => builder.add(c),
         S::Stamina(c) => builder.add(c),
@@ -1202,6 +1229,11 @@ mod tests {
                 crate::entity::Need::Wielding(vec![book.id("Pierce").unwrap()]),
                 crate::entity::Need::Skill(book.id("Dagger").unwrap(), 3),
             ],
+            riders: vec![
+                crate::entity::Rider::Shove { tiles: 2 },
+                crate::entity::Rider::Effect(state.blueprints.id("Bleeding").unwrap()),
+            ],
+            uses: Some(vec![book.id("Unarmed").unwrap()]),
         };
         let lunge = thing("lunge")
             .with(technique.clone())
@@ -1223,6 +1255,15 @@ mod tests {
             }),
         );
         crate::spell::recharge(&mut state, lunge, 500);
+        let goblin = thing("goblin").at(3, 1).health(5).make(&mut state);
+        thing("reeling")
+            .with(OffBalance { hit_bp: 2_000 })
+            .with(crate::entity::Timed {
+                start: Tick::default(),
+                duration: 300,
+            })
+            .attached_to(goblin)
+            .make(&mut state);
 
         let loaded = reload(&state, test_blueprints());
         let known = crate::technique::known(&loaded.world, loaded.player);

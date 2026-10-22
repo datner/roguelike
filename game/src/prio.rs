@@ -34,6 +34,9 @@ pub const FOCUS: i32 = 100;
 /// `CastRisk`: the caster's chance to fizzle.
 pub const FIZZLE: i32 = 100;
 
+/// `AttackOdds`: an `OffBalance` effect on the defender makes it easier to
+/// hit and takes away its perfect dodge; after `FOOTWORK`, so it wins.
+pub const OFF_BALANCE: i32 = 200;
 /// `AttackOdds`: a defender's `Footwork` adds to its perfect-dodge chance.
 pub const FOOTWORK: i32 = 100;
 

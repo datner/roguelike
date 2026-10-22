@@ -25,6 +25,7 @@ use ron::extensions::Extensions;
 use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
+use crate::entity::OffBalance;
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
     Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
@@ -37,7 +38,7 @@ use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
 use crate::style::StyleDef;
-use crate::technique::TechniqueDef;
+use crate::technique::{Missing, Names, TechniqueDef};
 
 /// A blueprint's index in the `Blueprints` it was loaded into. Runtime-only:
 /// ids depend on which files were loaded, so it has no serde derives and
@@ -107,6 +108,7 @@ pub enum ComponentDef {
     Blow(Blow),
     Dash(Dash),
     Stamina(Stamina),
+    OffBalance(OffBalance),
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -176,6 +178,7 @@ impl ComponentDef {
             ComponentDef::Blow(c) => builder.add(c),
             ComponentDef::Dash(c) => builder.add(c),
             ComponentDef::Stamina(c) => builder.add(c),
+            ComponentDef::OffBalance(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
             ComponentDef::Skills(_)
             | ComponentDef::Trains(_)
@@ -583,10 +586,22 @@ impl Blueprints {
                         })?);
                     }
                     ComponentDef::Technique(def) => {
-                        technique = Some(def.resolve(&skills).map_err(|skill| {
-                            BlueprintError::UnknownSkill {
+                        let names = Names {
+                            skills: &skills,
+                            blueprint: &|name| ids.get(name).copied(),
+                            blueprint_name: &|_| None,
+                        };
+                        technique = Some(def.resolve(&names).map_err(|missing| match missing {
+                            Missing::Skill(skill) => BlueprintError::UnknownSkill {
                                 owner: name.clone(),
                                 skill,
+                            },
+                            Missing::Blueprint(effect) => BlueprintError::UnknownEffect {
+                                owner: name.clone(),
+                                effect,
+                            },
+                            Missing::SkillId(_) | Missing::BlueprintId(_) => {
+                                BlueprintError::UnknownBlueprint(name.clone())
                             }
                         })?);
                     }
@@ -841,11 +856,12 @@ fn check_effect_durations(
             .components
             .iter()
             .flat_map(|component| match component {
-                ComponentDef::OnHit(entries) => entries.as_slice(),
-                _ => &[],
+                ComponentDef::OnHit(entries) => entries.iter().map(|e| &e.effect).collect(),
+                ComponentDef::Technique(def) => def.effects().collect(),
+                _ => Vec::new(),
             });
-        for entry in effects {
-            let has_duration = flat.get(&entry.effect).is_some_and(|effect| {
+        for effect in effects {
+            let has_duration = flat.get(effect).is_some_and(|effect| {
                 effect
                     .components
                     .iter()
@@ -854,7 +870,7 @@ fn check_effect_durations(
             if !has_duration {
                 return Err(BlueprintError::EffectWithoutDuration {
                     owner: owner.clone(),
-                    effect: entry.effect.clone(),
+                    effect: effect.clone(),
                 });
             }
         }
