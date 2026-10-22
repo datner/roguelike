@@ -55,12 +55,22 @@ turning it on later must not mean a refactor.
   style, ADR 0019). Bonuses apply where the technique is readied, so the
   list and the aim preview show them.
 
+- **Forms are steps of a group.** A `Combo` on a technique places it in a
+  group at a step; the performer's `Performed` records the last step and
+  when, and the next step continues the run only within `within` ticks of
+  it (ADR 0006). Continuing earns the step's bonus and more XP per step of
+  the run; `Need::Continuing` makes a step only follow the one before. No
+  technique names another, so forms are pure data. A group's first step
+  says whether the list shows every step or one row that turns into the
+  next.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
   a part read where the technique is readied and performed.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
   a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
-  `OffBalance`); 33 (`Technique` bonuses, `Need::Following`).
+  `OffBalance`); 33 (`Technique` bonuses, `Need::Following`); 34 (`Combo`,
+  `Performed`, `Need::Continuing`).
 - The player knows the lunge from their blueprint until manuals and styles
   teach techniques.

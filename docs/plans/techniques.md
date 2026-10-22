@@ -129,11 +129,14 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   performance agree; a `Following` technique is refused, with its message, after setting the style
   aside.
 
-### 6. Combos: the tri-sword
+### 6. Combos: the tri-sword — done
 - `Performed { technique, at: Tick }` on the actor (the last technique and when), written by `Perform`.
-- `Need::After { technique, within }`: only right after another technique. A `combo:` entry on a
-  technique, `{ after, within, bonus, xp_pct }`, rewards following another without requiring it; steps of
-  a run that keeps going earn rising XP through `skill::train`'s multiplier (stakes still required).
+- As built: a `combo: { group, step, within, accuracy, damage_pct, riders, xp_pct, display }` entry
+  instead of naming the technique before, so no technique refers to another: a step continues a run
+  when the actor's `Performed` is the previous step of its group, within `within` ticks.
+  `Need::Continuing` makes a step only follow the one before; without it, a step can open a run and
+  gets its bonus only when continuing. Each blow of a run teaches `xp_pct` more per step already in it
+  (`skill::after_blow`'s extra, stakes still required).
 - `group: Option<Group { name, display }>`: `display: Steps` lists every technique of the group, `Turns`
   shows one entry that is whichever step is next (the first after the window passes). `view::techniques`
   folds a `Turns` group into one row; `front` needs nothing new.

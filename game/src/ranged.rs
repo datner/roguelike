@@ -337,7 +337,7 @@ fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
             ready.launch,
             &ready.strike,
         );
-        skill::after_blow(state, &used, &odds, outcome);
+        skill::after_blow(state, &used, &odds, outcome, 0);
     }
 }
 

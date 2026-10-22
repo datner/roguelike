@@ -17,6 +17,7 @@ use crate::entity::{
     Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
     Stamina, Stats, StyleBonus, Technique,
 };
+use crate::entity::{Combo, ComboDisplay, Performed};
 use crate::event::EventRegistry;
 use crate::grammar::Subject;
 use crate::holding;
@@ -27,6 +28,7 @@ use crate::side;
 use crate::skill::{self, Domain, SkillBook, SkillId};
 use crate::spell;
 use crate::state::GameState;
+use crate::time::Tick;
 use crate::view::ItemRef;
 
 /// A `Technique` as written in RON and saves: skills and effects by name.
@@ -49,6 +51,26 @@ pub struct TechniqueDef {
     pub uses: Option<Vec<String>>,
     #[serde(default)]
     pub bonuses: Vec<StyleBonusDef>,
+    #[serde(default)]
+    pub combo: Option<ComboDef>,
+}
+
+/// A `Combo` as written in RON and saves.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComboDef {
+    pub group: String,
+    pub step: u32,
+    pub within: u64,
+    #[serde(default)]
+    pub accuracy: i32,
+    #[serde(default)]
+    pub damage_pct: i32,
+    #[serde(default)]
+    pub riders: Vec<RiderDef>,
+    #[serde(default)]
+    pub xp_pct: u32,
+    #[serde(default)]
+    pub display: ComboDisplay,
 }
 
 /// A `StyleBonus` as written in RON and saves: the style by its skill's name.
@@ -80,6 +102,7 @@ pub enum NeedDef {
     Skill(String, u32),
     /// A style, by its skill's name.
     Following(String),
+    Continuing,
 }
 
 /// A `Rider` as written in RON and saves: an effect by blueprint name.
@@ -148,6 +171,7 @@ impl Names<'_> {
             NeedDef::Wielding(skills) => Need::Wielding(self.skills(skills)?),
             NeedDef::Skill(skill, level) => Need::Skill(self.skill(skill)?, *level),
             NeedDef::Following(style) => Need::Following(self.skill(style)?),
+            NeedDef::Continuing => Need::Continuing,
         })
     }
 
@@ -156,6 +180,7 @@ impl Names<'_> {
             Need::Wielding(skills) => NeedDef::Wielding(self.skill_names(skills)?),
             Need::Skill(skill, level) => NeedDef::Skill(self.skill_name(*skill)?, *level),
             Need::Following(style) => NeedDef::Following(self.skill_name(*style)?),
+            Need::Continuing => NeedDef::Continuing,
         })
     }
 
@@ -191,6 +216,40 @@ impl Names<'_> {
         })
     }
 
+    fn combo(&self, combo: &ComboDef) -> Result<Combo, Missing> {
+        Ok(Combo {
+            group: combo.group.clone(),
+            step: combo.step,
+            within: combo.within,
+            accuracy: combo.accuracy,
+            damage_pct: combo.damage_pct,
+            riders: combo
+                .riders
+                .iter()
+                .map(|rider| self.rider(rider))
+                .collect::<Result<_, _>>()?,
+            xp_pct: combo.xp_pct,
+            display: combo.display,
+        })
+    }
+
+    fn combo_def(&self, combo: &Combo) -> Result<ComboDef, Missing> {
+        Ok(ComboDef {
+            group: combo.group.clone(),
+            step: combo.step,
+            within: combo.within,
+            accuracy: combo.accuracy,
+            damage_pct: combo.damage_pct,
+            riders: combo
+                .riders
+                .iter()
+                .map(|rider| self.rider_def(rider))
+                .collect::<Result<_, _>>()?,
+            xp_pct: combo.xp_pct,
+            display: combo.display,
+        })
+    }
+
     fn rider_def(&self, rider: &Rider) -> Result<RiderDef, Missing> {
         Ok(match *rider {
             Rider::Shove { tiles } => RiderDef::Shove { tiles },
@@ -207,6 +266,7 @@ impl TechniqueDef {
         let needs = self.requires.iter().flat_map(|need| match need {
             NeedDef::Wielding(skills) => skills.iter().collect::<Vec<_>>(),
             NeedDef::Skill(skill, _) | NeedDef::Following(skill) => vec![skill],
+            NeedDef::Continuing => Vec::new(),
         });
         let styles = self.bonuses.iter().map(|bonus| &bonus.style);
         needs.chain(self.uses.iter().flatten()).chain(styles)
@@ -215,9 +275,11 @@ impl TechniqueDef {
     /// The effect blueprints it applies, for checking at load.
     pub(crate) fn effects(&self) -> impl Iterator<Item = &String> {
         let bonuses = self.bonuses.iter().flat_map(|bonus| &bonus.riders);
+        let combo = self.combo.iter().flat_map(|combo| &combo.riders);
         self.riders
             .iter()
             .chain(bonuses)
+            .chain(combo)
             .filter_map(|rider| match rider {
                 RiderDef::Effect(name) => Some(name),
                 RiderDef::Shove { .. } => None,
@@ -253,6 +315,11 @@ impl TechniqueDef {
                 .iter()
                 .map(|bonus| names.bonus(bonus))
                 .collect::<Result<_, _>>()?,
+            combo: self
+                .combo
+                .as_ref()
+                .map(|combo| names.combo(combo))
+                .transpose()?,
         })
     }
 
@@ -285,6 +352,11 @@ impl TechniqueDef {
                 .iter()
                 .map(|bonus| names.bonus_def(bonus))
                 .collect::<Result<_, _>>()?,
+            combo: technique
+                .combo
+                .as_ref()
+                .map(|combo| names.combo_def(combo))
+                .transpose()?,
         })
     }
 }
@@ -315,6 +387,8 @@ pub(crate) struct Ready {
     pub verb: String,
     /// The styles (by skill) whose bonuses it has now.
     pub styled: Vec<SkillId>,
+    /// What performing it now records, for a step of a form.
+    pub performed: Option<Performed>,
 }
 
 /// `actor`'s stamina pool and its size and pace for their stats.
@@ -350,10 +424,21 @@ pub(crate) fn inspect(
         })
         .collect();
     let sum = |part: fn(&StyleBonus) -> i32| bonuses.iter().map(|&bonus| part(bonus)).sum::<i32>();
+    // How long the run is that this would continue, if it continues one.
+    let run = data
+        .combo
+        .as_ref()
+        .and_then(|combo| continues(world, actor, combo, state.now));
+    let combo = data.combo.as_ref().filter(|_| run.is_some());
     let mods = BlowMods {
-        accuracy: blow.accuracy + sum(|bonus| bonus.accuracy),
-        damage_pct: blow.damage_pct + sum(|bonus| bonus.damage_pct),
+        accuracy: blow.accuracy
+            + sum(|bonus| bonus.accuracy)
+            + combo.map_or(0, |combo| combo.accuracy),
+        damage_pct: blow.damage_pct
+            + sum(|bonus| bonus.damage_pct)
+            + combo.map_or(0, |combo| combo.damage_pct),
         uses: data.uses.clone(),
+        xp_pct: combo.map_or(0, |combo| combo.xp_pct) * run.unwrap_or(0),
     };
     let Some((strike, used)) = combat::blow_strike(world, state.blueprints.skills(), actor, &mods)
     else {
@@ -365,6 +450,7 @@ pub(crate) fn inspect(
             .iter()
             .flat_map(|bonus| bonus.riders.iter().copied()),
     );
+    riders.extend(combo.iter().flat_map(|combo| combo.riders.iter().copied()));
     let ready = Ready {
         reach: data.reach,
         strike,
@@ -378,8 +464,22 @@ pub(crate) fn inspect(
         recharge: scaled(data.recharge, sum(|bonus| bonus.recharge_pct)),
         verb: data.verb.clone(),
         styled: bonuses.iter().map(|bonus| bonus.style).collect(),
+        performed: data.combo.as_ref().map(|combo| Performed {
+            group: combo.group.clone(),
+            step: combo.step,
+            at: state.now,
+            run: run.unwrap_or(0) + 1,
+        }),
     };
-    let blocked = unmet(state, actor, technique, &data, &used, ready.stamina);
+    let blocked = unmet(
+        state,
+        actor,
+        technique,
+        &data,
+        &used,
+        ready.stamina,
+        run.is_some(),
+    );
     Ok((ready, blocked))
 }
 
@@ -387,6 +487,14 @@ pub(crate) fn inspect(
 fn scaled(base: u64, pct: i32) -> u64 {
     let pct = u64::try_from(100 + i64::from(pct)).unwrap_or(0);
     base * pct / 100
+}
+
+/// How many steps the run `combo` would continue has had, if `actor`'s last
+/// step of its form was the one before it, within its time.
+fn continues(world: &World, actor: Entity, combo: &Combo, now: Tick) -> Option<u32> {
+    let last = world.get::<&Performed>(actor).ok()?;
+    (last.group == combo.group && last.step + 1 == combo.step && now.since(last.at) <= combo.within)
+        .then_some(last.run)
 }
 
 /// Whether `actor` follows the style whose skill is `style`.
@@ -419,6 +527,7 @@ fn unmet(
     data: &Technique,
     used: &[SkillId],
     stamina_cost: u32,
+    continuing: bool,
 ) -> Option<String> {
     let world = &state.world;
     let name = name(world, technique);
@@ -446,6 +555,11 @@ fn unmet(
             &Need::Skill(skill, level) => {
                 if skill::level(skill::xp(world, actor, skill)) < level {
                     return Some(format!("Your {name} needs {} {level}.", named(&[skill])));
+                }
+            }
+            Need::Continuing => {
+                if !continuing {
+                    return Some(format!("Your {name} only follows the step before it."));
                 }
             }
             &Need::Following(style) => {
@@ -626,6 +740,9 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
             duration: ready.recharge,
         });
     }
+    if let Some(performed) = ready.performed.clone() {
+        let _ = state.world.insert_one(actor, performed);
+    }
     if let Ok(mut pos) = state.world.get::<&mut Position>(actor) {
         (pos.x, pos.y) = footprint.stand;
     }
@@ -735,6 +852,8 @@ pub struct TechniqueView {
     pub recharge: u64,
     /// The styles whose bonuses it has now, by name.
     pub styled: Vec<String>,
+    /// For a step of a form: which, of how many the player knows.
+    pub step: Option<(u32, u32)>,
     /// Why it can't be performed now, if it can't.
     pub blocked: Option<String>,
 }
@@ -742,9 +861,25 @@ pub struct TechniqueView {
 /// What the player knows, in the order they learned it.
 pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
     let world = &state.world;
-    known(world, state.player)
-        .into_iter()
-        .filter_map(|technique| {
+    let known = known(world, state.player);
+    let combos: Vec<Option<Combo>> = known
+        .iter()
+        .map(|&technique| {
+            world
+                .get::<&Technique>(technique)
+                .ok()
+                .and_then(|data| data.combo.clone())
+        })
+        .collect();
+    known
+        .iter()
+        .zip(&combos)
+        .filter(|(_, combo)| {
+            combo
+                .as_ref()
+                .is_none_or(|combo| shown(state, combo, &combos))
+        })
+        .filter_map(|(&technique, combo)| {
             let (ready, blocked) = inspect(state, state.player, technique).ok()?;
             let left = world
                 .get::<&Recharging>(technique)
@@ -764,10 +899,43 @@ pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
                     .filter_map(|&style| state.blueprints.skills().get(style))
                     .map(|def| def.name.clone())
                     .collect(),
+                step: combo.as_ref().map(|combo| {
+                    let steps = combos
+                        .iter()
+                        .flatten()
+                        .filter(|other| other.group == combo.group)
+                        .map(|other| other.step)
+                        .max()
+                        .unwrap_or(combo.step);
+                    (combo.step, steps)
+                }),
                 blocked,
             })
         })
         .collect()
+}
+
+/// Whether the list shows this step of a form: every step shows, unless its
+/// form shows as `Turns`, in which case only the step that would come next
+/// does: the one after the player's last while the run lasts, else the
+/// first. `known` holds the combos of every technique the player knows.
+fn shown(state: &GameState, combo: &Combo, known: &[Option<Combo>]) -> bool {
+    let steps: Vec<&Combo> = known
+        .iter()
+        .flatten()
+        .filter(|other| other.group == combo.group)
+        .collect();
+    let Some(first) = steps.iter().min_by_key(|other| other.step) else {
+        return true;
+    };
+    if first.display == ComboDisplay::Steps {
+        return true;
+    }
+    let next = steps
+        .iter()
+        .find(|&&other| continues(&state.world, state.player, other, state.now).is_some())
+        .map_or(first.step, |other| other.step);
+    combo.step == next
 }
 
 #[cfg(test)]
@@ -791,6 +959,7 @@ mod tests {
             riders: Vec::new(),
             uses: None,
             bonuses: Vec::new(),
+            combo: None,
         }
     }
 
@@ -1417,5 +1586,127 @@ mod tests {
         style(&mut state, 0, true);
         perform(&mut state, technique, (3, 1));
         assert_eq!(at(&state, state.player), (2, 1));
+    }
+
+    /// The player, holding a blade, knowing the three steps of a form shown
+    /// `display`; steps 2 and 3 only follow the one before.
+    fn form(display: ComboDisplay) -> (GameState, [Entity; 3]) {
+        let mut state = bare_state();
+        see_everything(&mut state);
+        let player = state.player;
+        sure_hits(&mut state, player);
+        wield(&mut state, &[DamageType::Piercing]);
+        let steps = [1, 2, 3].map(|step| {
+            let requires = if step == 1 {
+                Vec::new()
+            } else {
+                vec![Need::Continuing]
+            };
+            thing(&format!("step {step}"))
+                .with(Technique {
+                    verb: "cut".to_string(),
+                    reach: 1,
+                    recharge: 0,
+                    combo: Some(Combo {
+                        group: "form".to_string(),
+                        step,
+                        within: 200,
+                        accuracy: 1,
+                        damage_pct: 0,
+                        riders: Vec::new(),
+                        xp_pct: 50,
+                        display,
+                    }),
+                    ..lunge(0, requires)
+                })
+                .attached_to(player)
+                .make(&mut state)
+        });
+        (state, steps)
+    }
+
+    #[test]
+    fn the_next_step_of_a_form_is_boosted_only_right_after_the_one_before() {
+        let (mut state, [first, second, third]) = form(ComboDisplay::Steps);
+        let player = state.player;
+        tough_goblin(&mut state, (2, 1));
+        refused(
+            &mut state,
+            second,
+            (2, 1),
+            "Your step 2 only follows the step before it.",
+        );
+        let plain = inspect(&state, player, first).unwrap().0.strike.accuracy;
+
+        perform(&mut state, first, (2, 1));
+        let (ready, _) = inspect(&state, player, second).unwrap();
+        assert_eq!(ready.strike.accuracy, plain + 1);
+        assert_eq!(ready.mods.xp_pct, 50);
+        refused(
+            &mut state,
+            third,
+            (2, 1),
+            "Your step 3 only follows the step before it.",
+        );
+
+        perform(&mut state, second, (2, 1));
+        assert_eq!(inspect(&state, player, third).unwrap().0.mods.xp_pct, 100);
+        perform(&mut state, third, (2, 1));
+        let performed = state.world.get::<&Performed>(player).unwrap().clone();
+        assert_eq!((performed.step, performed.run), (3, 3));
+    }
+
+    #[test]
+    fn a_missed_window_ends_the_run() {
+        let (mut state, [first, second, _]) = form(ComboDisplay::Steps);
+        tough_goblin(&mut state, (2, 1));
+        perform(&mut state, first, (2, 1));
+        take_turn(&mut state, PlayerAction::Wait);
+        take_turn(&mut state, PlayerAction::Wait);
+        refused(
+            &mut state,
+            second,
+            (2, 1),
+            "Your step 2 only follows the step before it.",
+        );
+
+        perform(&mut state, first, (2, 1));
+        let player = state.player;
+        assert_eq!(state.world.get::<&Performed>(player).unwrap().run, 1);
+    }
+
+    #[test]
+    fn a_form_shown_as_turns_is_one_row_that_advances() {
+        let (mut state, [first, second, _]) = form(ComboDisplay::Turns);
+        let names = |state: &GameState| {
+            techniques(state)
+                .into_iter()
+                .map(|view| (view.name, view.step))
+                .collect::<Vec<_>>()
+        };
+        tough_goblin(&mut state, (2, 1));
+        assert_eq!(names(&state), [("step 1".to_string(), Some((1, 3)))]);
+        perform(&mut state, first, (2, 1));
+        assert_eq!(names(&state), [("step 2".to_string(), Some((2, 3)))]);
+        perform(&mut state, second, (2, 1));
+        assert_eq!(names(&state)[0].0, "step 3");
+        take_turn(&mut state, PlayerAction::Wait);
+        take_turn(&mut state, PlayerAction::Wait);
+        assert_eq!(names(&state)[0].0, "step 1");
+    }
+
+    #[test]
+    fn the_same_inputs_run_a_form_the_same_way() {
+        let run = || {
+            let (mut state, steps) = form(ComboDisplay::Steps);
+            let player = state.player;
+            let _ = state.world.remove_one::<crate::testkit::SureHits>(player);
+            let goblin = tough_goblin(&mut state, (2, 1));
+            for step in steps {
+                perform(&mut state, step, (2, 1));
+            }
+            (health(&state, goblin), state.rngs.combat.clone())
+        };
+        assert_eq!(run(), run());
     }
 }

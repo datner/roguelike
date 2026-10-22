@@ -42,5 +42,14 @@
         "SummonWolf",
     ],
     // Until manuals and styles teach techniques (docs/plans/techniques.md).
-    techniques: ["Lunge", "Cleave", "Sweep", "Shove", "Trip"],
+    techniques: [
+        "Lunge",
+        "Cleave",
+        "Sweep",
+        "Shove",
+        "Trip",
+        "HorizontalSlash",
+        "VerticalSlash",
+        "Stab",
+    ],
 )

@@ -468,18 +468,21 @@ pub(crate) fn gain(state: &mut GameState, learner: Entity, gains: &[(SkillId, u3
 /// trains the skills it `used`: a hit teaches more the less likely it was, a
 /// miss or graze teaches half. A learning defender trains Dodge and Poise
 /// (and Deflection if it wore something to deflect with); a perfect dodge
-/// teaches up to double, more the less likely it was.
+/// teaches up to double, more the less likely it was. `extra_pct` adds to
+/// what the attacker learns (a run of a form, ADR 0024).
 pub(crate) fn after_blow(
     state: &mut GameState,
     used: &[SkillId],
     odds: &AttackOdds,
     outcome: Outcome,
+    extra_pct: u32,
 ) {
     let unlikely = |bp: u32| BASE_XP * (2 * CERTAIN - bp.min(CERTAIN)) / CERTAIN;
     let xp = match outcome {
         Outcome::Hit => unlikely(odds.hit_bp),
         _ => BASE_XP / 2,
     };
+    let xp = xp * (100 + extra_pct) / 100;
     train(state, odds.attacker, used, odds.defender, xp);
 
     let Some(core) = state.blueprints.skills().core() else {

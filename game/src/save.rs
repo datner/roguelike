@@ -23,7 +23,7 @@ use crate::entity::{
     Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::entity::{
-    Attuned, Blow, Dash, Lesson, OffBalance, Sighted, Stamina, Studied, Technique,
+    Attuned, Blow, Dash, Lesson, OffBalance, Performed, Sighted, Stamina, Studied, Technique,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -36,7 +36,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 33;
+pub const SAVE_VERSION: u32 = 34;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -252,10 +252,11 @@ enum ComponentKind {
     Dash,
     Stamina,
     OffBalance,
+    Performed,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 71] = [
+    const ALL: [ComponentKind; 72] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -327,6 +328,7 @@ impl ComponentKind {
         Self::Dash,
         Self::Stamina,
         Self::OffBalance,
+        Self::Performed,
     ];
 }
 
@@ -410,6 +412,7 @@ enum SavedComponent {
     Dash(Dash),
     Stamina(Stamina),
     OffBalance(OffBalance),
+    Performed(Performed),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -801,6 +804,7 @@ fn save_component(
             None => None,
         },
         ComponentKind::OffBalance => copy(entity).map(S::OffBalance),
+        ComponentKind::Performed => copy(entity).map(S::Performed),
         ComponentKind::Blow => copy(entity).map(S::Blow),
         ComponentKind::Dash => copy(entity).map(S::Dash),
         ComponentKind::Stamina => copy(entity).map(S::Stamina),
@@ -969,6 +973,7 @@ fn load_component(
             )?,
         ),
         S::OffBalance(c) => builder.add(c),
+        S::Performed(c) => builder.add(c),
         S::Blow(c) => builder.add(c),
         S::Dash(c) => builder.add(c),
         S::Stamina(c) => builder.add(c),
@@ -1243,6 +1248,16 @@ mod tests {
                 stamina_pct: -50,
                 riders: vec![crate::entity::Rider::Shove { tiles: 1 }],
             }],
+            combo: Some(crate::entity::Combo {
+                group: "tri-sword".to_string(),
+                step: 2,
+                within: 200,
+                accuracy: 1,
+                damage_pct: 15,
+                riders: Vec::new(),
+                xp_pct: 50,
+                display: crate::entity::ComboDisplay::Turns,
+            }),
         };
         let lunge = thing("lunge")
             .with(technique.clone())
@@ -1264,6 +1279,15 @@ mod tests {
             }),
         );
         crate::spell::recharge(&mut state, lunge, 500);
+        let _ = state.world.insert_one(
+            player,
+            Performed {
+                group: "tri-sword".to_string(),
+                step: 1,
+                at: Tick::default(),
+                run: 1,
+            },
+        );
         let goblin = thing("goblin").at(3, 1).health(5).make(&mut state);
         thing("reeling")
             .with(OffBalance { hit_bp: 2_000 })

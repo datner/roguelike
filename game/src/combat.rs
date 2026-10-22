@@ -201,6 +201,8 @@ pub(crate) struct BlowMods {
     /// The skills the blow uses, for its level and its training, instead of
     /// the weapon's: a blow that is not plain weapon work.
     pub uses: Option<Vec<SkillId>>,
+    /// Percent more the attacker learns from it.
+    pub xp_pct: u32,
 }
 
 impl BlowMods {
@@ -239,7 +241,7 @@ pub(crate) fn blow(
     }
     // Only a fight teaches: hitting a friend or a summon of your own does not.
     if side::enemies(&state.world, attacker, target) {
-        skill::after_blow(state, &used, &odds, outcome);
+        skill::after_blow(state, &used, &odds, outcome, mods.xp_pct);
     }
     Some(outcome)
 }

@@ -243,6 +243,10 @@ In game:
   hit and unable to dodge perfectly, for three turns. A followed style can
   strengthen a technique (the list says "with Fencing"): fencers lunge more
   often from Fencing 2, and from 5 their lunge leaves the target reeling.
+  The tri-sword is a form of three sword techniques in turn (horizontal
+  slash, vertical slash, stab), listed as one row that becomes the next
+  step: each step must follow the one before within two turns, hits harder
+  than the last, and the run's blows teach more the longer it goes.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

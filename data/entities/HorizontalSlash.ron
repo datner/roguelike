@@ -1,0 +1,23 @@
+// The tri-sword form, step 1 of 3 (ADR 0024): a level cut that opens the run.
+// The next step must follow within two turns. Shown as one row that turns
+// into whichever step comes next.
+(
+    components: [
+        Name("horizontal slash"),
+        Technique(
+            domain: Martial,
+            verb: "slash",
+            reach: 1,
+            recharge: 400,
+            stamina: 0,
+            requires: [Wielding(["Sword"])],
+            combo: (
+                group: "tri-sword",
+                step: 1,
+                within: 200,
+                xp_pct: 50,
+                display: Turns,
+            ),
+        ),
+    ],
+)

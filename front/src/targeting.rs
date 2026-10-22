@@ -97,6 +97,9 @@ pub fn technique_text(technique: &TechniqueView) -> (String, Vec<String>) {
         technique.name, technique.reach
     );
     let mut notes = Vec::new();
+    if let Some((step, steps)) = technique.step {
+        notes.push(format!("step {step} of {steps}"));
+    }
     if !technique.styled.is_empty() {
         notes.push(format!("with {}", technique.styled.join(" and ")));
     }

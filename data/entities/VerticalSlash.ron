@@ -1,0 +1,24 @@
+// The tri-sword form, step 2 of 3: only right after the horizontal slash,
+// a little surer and harder, and the run's blows teach half again as much.
+(
+    components: [
+        Name("vertical slash"),
+        Technique(
+            domain: Martial,
+            verb: "chop",
+            reach: 1,
+            recharge: 0,
+            stamina: 0,
+            requires: [Wielding(["Sword"]), Continuing],
+            combo: (
+                group: "tri-sword",
+                step: 2,
+                within: 200,
+                xp_pct: 50,
+                display: Turns,
+                accuracy: 1,
+                damage_pct: 15,
+            ),
+        ),
+    ],
+)

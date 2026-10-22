@@ -1,0 +1,25 @@
+// The tri-sword form, step 3 of 3: only right after the vertical slash; the
+// finishing thrust lands hard and drives the enemy back a tile.
+(
+    components: [
+        Name("stab"),
+        Technique(
+            domain: Martial,
+            verb: "stab",
+            reach: 1,
+            recharge: 0,
+            stamina: 0,
+            requires: [Wielding(["Sword"]), Continuing],
+            combo: (
+                group: "tri-sword",
+                step: 3,
+                within: 200,
+                xp_pct: 50,
+                display: Turns,
+                accuracy: 2,
+                damage_pct: 40,
+                riders: [Shove(tiles: 1)],
+            ),
+        ),
+    ],
+)

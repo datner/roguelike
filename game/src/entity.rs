@@ -889,6 +889,45 @@ pub struct Technique {
     pub uses: Option<Vec<SkillId>>,
     /// What it gains while a style is followed.
     pub bonuses: Vec<StyleBonus>,
+    /// Its place in a form of several techniques performed in turn.
+    pub combo: Option<Combo>,
+}
+
+/// A step of a form (ADR 0024): techniques of one `group`, performed in
+/// order of `step`, each within `within` ticks of the one before. A step
+/// that continues the run gains its bonus, and every blow of a run trains
+/// `xp_pct` percent more per step already in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Combo {
+    pub group: String,
+    pub step: u32,
+    pub within: u64,
+    pub accuracy: i32,
+    pub damage_pct: i32,
+    pub riders: Vec<Rider>,
+    pub xp_pct: u32,
+    /// Read from the first step.
+    pub display: ComboDisplay,
+}
+
+/// How the technique list shows a form.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ComboDisplay {
+    /// Every step, each its own row.
+    #[default]
+    Steps,
+    /// One row: the step that would come next.
+    Turns,
+}
+
+/// Creature part: the last step of a form it performed, when, and how many
+/// steps the run has had (ADR 0024). Read against `within` on the next step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Performed {
+    pub group: String,
+    pub step: u32,
+    pub at: crate::time::Tick,
+    pub run: u32,
 }
 
 /// What a technique gains while the style whose skill is `style` is
@@ -935,6 +974,8 @@ pub enum Need {
     Skill(SkillId, u32),
     /// The style whose skill this is is followed.
     Following(SkillId),
+    /// Only as the next step of a run of its form (`Combo`).
+    Continuing,
 }
 
 /// Technique part: it strikes with what its performer wields, shifted.
