@@ -9,3 +9,6 @@ pub mod modes;
 pub mod panels;
 pub mod sprites;
 pub mod theme;
+
+#[cfg(test)]
+mod testing;
