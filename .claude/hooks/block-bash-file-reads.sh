@@ -47,7 +47,9 @@ while IFS= read -r seg; do
   case $seg in
   '|') piped=1 ;;
   ';') piped=0 ;;
-  *) if ((! piped)) && reads_file "$seg"; then
+  # Unquoted on purpose: split into words (set -f keeps them from globbing).
+  # shellcheck disable=SC2086
+  *) if ((! piped)) && reads_file $seg; then
     echo "Blocked: don't read files through Bash. Use Read (offset/limit for a range); parallel calls are fine. Piping command output into head/tail is fine." >&2
     exit 2
   fi ;;

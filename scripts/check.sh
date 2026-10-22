@@ -72,7 +72,8 @@ map() {
   fi
 }
 
-run fmt      cargo fmt --all --check
+# File names only; `cargo fmt` fixes them, so the diff is noise.
+run fmt      cargo fmt --all --check -- -l
 run map      map
 run boundary boundary
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
