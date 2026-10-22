@@ -84,6 +84,7 @@ pub fn map_game(press: Press) -> Option<InputEvent> {
         Press::Char('t') => Some(InputEvent::Throw),
         Press::Char('f') => Some(InputEvent::Fire),
         Press::Char('c') => Some(InputEvent::Cast),
+        Press::Char('a') => Some(InputEvent::Techniques),
         Press::Char('q') | Press::Esc => Some(InputEvent::Quit),
         _ => None,
     }

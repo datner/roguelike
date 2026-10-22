@@ -91,6 +91,8 @@ fn every_mode_draws_over_the_map() {
         ("q", "Play"),
         ("c", "ChooseSpell"),
         ("q", "Play"),
+        ("a", "ChooseTechnique"),
+        ("q", "Play"),
         ("f", "Aim"),
     ] {
         type_text(&mut harness, open);

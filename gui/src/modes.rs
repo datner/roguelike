@@ -6,9 +6,9 @@ const PLACEHOLDER: Color32 = Color32::PLACEHOLDER;
 use front::input::{AimInput, Input, OverlayInput};
 use front::overlay::{LineKind, TABS, Title, Views};
 use front::session::{Mode, Session};
-use front::targeting::spell_text;
+use front::targeting::{spell_text, technique_text};
 use front::text::{self, Seg};
-use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, throwables};
+use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, techniques, throwables};
 
 use crate::map_view::{Layout, screen_tile};
 use crate::panels::{SIDE_WIDTH, job};
@@ -163,6 +163,22 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                 })
                 .collect();
             chooser_window(ui, "Cast what?", rows, chooser.selected())
+        }
+        Mode::ChooseTechnique(chooser) => {
+            let rows = techniques(state)
+                .iter()
+                .map(|technique| {
+                    let (main, notes) = technique_text(technique);
+                    let mut row = vec![Seg::Plain(main)];
+                    row.extend(
+                        notes
+                            .into_iter()
+                            .map(|note| Seg::Quiet(format!("  {note}"))),
+                    );
+                    row
+                })
+                .collect();
+            chooser_window(ui, "Perform what?", rows, chooser.selected())
         }
         Mode::ChoosePhase(chooser) => {
             let rows = phases(state).iter().map(text::phase).collect();

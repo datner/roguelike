@@ -12,12 +12,13 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 12] = [
+const SHOTS: [&str; 13] = [
     "menu",
     "play",
     "inventory",
     "look",
     "spells",
+    "techniques",
     "aim",
     "effects",
     "sprites",
@@ -104,6 +105,7 @@ fn scene(name: &str) -> Harness<'static, App> {
         "inventory" => type_text(&mut harness, "i"),
         "look" => type_text(&mut harness, ";"),
         "spells" => type_text(&mut harness, "c"),
+        "techniques" => type_text(&mut harness, "a"),
         "aim" => type_text(&mut harness, "f"),
         "phases" => type_text(&mut harness, "W"),
         // Round the tents to the camp's entrance (data/camp.ron), then down.

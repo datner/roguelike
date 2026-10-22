@@ -1,8 +1,8 @@
 //! Throwing, casting and looking from the keyboard: a small list to pick what to throw or cast, then a cursor to pick where, and the look cursor. Pure state; what a shot would do comes from `game::aim`, what looking reveals from `game::inspect`, never worked out here.
 
 use game::{
-    Dir, GameState, ItemRef, PlayerAction, Shape, Shot, SpellView, aim, aim_range, aim_targets,
-    capitalize, inspect, look_targets,
+    Dir, GameState, ItemRef, PlayerAction, Shape, Shot, SpellView, TechniqueView, aim, aim_range,
+    aim_targets, capitalize, inspect, look_targets,
 };
 
 use crate::input::{AimInput, OverlayInput};
@@ -82,6 +82,19 @@ pub fn spell_text(spell: &SpellView) -> (String, Vec<String>) {
     (main, notes)
 }
 
+/// A technique as a list row: its reach and damage, then quieter notes: how
+/// long it recharges, and why it can't be performed now, if it can't.
+pub fn technique_text(technique: &TechniqueView) -> (String, Vec<String>) {
+    let (low, high) = technique.damage;
+    let main = format!("{}  r{}  {low}-{high}", technique.name, technique.reach);
+    let mut notes = Vec::new();
+    if technique.recharge > 0 {
+        notes.push(format!("{} turn recharge", technique.recharge));
+    }
+    notes.extend(technique.blocked.clone());
+    (main, notes)
+}
+
 /// A cursor on the map, for one shot.
 #[derive(Debug)]
 pub struct Aiming {
@@ -147,6 +160,7 @@ fn action(shot: Shot, at: (i32, i32)) -> PlayerAction {
         Shot::Throw(item) => PlayerAction::Throw { item, at },
         Shot::Fire => PlayerAction::Fire { at },
         Shot::Cast(spell) => PlayerAction::Cast { spell, at },
+        Shot::Technique(technique) => PlayerAction::Perform { technique, at },
     }
 }
 
@@ -159,6 +173,7 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
         Shot::Throw(_) => "throw",
         Shot::Fire => "fire",
         Shot::Cast(_) => "cast",
+        Shot::Technique(_) => "perform",
     };
     let keys = format!("Enter: {verb}  Tab: next target  Esc: cancel");
     if let Some(problem) = shot.problem {

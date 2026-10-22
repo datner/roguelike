@@ -2,7 +2,8 @@
 
 use game::{
     Domain, GameState, IdeaView, ItemView, PartView, PlayerAction, SkillView, StyleView,
-    equipment_view, ideas, inventory_view, proficiencies, skills, styles,
+    TechniqueView, equipment_view, ideas, inventory_view, proficiencies, skills, styles,
+    techniques,
 };
 
 use crate::input::OverlayInput;
@@ -25,6 +26,7 @@ pub struct Contents<'a> {
     pub proficiencies: &'a [String],
     pub ideas: &'a [IdeaView],
     pub styles: &'a [StyleView],
+    pub techniques: &'a [TechniqueView],
 }
 
 /// The views `Contents` borrows, fetched from the game in one go.
@@ -35,6 +37,7 @@ pub struct Views {
     pub proficiencies: Vec<String>,
     pub ideas: Vec<IdeaView>,
     pub styles: Vec<StyleView>,
+    pub techniques: Vec<TechniqueView>,
 }
 
 impl Views {
@@ -46,6 +49,7 @@ impl Views {
             proficiencies: proficiencies(state),
             ideas: ideas(state),
             styles: styles(state),
+            techniques: techniques(state),
         }
     }
 
@@ -57,6 +61,7 @@ impl Views {
             proficiencies: &self.proficiencies,
             ideas: &self.ideas,
             styles: &self.styles,
+            techniques: &self.techniques,
         }
     }
 }
@@ -558,9 +563,16 @@ fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<us
             .iter()
             .map(|p| PanelLine::plain(vec![Seg::Plain(format!("  {p}"))])),
     );
-    // Techniques don't exist in the game yet; the section says so.
     lines.push(PanelLine::heading("Techniques"));
-    lines.push(none("None known yet."));
+    if contents.techniques.is_empty() {
+        lines.push(none("None known yet."));
+    }
+    lines.extend(contents.techniques.iter().map(|technique| {
+        let (main, notes) = crate::targeting::technique_text(technique);
+        let mut row = vec![Seg::Plain(format!("  {main}"))];
+        row.extend(notes.into_iter().map(|note| quiet(format!("  {note}"))));
+        PanelLine::plain(row)
+    }));
     if !contents.ideas.is_empty() {
         lines.push(PanelLine::heading("Ideas"));
         for idea in contents.ideas {

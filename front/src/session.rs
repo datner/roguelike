@@ -2,8 +2,8 @@
 
 use game::{
     FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items, explore_step,
-    fire_step, phases, practice_step, spells, take_fx, take_turn, throwables, travel_step,
-    wait_refusal,
+    fire_step, phases, practice_step, spells, take_fx, take_turn, techniques, throwables,
+    travel_step, wait_refusal,
 };
 
 use crate::input::Input;
@@ -19,6 +19,8 @@ pub enum Mode {
     Choose(Chooser),
     /// Picking a spell to cast.
     ChooseSpell(Chooser),
+    /// Picking a technique to perform.
+    ChooseTechnique(Chooser),
     /// At camp: picking the phase to wait for.
     ChoosePhase(Chooser),
     Aim(Aiming),
@@ -90,9 +92,11 @@ impl Session {
         }
         match self.mode {
             Mode::Play => Keys::Game,
-            Mode::Overlay(_) | Mode::Choose(_) | Mode::ChooseSpell(_) | Mode::ChoosePhase(_) => {
-                Keys::List
-            }
+            Mode::Overlay(_)
+            | Mode::Choose(_)
+            | Mode::ChooseSpell(_)
+            | Mode::ChooseTechnique(_)
+            | Mode::ChoosePhase(_) => Keys::List,
             Mode::Aim(_) | Mode::Look(_) => Keys::Cursor,
         }
     }
@@ -186,6 +190,7 @@ impl Session {
             InputEvent::Throw => self.mode = start_throw(state),
             InputEvent::Fire => self.mode = start_fire(state),
             InputEvent::Cast => self.mode = start_cast(state),
+            InputEvent::Techniques => self.mode = start_techniques(state),
             InputEvent::WaitForPhase => self.mode = start_waiting(state),
         }
         Outcome::Continue
@@ -226,6 +231,27 @@ impl Session {
                             .into_iter()
                             .find(|listed| listed.spell == spell)
                             .and_then(|listed| listed.preview.blocked)
+                        {
+                            state.log.push(why);
+                        }
+                    }
+                    None => {}
+                }
+            }
+            Mode::ChooseTechnique(chooser) => {
+                let listed = techniques(state);
+                let refs: Vec<_> = listed.iter().map(|listed| listed.technique).collect();
+                match chooser.handle(input, &refs) {
+                    Some(ChooserAction::Cancel) => self.mode = Mode::Play,
+                    Some(ChooserAction::Pick(technique)) => {
+                        // As with spells: one that can't be performed keeps
+                        // the list up, with the reason in the log.
+                        if let Some(aiming) = Aiming::new(state, Shot::Technique(technique)) {
+                            self.mode = Mode::Aim(aiming);
+                        } else if let Some(why) = listed
+                            .into_iter()
+                            .find(|listed| listed.technique == technique)
+                            .and_then(|listed| listed.blocked)
                         {
                             state.log.push(why);
                         }
@@ -276,6 +302,7 @@ impl Session {
             | Mode::Overlay(_)
             | Mode::Choose(_)
             | Mode::ChooseSpell(_)
+            | Mode::ChooseTechnique(_)
             | Mode::ChoosePhase(_) => {}
         }
     }
@@ -343,6 +370,16 @@ fn start_cast(state: &mut GameState) -> Mode {
         return Mode::Play;
     }
     Mode::ChooseSpell(Chooser::default())
+}
+
+/// The technique list, like the spell list; a log line if the player knows
+/// none.
+fn start_techniques(state: &mut GameState) -> Mode {
+    if techniques(state).is_empty() {
+        state.log.push("You know no techniques.");
+        return Mode::Play;
+    }
+    Mode::ChooseTechnique(Chooser::default())
 }
 
 /// The phase list at camp, starting on the phase already chosen; elsewhere
@@ -498,6 +535,19 @@ mod tests {
         session.handle(Input::List(OverlayInput::Select));
         assert!(matches!(session.mode(), Mode::Aim(_)));
         assert!(session.status().contains("Enter: cast"));
+    }
+
+    #[test]
+    fn a_technique_that_cannot_be_performed_keeps_the_list_up_and_says_why() {
+        let mut session = session();
+        // The starting kit holds a bow, not the thrusting blade a lunge needs.
+        session.handle(Input::Game(InputEvent::Techniques));
+        assert!(matches!(session.mode(), Mode::ChooseTechnique(_)));
+        session.handle(Input::List(OverlayInput::Select));
+        assert!(matches!(session.mode(), Mode::ChooseTechnique(_)));
+        assert_eq!(last_log(&session), "Your lunge needs Pierce.");
+        session.handle(Input::List(OverlayInput::Close));
+        assert!(matches!(session.mode(), Mode::Play));
     }
 
     #[test]

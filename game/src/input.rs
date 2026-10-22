@@ -71,6 +71,9 @@ pub enum InputEvent {
     /// Frontend only: pick a known spell and aim it. The cast is
     /// `PlayerAction::Cast`.
     Cast,
+    /// Frontend only: pick a known technique and aim it. Performing it is
+    /// `PlayerAction::Perform`.
+    Techniques,
     /// Take the stairs down: `PlayerAction::Descend`.
     Descend,
     /// Take the stairs up: `PlayerAction::Ascend`.

@@ -79,7 +79,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   time; a seeded lunge draws the combat stream like a bump; save round-trip mid-recharge.
 - ADR 0024.
 
-### 2. From the keyboard, with a preview
+### 2. From the keyboard, with a preview — done
 - `aim.rs`: `Shot::Technique(ItemRef)`: targets, range and `Aim` (hit chances, damage) from
   `technique::check_target` and the same `combat::odds` / `preview_damage` the blow uses.
 - `front`: `InputEvent::Techniques` (`a`) opens a `Chooser` of `view::techniques` (blocked ones shown

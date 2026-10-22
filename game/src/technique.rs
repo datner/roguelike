@@ -682,4 +682,25 @@ mod tests {
         let pierce = pierce(&state);
         assert!(skill::xp(&state.world, player, pierce) > 0);
     }
+
+    #[test]
+    fn the_aim_preview_agrees_with_the_performance() {
+        let (mut state, technique) = lunger();
+        goblin(&mut state, (3, 1));
+        goblin(&mut state, (3, 2));
+        goblin(&mut state, (5, 1));
+        let shot = crate::aim::Shot::Technique(ItemRef::of(&state.world, technique).unwrap());
+
+        assert_eq!(crate::aim::aim_targets(&state, shot), [(3, 1)]);
+        let aim = crate::aim::aim(&state, shot, (3, 1)).unwrap();
+        assert_eq!(aim.target.as_deref(), Some("goblin"));
+        assert_eq!((aim.problem, aim.damage), (None, (2, 2)));
+        assert!(aim.chances.is_some());
+        let off_line = crate::aim::aim(&state, shot, (3, 2)).unwrap();
+        assert_eq!(
+            off_line.problem.as_deref(),
+            Some("Only in a straight line.")
+        );
+        assert_eq!(off_line.target, None);
+    }
 }

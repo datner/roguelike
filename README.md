@@ -93,6 +93,11 @@ This is a Cargo workspace with three crates:
     per element. Scrolls cast themselves and crumble. Goblin shamans cast
     blood bolts with their own health. `spells` lists what the player can
     cast, with what each would cost.
+  - Techniques (ADR 0024): special actions attached like spells but paid
+    in turns and recharges (and stamina, dormant: every cost is 0), never
+    through disciplines. Their blows are ordinary blows, so they land,
+    graze and train like a bump. `Need`s gate them on what is wielded or a
+    skill's level. You start knowing the lunge.
   - Sides and summons (ADR 0015): hostiles and the player's side, a summon
     on its owner's. AI goes for the nearest enemy it perceives; summons
     last until their binding runs out or their owner dies.
@@ -196,7 +201,7 @@ In game:
   - Skills: what you have learned, by domain, with each level and the XP
     toward the next.
   - Styles: your styles (`Enter` takes one up or sets it aside, a turn),
-    proficiencies, techniques (none exist yet) and half-formed ideas. The
+    proficiencies, techniques and half-formed ideas. The
     side panel shows the style you follow.
   - Equipping, unequipping and dropping take a turn each; the panel stays
     open.
@@ -224,6 +229,12 @@ In game:
   wearing armor gives a chance to fizzle, shown in the list. Scrolls you
   carry are listed too and crumble once read. A summoning shows where its
   creatures will appear; walking into your own summon swaps places.
+- `a`: perform a technique you know (one turn). A list shows each one's
+  reach, damage and recharge, and why it can't be performed now, if so (the
+  lunge needs a thrusting weapon); `Enter` picks one and aiming works as for
+  `t`. The cursor only stops on enemies the technique can reach in a
+  straight line, and the status bar shows the damage after armor and the
+  chances. A lunge steps in from two tiles away and strikes.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

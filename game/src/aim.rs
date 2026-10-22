@@ -11,6 +11,7 @@ use crate::ranged::{check_range, distance, flight, ready_fire, ready_throw};
 use crate::side;
 use crate::spell::{check_target, footprint, ready_cast};
 use crate::state::GameState;
+use crate::technique;
 use crate::view::{ItemRef, castable, held, total_armor};
 
 /// What the player is aiming with.
@@ -22,6 +23,8 @@ pub enum Shot {
     Fire,
     /// A known spell.
     Cast(ItemRef),
+    /// A known technique (ADR 0024).
+    Technique(ItemRef),
 }
 
 /// How far a shot reaches and what it hits for: the part of a missile's or
@@ -89,8 +92,18 @@ fn ready(state: &GameState, shot: Shot) -> Result<Ready, String> {
             let ready = ready_cast(state, state.player, spell)?;
             (ready.range, ready.strike)
         }
+        Shot::Technique(technique) => {
+            let ready = technique::ready(state, state.player, find_technique(state, technique)?)?;
+            (ready.reach, Some(ready.strike))
+        }
     };
     Ok(Ready { range, strike })
+}
+
+fn find_technique(state: &GameState, technique: ItemRef) -> Result<Entity, String> {
+    technique
+        .find(&state.world, &technique::known(&state.world, state.player))
+        .ok_or_else(|| "You don't know that technique.".to_string())
 }
 
 fn origin(state: &GameState) -> Option<(i32, i32)> {
@@ -142,6 +155,13 @@ pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
             distance(origin, at) <= ready.range
                 && state.visible.get(at.0, at.1).copied().unwrap_or(false)
         })
+        .filter(|&at| match shot {
+            // Only what the technique could strike from here.
+            Shot::Technique(technique) => {
+                aim_technique(state, technique, at).is_some_and(|aim| aim.problem.is_none())
+            }
+            _ => true,
+        })
         .collect();
     targets.sort_by_key(|&(x, y)| (distance(origin, (x, y)), y, x));
     targets
@@ -155,8 +175,10 @@ pub fn aim_range(state: &GameState, shot: Shot) -> Option<((i32, i32), i32)> {
 
 /// What a shot at `at` would do; `None` if the shot is not available.
 pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
-    if let Shot::Cast(spell) = shot {
-        return aim_cast(state, spell, at);
+    match shot {
+        Shot::Cast(spell) => return aim_cast(state, spell, at),
+        Shot::Technique(technique) => return aim_technique(state, technique, at),
+        Shot::Throw(_) | Shot::Fire => {}
     }
     let ready = ready(state, shot).ok()?;
     let strike = ready.strike?;
@@ -223,6 +245,48 @@ fn aim_cast(state: &GameState, spell: ItemRef, at: (i32, i32)) -> Option<Aim> {
         area: footprint.area,
         summons: footprint.placed,
         chances: None,
+    })
+}
+
+/// A technique's `aim`, from the footprint its performance would use: the
+/// ground its performer crosses, whom it strikes, the damage after armor and
+/// the odds of the blow.
+fn aim_technique(state: &GameState, technique: ItemRef, at: (i32, i32)) -> Option<Aim> {
+    let technique = find_technique(state, technique).ok()?;
+    let ready = technique::ready(state, state.player, technique).ok()?;
+    let origin = origin(state)?;
+    let footprint = technique::footprint(state, state.player, &ready, at);
+    let target = footprint.as_ref().ok().map(|footprint| footprint.target);
+    let (low, high) = ready.strike.range();
+    let resisted = target.map_or(0, |target| {
+        total_armor(&state.world, target).against(ready.strike.types)
+    });
+    let step = ((at.0 - origin.0).signum(), (at.1 - origin.1).signum());
+    let reach = distance(origin, at).min(ready.reach);
+    Some(Aim {
+        origin,
+        range: ready.reach,
+        path: (1..=reach)
+            .map(|k| (origin.0 + step.0 * k, origin.1 + step.1 * k))
+            .collect(),
+        landing: at,
+        target: target.map(|target| noun(state, target)),
+        damage: (
+            (ready.mods.scale(low) - resisted).max(0),
+            (ready.mods.scale(high) - resisted).max(0),
+        ),
+        types: ready.strike.types,
+        problem: footprint.as_ref().err().cloned(),
+        area: Vec::new(),
+        caught: usize::from(target.is_some()),
+        summons: Vec::new(),
+        chances: target.map(|target| {
+            let odds = combat::odds(state, &ready.strike, state.player, target);
+            Chances {
+                hit_bp: odds.hit_bp,
+                graze_bp: odds.graze_overall_bp(),
+            }
+        }),
     })
 }
 
