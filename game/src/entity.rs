@@ -887,6 +887,22 @@ pub struct Technique {
     /// The skills its blow uses, for its level and its training, instead of
     /// the weapon's: a technique that is not plain weapon work.
     pub uses: Option<Vec<SkillId>>,
+    /// What it gains while a style is followed.
+    pub bonuses: Vec<StyleBonus>,
+}
+
+/// What a technique gains while the style whose skill is `style` is
+/// followed, from `from_level` of that skill (ADR 0024): its numbers, its
+/// price, more riders. Percentages add to the base (negative takes away).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StyleBonus {
+    pub style: SkillId,
+    pub from_level: u32,
+    pub accuracy: i32,
+    pub damage_pct: i32,
+    pub recharge_pct: i32,
+    pub stamina_pct: i32,
+    pub riders: Vec<Rider>,
 }
 
 /// What a technique's full hit does besides its damage (ADR 0024). Data, so
@@ -917,6 +933,8 @@ pub enum Need {
     Wielding(Vec<SkillId>),
     /// At least this level of a skill.
     Skill(SkillId, u32),
+    /// The style whose skill this is is followed.
+    Following(SkillId),
 }
 
 /// Technique part: it strikes with what its performer wields, shifted.

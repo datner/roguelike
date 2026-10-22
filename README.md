@@ -240,7 +240,9 @@ In game:
   every enemy around you, a sweep those in a cone in front (both need an
   edge, such as a sabre), each blow rolled on its own. A shove (free off
   hand) drives an enemy back two tiles; a trip leaves it reeling: easier to
-  hit and unable to dodge perfectly, for three turns.
+  hit and unable to dodge perfectly, for three turns. A followed style can
+  strengthen a technique (the list says "with Fencing"): fencers lunge more
+  often from Fencing 2, and from 5 their lunge leaves the target reeling.
 - `X`: cycle what auto-explore does at items: note them and walk on
   (default), stop on them, or pick them up. Saved with the character.
 - `q` or `Esc`: save and return to the title menu.

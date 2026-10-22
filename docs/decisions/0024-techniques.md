@@ -48,12 +48,19 @@ turning it on later must not mean a refactor.
 - **`uses`** names the skills a technique's blow is levelled and trained
   by, instead of the weapon's, for blows that are not weapon work.
 
+- **Styles shape techniques, per technique.** `Need::Following(style)`
+  makes one work only under a style; `StyleBonus` entries add accuracy,
+  damage, riders and cheaper recharge or stamina while a style is followed,
+  from a level of its skill. A style is named by its skill (unique per
+  style, ADR 0019). Bonuses apply where the technique is readied, so the
+  list and the aim preview show them.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
   a part read where the technique is readied and performed.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
   a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
-  `OffBalance`).
+  `OffBalance`); 33 (`Technique` bonuses, `Need::Following`).
 - The player knows the lunge from their blueprint until manuals and styles
   teach techniques.

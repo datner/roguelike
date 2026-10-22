@@ -36,7 +36,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 32;
+pub const SAVE_VERSION: u32 = 33;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1234,6 +1234,15 @@ mod tests {
                 crate::entity::Rider::Effect(state.blueprints.id("Bleeding").unwrap()),
             ],
             uses: Some(vec![book.id("Unarmed").unwrap()]),
+            bonuses: vec![crate::entity::StyleBonus {
+                style: book.id("Dagger").unwrap(),
+                from_level: 5,
+                accuracy: 1,
+                damage_pct: 10,
+                recharge_pct: -40,
+                stamina_pct: -50,
+                riders: vec![crate::entity::Rider::Shove { tiles: 1 }],
+            }],
         };
         let lunge = thing("lunge")
             .with(technique.clone())

@@ -15,7 +15,7 @@ use crate::command::Command;
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{
     Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
-    Stamina, Stats, Technique,
+    Stamina, Stats, StyleBonus, Technique,
 };
 use crate::event::EventRegistry;
 use crate::grammar::Subject;
@@ -47,6 +47,26 @@ pub struct TechniqueDef {
     pub riders: Vec<RiderDef>,
     #[serde(default)]
     pub uses: Option<Vec<String>>,
+    #[serde(default)]
+    pub bonuses: Vec<StyleBonusDef>,
+}
+
+/// A `StyleBonus` as written in RON and saves: the style by its skill's name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StyleBonusDef {
+    pub style: String,
+    #[serde(default)]
+    pub from_level: u32,
+    #[serde(default)]
+    pub accuracy: i32,
+    #[serde(default)]
+    pub damage_pct: i32,
+    #[serde(default)]
+    pub recharge_pct: i32,
+    #[serde(default)]
+    pub stamina_pct: i32,
+    #[serde(default)]
+    pub riders: Vec<RiderDef>,
 }
 
 fn one() -> i32 {
@@ -58,6 +78,8 @@ fn one() -> i32 {
 pub enum NeedDef {
     Wielding(Vec<String>),
     Skill(String, u32),
+    /// A style, by its skill's name.
+    Following(String),
 }
 
 /// A `Rider` as written in RON and saves: an effect by blueprint name.
@@ -121,6 +143,54 @@ impl Names<'_> {
         })
     }
 
+    fn need(&self, need: &NeedDef) -> Result<Need, Missing> {
+        Ok(match need {
+            NeedDef::Wielding(skills) => Need::Wielding(self.skills(skills)?),
+            NeedDef::Skill(skill, level) => Need::Skill(self.skill(skill)?, *level),
+            NeedDef::Following(style) => Need::Following(self.skill(style)?),
+        })
+    }
+
+    fn need_def(&self, need: &Need) -> Result<NeedDef, Missing> {
+        Ok(match need {
+            Need::Wielding(skills) => NeedDef::Wielding(self.skill_names(skills)?),
+            Need::Skill(skill, level) => NeedDef::Skill(self.skill_name(*skill)?, *level),
+            Need::Following(style) => NeedDef::Following(self.skill_name(*style)?),
+        })
+    }
+
+    fn bonus(&self, bonus: &StyleBonusDef) -> Result<StyleBonus, Missing> {
+        Ok(StyleBonus {
+            style: self.skill(&bonus.style)?,
+            from_level: bonus.from_level,
+            accuracy: bonus.accuracy,
+            damage_pct: bonus.damage_pct,
+            recharge_pct: bonus.recharge_pct,
+            stamina_pct: bonus.stamina_pct,
+            riders: bonus
+                .riders
+                .iter()
+                .map(|rider| self.rider(rider))
+                .collect::<Result<_, _>>()?,
+        })
+    }
+
+    fn bonus_def(&self, bonus: &StyleBonus) -> Result<StyleBonusDef, Missing> {
+        Ok(StyleBonusDef {
+            style: self.skill_name(bonus.style)?,
+            from_level: bonus.from_level,
+            accuracy: bonus.accuracy,
+            damage_pct: bonus.damage_pct,
+            recharge_pct: bonus.recharge_pct,
+            stamina_pct: bonus.stamina_pct,
+            riders: bonus
+                .riders
+                .iter()
+                .map(|rider| self.rider_def(rider))
+                .collect::<Result<_, _>>()?,
+        })
+    }
+
     fn rider_def(&self, rider: &Rider) -> Result<RiderDef, Missing> {
         Ok(match *rider {
             Rider::Shove { tiles } => RiderDef::Shove { tiles },
@@ -136,17 +206,22 @@ impl TechniqueDef {
     pub(crate) fn names(&self) -> impl Iterator<Item = &String> {
         let needs = self.requires.iter().flat_map(|need| match need {
             NeedDef::Wielding(skills) => skills.iter().collect::<Vec<_>>(),
-            NeedDef::Skill(skill, _) => vec![skill],
+            NeedDef::Skill(skill, _) | NeedDef::Following(skill) => vec![skill],
         });
-        needs.chain(self.uses.iter().flatten())
+        let styles = self.bonuses.iter().map(|bonus| &bonus.style);
+        needs.chain(self.uses.iter().flatten()).chain(styles)
     }
 
     /// The effect blueprints it applies, for checking at load.
     pub(crate) fn effects(&self) -> impl Iterator<Item = &String> {
-        self.riders.iter().filter_map(|rider| match rider {
-            RiderDef::Effect(name) => Some(name),
-            RiderDef::Shove { .. } => None,
-        })
+        let bonuses = self.bonuses.iter().flat_map(|bonus| &bonus.riders);
+        self.riders
+            .iter()
+            .chain(bonuses)
+            .filter_map(|rider| match rider {
+                RiderDef::Effect(name) => Some(name),
+                RiderDef::Shove { .. } => None,
+            })
     }
 
     /// With every name resolved, or the first one `names` lacks.
@@ -154,10 +229,7 @@ impl TechniqueDef {
         let requires = self
             .requires
             .iter()
-            .map(|need| match need {
-                NeedDef::Wielding(skills) => Ok(Need::Wielding(names.skills(skills)?)),
-                NeedDef::Skill(skill, level) => Ok(Need::Skill(names.skill(skill)?, *level)),
-            })
+            .map(|need| names.need(need))
             .collect::<Result<_, Missing>>()?;
         Ok(Technique {
             domain: self.domain,
@@ -176,6 +248,11 @@ impl TechniqueDef {
                 .as_ref()
                 .map(|uses| names.skills(uses))
                 .transpose()?,
+            bonuses: self
+                .bonuses
+                .iter()
+                .map(|bonus| names.bonus(bonus))
+                .collect::<Result<_, _>>()?,
         })
     }
 
@@ -184,10 +261,7 @@ impl TechniqueDef {
         let requires = technique
             .requires
             .iter()
-            .map(|need| match need {
-                Need::Wielding(skills) => Ok(NeedDef::Wielding(names.skill_names(skills)?)),
-                Need::Skill(skill, level) => Ok(NeedDef::Skill(names.skill_name(*skill)?, *level)),
-            })
+            .map(|need| names.need_def(need))
             .collect::<Result<_, Missing>>()?;
         Ok(Self {
             domain: technique.domain,
@@ -206,6 +280,11 @@ impl TechniqueDef {
                 .as_ref()
                 .map(|uses| names.skill_names(uses))
                 .transpose()?,
+            bonuses: technique
+                .bonuses
+                .iter()
+                .map(|bonus| names.bonus_def(bonus))
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -234,6 +313,8 @@ pub(crate) struct Ready {
     pub stamina: u32,
     pub recharge: u64,
     pub verb: String,
+    /// The styles (by skill) whose bonuses it has now.
+    pub styled: Vec<SkillId>,
 }
 
 /// `actor`'s stamina pool and its size and pace for their stats.
@@ -260,28 +341,63 @@ pub(crate) fn inspect(
     let blow = world
         .get::<&Blow>(technique)
         .map_or_else(|_| Blow::default(), |blow| *blow);
+    let bonuses: Vec<&StyleBonus> = data
+        .bonuses
+        .iter()
+        .filter(|bonus| {
+            following(world, actor, bonus.style)
+                && skill::level(skill::xp(world, actor, bonus.style)) >= bonus.from_level
+        })
+        .collect();
+    let sum = |part: fn(&StyleBonus) -> i32| bonuses.iter().map(|&bonus| part(bonus)).sum::<i32>();
     let mods = BlowMods {
-        accuracy: blow.accuracy,
-        damage_pct: blow.damage_pct,
+        accuracy: blow.accuracy + sum(|bonus| bonus.accuracy),
+        damage_pct: blow.damage_pct + sum(|bonus| bonus.damage_pct),
         uses: data.uses.clone(),
     };
     let Some((strike, used)) = combat::blow_strike(world, state.blueprints.skills(), actor, &mods)
     else {
         return Err("You have nothing to strike with.".to_string());
     };
+    let mut riders = data.riders.clone();
+    riders.extend(
+        bonuses
+            .iter()
+            .flat_map(|bonus| bonus.riders.iter().copied()),
+    );
     let ready = Ready {
         reach: data.reach,
         strike,
         mods,
         dash: world.get::<&Dash>(technique).ok().map(|dash| *dash),
         area: world.get::<&Area>(technique).ok().map(|area| *area),
-        riders: data.riders.clone(),
-        stamina: data.stamina,
-        recharge: data.recharge,
+        riders,
+        stamina: scaled(data.stamina.into(), sum(|bonus| bonus.stamina_pct))
+            .try_into()
+            .unwrap_or(u32::MAX),
+        recharge: scaled(data.recharge, sum(|bonus| bonus.recharge_pct)),
         verb: data.verb.clone(),
+        styled: bonuses.iter().map(|bonus| bonus.style).collect(),
     };
-    let blocked = unmet(state, actor, technique, &data, &used);
+    let blocked = unmet(state, actor, technique, &data, &used, ready.stamina);
     Ok((ready, blocked))
+}
+
+/// `base` changed by `pct` percent; never below 0.
+fn scaled(base: u64, pct: i32) -> u64 {
+    let pct = u64::try_from(100 + i64::from(pct)).unwrap_or(0);
+    base * pct / 100
+}
+
+/// Whether `actor` follows the style whose skill is `style`.
+fn following(world: &World, actor: Entity, style: SkillId) -> bool {
+    crate::style::followed(world, actor)
+        .into_iter()
+        .any(|thing| {
+            world
+                .get::<&crate::entity::Style>(thing)
+                .is_ok_and(|followed| followed.skill == style)
+        })
 }
 
 /// `actor` performing `technique`: they know it, it has recharged, and every
@@ -302,6 +418,7 @@ fn unmet(
     technique: Entity,
     data: &Technique,
     used: &[SkillId],
+    stamina_cost: u32,
 ) -> Option<String> {
     let world = &state.world;
     let name = name(world, technique);
@@ -331,13 +448,21 @@ fn unmet(
                     return Some(format!("Your {name} needs {} {level}.", named(&[skill])));
                 }
             }
+            &Need::Following(style) => {
+                if !following(world, actor, style) {
+                    return Some(format!(
+                        "Your {name} needs you to follow {}.",
+                        named(&[style])
+                    ));
+                }
+            }
         }
     }
-    if data.stamina > 0 {
+    if stamina_cost > 0 {
         let Some((pool, rates)) = stamina(world, actor) else {
             return Some("You have no stamina for that.".to_string());
         };
-        if pool.current(rates, state.now) < data.stamina {
+        if pool.current(rates, state.now) < stamina_cost {
             return Some("Not enough stamina.".to_string());
         }
     }
@@ -608,6 +733,8 @@ pub struct TechniqueView {
     pub recharging: u64,
     /// Turns it recharges for once performed.
     pub recharge: u64,
+    /// The styles whose bonuses it has now, by name.
+    pub styled: Vec<String>,
     /// Why it can't be performed now, if it can't.
     pub blocked: Option<String>,
 }
@@ -631,6 +758,12 @@ pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
                 damage: (ready.mods.scale(low), ready.mods.scale(high)),
                 recharging: left.div_ceil(TICKS_PER_TURN),
                 recharge: ready.recharge.div_ceil(TICKS_PER_TURN),
+                styled: ready
+                    .styled
+                    .iter()
+                    .filter_map(|&style| state.blueprints.skills().get(style))
+                    .map(|def| def.name.clone())
+                    .collect(),
                 blocked,
             })
         })
@@ -657,6 +790,7 @@ mod tests {
             requires: needs,
             riders: Vec::new(),
             uses: None,
+            bonuses: Vec::new(),
         }
     }
 
@@ -1175,5 +1309,113 @@ mod tests {
         let pierce = pierce(&state);
         assert_eq!(skill::xp(&state.world, player, pierce), 0);
         assert!(skill::xp(&state.world, player, unarmed) > skill::xp_for(8));
+    }
+
+    /// Gives the player a style whose skill is Dagger, at `level`, followed
+    /// or only known.
+    fn style(state: &mut GameState, level: u32, followed: bool) -> Entity {
+        let player = state.player;
+        let dagger = state.blueprints.skills().id("Dagger").unwrap();
+        let mut skills = crate::entity::Skills::default();
+        skills.set(dagger, skill::xp_for(level));
+        let _ = state.world.insert_one(player, skills);
+        let style = thing("knifework").with(crate::entity::Style {
+            domains: vec![Domain::Martial],
+            skill: dagger,
+            follows: Vec::new(),
+            principles: Vec::new(),
+        });
+        if followed {
+            style.attached_to(player).make(state)
+        } else {
+            style.carried_by(player).make(state)
+        }
+    }
+
+    fn with_bonus(state: &mut GameState, technique: Entity, from_level: u32) {
+        let dagger = state.blueprints.skills().id("Dagger").unwrap();
+        let bleeding = state.blueprints.id("Bleeding").unwrap();
+        let _ = state.world.get::<&mut Technique>(technique).map(|mut t| {
+            t.bonuses.push(StyleBonus {
+                style: dagger,
+                from_level,
+                accuracy: 3,
+                damage_pct: 100,
+                recharge_pct: -40,
+                stamina_pct: 0,
+                riders: vec![Rider::Effect(bleeding)],
+            });
+        });
+    }
+
+    #[test]
+    fn a_style_bonus_applies_only_while_following_from_its_level() {
+        let (mut state, technique) = lunger();
+        let player = state.player;
+        with_bonus(&mut state, technique, 3);
+        let (plain, _) = inspect(&state, player, technique).unwrap();
+
+        let known = style(&mut state, 5, false);
+        assert_eq!(
+            inspect(&state, player, technique).unwrap().0.recharge,
+            plain.recharge
+        );
+
+        let _ = state.world.despawn(known);
+        style(&mut state, 2, true);
+        assert_eq!(
+            inspect(&state, player, technique).unwrap().0.recharge,
+            plain.recharge
+        );
+
+        let (mut state, technique) = lunger();
+        with_bonus(&mut state, technique, 3);
+        style(&mut state, 3, true);
+        let (styled, _) = inspect(&state, player, technique).unwrap();
+        assert_eq!(styled.recharge, 300);
+        assert_eq!(styled.strike.accuracy, plain.strike.accuracy + 3);
+        assert_eq!((styled.mods.damage_pct, styled.riders.len()), (100, 1));
+        assert_eq!(techniques(&state)[0].styled, ["Dagger"]);
+    }
+
+    #[test]
+    fn the_preview_shows_a_style_bonus_as_the_blow_lands_it() {
+        let (mut state, technique) = lunger();
+        let player = state.player;
+        with_bonus(&mut state, technique, 0);
+        // Only the numbers: a bleeding rider would tick into the damage.
+        let _ = state.world.get::<&mut Technique>(technique).map(|mut t| {
+            t.bonuses[0].riders.clear();
+        });
+        style(&mut state, 1, true);
+        sure_hits(&mut state, player);
+        let goblin = tough_goblin(&mut state, (3, 1));
+        let shot = crate::aim::Shot::Technique(ItemRef::of(&state.world, technique).unwrap());
+        let aim = crate::aim::aim(&state, shot, (3, 1)).unwrap();
+
+        perform(&mut state, technique, (3, 1));
+
+        let dealt = 100 - health(&state, goblin);
+        assert!((aim.damage.0..=aim.damage.1).contains(&dealt));
+        assert_eq!(aim.damage, (4, 4));
+    }
+
+    #[test]
+    fn a_technique_of_a_style_is_refused_once_the_style_is_set_aside() {
+        let (mut state, technique) = lunger();
+        let dagger = state.blueprints.skills().id("Dagger").unwrap();
+        let _ = state.world.get::<&mut Technique>(technique).map(|mut t| {
+            t.requires.push(Need::Following(dagger));
+        });
+        goblin(&mut state, (3, 1));
+        refused(
+            &mut state,
+            technique,
+            (3, 1),
+            "Your lunge needs you to follow Dagger.",
+        );
+        style(&mut state, 0, true);
+        perform(&mut state, technique, (3, 1));
+        assert_eq!(at(&state, state.player), (2, 1));
     }
 }

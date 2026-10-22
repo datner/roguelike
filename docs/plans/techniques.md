@@ -117,14 +117,14 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   active; a save mid-effect; `Uses` changes the level and the skills trained, and the weapon's skills
   are not trained.
 
-### 5. Styles shape techniques
+### 5. Styles shape techniques — done
 - `Need::Following(style)`: the technique works only while that style is followed.
 - `bonuses: Vec<StyleBonus { style, accuracy, damage_pct, recharge_pct, stamina_pct, riders }>` on a
   technique: applied in `technique::ready` (prices) and the blow (numbers, riders) while that style is
   followed, so the preview shows them. Bonuses may switch on at a level of the style's skill
   (`from_level`), like principles.
-- Content: Fencing makes the lunge cheaper to recharge and adds a short off-balance rider from its
-  level 5.
+- Content: Fencing makes the lunge recharge 40% faster from its level 2 and adds the off-balance
+  rider from its level 5. A style is named by its skill's name (`Following("Fencing")`).
 - Tests: the bonus applies only while following, and only from its level; the preview and the
   performance agree; a `Following` technique is refused, with its message, after setting the style
   aside.

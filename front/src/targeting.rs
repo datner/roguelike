@@ -97,6 +97,9 @@ pub fn technique_text(technique: &TechniqueView) -> (String, Vec<String>) {
         technique.name, technique.reach
     );
     let mut notes = Vec::new();
+    if !technique.styled.is_empty() {
+        notes.push(format!("with {}", technique.styled.join(" and ")));
+    }
     if technique.recharge > 0 {
         notes.push(format!("{} turn recharge", technique.recharge));
     }
