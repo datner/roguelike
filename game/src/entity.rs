@@ -856,6 +856,12 @@ pub enum Does {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Lesson(pub Vec<(SkillId, u32)>);
 
+/// Item part: studying it teaches these techniques (ADR 0024), once per
+/// kind of thing, like a `Lesson`. Built from `ComponentDef::Teaches` at
+/// load and saved by name, since it holds ids.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Teaches(pub Vec<crate::blueprint::BlueprintId>);
+
 /// The kinds of thing (by `Name`) a learner has already studied, sorted.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Studied(pub Vec<String>);

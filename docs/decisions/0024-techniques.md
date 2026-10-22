@@ -69,6 +69,11 @@ turning it on later must not mean a refactor.
   whose footprint strikes the target and none of its own side. Goblins
   shove; the spirit wolf trips, an ability in the vision's sense.
 
+- **Learning.** A manual's `Teaches` attaches techniques when studied, once
+  per kind of manual like a `Lesson` (ADR 0017); a discovery can grant one
+  (`Grant::Technique`, ADR 0018). A technique already known by name is not
+  learned twice. Only the trip is known from the start.
+
 ## Consequences
 
 - A new requirement is a `Need` variant and one match arm; a new payload is
@@ -76,6 +81,6 @@ turning it on later must not mean a refactor.
 - `SAVE_VERSION` 31 (`Technique`, `Blow`, `Dash`, `Stamina`; `Mana` is now
   a `Pool`, saved the same); 32 (`Technique` riders and `uses`,
   `OffBalance`); 33 (`Technique` bonuses, `Need::Following`); 34 (`Combo`,
-  `Performed`, `Need::Continuing`); 35 (`TechniqueAi`).
-- The player knows the lunge from their blueprint until manuals and styles
-  teach techniques.
+  `Performed`, `Need::Continuing`); 35 (`TechniqueAi`); 36 (`Teaches`).
+- The player starts knowing only the trip; the rest are found, read,
+  inspired or invented.

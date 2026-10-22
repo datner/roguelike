@@ -1,0 +1,10 @@
+// A manual (ADR 0024): the sweep, and a little about cutting.
+(
+    components: [
+        Name("manual of the edge"),
+        Appearance(glyph: '"', fg: (190, 200, 170), bg: (0, 0, 0)),
+        Item,
+        Lesson({"Slash": 100}),
+        Teaches(["Sweep"]),
+    ],
+)

@@ -29,6 +29,8 @@ pub enum Grant {
     Proficiency(String),
     /// A style (ADR 0019): this blueprint, known but not yet followed.
     Style(String),
+    /// A technique (ADR 0024): this blueprint, attached to the learner.
+    Technique(String),
 }
 
 /// One entry of `data/discoveries.ron`.
@@ -45,8 +47,9 @@ pub(crate) struct Discovery {
     pub name: String,
     pub requires: Vec<(SkillId, u32)>,
     pub grants: BlueprintId,
-    /// A style, carried until followed; else a proficiency, attached.
-    pub style: bool,
+    /// A style, carried until followed; else a proficiency or a technique,
+    /// attached.
+    pub carried: bool,
 }
 
 /// Reads `data/discoveries.ron`: a list of `DiscoveryDef`s.
@@ -56,8 +59,8 @@ pub(crate) fn read(path: &Path) -> Result<Vec<DiscoveryDef>, BlueprintError> {
 }
 
 /// Resolves `defs` against `blueprints`: every skill and blueprint named
-/// must exist, and the blueprint granted must be a proficiency or a style,
-/// as the grant says.
+/// must exist, and the blueprint granted must be a proficiency, a style or a
+/// technique, as the grant says.
 pub(crate) fn resolve(
     defs: Vec<DiscoveryDef>,
     blueprints: &Blueprints,
@@ -79,27 +82,24 @@ pub(crate) fn resolve(
                     Ok((id, *level))
                 })
                 .collect::<Result<_, BlueprintError>>()?;
-            let (granted, style) = match &def.grants {
-                Grant::Proficiency(name) => (name, false),
+            let (granted, carried) = match &def.grants {
+                Grant::Proficiency(name) | Grant::Technique(name) => (name, false),
                 Grant::Style(name) => (name, true),
+            };
+            let fits = |bp: &crate::blueprint::ResolvedBlueprint| match def.grants {
+                Grant::Proficiency(_) => bp.components.contains(&ComponentDef::Proficiency),
+                Grant::Style(_) => bp.style.is_some(),
+                Grant::Technique(_) => bp.technique.is_some(),
             };
             let grants = blueprints
                 .id(granted)
-                .filter(|&id| {
-                    blueprints.by_id(id).is_some_and(|bp| {
-                        if style {
-                            bp.style.is_some()
-                        } else {
-                            bp.components.contains(&ComponentDef::Proficiency)
-                        }
-                    })
-                })
+                .filter(|&id| blueprints.by_id(id).is_some_and(fits))
                 .ok_or_else(|| unknown(granted.clone()))?;
             Ok(Discovery {
                 name: def.name,
                 requires,
                 grants,
-                style,
+                carried,
             })
         })
         .collect()
@@ -118,8 +118,8 @@ fn made(state: &GameState, learner: Entity) -> Vec<String> {
 }
 
 /// A moment of inspiration: every discovery `learner` has newly met the
-/// requirements of, in file order, is made: a proficiency is attached, a
-/// style becomes known. Called only from `skill::train`, after a use with
+/// requirements of, in file order, is made: a proficiency or a technique is
+/// attached, a style becomes known. Called only from `skill::train`, after a use with
 /// stakes.
 pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
     let mut discovered = made(state, learner);
@@ -129,11 +129,17 @@ pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
         .iter()
         .filter(|d| !discovered.contains(&d.name))
         .filter(|d| d.requires.iter().all(|&req| met(state, learner, req)))
-        .map(|d| (d.name.clone(), d.grants, d.style))
+        .map(|d| (d.name.clone(), d.grants, d.carried))
         .collect();
-    for (name, grants, style) in new {
+    for (name, grants, carried) in new {
+        // A technique may already be known, from a manual.
+        let noun = state.blueprints.by_id(grants).and_then(|bp| bp.noun());
+        if noun.is_some_and(|noun| crate::technique::knows(&state.world, learner, noun)) {
+            discovered.push(name);
+            continue;
+        }
         let spawn = Spawn::id(grants);
-        let spawn = if style {
+        let spawn = if carried {
             spawn.carried_by(learner)
         } else {
             spawn.attached_to(learner)
@@ -285,7 +291,8 @@ mod tests {
                 unmet: 1,
             }]
         );
-        assert!(ideas(&learner(&[("Melee", 9)])).is_empty());
+        // In no discovery at all.
+        assert!(ideas(&learner(&[("Archery", 9)])).is_empty());
     }
 
     #[test]

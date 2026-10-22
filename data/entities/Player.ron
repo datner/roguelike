@@ -41,15 +41,7 @@
         "ChainLightning",
         "SummonWolf",
     ],
-    // Until manuals and styles teach techniques (docs/plans/techniques.md).
-    techniques: [
-        "Lunge",
-        "Cleave",
-        "Sweep",
-        "Shove",
-        "Trip",
-        "HorizontalSlash",
-        "VerticalSlash",
-        "Stab",
-    ],
+    // Anyone can trip; other techniques come from manuals, inspiration and
+    // styles (ADR 0024).
+    techniques: ["Trip"],
 )

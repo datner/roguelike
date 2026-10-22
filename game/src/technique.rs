@@ -369,6 +369,15 @@ pub(crate) fn known(world: &World, creature: Entity) -> Vec<Entity> {
         .collect()
 }
 
+/// Whether `creature` knows a technique called `name` (its bare noun).
+pub(crate) fn knows(world: &World, creature: Entity, name: &str) -> bool {
+    known(world, creature).into_iter().any(|technique| {
+        world
+            .get::<&Name>(technique)
+            .is_ok_and(|known| known.0 == name)
+    })
+}
+
 /// A technique as it would go now, checked the same way for the command, the
 /// aim preview, the technique list and the AI.
 #[derive(Debug, Clone)]
@@ -1785,5 +1794,79 @@ mod tests {
             crate::ai::decide(&state, duelist),
             Command::TryMove(..)
         ));
+    }
+
+    /// A bare room with the real content: the real player, who learns.
+    fn real() -> GameState {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
+        let mut state = crate::state::tests::bare_state_with(blueprints);
+        see_everything(&mut state);
+        state
+    }
+
+    fn treatise(state: &mut GameState) -> ItemRef {
+        let player = state.player;
+        let id = state.blueprints.id("LungeTreatise").unwrap();
+        let treatise = state
+            .spawn(crate::spawn::Spawn::id(id).carried_by(player))
+            .unwrap();
+        ItemRef::of(&state.world, treatise).unwrap()
+    }
+
+    #[test]
+    fn a_manual_teaches_its_technique_once() {
+        let mut state = real();
+        let player = state.player;
+        assert!(!knows(&state.world, player, "lunge"));
+        let first = treatise(&mut state);
+        take_turn(&mut state, PlayerAction::Study(first));
+        assert!(knows(&state.world, player, "lunge"));
+        assert_eq!(last_log(&state), "You learn the lunge.");
+
+        let second = treatise(&mut state);
+        take_turn(&mut state, PlayerAction::Study(second));
+        assert_eq!(
+            last_log(&state),
+            "You have nothing more to learn from the treatise on the lunge."
+        );
+        assert_eq!(
+            known(&state.world, player)
+                .into_iter()
+                .filter(|&t| name(&state.world, t) == "lunge")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn inspiration_can_bring_a_technique() {
+        let mut state = real();
+        let player = state.player;
+        let book = state.blueprints.skills();
+        let mut skills = crate::entity::Skills::default();
+        for skill in ["Melee", "Slash"] {
+            skills.set(book.id(skill).unwrap(), skill::xp_for(3));
+        }
+        let _ = state.world.insert_one(player, skills);
+        crate::discovery::inspire(&mut state, player);
+        assert!(knows(&state.world, player, "cleave"));
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "Inspiration! You discover the cleave.")
+        );
+    }
+
+    #[test]
+    fn learned_techniques_survive_a_save() {
+        let mut state = real();
+        let first = treatise(&mut state);
+        take_turn(&mut state, PlayerAction::Study(first));
+        let text = crate::save::to_ron(&state).unwrap();
+        let loaded = crate::save::from_ron(&text, real().blueprints).unwrap();
+        assert!(knows(&loaded.world, loaded.player, "lunge"));
+        assert!(knows(&loaded.world, loaded.player, "trip"));
     }
 }

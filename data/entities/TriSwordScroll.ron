@@ -1,0 +1,11 @@
+// A manual (ADR 0024): the whole tri-sword form, three techniques at once,
+// and a little swordwork.
+(
+    components: [
+        Name("tri-sword scroll"),
+        Appearance(glyph: '"', fg: (210, 180, 200), bg: (0, 0, 0)),
+        Item,
+        Lesson({"Sword": 100}),
+        Teaches(["HorizontalSlash", "VerticalSlash", "Stab"]),
+    ],
+)

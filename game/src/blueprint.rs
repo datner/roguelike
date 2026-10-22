@@ -33,7 +33,7 @@ use crate::entity::{
     School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats, Style, Summon,
     SummonLimit, Technique, Throwable, Trains, Weapon,
 };
-use crate::entity::{OffBalance, TechniqueAi};
+use crate::entity::{OffBalance, Teaches, TechniqueAi};
 use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
@@ -106,6 +106,8 @@ pub enum ComponentDef {
     Lesson(BTreeMap<String, u32>),
     /// Skills by name; spawned from `ResolvedBlueprint::technique`.
     Technique(TechniqueDef),
+    /// Technique blueprints by name; spawned from `ResolvedBlueprint::teaches`.
+    Teaches(Vec<String>),
     Blow(Blow),
     Dash(Dash),
     Stamina(Stamina),
@@ -186,6 +188,7 @@ impl ComponentDef {
             | ComponentDef::Trains(_)
             | ComponentDef::Style(_)
             | ComponentDef::Technique(_)
+            | ComponentDef::Teaches(_)
             | ComponentDef::Lesson(_) => return,
             // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
             ComponentDef::OnHit(_) => return,
@@ -237,6 +240,7 @@ pub struct ResolvedBlueprint {
     pub spells: Vec<BlueprintId>,
     pub technique: Option<Technique>,
     pub techniques: Vec<BlueprintId>,
+    pub teaches: Option<Teaches>,
 }
 
 impl ResolvedBlueprint {
@@ -528,6 +532,7 @@ impl Blueprints {
             let mut style = None;
             let mut lesson = None;
             let mut technique = None;
+            let mut teaches = None;
             let skill_id = |skill: &String| {
                 skills
                     .id(skill)
@@ -607,6 +612,10 @@ impl Blueprints {
                             }
                         })?);
                     }
+                    ComponentDef::Teaches(names) => {
+                        let ids = names.iter().map(id_of).collect::<Result<_, _>>()?;
+                        teaches = Some(Teaches(ids));
+                    }
                     other => components.push(other),
                 }
             }
@@ -642,9 +651,11 @@ impl Blueprints {
                 spells,
                 technique,
                 techniques,
+                teaches,
             });
         }
         check_equipment_cycles(&resolved)?;
+        check_taught(&resolved)?;
         fit_equipment(&mut resolved)?;
         Ok(Self {
             resolved,
@@ -805,6 +816,9 @@ impl Blueprints {
         if let Some(technique) = &blueprint.technique {
             builder.add(technique.clone());
         }
+        if let Some(teaches) = &blueprint.teaches {
+            builder.add(teaches.clone());
+        }
         let owner = world.spawn(builder.build());
         for (&item, &part) in blueprint.equipment.iter().zip(&blueprint.equipped_on) {
             let item = self.spawn_id(world, item)?;
@@ -873,6 +887,23 @@ fn check_effect_durations(
                 return Err(BlueprintError::EffectWithoutDuration {
                     owner: owner.clone(),
                     effect: effect.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What a manual teaches, and what a creature knows, must be techniques.
+fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
+    for blueprint in resolved {
+        let taught = blueprint.teaches.iter().flat_map(|teaches| &teaches.0);
+        for &id in taught.chain(&blueprint.techniques) {
+            let target = &resolved[id.0 as usize];
+            if target.technique.is_none() {
+                return Err(BlueprintError::UnknownTechnique {
+                    owner: blueprint.name.clone(),
+                    technique: target.name.clone(),
                 });
             }
         }
@@ -1274,10 +1305,25 @@ mod tests {
                 techniques.map(|names| names.iter().map(|s| s.to_string()).collect());
             blueprint
         };
+        let technique = || {
+            ComponentDef::Technique(TechniqueDef {
+                domain: crate::skill::Domain::Martial,
+                verb: "strike".to_string(),
+                reach: 1,
+                recharge: 0,
+                stamina: 0,
+                requires: Vec::new(),
+                riders: Vec::new(),
+                uses: None,
+                bonuses: Vec::new(),
+                combo: None,
+            })
+        };
         let raw = |child: Option<&[&str]>| {
             BTreeMap::from([
-                ("Lunge".to_string(), bp(None, vec![])),
-                ("Shove".to_string(), bp(None, vec![])),
+                ("Lunge".to_string(), bp(None, vec![technique()])),
+                ("Shove".to_string(), bp(None, vec![technique()])),
+                ("Rock".to_string(), bp(None, vec![])),
                 (
                     "Duelist".to_string(),
                     with(bp(None, vec![]), Some(&["Lunge"])),
@@ -1304,6 +1350,13 @@ mod tests {
         match Blueprints::resolve(raw(Some(&["Nope"]))) {
             Err(BlueprintError::UnknownTechnique { owner, technique }) => {
                 assert_eq!((owner.as_str(), technique.as_str()), ("Squire", "Nope"));
+            }
+            other => panic!("expected UnknownTechnique, got {other:?}"),
+        }
+        // Known by name, but not a technique.
+        match Blueprints::resolve(raw(Some(&["Rock"]))) {
+            Err(BlueprintError::UnknownTechnique { owner, technique }) => {
+                assert_eq!((owner.as_str(), technique.as_str()), ("Squire", "Rock"));
             }
             other => panic!("expected UnknownTechnique, got {other:?}"),
         }

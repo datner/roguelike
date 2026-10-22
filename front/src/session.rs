@@ -538,15 +538,15 @@ mod tests {
     }
 
     #[test]
-    fn a_technique_that_cannot_be_performed_keeps_the_list_up_and_says_why() {
+    fn the_technique_list_opens_and_aims_what_can_be_performed() {
         let mut session = session();
-        // The starting kit holds a bow, not the thrusting blade a lunge needs.
+        // Everyone starts knowing the trip, which needs nothing.
         session.handle(Input::Game(InputEvent::Techniques));
         assert!(matches!(session.mode(), Mode::ChooseTechnique(_)));
         session.handle(Input::List(OverlayInput::Select));
-        assert!(matches!(session.mode(), Mode::ChooseTechnique(_)));
-        assert_eq!(last_log(&session), "Your lunge needs Pierce.");
-        session.handle(Input::List(OverlayInput::Close));
+        assert!(matches!(session.mode(), Mode::Aim(_)));
+        assert!(session.status().contains("Enter: perform"));
+        session.handle(Input::Cursor(AimInput::Cancel));
         assert!(matches!(session.mode(), Mode::Play));
     }
 

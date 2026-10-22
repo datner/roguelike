@@ -52,7 +52,7 @@ pub struct ItemView {
     pub note: Option<String>,
     /// The skills using it trains, by name (ADR 0017), in skill-file order.
     pub trains: Vec<String>,
-    /// It holds a lesson to study.
+    /// It holds a lesson or a technique to study.
     pub lesson: bool,
 }
 
@@ -91,7 +91,8 @@ impl ItemView {
             fits: world.get::<&Equippable>(item).ok().map(|e| e.part),
             ammo: world.satisfies::<&Ammo>(item),
             note: note(world, item),
-            lesson: world.satisfies::<&Lesson>(item),
+            lesson: world.satisfies::<&Lesson>(item)
+                || world.satisfies::<&crate::entity::Teaches>(item),
             trains: skill::of_item(world, book, item)
                 .into_iter()
                 .filter_map(|id| book.get(id).map(|def| def.name.clone()))

@@ -23,8 +23,8 @@ use crate::entity::{
     Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::entity::{
-    Attuned, Blow, Dash, Lesson, OffBalance, Performed, Sighted, Stamina, Studied, Technique,
-    TechniqueAi,
+    Attuned, Blow, Dash, Lesson, OffBalance, Performed, Sighted, Stamina, Studied, Teaches,
+    Technique, TechniqueAi,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 35;
+pub const SAVE_VERSION: u32 = 36;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -255,10 +255,11 @@ enum ComponentKind {
     OffBalance,
     Performed,
     TechniqueAi,
+    Teaches,
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 73] = [
+    const ALL: [ComponentKind; 74] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -332,6 +333,7 @@ impl ComponentKind {
         Self::OffBalance,
         Self::Performed,
         Self::TechniqueAi,
+        Self::Teaches,
     ];
 }
 
@@ -417,6 +419,8 @@ enum SavedComponent {
     OffBalance(OffBalance),
     Performed(Performed),
     TechniqueAi,
+    /// Technique blueprints by name.
+    Teaches(Vec<String>),
 }
 
 /// Serializes `state`. Only valid between player turns, with the command
@@ -810,6 +814,19 @@ fn save_component(
         ComponentKind::OffBalance => copy(entity).map(S::OffBalance),
         ComponentKind::Performed => copy(entity).map(S::Performed),
         ComponentKind::TechniqueAi => copy::<TechniqueAi>(entity).map(|_| S::TechniqueAi),
+        ComponentKind::Teaches => match copy::<Teaches>(entity) {
+            Some(Teaches(ids)) => Some(S::Teaches(
+                ids.into_iter()
+                    .map(|id| {
+                        blueprints
+                            .by_id(id)
+                            .map(|bp| bp.name.clone())
+                            .ok_or(SaveError::UnknownBlueprintId(id))
+                    })
+                    .collect::<Result<_, _>>()?,
+            )),
+            None => None,
+        },
         ComponentKind::Blow => copy(entity).map(S::Blow),
         ComponentKind::Dash => copy(entity).map(S::Dash),
         ComponentKind::Stamina => copy(entity).map(S::Stamina),
@@ -980,6 +997,16 @@ fn load_component(
         S::OffBalance(c) => builder.add(c),
         S::Performed(c) => builder.add(c),
         S::TechniqueAi => builder.add(TechniqueAi),
+        S::Teaches(names) => builder.add(Teaches(
+            names
+                .into_iter()
+                .map(|name| {
+                    blueprints
+                        .id(&name)
+                        .ok_or(LoadError::UnknownBlueprint(name))
+                })
+                .collect::<Result<_, _>>()?,
+        )),
         S::Blow(c) => builder.add(c),
         S::Dash(c) => builder.add(c),
         S::Stamina(c) => builder.add(c),

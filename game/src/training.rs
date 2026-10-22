@@ -4,12 +4,14 @@
 
 use hecs::Entity;
 
+use crate::blueprint::{BlueprintId, ResolvedBlueprint};
 use crate::combat::strike;
-use crate::entity::{Learner, Lesson, Name, Studied};
+use crate::entity::{Learner, Lesson, Name, Studied, Teaches};
 use crate::explore::visible_hostile;
 use crate::grammar::Subject;
 use crate::input::PlayerAction;
 use crate::skill::{self, SkillId};
+use crate::spawn::Spawn;
 use crate::state::GameState;
 use crate::time::take_turn;
 
@@ -23,12 +25,14 @@ const PRACTICE_FLOOR: u32 = 2;
 pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     let who = Subject::of(&state.world, actor);
     let what = Subject::of(&state.world, item);
-    let Ok(lesson) = state.world.get::<&Lesson>(item).map(|l| l.0.clone()) else {
+    let lesson = state.world.get::<&Lesson>(item).ok().map(|l| l.0.clone());
+    let teaches = state.world.get::<&Teaches>(item).ok().map(|t| t.0.clone());
+    if lesson.is_none() && teaches.is_none() {
         state
             .log
             .push(who.sentence("find", &format!("nothing to learn in {}", what.noun())));
         return;
-    };
+    }
     if !state.world.satisfies::<&Learner>(actor) {
         return;
     }
@@ -52,7 +56,32 @@ pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     studied.0.sort();
     let _ = state.world.insert_one(actor, studied);
     state.log.push(who.sentence("study", what.noun()));
-    skill::gain(state, actor, &lesson);
+    if let Some(lesson) = lesson {
+        skill::gain(state, actor, &lesson);
+    }
+    for technique in teaches.into_iter().flatten() {
+        learn(state, actor, technique);
+    }
+}
+
+/// `learner` comes to know the technique `blueprint` (ADR 0024), unless it
+/// already knows one of that name.
+fn learn(state: &mut GameState, learner: Entity, blueprint: BlueprintId) {
+    let noun = state
+        .blueprints
+        .by_id(blueprint)
+        .and_then(ResolvedBlueprint::noun)
+        .unwrap_or("technique")
+        .to_string();
+    if crate::technique::knows(&state.world, learner, &noun)
+        || state
+            .spawn(Spawn::id(blueprint).attached_to(learner))
+            .is_err()
+    {
+        return;
+    }
+    let message = Subject::of(&state.world, learner).sentence("learn", &format!("the {noun}"));
+    state.log.push(message);
 }
 
 /// How high practice can take `skill`: half the learner's best level in its

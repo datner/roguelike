@@ -381,10 +381,26 @@ mod tests {
             })
             .attached_to(player)
             .make(&mut state);
+        let trip = thing("trip")
+            .with(crate::entity::Technique {
+                domain: crate::skill::Domain::Martial,
+                verb: "trip".to_string(),
+                reach: 1,
+                recharge: 0,
+                stamina: 0,
+                requires: Vec::new(),
+                riders: Vec::new(),
+                uses: None,
+                bonuses: Vec::new(),
+                combo: None,
+            })
+            .attached_to(player)
+            .make(&mut state);
 
         state.run(Command::Descend(player));
         assert!(state.world.contains(knife));
         assert!(state.world.contains(effect));
+        assert_eq!(crate::technique::known(&state.world, player), [trip]);
         assert!(!state.world.contains(stranger));
         let wolf_at = *state.world.get::<&Position>(wolf).unwrap();
         let player_at = player_position(&state);

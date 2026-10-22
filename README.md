@@ -99,7 +99,8 @@ This is a Cargo workspace with three crates:
     graze and train like a bump. `Need`s gate them on what is wielded or a
     skill's level. Area techniques cover ground as spells of their shape do.
     Riders do more on a full hit: a shove, or a timed effect.
-    You start knowing the lunge, the cleave, the sweep, the shove and the trip.
+    You start knowing only the trip; manuals teach techniques when studied
+    (`Teaches`), and inspiration can bring one (the cleave).
   - Sides and summons (ADR 0015): hostiles and the player's side, a summon
     on its owner's. AI goes for the nearest enemy it perceives; summons
     last until their binding runs out or their owner dies.
@@ -197,6 +198,7 @@ In game:
     quiver: use it for special arrows), `v` puts it in your quiver.
     Item rows say which skills using the item trains.
     On a manual: `r` studies it (once per kind of manual; it takes a while).
+    Some manuals teach techniques: the lunge, the sweep, the tri-sword.
   - Equipment: one row per body part. `Enter` on a filled part unequips;
     on an empty one it lists what you carry that fits, and `Enter` equips
     it there (`Esc` backs out).

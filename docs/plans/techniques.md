@@ -156,13 +156,15 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: an AI lunges from two tiles, never into an ally's line; it bumps while recharging; same seed
   gives the same fight.
 
-### 8. Learning techniques
+### 8. Learning techniques — done
 - `Grant::Technique(name)` in `discovery.rs`: a discovery can grant one, attached to the learner.
 - Manuals: `Teaches(Vec<technique>)` beside `Lesson` on an item; `Study` attaches them once per kind of
   manual (`Studied`), with the lesson XP if it also has some.
-- The player blueprint loses Lunge. Content: "a treatise on the lunge" (`Teaches(["Lunge"])` and a small
-  Pierce lesson) and a tri-sword scroll, added to the castle's finds.
-- Side panel / skills tab: known techniques listed (`front::text`).
+- The player blueprint keeps only the trip (it needs nothing). Content: "a treatise on the lunge"
+  (`Teaches(["Lunge"])` and a small Pierce lesson), "a manual of the edge" (the sweep), a tri-sword
+  scroll (all three steps), and a discovery that inspires the cleave (Melee 3, Slash 3). Manuals are
+  items, so every dungeon's finds can hold them, not only the castle's.
+- Known techniques listed in the Styles panel (done in slice 2).
 - Tests: studying teaches once; a second copy teaches nothing; a discovery grants one; they survive a
   dive and a save.
 
