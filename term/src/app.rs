@@ -11,9 +11,9 @@ use front::title::{self, Next, Setup};
 use game::{Fx, render_view, spells, throwables};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, Clear, Paragraph};
 
 use crate::input::{map_aim_key, map_key_event, map_menu_key, map_overlay_key};
 use crate::menu;
@@ -218,11 +218,25 @@ fn draw(frame: &mut Frame, session: &Session, flying: Option<Flying>) {
         }
         Mode::Aim(aiming) => targeting::draw_aim(frame, chunks[0], state, aiming),
         Mode::Look(looking) => targeting::draw_look(frame, chunks[0], state, looking),
+        // Frozen (term/CLAUDE.md): screens added since only point to the
+        // window; Esc backs out as in any list.
+        Mode::ChoosePhase(_) => window_only(frame, chunks[0]),
         Mode::Play => {}
     }
     if let Some(flying) = flying {
         targeting::draw_missile(frame, chunks[0], state, flying);
     }
+}
+
+/// A screen `term` doesn't draw: one line pointing to the window.
+fn window_only(frame: &mut Frame, area: Rect) {
+    let line = "This screen needs the window (cargo run -p gui). Esc backs out.";
+    let width = u16::try_from(line.len() + 2)
+        .unwrap_or(u16::MAX)
+        .min(area.width);
+    let box_area = area.centered(Constraint::Length(width), Constraint::Length(3));
+    frame.render_widget(Clear, box_area);
+    frame.render_widget(Paragraph::new(line).block(Block::bordered()), box_area);
 }
 
 #[cfg(test)]

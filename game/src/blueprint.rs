@@ -13,6 +13,7 @@
 
 use crate::camp::{self, Camp};
 use crate::dungeon::{self, Dungeon};
+use crate::phase::{self, Phase};
 use crate::tiles::Tiles;
 use std::collections::BTreeMap;
 use std::fs;
@@ -272,6 +273,8 @@ pub struct Blueprints {
     /// Where a new game starts and dives end (`data/camp.ron`); without
     /// one, a new game starts on the first dungeon's first floor.
     camp: Option<Camp>,
+    /// The phases the world turns through, in order (`data/phases.ron`).
+    phases: Vec<Phase>,
 }
 
 #[derive(Debug)]
@@ -344,6 +347,7 @@ pub enum BlueprintError {
     /// A new game needs a dungeon to start in.
     NoDungeon,
     BadCamp(String),
+    BadPhases(String),
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -360,6 +364,7 @@ impl std::fmt::Display for BlueprintError {
             Self::BadDungeon { dungeon, why } => write!(f, "dungeon {dungeon:?}: {why}"),
             Self::NoDungeon => write!(f, "no dungeons in data/dungeons"),
             Self::BadCamp(why) => write!(f, "data/camp.ron: {why}"),
+            Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -424,6 +429,7 @@ impl Blueprints {
         Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
             .with_tiles(Tiles::load(data)?)?
+            .with_phases(phase::read(data)?)
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)
             .and_then(|blueprints| {
                 let camp = camp::load(data, &blueprints)?;
@@ -589,6 +595,7 @@ impl Blueprints {
             tiles: Tiles::default(),
             dungeons: BTreeMap::new(),
             camp: None,
+            phases: Vec::new(),
         })
     }
 
@@ -639,6 +646,16 @@ impl Blueprints {
         }
         self.dungeons = dungeons;
         Ok(self)
+    }
+
+    /// Set before the dungeons, which name phases.
+    pub fn with_phases(mut self, phases: Vec<Phase>) -> Self {
+        self.phases = phases;
+        self
+    }
+
+    pub fn phases(&self) -> &[Phase] {
+        &self.phases
     }
 
     /// The camp, checked against these blueprints' dungeons already.

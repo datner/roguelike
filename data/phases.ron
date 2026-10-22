@@ -1,0 +1,16 @@
+// Phases (game::phase): the world turns through these, and at camp you
+// choose which to wait for; a dive keeps the phase it began in. The first is
+// where a new world starts. A dungeon's spawn entries may name the phases
+// they belong to (none means every phase).
+[
+    (
+        key: "Stillness",
+        name: "the stillness",
+        wait: "You wait until the deep air settles.",
+    ),
+    (
+        key: "Embers",
+        name: "the embers",
+        wait: "You wait until heat rises from below and the shamans stir.",
+    ),
+]

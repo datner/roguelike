@@ -19,10 +19,38 @@ pub struct Dungeon {
     pub cave: CaveParams,
     /// Creatures on each floor, placed in this order.
     pub creatures: Vec<Inhabitant>,
-    /// Items scattered on each floor, after the creatures, drawn from
+    /// Items scattered on each floor, after the creatures, each drawn from
     /// every blueprint with an `Item`.
     #[serde(default)]
-    pub items: usize,
+    pub items: Vec<Scatter>,
+}
+
+/// Items on a dungeon's floors.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Scatter {
+    pub count: usize,
+    #[serde(default)]
+    pub per_floor: usize,
+    /// The phases these turn up in; none means every phase.
+    #[serde(default)]
+    pub phases: Vec<String>,
+}
+
+impl Scatter {
+    pub fn on_floor(&self, floor: u32) -> usize {
+        grow(self.count, self.per_floor, floor)
+    }
+
+    pub fn in_phase(&self, phase: &str) -> bool {
+        self.phases.is_empty() || self.phases.iter().any(|p| p == phase)
+    }
+}
+
+/// `count` on the first floor and `per_floor` more on each one below.
+fn grow(count: usize, per_floor: usize, floor: u32) -> usize {
+    let below = usize::try_from(floor.saturating_sub(1)).unwrap_or(usize::MAX);
+    count.saturating_add(per_floor.saturating_mul(below))
 }
 
 /// A kind of creature on a dungeon's floors.
@@ -35,14 +63,19 @@ pub struct Inhabitant {
     /// How many more on each floor below the first.
     #[serde(default)]
     pub per_floor: usize,
+    /// The phases these live in; none means every phase.
+    #[serde(default)]
+    pub phases: Vec<String>,
 }
 
 impl Inhabitant {
     /// How many on `floor`, counted from 1.
     pub fn on_floor(&self, floor: u32) -> usize {
-        let below = usize::try_from(floor.saturating_sub(1)).unwrap_or(usize::MAX);
-        self.count
-            .saturating_add(self.per_floor.saturating_mul(below))
+        grow(self.count, self.per_floor, floor)
+    }
+
+    pub fn in_phase(&self, phase: &str) -> bool {
+        self.phases.is_empty() || self.phases.iter().any(|p| p == phase)
     }
 }
 
@@ -81,12 +114,23 @@ pub(crate) fn check(
             why: why.to_string(),
         });
     }
+    let bad = |why: String| BlueprintError::BadDungeon {
+        dungeon: key.to_string(),
+        why,
+    };
     for inhabitant in &dungeon.creatures {
         if blueprints.id(&inhabitant.blueprint).is_none() {
-            return Err(BlueprintError::BadDungeon {
-                dungeon: key.to_string(),
-                why: format!("unknown blueprint {:?}", inhabitant.blueprint),
-            });
+            return Err(bad(format!("unknown blueprint {:?}", inhabitant.blueprint)));
+        }
+    }
+    let named = dungeon
+        .creatures
+        .iter()
+        .flat_map(|inhabitant| &inhabitant.phases)
+        .chain(dungeon.items.iter().flat_map(|scatter| &scatter.phases));
+    for phase in named {
+        if !blueprints.phases().iter().any(|known| &known.key == phase) {
+            return Err(bad(format!("unknown phase {phase:?}")));
         }
     }
     Ok(())
@@ -107,8 +151,13 @@ pub(crate) mod tests {
                 blueprint: "Goblin".into(),
                 count: 6,
                 per_floor: 1,
+                phases: Vec::new(),
             }],
-            items: 5,
+            items: vec![Scatter {
+                count: 5,
+                per_floor: 0,
+                phases: Vec::new(),
+            }],
         }
     }
 
@@ -118,6 +167,7 @@ pub(crate) mod tests {
             blueprint: "Goblin".into(),
             count: 6,
             per_floor: 2,
+            phases: Vec::new(),
         };
         assert_eq!(goblins.on_floor(1), 6);
         assert_eq!(goblins.on_floor(3), 10);

@@ -31,6 +31,8 @@ pub const STUDY: i64 = 5 * STANDARD;
 pub const PRACTICE: i64 = STANDARD;
 /// Taking the stairs, either way: a step.
 pub const STAIRS: i64 = MOVE;
+/// Waiting for a phase: one action, however long the wait (time is neutral).
+pub const WAIT_FOR_PHASE: i64 = STANDARD;
 /// Fetching a special arrow from the pack: the price of overriding the
 /// quiver (ADR 0013).
 pub const NOCK: i64 = STANDARD;
@@ -54,6 +56,7 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::Study { actor, .. } => Some((actor, STUDY)),
         Command::Practice(actor) => Some((actor, PRACTICE)),
         Command::Descend(actor) | Command::Ascend(actor) => Some((actor, STAIRS)),
+        Command::WaitForPhase { actor, .. } => Some((actor, WAIT_FOR_PHASE)),
         Command::Nock { actor, .. } => Some((actor, NOCK)),
         Command::Quiver { actor, .. } => Some((actor, QUIVER)),
         _ => None,

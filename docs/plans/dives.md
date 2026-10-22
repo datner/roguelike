@@ -61,7 +61,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tests: new game at camp, entrance → floor 1 → camp round trip, dive numbers count up and reroll the
   floor, save and load at camp, practice works at camp.
 
-### 4. Phases
+### 4. Phases — done
 - `data/phases.ron`: each phase's name and the line said when you wait for it. A dungeon's spawn entries
   may name the phases they belong to (none = every phase). Two phases to start, using the creatures that
   exist: a quiet phase (goblins) and an ember phase (goblins and shamans, more items).

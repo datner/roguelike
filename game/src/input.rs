@@ -75,6 +75,9 @@ pub enum InputEvent {
     Descend,
     /// Take the stairs up: `PlayerAction::Ascend`.
     Ascend,
+    /// Frontend only: pick a phase to wait for. The wait itself is
+    /// `PlayerAction::WaitForPhase`.
+    WaitForPhase,
     Quit,
 }
 
@@ -121,6 +124,9 @@ pub enum PlayerAction {
     Descend,
     /// Take the stairs up, back to camp (`dive`).
     Ascend,
+    /// At camp: the next dive will be in this phase, an index into
+    /// `phase::phases` (`phase`).
+    WaitForPhase(u32),
 }
 
 #[cfg(test)]

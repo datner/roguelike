@@ -11,12 +11,12 @@
 #   scripts/shots.sh --update [shot...]
 #       Rewrites the references that changed (commit them with the change).
 #
-# shots: menu play inventory look spells aim effects sprites fx (default all);
+# shots: menu play inventory look spells aim effects sprites fx phases (default all);
 # fx is the effects animating, 100 ms a frame, left to right. Reading an image
 # costs about width × height / 750 tokens: render only what a change touches,
 # cropped to the region it touched.
 set -euo pipefail
-all=(menu play inventory look spells aim effects sprites fx)
+all=(menu play inventory look spells aim effects sprites fx phases)
 usage="usage: scripts/shots.sh <dir>|--check|--update [shot...] [--crop map|side|bottom]"
 case ${1:?$usage} in
 --check | --update)

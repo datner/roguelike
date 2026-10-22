@@ -14,9 +14,9 @@ pub struct Chooser {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChooserAction {
+pub enum ChooserAction<T = ItemRef> {
     Cancel,
-    Pick(ItemRef),
+    Pick(T),
 }
 
 impl Chooser {
@@ -24,8 +24,12 @@ impl Chooser {
         self.selected
     }
 
-    /// `items` are the listed entries' refs, in the order drawn.
-    pub fn handle(&mut self, input: OverlayInput, items: &[ItemRef]) -> Option<ChooserAction> {
+    /// `items` are what the listed rows stand for, in the order drawn.
+    pub fn handle<T: Copy>(
+        &mut self,
+        input: OverlayInput,
+        items: &[T],
+    ) -> Option<ChooserAction<T>> {
         self.selected = self.selected.min(items.len().saturating_sub(1));
         match input {
             OverlayInput::Up => self.selected = self.selected.saturating_sub(1),

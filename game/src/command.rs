@@ -147,6 +147,12 @@ pub(crate) enum Command {
     Descend(Entity),
     /// Take the stairs up, back to camp (`dive::ascend`).
     Ascend(Entity),
+    /// At camp: the next dive will be in phase `phase`, an index into
+    /// `Blueprints::phases` (`phase::wait_for`).
+    WaitForPhase {
+        actor: Entity,
+        phase: u32,
+    },
     /// Take up a style `actor` knows, or set aside the one they follow
     /// (ADR 0019).
     FollowStyle {
@@ -228,9 +234,10 @@ impl Command {
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Study { actor, item } => [Some(actor), Some(item)],
-            Command::Practice(actor) | Command::Descend(actor) | Command::Ascend(actor) => {
-                [Some(actor), None]
-            }
+            Command::Practice(actor)
+            | Command::Descend(actor)
+            | Command::Ascend(actor)
+            | Command::WaitForPhase { actor, .. } => [Some(actor), None],
             Command::Recharge { spell, .. } => [Some(spell), None],
             Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
@@ -297,6 +304,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Descend(actor) => crate::dive::descend(state, actor),
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
+            Command::WaitForPhase { actor, phase } => crate::phase::wait_for(state, actor, phase),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
             Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),
@@ -373,6 +381,14 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
                 return false;
             }
             state.log.push("There is nothing here to pick up.");
+        }
+        Command::WaitForPhase { phase, .. } => {
+            let known = usize::try_from(phase).is_ok_and(|i| i < state.blueprints.phases().len());
+            match crate::phase::wait_refusal(state) {
+                None if known => return false,
+                None => state.log.push("There is no such phase."),
+                Some(why) => state.log.push(why),
+            }
         }
         Command::Descend(entity) | Command::Ascend(entity) => {
             let (stairs, refusal) = match *command {

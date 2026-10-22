@@ -1,8 +1,9 @@
 // A dungeon (game::dungeon): its name, the line logged on reaching each
 // floor, how its floors are generated, and what lives on them. Creatures are
 // placed in the order listed, then items; `per_floor` adds that many more on
-// each floor below the first. Changing the cave tuning or the counts changes
-// every seeded world.
+// each floor below the first, and `phases` limits an entry to those phases
+// (data/phases.ron). Changing the cave tuning or the counts changes every
+// seeded world.
 (
     name: "the caves",
     arrival: "Goblins prowl these caves.",
@@ -15,7 +16,10 @@
     ),
     creatures: [
         (blueprint: "Goblin", count: 6, per_floor: 1),
-        (blueprint: "GoblinShaman", count: 1),
+        (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),
     ],
-    items: 5,
+    items: [
+        (count: 5),
+        (count: 3, phases: ["Embers"]),
+    ],
 )

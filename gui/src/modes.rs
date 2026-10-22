@@ -8,7 +8,7 @@ use front::overlay::{LineKind, TABS, Title, Views};
 use front::session::{Mode, Session};
 use front::targeting::spell_text;
 use front::text::{self, Seg};
-use game::{Cell, GameState, Grid, Rgb, aim, camera, spells, throwables};
+use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, throwables};
 
 use crate::map_view::TILE;
 use crate::map_view::{Layout, screen_tile};
@@ -165,6 +165,10 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                 })
                 .collect();
             chooser_window(ui, "Cast what?", rows, chooser.selected())
+        }
+        Mode::ChoosePhase(chooser) => {
+            let rows = phases(state).iter().map(text::phase).collect();
+            chooser_window(ui, "Wait for which phase?", rows, chooser.selected())
         }
         Mode::Overlay(overlay) => {
             let views = Views::of(state);

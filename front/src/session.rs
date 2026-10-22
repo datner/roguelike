@@ -2,7 +2,8 @@
 
 use game::{
     FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items, explore_step,
-    fire_step, practice_step, spells, take_fx, take_turn, throwables, travel_step,
+    fire_step, phases, practice_step, spells, take_fx, take_turn, throwables, travel_step,
+    wait_refusal,
 };
 
 use crate::input::Input;
@@ -18,6 +19,8 @@ pub enum Mode {
     Choose(Chooser),
     /// Picking a spell to cast.
     ChooseSpell(Chooser),
+    /// At camp: picking the phase to wait for.
+    ChoosePhase(Chooser),
     Aim(Aiming),
     /// Looking around (`;`).
     Look(Looking),
@@ -87,7 +90,9 @@ impl Session {
         }
         match self.mode {
             Mode::Play => Keys::Game,
-            Mode::Overlay(_) | Mode::Choose(_) | Mode::ChooseSpell(_) => Keys::List,
+            Mode::Overlay(_) | Mode::Choose(_) | Mode::ChooseSpell(_) | Mode::ChoosePhase(_) => {
+                Keys::List
+            }
             Mode::Aim(_) | Mode::Look(_) => Keys::Cursor,
         }
     }
@@ -181,6 +186,7 @@ impl Session {
             InputEvent::Throw => self.mode = start_throw(state),
             InputEvent::Fire => self.mode = start_fire(state),
             InputEvent::Cast => self.mode = start_cast(state),
+            InputEvent::WaitForPhase => self.mode = start_waiting(state),
         }
         Outcome::Continue
     }
@@ -227,6 +233,17 @@ impl Session {
                     None => {}
                 }
             }
+            Mode::ChoosePhase(chooser) => {
+                let indices: Vec<u32> = (0..).take(phases(state).len()).collect();
+                match chooser.handle(input, &indices) {
+                    Some(ChooserAction::Cancel) => self.mode = Mode::Play,
+                    Some(ChooserAction::Pick(phase)) => {
+                        take_turn(state, PlayerAction::WaitForPhase(phase));
+                        self.mode = Mode::Play;
+                    }
+                    None => {}
+                }
+            }
             Mode::Play | Mode::Aim(_) | Mode::Look(_) => {}
         }
     }
@@ -255,7 +272,11 @@ impl Session {
                 }
                 None => {}
             },
-            Mode::Play | Mode::Overlay(_) | Mode::Choose(_) | Mode::ChooseSpell(_) => {}
+            Mode::Play
+            | Mode::Overlay(_)
+            | Mode::Choose(_)
+            | Mode::ChooseSpell(_)
+            | Mode::ChoosePhase(_) => {}
         }
     }
 
@@ -319,6 +340,23 @@ fn start_cast(state: &mut GameState) -> Mode {
     Mode::ChooseSpell(Chooser::default())
 }
 
+/// The phase list at camp, starting on the phase already chosen; elsewhere
+/// a log line saying why not.
+fn start_waiting(state: &mut GameState) -> Mode {
+    if let Some(why) = wait_refusal(state) {
+        state.log.push(why);
+        return Mode::Play;
+    }
+    let mut chooser = Chooser::default();
+    let chosen = phases(state).iter().position(|phase| phase.chosen);
+    let indices: Vec<u32> = (0..).take(phases(state).len()).collect();
+    chooser.handle(
+        crate::input::OverlayInput::Focus(chosen.unwrap_or(0)),
+        &indices,
+    );
+    Mode::ChoosePhase(chooser)
+}
+
 #[cfg(test)]
 mod tests {
     use game::{Dir, Tick};
@@ -339,6 +377,36 @@ mod tests {
             .next()
             .cloned()
             .unwrap_or_default()
+    }
+
+    #[test]
+    fn w_at_camp_lists_the_phases_and_picking_one_waits_for_it() {
+        let mut session = session();
+        assert_eq!(session.state().place, game::Place::Camp);
+        session.handle(Input::Game(InputEvent::WaitForPhase));
+        let Mode::ChoosePhase(chooser) = session.mode() else {
+            panic!("the phase list is up");
+        };
+        assert_eq!(chooser.selected(), 0, "on the phase already chosen");
+        let before = session.state().now;
+        session.handle(Input::List(OverlayInput::Down));
+        session.handle(Input::List(OverlayInput::Select));
+        assert!(matches!(session.mode(), Mode::Play));
+        assert_eq!(session.state().phase, "Embers");
+        assert!(session.state().now > before, "waiting takes a turn");
+    }
+
+    #[test]
+    fn w_away_from_camp_says_why_not() {
+        let blueprints = game::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap()
+        .with_camp(None);
+        let mut session = Session::new(GameState::new(3, blueprints).unwrap(), "hero");
+        session.handle(Input::Game(InputEvent::WaitForPhase));
+        assert!(matches!(session.mode(), Mode::Play));
+        assert_eq!(last_log(&session), "You can only wait for a phase at camp.");
     }
 
     #[test]

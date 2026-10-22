@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 29;
+pub const SAVE_VERSION: u32 = 30;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -135,6 +135,7 @@ struct Save {
     explore_items: ExploreItems,
     place: crate::dive::Place,
     dives: u32,
+    phase: String,
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
@@ -446,6 +447,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         explore_items: state.explore_items,
         place: state.place.clone(),
         dives: state.dives,
+        phase: state.phase.clone(),
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
@@ -561,6 +563,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         explore_items: save.explore_items,
         place: save.place,
         dives: save.dives,
+        phase: save.phase,
     };
     fov::update(&mut state);
     Ok(state)

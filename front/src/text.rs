@@ -1,8 +1,8 @@
 //! Text the player reads in panels, as rows of segments a frontend styles: the character sheet, the equipment list, an item's name. Built once here so every frontend says the same thing.
 
 use game::{
-    DamageType, ExploreItems, GameState, ItemView, Rgb, Stat, capitalize, character_sheet,
-    equipment_view, inspect, styles,
+    DamageType, ExploreItems, GameState, ItemView, PhaseView, Rgb, Stat, capitalize,
+    character_sheet, equipment_view, inspect, styles,
 };
 
 /// A run of text and how to show it.
@@ -33,6 +33,16 @@ pub fn flat(row: &[Seg]) -> String {
             Seg::Glyph(glyph, _) => glyph.to_string(),
         })
         .collect()
+}
+
+/// A phase in the camp's list: its name, and a quiet note on the one the
+/// next dive will be in.
+pub fn phase(phase: &PhaseView) -> Row {
+    let mut row = vec![Seg::Plain(capitalize(&phase.name))];
+    if phase.chosen {
+        row.push(Seg::Quiet("  (the next dive)".into()));
+    }
+    row
 }
 
 /// The item's glyph, name and note.

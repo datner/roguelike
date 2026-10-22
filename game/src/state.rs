@@ -85,6 +85,8 @@ pub struct GameState {
     pub place: crate::dive::Place,
     /// Dives started, so each gets its own floors.
     pub dives: u32,
+    /// The phase the next dive will be in, chosen at camp (`phase`).
+    pub phase: String,
     /// Effects since the frontend last took them, for animation only:
     /// never read by the simulation, never saved (ADR 0022).
     pub(crate) fx: Vec<crate::fx::Fx>,
@@ -122,7 +124,12 @@ impl GameState {
             .ok_or(BlueprintError::NoDungeon)?
             .cave
             .clone();
-        let floor = crate::dive::build(seed, &dungeon, &cave, 1, 1);
+        let phase = blueprints
+            .phases()
+            .first()
+            .map(|phase| phase.key.clone())
+            .unwrap_or_default();
+        let floor = crate::dive::build(seed, &cave, &dungeon, &phase, 1, 1);
         let mut rngs = Rngs::new(seed, 0);
         rngs.map = floor.map_stream;
         rngs.spawn = floor.spawn_stream;
@@ -130,6 +137,7 @@ impl GameState {
         let mut state = Self::with_map(seed, rngs, floor.map, Position { x, y }, blueprints)?;
         state.place = crate::dive::Place::Floor {
             dungeon,
+            phase,
             dive: 1,
             floor: 1,
         };
@@ -160,21 +168,33 @@ impl GameState {
         else {
             return Ok(());
         };
-        let crate::dive::Place::Floor { dungeon, floor, .. } = &self.place else {
+        let crate::dive::Place::Floor {
+            dungeon,
+            phase,
+            floor,
+            ..
+        } = &self.place
+        else {
             if let Some(line) = self.blueprints.camp().map(|camp| camp.arrival_line.clone()) {
                 self.log.push(line);
             }
             return Ok(());
         };
-        let floor = *floor;
+        let (floor, phase) = (*floor, phase.clone());
         let Some(dungeon) = self.blueprints.dungeon(dungeon).cloned() else {
             return Ok(());
         };
-        for inhabitant in &dungeon.creatures {
+        for inhabitant in dungeon.creatures.iter().filter(|i| i.in_phase(&phase)) {
             self.place(&inhabitant.blueprint, inhabitant.on_floor(floor), from)?;
         }
         // After the creatures, so adding items leaves their placement alone.
-        self.scatter_items(dungeon.items, from)?;
+        let items = dungeon
+            .items
+            .iter()
+            .filter(|scatter| scatter.in_phase(&phase))
+            .map(|scatter| scatter.on_floor(floor))
+            .sum();
+        self.scatter_items(items, from)?;
         self.log.push(dungeon.arrival);
         Ok(())
     }
@@ -245,8 +265,14 @@ impl GameState {
         let unseen = Grid::new(map.width, map.height, false);
         let no_items = Grid::new(map.width, map.height, None);
         // The first dungeon until the caller says where this is.
+        let first_phase = blueprints
+            .phases()
+            .first()
+            .map(|phase| phase.key.clone())
+            .unwrap_or_default();
         let place = crate::dive::Place::Floor {
             dungeon: blueprints.first_dungeon().unwrap_or_default().to_string(),
+            phase: first_phase.clone(),
             dive: 1,
             floor: 1,
         };
@@ -274,6 +300,7 @@ impl GameState {
             explore_items: ExploreItems::default(),
             place,
             dives: 0,
+            phase: first_phase,
             fx: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
@@ -731,10 +758,12 @@ pub(crate) mod tests {
             crate::skill::tests::book(),
         )
         .and_then(|blueprints| {
-            blueprints.with_dungeons(BTreeMap::from([(
-                "Test".to_string(),
-                crate::dungeon::tests::test_dungeon(),
-            )]))
+            blueprints
+                .with_phases(crate::phase::tests::test_phases())
+                .with_dungeons(BTreeMap::from([(
+                    "Test".to_string(),
+                    crate::dungeon::tests::test_dungeon(),
+                )]))
         })
         .expect("test blueprints resolve")
     }
@@ -816,7 +845,7 @@ pub(crate) mod tests {
                     *pos
                 })
                 .collect();
-            let expected = crate::dungeon::tests::test_dungeon().items;
+            let expected = crate::dungeon::tests::test_dungeon().items[0].count;
             assert_eq!(items.len(), expected, "seed {seed}");
             for at in &items {
                 assert_eq!(state.map.get(at.x, at.y), Some(&Tile::Floor));

@@ -20,9 +20,11 @@ pub enum Place {
     /// Between dives (`camp`).
     Camp,
     /// `floor` of the `dive`th dive, both counted from 1, in the dungeon
-    /// `data/dungeons/<dungeon>.ron` describes.
+    /// `data/dungeons/<dungeon>.ron` describes, during `phase` (fixed for
+    /// the whole dive).
     Floor {
         dungeon: String,
+        phase: String,
         dive: u32,
         floor: u32,
     },
@@ -36,13 +38,19 @@ fn name_seed(name: &str) -> u64 {
     })
 }
 
-/// A floor's seed: a zone's (ADR 0009) in the dungeon's own world,
-/// addressed by dive and floor. Every dive rerolls its floors; leaving
-/// `dive` out of the address would keep their layouts.
-pub(crate) fn floor_seed(world_seed: u64, dungeon: &str, dive: u32, floor: u32) -> u64 {
+/// A floor's seed: a zone's (ADR 0009) in the world of this dungeon in this
+/// phase, addressed by dive and floor. Every dive rerolls its floors;
+/// leaving `dive` out of the address would keep their layouts.
+pub(crate) fn floor_seed(
+    world_seed: u64,
+    dungeon: &str,
+    phase: &str,
+    dive: u32,
+    floor: u32,
+) -> u64 {
     let index = |n: u32| i32::try_from(n.saturating_sub(1)).unwrap_or(i32::MAX);
     zone_seed(
-        mix(world_seed, name_seed(dungeon)),
+        mix(mix(world_seed, name_seed(dungeon)), name_seed(phase)),
         ZoneCoord {
             x: index(dive),
             y: index(floor),
@@ -67,12 +75,13 @@ pub(crate) struct Floor {
 /// the centre where you arrive, the stairs down farthest from them.
 pub(crate) fn build(
     world_seed: u64,
-    dungeon: &str,
     cave: &CaveParams,
+    dungeon: &str,
+    phase: &str,
     dive: u32,
     floor: u32,
 ) -> Floor {
-    let seed = floor_seed(world_seed, dungeon, dive, floor);
+    let seed = floor_seed(world_seed, dungeon, phase, dive, floor);
     let (mut map, map_stream) = generate_cave(seed, cave);
     let arrival = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
     // Before the stairs change any tile: `region` walks plain floor.
@@ -165,7 +174,7 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
     if actor != state.player {
         return;
     }
-    let (dungeon, dive, floor) = match &state.place {
+    let (dungeon, phase, dive, floor) = match &state.place {
         Place::Camp => {
             let at = state
                 .world
@@ -182,26 +191,29 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
                 state.log.push("These stairs lead nowhere.");
                 return;
             };
-            (dungeon, state.dives + 1, 1)
+            // A new dive, in the phase waited for.
+            (dungeon, state.phase.clone(), state.dives + 1, 1)
         }
         Place::Floor {
             dungeon,
+            phase,
             dive,
             floor,
-        } => (dungeon.clone(), *dive, floor + 1),
+        } => (dungeon.clone(), phase.clone(), *dive, floor + 1),
     };
     let Some(found) = state.blueprints.dungeon(&dungeon) else {
         state.log.push("The stairs lead nowhere.");
         return;
     };
     let (cave, name) = (found.cave.clone(), found.name.clone());
-    let next = build(state.seed, &dungeon, &cave, dive, floor);
+    let next = build(state.seed, &cave, &dungeon, &phase, dive, floor);
     state.dives = dive;
     enter(
         state,
         next,
         Place::Floor {
             dungeon,
+            phase,
             dive,
             floor,
         },
@@ -290,6 +302,7 @@ mod tests {
             a.place,
             Place::Floor {
                 dungeon: "Test".into(),
+                phase: "Still".into(),
                 dive: 1,
                 floor: 2
             }
@@ -347,6 +360,7 @@ mod tests {
             loaded.place,
             Place::Floor {
                 dungeon: "Test".into(),
+                phase: "Still".into(),
                 dive: 1,
                 floor: 2
             }
@@ -418,6 +432,7 @@ mod tests {
             state.place,
             Place::Floor {
                 dungeon: "Test".into(),
+                phase: "Still".into(),
                 dive: 1,
                 floor: 1
             }
@@ -479,9 +494,65 @@ mod tests {
         assert!(state.now > before, "a turn of drills");
     }
 
+    /// The test dungeon with three more goblins in the embers.
+    fn ember_goblins_at_camp() -> GameState {
+        let mut dungeon = crate::dungeon::tests::test_dungeon();
+        dungeon.creatures.push(crate::dungeon::Inhabitant {
+            blueprint: "Goblin".into(),
+            count: 3,
+            per_floor: 0,
+            phases: vec!["Embers".into()],
+        });
+        let blueprints = test_blueprints()
+            .with_dungeons(std::collections::BTreeMap::from([(
+                "Test".to_string(),
+                dungeon,
+            )]))
+            .unwrap()
+            .with_camp(Some(crate::camp::tests::test_camp()));
+        GameState::new(9, blueprints).unwrap()
+    }
+
+    fn goblins(state: &GameState) -> usize {
+        state
+            .world
+            .query::<&crate::entity::Name>()
+            .iter()
+            .filter(|name| name.0 == "goblin")
+            .count()
+    }
+
+    #[test]
+    fn the_phase_decides_what_lives_below_and_holds_for_the_dive() {
+        let mut still = ember_goblins_at_camp();
+        walk_to_the_entrance(&mut still);
+        take_turn(&mut still, PlayerAction::Descend);
+
+        let mut embers = ember_goblins_at_camp();
+        take_turn(&mut embers, PlayerAction::WaitForPhase(1));
+        walk_to_the_entrance(&mut embers);
+        take_turn(&mut embers, PlayerAction::Descend);
+        assert!(matches!(&embers.place, Place::Floor { phase, .. } if phase == "Embers"));
+        assert!(goblins(&embers) > goblins(&still), "the embers bring more");
+
+        // Waiting is for camp; the dive keeps its phase all the way down.
+        take_turn(&mut embers, PlayerAction::WaitForPhase(0));
+        assert_eq!(embers.phase, "Embers");
+        let stairs = stairs_down(&embers);
+        let player = embers.player;
+        *embers.world.get::<&mut Position>(player).unwrap() = Position {
+            x: stairs.0,
+            y: stairs.1,
+        };
+        take_turn(&mut embers, PlayerAction::Descend);
+        assert!(matches!(&embers.place, Place::Floor { phase, floor: 2, .. } if phase == "Embers"));
+    }
+
     #[test]
     fn every_dive_rerolls_its_floors() {
-        assert_ne!(floor_seed(9, "Caves", 1, 2), floor_seed(9, "Caves", 2, 2));
-        assert_ne!(floor_seed(9, "Caves", 1, 1), floor_seed(9, "Castle", 1, 1));
+        let seed = |dungeon, phase, dive, floor| floor_seed(9, dungeon, phase, dive, floor);
+        assert_ne!(seed("Caves", "Still", 1, 2), seed("Caves", "Still", 2, 2));
+        assert_ne!(seed("Caves", "Still", 1, 1), seed("Castle", "Still", 1, 1));
+        assert_ne!(seed("Caves", "Still", 1, 1), seed("Caves", "Embers", 1, 1));
     }
 }
