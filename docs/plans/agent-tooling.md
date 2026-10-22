@@ -10,7 +10,7 @@ costs about width × height / 750 tokens, so the tools aim at reading less.
 `app/tests.rs` (the app's tests), `app/shots.rs` (the screenshot test),
 `testing.rs` (setup and the headless window), so `app.rs` holds the app.
 
-### 1. Cheaper screenshots
+### 1. Cheaper screenshots — done
 `scripts/shots.sh <dir> [shot…] [--crop map|side|bottom]`: render only the
 named shots, cropped to a region taken from the layout constants.
 

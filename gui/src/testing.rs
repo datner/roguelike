@@ -12,6 +12,9 @@ use crate::app::App;
 use crate::input::presses;
 
 /// A fresh saves directory per test, under the system temp dir.
+/// The test window's size: `main`'s default window.
+pub const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
+
 pub fn setup(name: &str) -> Setup {
     let saves_dir =
         std::env::temp_dir().join(format!("roguelike-gui-{}-{name}", std::process::id()));
@@ -37,29 +40,39 @@ pub fn window(name: &str) -> Harness<'static, App> {
 
 pub fn harness(app: App) -> Harness<'static, App> {
     let mut fonts_installed = false;
-    let mut harness = Harness::builder()
-        .with_size(egui::vec2(1280.0, 800.0))
-        .build_ui_state(
-            move |ui, app: &mut App| {
-                if !fonts_installed {
-                    crate::theme::apply(ui.ctx());
-                    fonts_installed = true;
-                    ui.ctx().request_repaint();
-                    return;
-                }
-                let events = ui.input(|input| input.events.clone());
-                let now = Instant::now();
-                app.update(&presses(&events), now);
-                app.show(ui, now);
-            },
-            app,
-        );
+    let mut harness = Harness::builder().with_size(WINDOW).build_ui_state(
+        move |ui, app: &mut App| {
+            if !fonts_installed {
+                crate::theme::apply(ui.ctx());
+                fonts_installed = true;
+                ui.ctx().request_repaint();
+                return;
+            }
+            let events = ui.input(|input| input.events.clone());
+            let now = Instant::now();
+            app.update(&presses(&events), now);
+            app.show(ui, now);
+        },
+        app,
+    );
     harness.run();
     harness
 }
 
 pub fn type_text(harness: &mut Harness<'static, App>, text: &str) {
     harness.event(Event::Text(text.into()));
+    harness.run();
+}
+
+/// A named key pressed and handled, as eframe sends it.
+pub fn press_key(harness: &mut Harness<'static, App>, key: egui::Key) {
+    harness.event(Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
     harness.run();
 }
 
