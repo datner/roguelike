@@ -18,6 +18,8 @@ pub enum Press {
     BackTab,
     Backspace,
     Delete,
+    /// Shows sprites or glyphs: the window's own setting, no game key.
+    F2,
 }
 
 /// This frame's key presses, in order. Releases are ignored.
@@ -51,6 +53,7 @@ fn named(key: Key, shift: bool) -> Option<Press> {
         Key::Tab => Press::Tab,
         Key::Backspace => Press::Backspace,
         Key::Delete => Press::Delete,
+        Key::F2 => Press::F2,
         _ => return None,
     })
 }

@@ -76,7 +76,7 @@ fn main() -> ExitCode {
         "Roguelike",
         options,
         Box::new(|creation| {
-            gui::map_view::install_fonts(&creation.egui_ctx);
+            gui::theme::apply(&creation.egui_ctx);
             Ok(Box::new(App::new(setup, character)))
         }),
     );

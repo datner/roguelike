@@ -2,22 +2,27 @@
 
 use std::time::{Duration, Instant};
 
-use eframe::egui::{self, Color32, Sense, ViewportCommand};
+use eframe::egui::{self, Sense, ViewportCommand};
 use front::input::Input;
 use front::menu::Menu;
 use front::session::{Keys, Outcome};
 use front::title::{self, Game, Next, Setup};
-use game::render_view;
+use game::render_layers;
 
+use crate::fx::Effects;
 use crate::input::{Press, map_cursor, map_game, map_list, map_menu, presses};
 use crate::map_view::{self, Layout};
 use crate::menu_view;
 use crate::modes;
 use crate::panels::{self, SIDE_WIDTH};
+use crate::sprites::Atlas;
+use crate::theme::BG;
 
 /// Pause between auto-explore or practice steps, so the walk is visible and
 /// a key press can interrupt it (as in `term`).
 const AUTO_STEP_DELAY: Duration = Duration::from_millis(25);
+/// How often the window redraws for animated sprites.
+const SPRITE_FRAME: Duration = Duration::from_millis(50);
 
 pub struct App {
     setup: Setup,
@@ -29,6 +34,12 @@ pub struct App {
     hovered: Option<(i32, i32)>,
     /// The panel row last scrolled into view.
     scrolled: Option<usize>,
+    effects: Effects,
+    /// Sprites instead of glyphs (F2), and their atlas once loaded.
+    sprites: bool,
+    atlas: Option<Atlas>,
+    /// The clock sprites animate on.
+    started: Instant,
 }
 
 /// Whether the window should stay open.
@@ -50,6 +61,10 @@ impl App {
             next_step: None,
             hovered: None,
             scrolled: None,
+            effects: Effects::default(),
+            sprites: false,
+            atlas: None,
+            started: Instant::now(),
         };
         if let Some(character) = first {
             app.play(&character);
@@ -76,12 +91,20 @@ impl App {
             title::refresh(&mut self.menu, &self.setup.saves_dir);
         }
         self.next_step = None;
+        self.effects.finish();
     }
 
     /// Feeds this frame's key presses to the menu or the game, then takes an
-    /// auto-run step if one is due.
+    /// auto-run step if one is due. Any key finishes the effects playing.
     pub fn update(&mut self, presses: &[Press], now: Instant) -> Flow {
+        if !presses.is_empty() {
+            self.effects.finish();
+        }
         for &press in presses {
+            if press == Press::F2 {
+                self.sprites = !self.sprites;
+                continue;
+            }
             if self.press(press) == Flow::Exit {
                 return Flow::Exit;
             }
@@ -97,9 +120,7 @@ impl App {
             } else {
                 self.next_step = None;
             }
-            // Animation comes with the effects stream; until then flights
-            // are dropped so they don't pile up.
-            session.take_trails();
+            self.effects.add(session.take_fx(), now);
         }
         Flow::Continue
     }
@@ -142,30 +163,53 @@ impl App {
 
     /// Draws the menu or the game, then hands the session whatever the
     /// pointer did to the map and windows, as the same inputs keys send.
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui, now: Instant) {
         let Some(game) = &mut self.game else {
             egui::CentralPanel::default().show(ui, |ui| menu_view::draw(ui, &self.menu));
             return;
         };
+        if self.sprites && self.atlas.is_none() {
+            match Atlas::load(ui.ctx(), game.session.state().blueprints.tiles()) {
+                Ok(atlas) => self.atlas = Some(atlas),
+                Err(err) => {
+                    eprintln!("No sprites: {err}");
+                    self.sprites = false;
+                }
+            }
+        }
         let session = &game.session;
         let hovered = &mut self.hovered;
+        let effects = &self.effects;
+        let sprites = self
+            .atlas
+            .as_ref()
+            .filter(|_| self.sprites)
+            .map(|atlas| (atlas, now - self.started));
         let mut inputs = Vec::new();
         egui::Panel::right("side")
+            .frame(egui::Frame::new().fill(BG))
+            .show_separator_line(false)
             .resizable(false)
             .exact_size(SIDE_WIDTH)
             .show(ui, |ui| panels::side(ui, session));
         egui::Panel::bottom("log")
+            .frame(egui::Frame::new().fill(BG))
+            .show_separator_line(false)
             .resizable(false)
+            .exact_size(panels::BOTTOM_HEIGHT)
             .show(ui, |ui| panels::bottom(ui, session));
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(Color32::BLACK))
+            .frame(egui::Frame::new().fill(BG))
             .show(ui, |ui| {
                 let rect = ui.max_rect();
                 let response = ui.interact(rect, ui.scope_id().with("map"), Sense::click());
-                let layout = Layout::new(rect);
-                let grid = render_view(session.state(), layout.width, layout.height);
-                map_view::draw(ui.painter(), &layout, &grid);
-                modes::over_map(ui.painter(), &layout, session);
+                let layout = Layout::new(rect).shifted(effects.shake(now));
+                let state = session.state();
+                let (mut grid, light) = render_layers(state, layout.width, layout.height);
+                modes::mark(&mut grid, &layout, session);
+                effects.mark(&mut grid, state, &layout, now);
+                map_view::draw(ui.painter(), &layout, &grid, &light, sprites);
+                effects.draw(ui.painter(), state, &layout, now);
                 let at = modes::pointed(session.state(), &layout, response.hover_pos());
                 let moved = if at == *hovered { None } else { at };
                 *hovered = at;
@@ -173,10 +217,14 @@ impl App {
                 modes::hover_tooltip(&response, session, at);
             });
         inputs.extend(modes::windows(ui, session, &mut self.scrolled));
+        if !inputs.is_empty() {
+            self.effects.finish();
+        }
         let mut quit = false;
         for input in inputs {
             quit |= game.session.handle(input) == Outcome::Quit;
         }
+        self.effects.add(game.session.take_fx(), now);
         if quit {
             self.leave_game();
         }
@@ -186,10 +234,17 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let events = ui.input(|input| input.events.clone());
-        if self.update(&presses(&events), Instant::now()) == Flow::Exit {
+        let now = Instant::now();
+        if self.update(&presses(&events), now) == Flow::Exit {
             ui.ctx().send_viewport_cmd(ViewportCommand::Close);
         }
-        self.show(ui);
+        self.show(ui, now);
+        if self.effects.update(now) {
+            ui.ctx().request_repaint();
+        } else if self.sprites && self.game.is_some() {
+            // Animated sprites turn on the clock, not on input.
+            ui.ctx().request_repaint_after(SPRITE_FRAME);
+        }
         if self
             .game
             .as_ref()
@@ -267,26 +322,58 @@ mod tests {
         assert!(app.game().unwrap().session.auto().is_none());
     }
 
+    #[test]
+    fn a_shot_plays_its_flight_until_a_key_finishes_it() {
+        let mut app = App::new(setup("fx"), Some("hero".into()));
+        let now = Instant::now();
+        let aim_and_shoot = [
+            Press::Char('f'),
+            Press::Right,
+            Press::Right,
+            Press::Right,
+            Press::Enter,
+        ];
+        app.update(&aim_and_shoot, now);
+        assert!(app.effects.update(now), "the arrow is in flight");
+        app.update(&[Press::Char('z')], now);
+        assert!(!app.effects.update(now), "a key finished it");
+    }
+
+    #[test]
+    fn f2_switches_sprites_without_taking_a_turn() {
+        let mut app = App::new(setup("sprites"), Some("hero".into()));
+        let before = now(&app);
+        app.update(&[Press::F2], Instant::now());
+        assert!(app.sprites);
+        assert_eq!(now(&app), before);
+        app.update(&[Press::F2], Instant::now());
+        assert!(!app.sprites);
+    }
+
     /// The app in a headless window, fed key and pointer events like eframe
     /// does. Fonts added in one pass apply from the next, as `main` adds
     /// them before the first. The harness panics on a glyph no font has, so
     /// every test through it also checks what it drew can be drawn.
     fn window(name: &str) -> Harness<'static, App> {
-        let app = App::new(setup(name), Some("hero".into()));
+        harness(App::new(setup(name), Some("hero".into())))
+    }
+
+    fn harness(app: App) -> Harness<'static, App> {
         let mut fonts_installed = false;
         let mut harness = Harness::builder()
             .with_size(egui::vec2(1280.0, 800.0))
             .build_ui_state(
                 move |ui, app: &mut App| {
                     if !fonts_installed {
-                        crate::map_view::install_fonts(ui.ctx());
+                        crate::theme::apply(ui.ctx());
                         fonts_installed = true;
                         ui.ctx().request_repaint();
                         return;
                     }
                     let events = ui.input(|input| input.events.clone());
-                    app.update(&presses(&events), Instant::now());
-                    app.show(ui);
+                    let now = Instant::now();
+                    app.update(&presses(&events), now);
+                    app.show(ui, now);
                 },
                 app,
             );
@@ -362,5 +449,73 @@ mod tests {
         harness.run();
         assert!(now(harness.state()) > before, "the click fired");
         assert!(mode(&harness).starts_with("Play"));
+    }
+
+    /// Renders each screen to PNGs for a human to look at, since nobody may
+    /// run the window from here. Needs a GPU, so it only runs when asked:
+    /// `GUI_SCREENSHOTS=<dir> cargo test -p gui screenshots -- --ignored`.
+    #[test]
+    #[ignore = "needs a GPU; writes PNGs to GUI_SCREENSHOTS"]
+    fn screenshots() {
+        let dir = std::path::PathBuf::from(std::env::var("GUI_SCREENSHOTS").unwrap());
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut menu = harness(App::new(setup("screenshots-menu"), None));
+        let image = menu.render().unwrap();
+        image.save(dir.join("menu.png")).unwrap();
+        let mut harness = window("screenshots");
+        for (keys, name) in [
+            ("", "play"),
+            ("i", "inventory"),
+            ("q;", "look"),
+            ("qc", "spells"),
+            ("qf", "aim"),
+        ] {
+            for key in keys.chars() {
+                type_text(&mut harness, &key.to_string());
+            }
+            let image = harness.render().unwrap();
+            image.save(dir.join(format!("{name}.png"))).unwrap();
+        }
+        // Effects around the player, caught early in their rise.
+        type_text(&mut harness, "q;");
+        let front::session::Mode::Look(looking) = harness.state().game().unwrap().session.mode()
+        else {
+            panic!("looking");
+        };
+        let (x, y) = looking.cursor();
+        type_text(&mut harness, "q");
+        let fx = vec![
+            game::Fx::Damage {
+                at: (x, y),
+                amount: 3,
+                blocked: 0,
+                to_player: true,
+            },
+            game::Fx::Outcome {
+                at: (x + 3, y),
+                kind: game::Outcome::Deflect,
+            },
+            game::Fx::Death { at: (x - 2, y) },
+            game::Fx::Flight(game::Trail {
+                glyph: '|',
+                fg: game::Rgb(200, 160, 90),
+                path: (1..8).map(|dx| (x, y - dx)).collect(),
+            }),
+        ];
+        harness.state_mut().effects.add(fx, Instant::now());
+        harness.step();
+        let image = harness.render().unwrap();
+        image.save(dir.join("effects.png")).unwrap();
+        harness.event(Event::Key {
+            key: egui::Key::F2,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run();
+        assert!(harness.state().atlas.is_some(), "the atlas loaded");
+        let image = harness.render().unwrap();
+        image.save(dir.join("sprites.png")).unwrap();
     }
 }

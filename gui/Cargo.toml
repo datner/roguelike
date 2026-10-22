@@ -6,6 +6,7 @@ edition.workspace = true
 game = { path = "../game" }
 front = { path = "../front" }
 eframe.workspace = true
+image.workspace = true
 
 [dev-dependencies]
-egui_kittest.workspace = true
+egui_kittest = { workspace = true, features = ["wgpu"] }
