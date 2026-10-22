@@ -14,7 +14,7 @@ costs about width × height / 750 tokens, so the tools aim at reading less.
 `scripts/shots.sh <dir> [shot…] [--crop map|side|bottom]`: render only the
 named shots, cropped to a region taken from the layout constants.
 
-### 2. Seeing animation
+### 2. Seeing animation — done
 The harness runs on a clock the test sets. An `fx` shot renders an effect at
 several moments and tiles the cropped frames into one contact sheet.
 

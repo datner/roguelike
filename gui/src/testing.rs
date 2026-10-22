@@ -1,5 +1,6 @@
 //! Test helpers: a game set up from the real data, and the app in a headless window (`egui_kittest`), fed key and pointer events like eframe does.
 
+use std::cell::Cell;
 use std::path::Path;
 use std::time::Instant;
 
@@ -11,10 +12,25 @@ use game::Tick;
 use crate::app::App;
 use crate::input::presses;
 
-/// A fresh saves directory per test, under the system temp dir.
+thread_local! {
+    /// The time the window's frames see, when a test sets one.
+    static CLOCK: Cell<Option<Instant>> = const { Cell::new(None) };
+}
+
+/// Freezes the window's clock at `at` (or lets it run with `None`), so a
+/// test can render an animation at chosen moments. Per test thread.
+pub fn set_clock(at: Option<Instant>) {
+    CLOCK.with(|clock| clock.set(at));
+}
+
+fn clock() -> Instant {
+    CLOCK.with(Cell::get).unwrap_or_else(Instant::now)
+}
+
 /// The test window's size: `main`'s default window.
 pub const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
 
+/// A fresh saves directory per test, under the system temp dir.
 pub fn setup(name: &str) -> Setup {
     let saves_dir =
         std::env::temp_dir().join(format!("roguelike-gui-{}-{name}", std::process::id()));
@@ -49,7 +65,7 @@ pub fn harness(app: App) -> Harness<'static, App> {
                 return;
             }
             let events = ui.input(|input| input.events.clone());
-            let now = Instant::now();
+            let now = clock();
             app.update(&presses(&events), now);
             app.show(ui, now);
         },
