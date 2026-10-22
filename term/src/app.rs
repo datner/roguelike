@@ -1,44 +1,35 @@
-//! The title-menu session, and the blocking, turn-based game loop and panel layout.
+//! The title-menu loop, and the blocking, turn-based game loop and panel layout. Keys go to `front`'s `Session`; this module only reads the terminal and draws.
 
 use std::io;
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use game::{
-    Blueprints, CaveParams, FireStep, GameState, InputEvent, PlayerAction, Shot,
-    cycle_explore_items, equipment_view, explore_step, fire_step, ideas, inventory_view,
-    practice_step, proficiencies, random_seed, render_view, skills, spells, styles, take_trails,
-    take_turn, throwables,
-};
+use front::input::Input;
+use front::menu::{Action, Menu};
+use front::overlay::Views;
+use front::session::{Keys, Mode, Outcome, Session};
+use front::title::{self, Next, Setup};
+use game::{render_view, spells, throwables};
 use ratatui::Frame;
-use ratatui::crossterm::event::{self, Event, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
 use crate::input::{map_aim_key, map_key_event, map_menu_key, map_overlay_key};
-use crate::menu::{self, Action, Menu};
-use crate::overlay::{self, Contents, Overlay, OverlayAction, Tab};
-use crate::saves::{self, Loaded};
+use crate::menu;
+use crate::overlay;
 use crate::side_panel;
-use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction, Flying, Looking};
+use crate::targeting::{self, Flying};
 use crate::tui::Backend;
 use crate::widgets::map_widget::{MapWidget, viewport_tiles};
 
 type Term = ratatui::Terminal<Backend>;
 
-pub struct Setup {
-    pub data_dir: PathBuf,
-    pub saves_dir: PathBuf,
-    /// Seed for new games; loaded games keep their own.
-    pub seed: Option<u64>,
-}
-
 /// Shows the title menu until it quits, performing its actions; quitting a
 /// game saves it and returns here. `first` runs before the menu is shown.
 pub fn session(terminal: &mut Term, setup: &Setup, first: Option<Action>) -> io::Result<()> {
     let mut menu = Menu::new(Vec::new());
-    refresh(&mut menu, &setup.saves_dir);
+    title::refresh(&mut menu, &setup.saves_dir);
     let mut pending = first;
     loop {
         let action = match pending.take() {
@@ -55,295 +46,91 @@ pub fn session(terminal: &mut Term, setup: &Setup, first: Option<Action>) -> io:
                 action
             }
         };
-        let dir = &setup.saves_dir;
-        let outcome = match action {
-            Action::Quit => return Ok(()),
-            Action::Play(character) => play(terminal, setup, &character)?,
-            Action::Delete(character) => {
-                saves::delete(dir, &character).map(|()| format!("Deleted {character}."))
+        match title::perform(&mut menu, &setup.saves_dir, action) {
+            Some(Next::Quit) => return Ok(()),
+            Some(Next::Play(character)) => {
+                let message = play(terminal, setup, &character)?;
+                let (Ok(message) | Err(message)) = message;
+                menu.show(message);
+                title::refresh(&mut menu, &setup.saves_dir);
             }
-            Action::Rename { from, to } => {
-                saves::rename(dir, &from, &to).map(|()| format!("Renamed {from} to {to}."))
-            }
-        };
-        let (Ok(message) | Err(message)) = outcome;
-        menu.show(message);
-        refresh(&mut menu, dir);
-    }
-}
-
-fn refresh(menu: &mut Menu, dir: &Path) {
-    match saves::list(dir) {
-        Ok(list) => menu.set_saves(list),
-        Err(err) => menu.show(err),
+            None => {}
+        }
     }
 }
 
 /// Plays `character` until they quit or die, then saves. The outer error
 /// is the terminal's; the inner one is a message for the menu.
 fn play(terminal: &mut Term, setup: &Setup, character: &str) -> io::Result<Result<String, String>> {
-    let path = match saves::path(&setup.saves_dir, character) {
-        Ok(path) => path,
+    let mut game = match title::start(setup, character) {
+        Ok(game) => game,
         Err(err) => return Ok(Err(err)),
     };
-    let mut state = match start(setup, character, &path) {
-        Ok(state) => state,
-        Err(err) => return Ok(Err(err)),
-    };
-    let ran = run(terminal, &mut state, character);
+    let ran = run(terminal, &mut game.session);
     // Saved even if the terminal failed, so the run isn't lost.
-    let saved = saves::save_on_quit(&path, &state);
+    let saved = title::finish(&game);
     ran?;
-    Ok(saved.map(|saved| {
-        if saved {
-            format!("Saved {character}.")
-        } else {
-            format!("{character} died on turn {}.", state.now.turn())
-        }
-    }))
-}
-
-/// The character's saved game, or a new one if it has no save yet.
-fn start(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, String> {
-    let blueprints = Blueprints::load(&setup.data_dir).map_err(|err| {
-        format!(
-            "Failed to load blueprints from {}: {err}",
-            setup.data_dir.display()
-        )
-    })?;
-    match saves::load(save_path, blueprints)? {
-        Loaded::Saved(mut state) => {
-            state.log.push(format!("Welcome back, {character}."));
-            if setup.seed.is_some() {
-                state
-                    .log
-                    .push(format!("--seed ignored: continuing seed {}.", state.seed));
-            }
-            Ok(*state)
-        }
-        Loaded::New(blueprints) => {
-            let cave = CaveParams::load(&setup.data_dir.join("cave.ron"))
-                .map_err(|err| format!("Failed to load cave parameters: {err}"))?;
-            let seed = setup.seed.unwrap_or_else(random_seed);
-            GameState::new(seed, blueprints, &cave)
-                .map_err(|err| format!("Failed to start a game: {err}"))
-        }
-    }
+    Ok(saved)
 }
 
 /// Blocks on `event::read()` and redraws after every event (including
 /// resize) — no tick loop: `game::take_turn` runs the world until the
-/// player is ready again.
-pub fn run(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
-    let mut modal: Option<Modal> = None;
-    terminal.draw(|frame| draw(frame, state, character, modal.as_ref()))?;
-
+/// player is ready again. Auto-explore and practice poll briefly between
+/// their steps so a key can interrupt.
+pub fn run(terminal: &mut Term, session: &mut Session) -> io::Result<()> {
+    terminal.draw(|frame| draw(frame, session, None))?;
     loop {
+        if session.auto().is_some() {
+            let going = session.auto_step();
+            animate(terminal, session)?;
+            terminal.draw(|frame| draw(frame, session, None))?;
+            if going && key_pressed_within(AUTO_STEP_DELAY)? {
+                session.stop_auto();
+            }
+            continue;
+        }
         match event::read()? {
-            Event::Key(key) if state.game_over => {
-                if key.kind != KeyEventKind::Release {
-                    return Ok(());
-                }
-                continue;
-            }
-            Event::Key(key) if modal.is_some() => {
-                match modal.as_mut() {
-                    Some(Modal::Overlay(overlay)) => {
-                        let Some(input) = map_overlay_key(key) else {
-                            continue;
-                        };
-                        let (inventory, equipment, skills) =
-                            (inventory_view(state), equipment_view(state), skills(state));
-                        let (proficiencies, ideas, styles) =
-                            (proficiencies(state), ideas(state), styles(state));
-                        let contents = Contents {
-                            inventory: &inventory,
-                            equipment: &equipment,
-                            skills: &skills,
-                            proficiencies: &proficiencies,
-                            ideas: &ideas,
-                            styles: &styles,
-                        };
-                        match overlay.handle(input, &contents) {
-                            Some(OverlayAction::Close) => modal = None,
-                            Some(OverlayAction::Act(action)) => take_turn(state, action),
-                            None => {}
-                        }
-                    }
-                    Some(Modal::Choose(chooser)) => {
-                        let Some(input) = map_overlay_key(key) else {
-                            continue;
-                        };
-                        let items: Vec<_> = throwables(state).iter().map(|i| i.item).collect();
-                        match chooser.handle(input, &items) {
-                            Some(ChooserAction::Cancel) => modal = None,
-                            Some(ChooserAction::Pick(item)) => {
-                                modal = Aiming::new(state, Shot::Throw(item)).map(Modal::Aim);
-                            }
-                            None => {}
-                        }
-                    }
-                    Some(Modal::ChooseSpell(chooser)) => {
-                        let Some(input) = map_overlay_key(key) else {
-                            continue;
-                        };
-                        let listed = spells(state);
-                        let refs: Vec<_> = listed.iter().map(|spell| spell.spell).collect();
-                        match chooser.handle(input, &refs) {
-                            Some(ChooserAction::Cancel) => modal = None,
-                            Some(ChooserAction::Pick(spell)) => {
-                                // A spell that can't be cast keeps the list up,
-                                // with the reason in the log.
-                                if let Some(aiming) = Aiming::new(state, Shot::Cast(spell)) {
-                                    modal = Some(Modal::Aim(aiming));
-                                } else if let Some(why) = listed
-                                    .into_iter()
-                                    .find(|listed| listed.spell == spell)
-                                    .and_then(|listed| listed.preview.blocked)
-                                {
-                                    state.log.push(why);
-                                }
-                            }
-                            None => {}
-                        }
-                    }
-                    Some(Modal::Look(looking)) => {
-                        let Some(input) = map_aim_key(key) else {
-                            continue;
-                        };
-                        if looking.handle(input, state) {
-                            modal = None;
-                        }
-                    }
-                    // Only ever on screen for one frame, between keys.
-                    Some(Modal::Flight(_)) => {}
-                    Some(Modal::Aim(aiming)) => {
-                        let Some(input) = map_aim_key(key) else {
-                            continue;
-                        };
-                        match aiming.handle(input, state) {
-                            Some(AimAction::Cancel) => modal = None,
-                            Some(AimAction::Take(action)) => {
-                                // A refused throw (out of range, unseen) keeps the cursor
-                                // up, with the reason in the log, so it can be nudged.
-                                let before = state.now;
-                                take_turn(state, action);
-                                animate(terminal, state, character)?;
-                                if state.now != before || state.game_over {
-                                    modal = None;
-                                }
-                            }
-                            None => {}
-                        }
-                    }
-                    None => {}
-                }
-                if state.game_over {
-                    modal = None;
-                }
-            }
             Event::Key(key) => {
-                let Some(input_event) = map_key_event(key) else {
+                let Some(input) = map_key(session.keys(), key) else {
                     continue;
                 };
-                match input_event {
-                    InputEvent::Quit => return Ok(()),
-                    InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
-                    InputEvent::Wait => take_turn(state, PlayerAction::Wait),
-                    InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
-                    InputEvent::Explore => explore(terminal, state, character)?,
-                    InputEvent::Practice => practise(terminal, state, character)?,
-                    InputEvent::Look => modal = Looking::new(state).map(Modal::Look),
-                    InputEvent::CycleExploreItems => cycle_explore_items(state),
-                    InputEvent::Inventory => {
-                        modal = Some(Modal::Overlay(Overlay::new(Tab::Inventory)))
-                    }
-                    InputEvent::Equipment => {
-                        modal = Some(Modal::Overlay(Overlay::new(Tab::Equipment)))
-                    }
-                    InputEvent::Skills => modal = Some(Modal::Overlay(Overlay::new(Tab::Skills))),
-                    InputEvent::Styles => modal = Some(Modal::Overlay(Overlay::new(Tab::Styles))),
-                    InputEvent::Throw => modal = start_throw(state),
-                    InputEvent::Fire => modal = start_fire(state),
-                    InputEvent::Cast => modal = start_cast(state),
+                if session.handle(input) == Outcome::Quit {
+                    return Ok(());
                 }
+                animate(terminal, session)?;
             }
             Event::Resize(_, _) => {}
             _ => continue,
         }
-        terminal.draw(|frame| draw(frame, state, character, modal.as_ref()))?;
+        terminal.draw(|frame| draw(frame, session, None))?;
     }
 }
 
-/// What is on screen over the map, if anything, and takes the keys.
-enum Modal {
-    Overlay(Overlay),
-    /// Picking what to throw.
-    Choose(Chooser),
-    /// Picking a spell to cast.
-    ChooseSpell(Chooser),
-    Aim(Aiming),
-    /// Looking around (`;`).
-    Look(Looking),
-    /// A missile mid-flight: drawn for one frame by `animate`, takes no keys.
-    Flight(Flying),
-}
-
-/// Pressing fire: aim if an arrow is ready, nock one first (a turn) if only
-/// the pack has them, otherwise say why not.
-fn start_fire(state: &mut GameState) -> Option<Modal> {
-    match fire_step(state) {
-        FireStep::Aim => Aiming::new(state, Shot::Fire).map(Modal::Aim),
-        FireStep::Nock(arrow) => {
-            take_turn(state, PlayerAction::Nock(arrow));
-            None
-        }
-        FireStep::Cannot(why) => {
-            state.log.push(why);
-            None
-        }
+/// The key, through the key map the session's mode reads.
+fn map_key(keys: Keys, key: KeyEvent) -> Option<Input> {
+    match keys {
+        Keys::Game => map_key_event(key).map(Input::Game),
+        Keys::List => map_overlay_key(key).map(Input::List),
+        Keys::Cursor => map_aim_key(key).map(Input::Cursor),
+        Keys::Any => (key.kind != KeyEventKind::Release).then_some(Input::Any),
     }
-}
-
-/// Straight to aiming with the only throwable; a list if there are several;
-/// a log line if there is none.
-fn start_throw(state: &mut GameState) -> Option<Modal> {
-    let mut options = throwables(state);
-    match options.len() {
-        0 => {
-            state.log.push("You have nothing to throw.");
-            None
-        }
-        1 => Aiming::new(state, Shot::Throw(options.remove(0).item)).map(Modal::Aim),
-        _ => Some(Modal::Choose(Chooser::default())),
-    }
-}
-
-/// The spell list, even for one spell, since it shows what each costs or why
-/// it can't be cast; a log line if the player knows none.
-fn start_cast(state: &mut GameState) -> Option<Modal> {
-    if spells(state).is_empty() {
-        state.log.push("You know no spells.");
-        return None;
-    }
-    Some(Modal::ChooseSpell(Chooser::default()))
 }
 
 /// Time a missile spends on each tile it crosses.
 const MISSILE_STEP_DELAY: Duration = Duration::from_millis(40);
 
-/// Plays back the flights the last action launched, a frame per tile. The
+/// Plays back the flights the last turn launched, a frame per tile. The
 /// world has already resolved the shot, so this is only a picture of how it
 /// got there; any key press cuts it short.
-fn animate(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
-    for trail in take_trails(state) {
+fn animate(terminal: &mut Term, session: &mut Session) -> io::Result<()> {
+    for trail in session.take_trails() {
         for &at in &trail.path {
             let flying = Flying {
                 glyph: trail.glyph,
                 fg: trail.fg,
                 at,
             };
-            terminal.draw(|frame| draw(frame, state, character, Some(&Modal::Flight(flying))))?;
+            terminal.draw(|frame| draw(frame, session, Some(flying)))?;
             if key_pressed_within(MISSILE_STEP_DELAY)? {
                 return Ok(());
             }
@@ -352,33 +139,12 @@ fn animate(terminal: &mut Term, state: &mut GameState, character: &str) -> io::R
     Ok(())
 }
 
-/// Pause between auto-explore steps, so the walk is visible and a key
-/// press can interrupt it.
-const EXPLORE_STEP_DELAY: Duration = Duration::from_millis(25);
+/// Pause between auto-explore or practice steps, so the walk is visible and
+/// a key press can interrupt it.
+const AUTO_STEP_DELAY: Duration = Duration::from_millis(25);
 
-/// Steps until `game` stops auto-explore or any key is pressed. Key
-/// releases are ignored, or releasing the key that started it would stop it.
-fn explore(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
-    while explore_step(state) {
-        terminal.draw(|frame| draw(frame, state, character, None))?;
-        if key_pressed_within(EXPLORE_STEP_DELAY)? {
-            break;
-        }
-    }
-    Ok(())
-}
-
-/// Practises turn by turn, drawing each, until done or a key interrupts.
-fn practise(terminal: &mut Term, state: &mut GameState, character: &str) -> io::Result<()> {
-    while practice_step(state) {
-        terminal.draw(|frame| draw(frame, state, character, None))?;
-        if key_pressed_within(EXPLORE_STEP_DELAY)? {
-            break;
-        }
-    }
-    Ok(())
-}
-
+/// Key releases are ignored, or releasing the key that started a run would
+/// stop it.
 fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
     while event::poll(timeout)? {
         if let Event::Key(key) = event::read()?
@@ -390,10 +156,18 @@ fn key_pressed_within(timeout: Duration) -> io::Result<bool> {
     Ok(false)
 }
 
-fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Modal>) {
+fn draw(frame: &mut Frame, session: &Session, flying: Option<Flying>) {
+    let state = session.state();
     let (main, side) = side_panel::split(frame.area());
     if let Some(side) = side {
-        side_panel::draw(frame, side, &side_panel::Context { state, character });
+        side_panel::draw(
+            frame,
+            side,
+            &side_panel::Context {
+                state,
+                character: session.character(),
+            },
+        );
     }
     let chunks = Layout::new(
         Direction::Vertical,
@@ -420,51 +194,30 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
         chunks[1],
     );
 
-    let status = if let Some(Modal::Aim(aiming)) = modal {
-        targeting::status(state, aiming)
-    } else if let Some(Modal::Look(looking)) = modal {
-        targeting::look_status(state, looking)
-    } else if state.game_over {
-        format!(
-            "You died on turn {}. Press any key to return to the title.",
-            state.now.turn()
-        )
-    } else {
-        format!("Seed: {}  Turn: {}", state.seed, state.now.turn())
-    };
     frame.render_widget(
-        Paragraph::new(status).block(Block::bordered().title("Status")),
+        Paragraph::new(session.status()).block(Block::bordered().title("Status")),
         chunks[2],
     );
 
-    match modal {
-        Some(Modal::Overlay(overlay)) => {
-            let (inventory, equipment, skills) =
-                (inventory_view(state), equipment_view(state), skills(state));
-            let (proficiencies, ideas, styles) =
-                (proficiencies(state), ideas(state), styles(state));
-            let contents = Contents {
-                inventory: &inventory,
-                equipment: &equipment,
-                skills: &skills,
-                proficiencies: &proficiencies,
-                ideas: &ideas,
-                styles: &styles,
-            };
-            overlay::draw(frame, chunks[0], overlay, &contents);
+    match session.mode() {
+        Mode::Overlay(panel) => {
+            let views = Views::of(state);
+            overlay::draw(frame, chunks[0], panel, &views.contents());
         }
-        Some(Modal::Choose(chooser)) => {
+        Mode::Choose(chooser) => {
             let lines = targeting::throwable_lines(&throwables(state));
             targeting::draw_chooser(frame, chunks[0], chooser, "Throw what?", lines);
         }
-        Some(Modal::ChooseSpell(chooser)) => {
+        Mode::ChooseSpell(chooser) => {
             let lines = targeting::spell_lines(&spells(state));
             targeting::draw_chooser(frame, chunks[0], chooser, "Cast what?", lines);
         }
-        Some(Modal::Aim(aiming)) => targeting::draw_aim(frame, chunks[0], state, aiming),
-        Some(Modal::Look(looking)) => targeting::draw_look(frame, chunks[0], state, looking),
-        Some(Modal::Flight(flying)) => targeting::draw_missile(frame, chunks[0], state, *flying),
-        None => {}
+        Mode::Aim(aiming) => targeting::draw_aim(frame, chunks[0], state, aiming),
+        Mode::Look(looking) => targeting::draw_look(frame, chunks[0], state, looking),
+        Mode::Play => {}
+    }
+    if let Some(flying) = flying {
+        targeting::draw_missile(frame, chunks[0], state, flying);
     }
 }
 
@@ -472,9 +225,11 @@ fn draw(frame: &mut Frame, state: &GameState, character: &str, modal: Option<&Mo
 mod tests {
     use std::path::Path;
 
-    use game::{Blueprints, CaveParams, Tick};
+    use game::{Blueprints, CaveParams, GameState, InputEvent, Shot, Tick};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
+
+    use front::input::OverlayInput;
 
     use super::*;
 
@@ -485,12 +240,15 @@ mod tests {
         GameState::new(3, blueprints, &cave).unwrap()
     }
 
-    /// 60×30: a 60×20 map panel above the 7-row log and 3-row status.
-    fn rows(state: &GameState) -> Vec<String> {
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, state, "hero", None))
-            .unwrap();
+    fn session() -> Session {
+        Session::new(state(), "hero")
+    }
+
+    /// One string per row of a `width`×30 terminal: a `width`×20 map panel
+    /// above the 7-row log and 3-row status.
+    fn drawn_rows(session: &Session, width: u16, flying: Option<Flying>) -> Vec<String> {
+        let mut terminal = Terminal::new(TestBackend::new(width, 30)).unwrap();
+        terminal.draw(|frame| draw(frame, session, flying)).unwrap();
         let buffer = terminal.backend().buffer();
         buffer
             .content()
@@ -499,14 +257,19 @@ mod tests {
             .collect()
     }
 
-    fn screen(state: &GameState) -> String {
-        rows(state).concat()
+    fn screen(session: &Session) -> String {
+        drawn_rows(session, 60, None).concat()
+    }
+
+    fn buffer(session: &Session) -> ratatui::buffer::Buffer {
+        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
+        terminal.draw(|frame| draw(frame, session, None)).unwrap();
+        terminal.backend().buffer().clone()
     }
 
     #[test]
     fn the_map_panel_shows_the_viewport_around_the_player() {
-        let state = state();
-        let rows = rows(&state);
+        let rows = drawn_rows(&session(), 60, None);
         // The player starts mid-zone, so the camera centres on them.
         assert_eq!(rows[10].chars().nth(30), Some('☺'));
         let panel: String = rows[..20].concat();
@@ -515,33 +278,10 @@ mod tests {
     }
 
     #[test]
-    fn a_new_game_starts_with_a_bow_a_stocked_quiver_and_a_torch() {
-        let state = state();
-        assert_eq!(fire_step(&state), FireStep::Aim);
-        let worn: Vec<(String, Option<String>)> = equipment_view(&state)
-            .into_iter()
-            .filter_map(|part| part.item)
-            .map(|item| (item.name, item.note))
-            .collect();
-        assert_eq!(
-            worn,
-            [
-                ("quiver".to_string(), Some("12/20".to_string())),
-                ("short bow".to_string(), None),
-                ("torch".to_string(), None)
-            ]
-        );
-    }
-
-    #[test]
     fn aiming_marks_the_cursor_and_describes_the_shot_in_the_status_bar() {
-        let state = state();
-        let aiming = Aiming::new(&state, Shot::Fire).unwrap();
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Aim(aiming))))
-            .unwrap();
-        let buffer = terminal.backend().buffer();
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::Fire));
+        let buffer = buffer(&session);
         // Nothing in view at the start: the cursor rests on the player, centred.
         let cursor = buffer.cell((30, 10)).unwrap();
         assert_eq!(cursor.symbol(), "☺");
@@ -553,20 +293,11 @@ mod tests {
         assert!(status.contains("Enter: fire"), "{status}");
     }
 
-    fn drawn(state: &GameState, modal: &Modal) -> String {
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, state, "hero", Some(modal)))
-            .unwrap();
-        let buffer = terminal.backend().buffer();
-        buffer.content().iter().map(|cell| cell.symbol()).collect()
-    }
-
     #[test]
     fn the_spell_list_shows_each_spell_with_its_disciplines_price() {
-        let mut state = state();
-        let modal = start_cast(&mut state).unwrap();
-        let screen = drawn(&state, &modal);
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::Cast));
+        let screen = screen(&session);
         assert!(screen.contains("Cast what?"), "{screen}");
         // Willpower 18 and Intelligence 18: +1 each.
         assert!(
@@ -593,82 +324,59 @@ mod tests {
 
     #[test]
     fn aiming_an_area_spell_marks_its_ground() {
-        let state = state();
-        let fireball = spells(&state)
-            .into_iter()
-            .find(|spell| spell.name == "fireball")
-            .unwrap()
-            .spell;
-        let shot = Shot::Cast(fireball);
-        let aiming = Aiming::new(&state, shot).unwrap();
-        let (origin, _) = game::aim_range(&state, shot).unwrap();
+        let mut session = session();
+        let listed = spells(session.state());
+        let index = listed
+            .iter()
+            .position(|spell| spell.name == "fireball")
+            .unwrap();
+        let shot = Shot::Cast(listed[index].spell);
+        session.handle(Input::Game(InputEvent::Cast));
+        for _ in 0..index {
+            session.handle(Input::List(OverlayInput::Down));
+        }
+        session.handle(Input::List(OverlayInput::Select));
+        assert!(matches!(session.mode(), Mode::Aim(_)));
+        let (origin, _) = game::aim_range(session.state(), shot).unwrap();
         // With nothing in view the cursor rests on the player, so the burst
         // is centred there; its second tile is a neighbour.
-        let area = game::aim(&state, shot, origin).unwrap().area;
+        let area = game::aim(session.state(), shot, origin).unwrap().area;
         let tile = area[1];
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Aim(aiming))))
-            .unwrap();
-        let screen = (
+        let at = (
             u16::try_from(30 + tile.0 - origin.0).unwrap(),
             u16::try_from(10 + tile.1 - origin.1).unwrap(),
         );
-        let cell = terminal.backend().buffer().cell(screen).unwrap();
+        let cell = buffer(&session).cell(at).unwrap().clone();
         assert_eq!(cell.bg, crate::widgets::color(targeting::AREA));
     }
 
     #[test]
     fn aiming_a_spell_says_cast_in_the_status_bar() {
-        let state = state();
-        let firebolt = spells(&state)[0].spell;
-        let aiming = Aiming::new(&state, Shot::Cast(firebolt)).unwrap();
-        let screen = drawn(&state, &Modal::Aim(aiming));
-        assert!(screen.contains("Enter: cast"), "{screen}");
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::Cast));
+        session.handle(Input::List(OverlayInput::Select));
+        assert!(screen(&session).contains("Enter: cast"));
     }
 
     #[test]
     fn a_flying_missile_is_drawn_on_its_tile() {
-        let state = state();
-        let (origin, _) = game::aim_range(&state, Shot::Fire).unwrap();
+        let session = session();
+        let (origin, _) = game::aim_range(session.state(), Shot::Fire).unwrap();
         let flying = Flying {
             glyph: '\\',
             fg: game::Rgb(1, 2, 3),
             at: origin,
         };
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, &state, "hero", Some(&Modal::Flight(flying))))
-            .unwrap();
         // The camera centres on the player.
-        assert_eq!(
-            terminal.backend().buffer().cell((30, 10)).unwrap().symbol(),
-            "\\"
-        );
+        let rows = drawn_rows(&session, 60, Some(flying));
+        assert_eq!(rows[10].chars().nth(30), Some('\\'));
     }
 
     #[test]
     fn the_inventory_panel_hovers_over_the_map() {
-        let state = state();
-        let mut terminal = Terminal::new(TestBackend::new(60, 30)).unwrap();
-        terminal
-            .draw(|frame| {
-                draw(
-                    frame,
-                    &state,
-                    "hero",
-                    Some(&Modal::Overlay(Overlay::new(Tab::Inventory))),
-                )
-            })
-            .unwrap();
-        let rows: Vec<String> = {
-            let buffer = terminal.backend().buffer();
-            buffer
-                .content()
-                .chunks(usize::from(buffer.area.width))
-                .map(|row| row.iter().map(|cell| cell.symbol()).collect())
-                .collect()
-        };
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::Inventory));
+        let rows = drawn_rows(&session, 60, None);
         let map: String = rows[..20].concat();
         assert!(map.contains("Inventory") && map.contains("You carry nothing."));
         assert!(rows[20..].concat().contains("Log"), "the log stays visible");
@@ -676,17 +384,7 @@ mod tests {
 
     #[test]
     fn wide_terminals_get_the_side_column_beside_the_map() {
-        let state = state();
-        let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
-        terminal
-            .draw(|frame| draw(frame, &state, "hero", None))
-            .unwrap();
-        let buffer = terminal.backend().buffer();
-        let rows: Vec<String> = buffer
-            .content()
-            .chunks(usize::from(buffer.area.width))
-            .map(|row| row.iter().map(|cell| cell.symbol()).collect())
-            .collect();
+        let rows = drawn_rows(&session(), 100, None);
         let side_x = usize::from(100 - side_panel::WIDTH);
         let side: String = rows
             .iter()
@@ -709,7 +407,7 @@ mod tests {
     fn status_shows_the_turn() {
         let mut state = state();
         state.now = Tick(250);
-        assert!(screen(&state).contains("Seed: 3  Turn: 2"));
+        assert!(screen(&Session::new(state, "hero")).contains("Seed: 3  Turn: 2"));
     }
 
     #[test]
@@ -718,8 +416,20 @@ mod tests {
         state.now = Tick(700);
         // What the frontend reads of a death; how dying works is `game`'s.
         state.game_over = true;
-        let screen = screen(&state);
+        let screen = screen(&Session::new(state, "hero"));
         assert!(screen.contains("You died on turn 7. Press any key to return to the title."));
         assert!(screen.contains('☺'), "the dead player is still drawn");
+    }
+
+    #[test]
+    fn keys_go_through_the_map_for_the_mode() {
+        use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+        let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(
+            map_key(Keys::List, key),
+            Some(Input::List(OverlayInput::Select))
+        );
+        assert_eq!(map_key(Keys::Any, key), Some(Input::Any));
+        assert_eq!(map_key(Keys::Game, key), None);
     }
 }

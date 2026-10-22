@@ -4,5 +4,5 @@ edition.workspace = true
 
 [dependencies]
 game = { path = "../game" }
+front = { path = "../front" }
 ratatui.workspace = true
-directories.workspace = true

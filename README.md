@@ -6,7 +6,7 @@ convention.
 
 ## Structure
 
-This is a Cargo workspace with two crates:
+This is a Cargo workspace with four crates:
 
 - `game/` — a library with all simulation and game logic. It has **no**
   dependency on crossterm, ratatui, or any other terminal/graphics crate —
@@ -111,19 +111,28 @@ This is a Cargo workspace with two crates:
   - Save games (ADR 0008): `save::to_ron` / `save::from_ron` turn a
     `GameState` into a versioned RON string and back. `game` does no file
     IO; saving is only allowed between player turns.
+- `front/` — a library every frontend shares (ADR 0020): a `Session` that
+  turns already-mapped input into turns and mode changes (play, the
+  hovering panel, choosers, the aiming and look cursors, auto-explore and
+  practice runs), the status text, the title menu, and save files: one per
+  character, loaded from the menu and written (atomically) on quit. No
+  drawing and no key bindings.
 - `term/` — the binary frontend: crossterm (reached only through
   `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
-  raw key events to `game::InputEvent`, renders `Grid<Cell>` through a
+  raw key events to `front`'s inputs, renders `Grid<Cell>` through a
   clipped custom `MapWidget`, and owns all terminal lifecycle concerns
   (raw mode, alternate screen, Kitty keyboard protocol enhancement when
   supported, panic-safe restore). Its UI is the map, log and status, a
-  side column of panels (hidden under 80 columns), and a hovering panel for
-  inventory and equipment, all drawn from `game`'s views. It also owns the title menu and save
-  files: one per character, loaded from the menu and written (atomically)
-  on quit.
+  side column of panels (hidden under 80 columns), a hovering panel for
+  inventory and equipment, and the title menu, all drawn from `front`'s
+  state and `game`'s views.
 
-A future windowed/tileset frontend would be a new crate depending on
-`game`, with no changes to `game` itself.
+- `gui/` — the windowed frontend (eframe/egui, ADR 0020), on the same
+  `front` crate with the same keys: the title menu, then the map with a
+  side column (character sheet, equipment) and a strip for the log and
+  status. Run it with `cargo run -p gui -- --seed 42`. It bundles DejaVu
+  Sans Mono for glyphs egui's font lacks (licence in `gui/assets`). Still
+  being built: see `docs/plans/gui.md`.
 
 ## Controls
 
@@ -144,9 +153,16 @@ In game:
   nothing).
 - `x`: auto-explore: find every item, explore the zone, then walk to the
   exit. Stops when a hostile comes into view; any key interrupts it.
+- In the window (`gui`), the mouse is a shortcut onto the same keys:
+  hovering the map moves the look or aim cursor, a click goes there
+  (travel), fires, or picks a list row, a right click cancels aiming,
+  hovering in play shows what looking would, and a right click on a panel
+  row lists what you can do with it.
 - `;`: look around: a cursor (`Tab` jumps between creatures in view) and
   the status bar says what is there, as much as your Beast lore reads.
-  `Esc` or `Enter` stops.
+  `Enter` walks there over ground you know, a step at a time, stopping
+  when a hostile comes into view (any key interrupts it); `Esc` stops
+  looking.
 - `p`: practise: drill with what you wield, a turn at a time, until you
   can learn no more alone (half your best level in that domain) or an
   enemy comes into view; any key interrupts it.

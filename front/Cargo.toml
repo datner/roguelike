@@ -1,0 +1,7 @@
+[package]
+name = "front"
+edition.workspace = true
+
+[dependencies]
+game = { path = "../game" }
+directories.workspace = true

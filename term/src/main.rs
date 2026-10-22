@@ -7,7 +7,6 @@ mod app;
 mod input;
 mod menu;
 mod overlay;
-mod saves;
 mod side_panel;
 mod targeting;
 mod tui;
@@ -63,11 +62,11 @@ fn parse_args() -> Args {
 
 fn main() -> ExitCode {
     let args = parse_args();
-    let Some(saves_dir) = args.saves_dir.clone().or_else(saves::default_dir) else {
+    let Some(saves_dir) = args.saves_dir.clone().or_else(front::saves::default_dir) else {
         eprintln!("No data directory on this platform; pass --saves <dir>.");
         return ExitCode::FAILURE;
     };
-    let setup = app::Setup {
+    let setup = front::title::Setup {
         data_dir: args.data_dir,
         saves_dir,
         seed: args.seed,
@@ -83,7 +82,7 @@ fn main() -> ExitCode {
     let ran = app::session(
         &mut terminal,
         &setup,
-        args.character.map(menu::Action::Play),
+        args.character.map(front::menu::Action::Play),
     );
     tui::restore();
 

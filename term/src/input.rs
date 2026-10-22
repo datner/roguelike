@@ -1,5 +1,6 @@
-//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent`, `MenuInput` or `OverlayInput`.
+//! Key bindings: the only place a `KeyEvent` becomes a `game::InputEvent` or one of `front::input`'s `MenuInput`, `OverlayInput` and `AimInput`.
 
+use front::input::{AimInput, MenuInput, OverlayInput};
 use game::{Dir, InputEvent};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
@@ -34,31 +35,6 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
     }
 }
 
-/// Input while the hovering panel (`overlay`) is open.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverlayInput {
-    Up,
-    Down,
-    Select,
-    Drop,
-    /// Nock the selected arrow on the wielded bow.
-    Nock,
-    /// Put the selected arrow in an equipped quiver.
-    Quiver,
-    /// Study the selected item's lesson.
-    Study,
-    Close,
-    /// Show the inventory view, or close if it is showing.
-    Inventory,
-    /// Show the equipment view, or close if it is showing.
-    Equipment,
-    /// Show the skills view, or close if it is showing.
-    Skills,
-    /// Show the styles view, or close if it is showing.
-    Styles,
-    SwitchTab,
-}
-
 pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
     if key.kind == KeyEventKind::Release {
         return None;
@@ -81,18 +57,6 @@ pub fn map_overlay_key(key: KeyEvent) -> Option<OverlayInput> {
     }
 }
 
-/// Input while choosing a target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AimInput {
-    /// Nudge the cursor one tile.
-    Move(Dir),
-    /// Jump to the next or previous target in view.
-    Next,
-    Previous,
-    Confirm,
-    Cancel,
-}
-
 pub fn map_aim_key(key: KeyEvent) -> Option<AimInput> {
     if key.kind == KeyEventKind::Release {
         return None;
@@ -112,19 +76,6 @@ pub fn map_aim_key(key: KeyEvent) -> Option<AimInput> {
         KeyCode::Esc | KeyCode::Char('q') => Some(AimInput::Cancel),
         _ => None,
     }
-}
-
-/// Title-menu input. Menus are a frontend concern, so this never reaches `game`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuInput {
-    Up,
-    Down,
-    Select,
-    Back,
-    Delete,
-    Rename,
-    Char(char),
-    Backspace,
 }
 
 /// `typing` is true while a text field has focus: every printable key is

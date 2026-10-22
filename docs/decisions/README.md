@@ -46,3 +46,4 @@ What this makes easier, what it makes harder, what we'd revisit and when.
 | [0018](0018-discovery.md) | Data-defined discoveries checked after uses with stakes; proficiencies are attached blueprints; a legible journal | Accepted |
 | [0019](0019-styles.md) | Styles: carried when known, attached when followed, own skill, principles by level | Accepted |
 | [0020](0020-windowed-frontend-egui.md) | Windowed `gui` frontend on eframe/egui, keyboard first; triggers for moving to `bevy_egui` | Accepted |
+| [0021](0021-shared-front-crate.md) | Frontends share flows, menu and saves through a drawing-free `front` crate | Accepted |

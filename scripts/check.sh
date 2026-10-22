@@ -24,35 +24,40 @@ run() {
   fi
 }
 
-# ADR 0001: game must not depend on terminal/graphics crates, and term must
+# ADR 0001: game (and front, ADR 0020) must not depend on terminal/graphics crates, and term must
 # reach crossterm only through ratatui::crossterm.
 boundary() {
-  local forbidden='^(crossterm|ratatui|termion|termwiz|console|bracket-lib|bracket-terminal|macroquad|bevy|wgpu|winit|sdl2|minifb|pixels) '
-  local bad
-  bad=$(cargo tree -p game -e no-dev --prefix none --format '{p}' | grep -E "$forbidden" | sort -u || true)
-  if [[ -n "$bad" ]]; then
-    echo "game depends on terminal/graphics crates:"
-    echo "$bad"
-    return 1
-  fi
+  local forbidden='^(crossterm|ratatui|termion|termwiz|console|bracket-lib|bracket-terminal|macroquad|bevy|wgpu|winit|sdl2|minifb|pixels|egui|eframe|epaint|egui-wgpu|egui_glow|glow) '
+  local bad crate
+  # front is shared by every frontend (ADR 0020), so it draws nothing either.
+  for crate in game front; do
+    bad=$(cargo tree -p "$crate" -e no-dev --prefix none --format '{p}' | grep -E "$forbidden" | sort -u || true)
+    if [[ -n "$bad" ]]; then
+      echo "$crate depends on terminal/graphics crates:"
+      echo "$bad"
+      return 1
+    fi
+  done
   if cargo tree -p term -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^crossterm '; then
     echo "term depends on crossterm directly; use ratatui::crossterm instead"
     return 1
   fi
-  # The ECS is game's internals (ADR 0008); term goes through game functions.
-  if cargo tree -p term -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^hecs ' ||
-    grep -rqw hecs term/src; then
-    echo "term refers to hecs; expose what it needs through game instead"
-    return 1
-  fi
-  # term sends intent (`PlayerAction`) only; game resolves actors and commands (ADR 0001).
   local names
-  names=$(grep -rnwE 'Command|Entity' term/src || true)
-  if [[ -n "$names" ]]; then
-    echo "term names game's Command or Entity; send a PlayerAction instead:"
-    echo "$names"
-    return 1
-  fi
+  for crate in front term gui; do
+    # The ECS is game's internals (ADR 0008); frontends go through game functions.
+    if cargo tree -p "$crate" -e normal --depth 1 --prefix none --format '{p}' | grep -qE '^hecs ' ||
+      grep -rqw hecs "$crate/src"; then
+      echo "$crate refers to hecs; expose what it needs through game instead"
+      return 1
+    fi
+    # Frontends send intent (`PlayerAction`) only; game resolves actors and commands (ADR 0001).
+    names=$(grep -rnwE 'Command|Entity' "$crate/src" || true)
+    if [[ -n "$names" ]]; then
+      echo "$crate names game's Command or Entity; send a PlayerAction instead:"
+      echo "$names"
+      return 1
+    fi
+  done
 }
 
 # docs/MAP.md is what sessions orient from, so a stale one misleads.

@@ -1,228 +1,15 @@
-//! The hovering panel: a modal box drawn over the map with an inventory and
-//! an equipment view, and the skills the player has learned. Pure state plus drawing; `app::run` feeds it keys and
-//! performs the actions it returns.
+//! Draws the hovering panel (`front::overlay`): a modal box over the map with the inventory, equipment, skills and styles tabs.
 
-use game::{Domain, IdeaView, ItemView, PartView, PlayerAction, SkillView, StyleView};
+use front::overlay::{Contents, LineKind, Overlay, TABS, Tab, Title};
+use front::text;
+use game::ItemView;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
 
-use crate::input::OverlayInput;
-use crate::widgets::color;
-
-/// What the panel asks `app::run` to do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverlayAction {
-    Close,
-    /// Take this as the player's turn; the panel stays open.
-    Act(PlayerAction),
-}
-
-/// What the panel shows, from `game`'s views, fetched fresh for each key
-/// and frame so it never goes stale after a turn.
-pub struct Contents<'a> {
-    pub inventory: &'a [ItemView],
-    pub equipment: &'a [PartView],
-    pub skills: &'a [SkillView],
-    pub proficiencies: &'a [String],
-    pub ideas: &'a [IdeaView],
-    pub styles: &'a [StyleView],
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tab {
-    Inventory,
-    Equipment,
-    Skills,
-    /// Styles, proficiencies, techniques and ideas.
-    Styles,
-}
-
-#[derive(Debug)]
-pub struct Overlay {
-    tab: Tab,
-    selected: usize,
-    /// Choosing a carried item for this empty body part (equipment view).
-    picking: Option<Picking>,
-    notice: Option<&'static str>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Picking {
-    part: u32,
-    selected: usize,
-}
-
-impl Overlay {
-    pub fn new(tab: Tab) -> Self {
-        Self {
-            tab,
-            selected: 0,
-            picking: None,
-            notice: None,
-        }
-    }
-
-    pub fn handle(&mut self, input: OverlayInput, contents: &Contents) -> Option<OverlayAction> {
-        self.notice = None;
-        let shown = |tab| match input {
-            OverlayInput::Inventory => tab == Tab::Inventory,
-            OverlayInput::Equipment => tab == Tab::Equipment,
-            OverlayInput::Skills => tab == Tab::Skills,
-            OverlayInput::Styles => tab == Tab::Styles,
-            _ => false,
-        };
-        match input {
-            OverlayInput::Close if self.picking.is_some() => self.picking = None,
-            OverlayInput::Close => return Some(OverlayAction::Close),
-            OverlayInput::Inventory
-            | OverlayInput::Equipment
-            | OverlayInput::Skills
-            | OverlayInput::Styles
-                if shown(self.tab) && self.picking.is_none() =>
-            {
-                return Some(OverlayAction::Close);
-            }
-            OverlayInput::Inventory => self.show(Tab::Inventory),
-            OverlayInput::Equipment => self.show(Tab::Equipment),
-            OverlayInput::Skills => self.show(Tab::Skills),
-            OverlayInput::Styles => self.show(Tab::Styles),
-            OverlayInput::SwitchTab => self.show(match self.tab {
-                Tab::Inventory => Tab::Equipment,
-                Tab::Equipment => Tab::Skills,
-                Tab::Skills => Tab::Styles,
-                Tab::Styles => Tab::Inventory,
-            }),
-            _ => {
-                return match (self.tab, self.picking) {
-                    (Tab::Inventory, _) => self.handle_inventory(input, contents.inventory),
-                    (Tab::Equipment, None) => self.handle_equipment(input, contents),
-                    (Tab::Equipment, Some(picking)) => {
-                        self.handle_picking(input, picking, contents)
-                    }
-                    (Tab::Skills, _) => {
-                        move_selection(&mut self.selected, input, contents.skills.len());
-                        None
-                    }
-                    (Tab::Styles, _) => self.handle_styles(input, contents.styles),
-                };
-            }
-        }
-        None
-    }
-
-    fn show(&mut self, tab: Tab) {
-        *self = Self::new(tab);
-    }
-
-    fn handle_inventory(
-        &mut self,
-        input: OverlayInput,
-        items: &[ItemView],
-    ) -> Option<OverlayAction> {
-        move_selection(&mut self.selected, input, items.len());
-        let chosen = items.get(self.selected).map(|item| item.item);
-        match input {
-            OverlayInput::Select => {
-                let item = chosen?;
-                Some(OverlayAction::Act(PlayerAction::Equip { item, part: None }))
-            }
-            OverlayInput::Drop => Some(OverlayAction::Act(PlayerAction::Drop(chosen?))),
-            OverlayInput::Study => {
-                let item = items.get(self.selected).filter(|item| item.lesson)?.item;
-                Some(OverlayAction::Act(PlayerAction::Study(item)))
-            }
-            OverlayInput::Nock | OverlayInput::Quiver => {
-                let item = items.get(self.selected).filter(|item| item.ammo)?.item;
-                Some(OverlayAction::Act(if input == OverlayInput::Nock {
-                    PlayerAction::Nock(item)
-                } else {
-                    PlayerAction::Quiver(item)
-                }))
-            }
-            _ => None,
-        }
-    }
-
-    /// The skills view's only choice: which style to follow.
-    fn handle_styles(
-        &mut self,
-        input: OverlayInput,
-        styles: &[StyleView],
-    ) -> Option<OverlayAction> {
-        move_selection(&mut self.selected, input, styles.len());
-        let style = styles.get(self.selected)?;
-        (input == OverlayInput::Select)
-            .then_some(OverlayAction::Act(PlayerAction::FollowStyle(style.style)))
-    }
-
-    fn handle_equipment(
-        &mut self,
-        input: OverlayInput,
-        contents: &Contents,
-    ) -> Option<OverlayAction> {
-        move_selection(&mut self.selected, input, contents.equipment.len());
-        if input != OverlayInput::Select {
-            return None;
-        }
-        let part = contents.equipment.get(self.selected)?;
-        if let Some(item) = &part.item {
-            return Some(OverlayAction::Act(PlayerAction::Unequip(item.item)));
-        }
-        if fitting(contents.inventory, part).next().is_none() {
-            self.notice = Some("Nothing you carry fits there.");
-            return None;
-        }
-        self.picking = Some(Picking {
-            part: part.index,
-            selected: 0,
-        });
-        None
-    }
-
-    fn handle_picking(
-        &mut self,
-        input: OverlayInput,
-        mut picking: Picking,
-        contents: &Contents,
-    ) -> Option<OverlayAction> {
-        let part = contents
-            .equipment
-            .iter()
-            .find(|p| p.index == picking.part)?;
-        let candidates: Vec<&ItemView> = fitting(contents.inventory, part).collect();
-        move_selection(&mut picking.selected, input, candidates.len());
-        self.picking = Some(picking);
-        if input != OverlayInput::Select {
-            return None;
-        }
-        let item = candidates.get(picking.selected)?.item;
-        self.picking = None;
-        Some(OverlayAction::Act(PlayerAction::Equip {
-            item,
-            part: Some(part.index),
-        }))
-    }
-}
-
-/// Clamps `selected` into a list of `len` (it may have shrunk since the
-/// last key) and applies Up/Down.
-fn move_selection(selected: &mut usize, input: OverlayInput, len: usize) {
-    let last = len.saturating_sub(1);
-    *selected = (*selected).min(last);
-    match input {
-        OverlayInput::Up => *selected = selected.saturating_sub(1),
-        OverlayInput::Down => *selected = (*selected + 1).min(last),
-        _ => {}
-    }
-}
-
-fn fitting<'a>(items: &'a [ItemView], part: &PartView) -> impl Iterator<Item = &'a ItemView> {
-    let kind = part.kind;
-    items.iter().filter(move |item| item.fits == Some(kind))
-}
+use crate::widgets::{line, spans};
 
 /// Half the map panel wide and three quarters high, at least 46×8 where it
 /// fits, centred over `area`. A list longer than the panel scrolls so the
@@ -232,78 +19,34 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
     let height = (area.height * 3 / 4).max(8).min(area.height);
     let panel = area.centered(Constraint::Length(width), Constraint::Length(height));
 
-    let picking_part = overlay
-        .picking
-        .and_then(|picking| contents.equipment.iter().find(|p| p.index == picking.part));
-    // The row to keep on screen.
-    let (title, mut rows, focus, hint) = match (overlay.tab, overlay.picking, picking_part) {
-        (Tab::Equipment, Some(picking), Some(part)) => (
-            Line::from(format!("Equip on {}", part.name)),
-            item_rows(
-                &fitting(contents.inventory, part)
-                    .cloned()
-                    .collect::<Vec<_>>(),
-                picking.selected,
-            ),
-            Some(picking.selected),
-            "Enter equip  Esc back",
-        ),
-        (Tab::Equipment, _, _) => (
-            tabs(Tab::Equipment),
-            part_rows(contents.equipment, overlay.selected),
-            Some(overlay.selected),
-            "Enter unequip / choose  Tab skills  Esc close",
-        ),
-        (Tab::Skills, _, _) => {
-            let (rows, focus) = skill_rows(contents, overlay.selected);
-            (
-                tabs(Tab::Skills),
-                rows,
-                focus,
-                "j/k scroll  Tab styles  Esc close",
-            )
-        }
-        (Tab::Styles, _, _) => {
-            let (rows, focus) = way_rows(contents, overlay.selected);
-            (
-                tabs(Tab::Styles),
-                rows,
-                focus,
-                if contents.styles.is_empty() {
-                    "Tab inventory  Esc close"
-                } else {
-                    "Enter follow / set aside  Tab inventory  Esc close"
-                },
-            )
-        }
-        (Tab::Inventory, _, _) => {
-            let chosen = contents.inventory.get(overlay.selected);
-            let ammo = chosen.is_some_and(|item| item.ammo);
-            let lesson = chosen.is_some_and(|item| item.lesson);
-            (
-                tabs(Tab::Inventory),
-                item_rows(contents.inventory, overlay.selected),
-                Some(overlay.selected),
-                if ammo {
-                    "n nock  v quiver  d drop  Esc close"
-                } else if lesson {
-                    "r study  d drop  Tab equipment  Esc close"
-                } else {
-                    "Enter equip  d drop  Tab equipment  Esc close"
-                },
-            )
-        }
+    let view = overlay.view(contents);
+    let title = match view.title {
+        Title::Tabs(active) => tabs(active),
+        Title::Text(text) => Line::from(text),
     };
-    if let Some(notice) = overlay.notice {
-        rows.push(Line::default());
-        rows.push(Line::from(notice));
-    }
+    let rows: Vec<Line> = view
+        .lines
+        .into_iter()
+        .map(|panel_line| {
+            let row = line(panel_line.row);
+            match panel_line.kind {
+                LineKind::Plain => row,
+                LineKind::Heading => row.patch_style(Style::new().add_modifier(Modifier::BOLD)),
+                LineKind::Selected => {
+                    row.patch_style(Style::new().add_modifier(Modifier::REVERSED))
+                }
+            }
+        })
+        .collect();
     let shown = usize::from(panel.height.saturating_sub(2)).max(1);
     let last_top = rows.len().saturating_sub(shown);
-    let top = focus.map_or(0, |row| (row + 1).saturating_sub(shown).min(last_top));
-    let block = Block::bordered()
-        .title(title)
-        .title_bottom(Line::styled(hint, Style::new().add_modifier(Modifier::DIM)));
+    let top = view
+        .focus
+        .map_or(0, |row| (row + 1).saturating_sub(shown).min(last_top));
+    let block = Block::bordered().title(title).title_bottom(Line::styled(
+        view.hint,
+        Style::new().add_modifier(Modifier::DIM),
+    ));
     frame.render_widget(Clear, panel);
     frame.render_widget(
         Paragraph::new(rows)
@@ -313,216 +56,36 @@ pub fn draw(frame: &mut Frame, area: Rect, overlay: &Overlay, contents: &Content
     );
 }
 
-/// Both tab names, the active one highlighted.
+/// Every tab name, the active one highlighted.
 fn tabs(active: Tab) -> Line<'static> {
-    let tab = |name: &'static str, tab: Tab| {
+    let mut row = Vec::new();
+    for (i, (tab, name)) in TABS.into_iter().enumerate() {
+        if i > 0 {
+            row.push(Span::raw(" "));
+        }
         let style = if tab == active {
             Style::new().add_modifier(Modifier::REVERSED)
         } else {
             Style::new().add_modifier(Modifier::DIM)
         };
-        Span::styled(format!(" {name} "), style)
-    };
-    Line::from(vec![
-        tab("Inventory", Tab::Inventory),
-        Span::raw(" "),
-        tab("Equipment", Tab::Equipment),
-        Span::raw(" "),
-        tab("Skills", Tab::Skills),
-        Span::raw(" "),
-        tab("Styles", Tab::Styles),
-    ])
-}
-
-fn item_rows(items: &[ItemView], selected: usize) -> Vec<Line<'static>> {
-    if items.is_empty() {
-        return vec![Line::from("You carry nothing.")];
+        row.push(Span::styled(format!(" {name} "), style));
     }
-    let selected = selected.min(items.len() - 1);
-    items
-        .iter()
-        .enumerate()
-        .map(|(i, item)| {
-            let mut row = item_spans(item);
-            if let Some(kind) = item.fits {
-                row.push(Span::styled(
-                    format!("  ({})", kind.noun()),
-                    Style::new().add_modifier(Modifier::DIM),
-                ));
-            }
-            if !item.trains.is_empty() {
-                row.push(Span::styled(
-                    format!("  trains {}", item.trains.join(", ").to_lowercase()),
-                    Style::new().add_modifier(Modifier::DIM),
-                ));
-            }
-            highlight(Line::from(row), i == selected)
-        })
-        .collect()
-}
-
-/// The skills under a heading per domain: name, level, and XP toward the
-/// next level. Returns the rows and the selected skill's row, to keep on
-/// screen as the list scrolls.
-fn skill_rows(contents: &Contents, selected: usize) -> (Vec<Line<'static>>, Option<usize>) {
-    let skills = contents.skills;
-    if skills.is_empty() {
-        return (vec![Line::from("You have learned nothing yet.")], None);
-    }
-    let selected = selected.min(skills.len() - 1);
-    let mut focus = None;
-    let width = skills
-        .iter()
-        .map(|skill| skill.name.chars().count())
-        .max()
-        .unwrap_or(0);
-    let mut rows = Vec::new();
-    let mut domain = None;
-    for (i, skill) in skills.iter().enumerate() {
-        if domain != Some(skill.domain) {
-            domain = Some(skill.domain);
-            rows.push(heading(domain_name(skill.domain)));
-        }
-        let progress = match skill.next {
-            Some(next) => format!("  {}/{next} xp", skill.xp),
-            None => "  mastered".to_string(),
-        };
-        let row = Line::from(vec![
-            Span::raw(format!("  {:<width$}  {:>2}", skill.name, skill.level)),
-            Span::styled(progress, dim()),
-        ]);
-        if i == selected {
-            focus = Some(rows.len());
-        }
-        rows.push(highlight(row, i == selected));
-    }
-    (rows, focus)
-}
-
-/// What the player has made of their skills: styles (the selected one
-/// highlighted), proficiencies, techniques and half-formed ideas. Returns
-/// the rows and the selected style's row, to keep on screen.
-fn way_rows(contents: &Contents, selected: usize) -> (Vec<Line<'static>>, Option<usize>) {
-    let none = |text: &'static str| Line::styled(format!("  {text}"), dim());
-    let mut rows = vec![heading("Styles")];
-    let mut focus = None;
-    if contents.styles.is_empty() {
-        rows.push(none("None discovered yet."));
-    }
-    let selected = selected.min(contents.styles.len().saturating_sub(1));
-    for (i, style) in contents.styles.iter().enumerate() {
-        let following = if style.followed { "  following" } else { "" };
-        let row = Line::from(vec![
-            Span::raw(format!("  {}  {:>2}", style.name, style.level)),
-            Span::styled(following, dim()),
-        ]);
-        if i == selected {
-            focus = Some(rows.len());
-        }
-        rows.push(highlight(row, i == selected));
-    }
-    rows.push(heading("Proficiencies"));
-    if contents.proficiencies.is_empty() {
-        rows.push(none("None attained yet."));
-    }
-    rows.extend(
-        contents
-            .proficiencies
-            .iter()
-            .map(|p| Line::from(format!("  {p}"))),
-    );
-    // Techniques don't exist in the game yet; the section says so.
-    rows.push(heading("Techniques"));
-    rows.push(none("None known yet."));
-    if !contents.ideas.is_empty() {
-        rows.push(heading("Ideas"));
-        for idea in contents.ideas {
-            let met: Vec<String> = idea
-                .met
-                .iter()
-                .map(|(skill, level)| format!("{skill} {level}"))
-                .collect();
-            let more = match idea.unmet {
-                0 => String::new(),
-                n => format!(" + {n} more"),
-            };
-            rows.push(Line::from(vec![
-                Span::raw("  ? "),
-                Span::styled(format!("{}{more}", met.join(", ")), dim()),
-            ]));
-        }
-    }
-    (rows, focus)
-}
-
-fn heading(text: &'static str) -> Line<'static> {
-    Line::styled(text, Style::new().add_modifier(Modifier::BOLD))
-}
-
-fn dim() -> Style {
-    Style::new().add_modifier(Modifier::DIM)
-}
-
-fn domain_name(domain: Domain) -> &'static str {
-    match domain {
-        Domain::Martial => "Martial",
-        Domain::Defence => "Defence",
-        Domain::Magic => "Magic",
-        Domain::Lore => "Lore",
-    }
-}
-
-/// One row per body part: its name, then what it holds or a dash.
-fn part_rows(parts: &[PartView], selected: usize) -> Vec<Line<'static>> {
-    if parts.is_empty() {
-        return vec![Line::from("You have no body to equip.")];
-    }
-    let width = parts
-        .iter()
-        .map(|part| part.name.chars().count())
-        .max()
-        .unwrap_or(0);
-    let selected = selected.min(parts.len() - 1);
-    parts
-        .iter()
-        .enumerate()
-        .map(|(i, part)| {
-            let mut row = vec![Span::raw(format!("{:<width$}  ", part.name))];
-            match &part.item {
-                Some(item) => row.extend(item_spans(item)),
-                None => row.push(Span::styled("-", Style::new().add_modifier(Modifier::DIM))),
-            }
-            highlight(Line::from(row), i == selected)
-        })
-        .collect()
+    Line::from(row)
 }
 
 /// The item's glyph in its colour, then its name.
 pub fn item_spans(item: &ItemView) -> Vec<Span<'static>> {
-    let mut spans = vec![
-        Span::styled(item.glyph.to_string(), Style::new().fg(color(item.fg))),
-        Span::raw(format!(" {}", item.name)),
-    ];
-    if let Some(note) = &item.note {
-        spans.push(Span::styled(
-            format!(" ({note})"),
-            Style::new().add_modifier(Modifier::DIM),
-        ));
-    }
-    spans
-}
-
-fn highlight(line: Line<'static>, selected: bool) -> Line<'static> {
-    if selected {
-        line.patch_style(Style::new().add_modifier(Modifier::REVERSED))
-    } else {
-        line
-    }
+    spans(text::item(item))
 }
 
 #[cfg(test)]
 mod tests {
-    use game::{ItemRef, PartKind, Rgb, SpawnSeq};
+    use front::input::OverlayInput;
+    use front::overlay::{OverlayAction, Tab};
+    use game::{
+        Domain, IdeaView, ItemRef, PartKind, PartView, PlayerAction, Rgb, SkillView, SpawnSeq,
+        StyleView,
+    };
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 

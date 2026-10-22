@@ -13,11 +13,13 @@ prefix commands with `nix develop --command`.
   paragraph, or when `check.sh` says it is stale (sizes are rounded to 100
   lines). `scripts/map.sh --sigs <file or dir>...` prints `pub` signatures.
 - One test: `cargo test -p game <test_name>`
-- Play (humans only): `cargo run -p term -- --seed 42`
+- Play (humans only): `cargo run -p term -- --seed 42` (terminal) or
+  `cargo run -p gui -- --seed 42` (window)
 
-`term` is a full-screen TUI that blocks on keyboard input. **Never run it** — it
-hangs your shell and you can't see it. Verify behaviour with tests in `game` (or
-ratatui's `TestBackend` for `term` widgets).
+`term` is a full-screen TUI that blocks on keyboard input, and `gui` opens a
+window. **Never run either** — they hang your shell and you can't see them. Verify behaviour with tests in `game` (or
+ratatui's `TestBackend` for `term` widgets), and flows (keys → modes →
+turns) by driving a `front::Session` with inputs.
 
 ## Tool usage
 
@@ -47,7 +49,10 @@ ratatui's `TestBackend` for `term` widgets).
 ## Layout
 
 - `game/` — library: all simulation and logic. See `game/CLAUDE.md`.
+- `front/` — library shared by every frontend: `Session` (keyboard flows),
+  title menu, save files; no drawing, no key bindings. See `front/CLAUDE.md`.
 - `term/` — binary: crossterm + ratatui frontend. See `term/CLAUDE.md`.
+- `gui/` — binary: eframe/egui windowed frontend. See `gui/CLAUDE.md`.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,
   legacy). Read before designing a new system; `docs/plans/` hold build plans.
@@ -57,7 +62,8 @@ ratatui's `TestBackend` for `term` widgets).
 ## Invariants — do not break; if a task seems to require it, stop and ask
 
 1. **Rendering seam.** `game` never depends on a terminal or graphics crate. It
-   outputs `Grid<Cell>` and consumes `InputEvent`. (ADR 0001, checked by
+   outputs `Grid<Cell>` and consumes `InputEvent`. `front` draws nothing
+   either; frontends only map keys and draw. (ADR 0001, 0020, checked by
    `scripts/check.sh`.)
 2. **crossterm only via `ratatui::crossterm`.** `term` has no direct crossterm
    dependency, so the versions can't drift.

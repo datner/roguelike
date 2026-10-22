@@ -2,14 +2,14 @@
 //! status. Each `Panel` supplies a title and lines; `draw` stacks them in
 //! `PANELS` order. Hidden on narrow terminals so the map keeps its room.
 
-use game::{DamageType, ExploreItems, GameState, Stat, character_sheet, equipment_view, styles};
+use front::text;
+use game::GameState;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::overlay::item_spans;
+use crate::widgets::line;
 
 /// Columns the side column takes, borders included.
 pub const WIDTH: u16 = 30;
@@ -42,8 +42,14 @@ impl Panel {
 
     fn lines(self, context: &Context) -> Vec<Line<'static>> {
         match self {
-            Panel::Character => character_lines(context.state),
-            Panel::Equipment => equipment_lines(context.state),
+            Panel::Character => text::character(context.state)
+                .into_iter()
+                .map(line)
+                .collect(),
+            Panel::Equipment => text::equipment(context.state)
+                .into_iter()
+                .map(line)
+                .collect(),
         }
     }
 }
@@ -79,125 +85,6 @@ pub fn draw(frame: &mut Frame, area: Rect, context: &Context) {
             panel_area,
         );
     }
-}
-
-fn dim(text: impl Into<String>) -> Span<'static> {
-    Span::styled(text.into(), Style::new().add_modifier(Modifier::DIM))
-}
-
-fn character_lines(state: &GameState) -> Vec<Line<'static>> {
-    let sheet = character_sheet(state);
-    let mut lines = vec![Line::from(vec![
-        dim("HP "),
-        Span::raw(format!("{}/{}", sheet.health, sheet.max_health)),
-    ])];
-    if let Some((mana, max)) = sheet.mana {
-        let mut row = vec![dim("MP "), Span::raw(format!("{mana}/{max}"))];
-        // Turns per point, to a tenth: the pace Willpower buys.
-        if let Some(ticks) = sheet.mana_regen_ticks.filter(|&ticks| ticks > 0) {
-            let tenths = (ticks * 10).div_ceil(game::cost::TICKS_PER_TURN);
-            row.push(dim(format!(
-                "  +1 per {}.{} turns",
-                tenths / 10,
-                tenths % 10
-            )));
-        }
-        lines.push(Line::from(row));
-    }
-    if let Some(stats) = sheet.stats {
-        let stat = |label: &str, which| {
-            vec![
-                dim(format!("{label} ")),
-                Span::raw(format!(
-                    "{} ({:+})",
-                    stats.score(which),
-                    stats.modifier(which)
-                )),
-            ]
-        };
-        let pair = |left: (&str, Stat), right: (&str, Stat)| {
-            let mut row = stat(left.0, left.1);
-            row.push(Span::raw("  "));
-            row.extend(stat(right.0, right.1));
-            Line::from(row)
-        };
-        lines.push(pair(("STR", Stat::Strength), ("AGI", Stat::Agility)));
-        lines.push(pair(("INT", Stat::Intelligence), ("WIL", Stat::Willpower)));
-    }
-    let damage = sheet
-        .damage
-        .map_or_else(|| "-".to_string(), |(min, max)| format!("{min}-{max}"));
-    let kinds = sheet
-        .damage_types
-        .iter()
-        .map(DamageType::noun)
-        .collect::<Vec<_>>()
-        .join("+");
-    lines.push(Line::from(vec![
-        dim("Armor "),
-        Span::raw(format!(
-            "S{} B{} P{}",
-            sheet.armor.slashing, sheet.armor.blunt, sheet.armor.piercing
-        )),
-    ]));
-    let armor = sheet.armor;
-    if (armor.fire, armor.cold, armor.shock) != (0, 0, 0) {
-        lines.push(Line::from(vec![
-            dim("Resist "),
-            Span::raw(format!("F{} C{} E{}", armor.fire, armor.cold, armor.shock)),
-        ]));
-    }
-    lines.push(Line::from(vec![
-        dim("Dmg "),
-        Span::raw(format!("{damage} {kinds}")),
-    ]));
-    let wielding = sheet.wielding.unwrap_or_else(|| "bare hands".to_string());
-    lines.push(Line::from(vec![dim("Wielding "), Span::raw(wielding)]));
-    let followed: Vec<String> = styles(state)
-        .into_iter()
-        .filter(|style| style.followed)
-        .map(|style| format!("{} {}", style.name, style.level))
-        .collect();
-    if !followed.is_empty() {
-        lines.push(Line::from(vec![
-            dim("Style "),
-            Span::raw(followed.join(", ")),
-        ]));
-    }
-    lines.push(Line::from(vec![
-        dim("Speed "),
-        Span::raw(sheet.speed.to_string()),
-    ]));
-    let explore = match state.explore_items {
-        ExploreItems::Find => "note items",
-        ExploreItems::Stop => "stop at items",
-        ExploreItems::PickUp => "pick up items",
-    };
-    lines.push(Line::from(vec![dim("Explore "), Span::raw(explore)]));
-    lines
-}
-
-fn equipment_lines(state: &GameState) -> Vec<Line<'static>> {
-    let parts = equipment_view(state);
-    if parts.is_empty() {
-        return vec![Line::from(dim("no body parts"))];
-    }
-    let width = parts
-        .iter()
-        .map(|part| part.name.chars().count())
-        .max()
-        .unwrap_or(0);
-    parts
-        .into_iter()
-        .map(|part| {
-            let mut row = vec![dim(format!("{:<width$} ", part.name))];
-            match &part.item {
-                Some(item) => row.extend(item_spans(item)),
-                None => row.push(dim("-")),
-            }
-            Line::from(row)
-        })
-        .collect()
 }
 
 #[cfg(test)]
