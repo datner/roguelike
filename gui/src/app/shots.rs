@@ -86,21 +86,27 @@ fn effects_around((x, y): (i32, i32)) -> Vec<game::Fx> {
     ]
 }
 
-/// The window showing `name`, from a fresh game (or the title menu).
+/// The window showing `name`, from a fresh game (or the title menu), on a
+/// stopped clock: animation shows its first moment, so a shot is the same
+/// every run and can be compared with its reference.
 fn scene(name: &str) -> Harness<'static, App> {
+    let start = Instant::now();
+    set_clock(Some(start));
     if name == "menu" {
         return harness(App::new(setup("shot-menu"), None));
     }
     let mut harness = window(&format!("shot-{name}"));
+    harness.state_mut().started = start;
     match name {
         "inventory" => type_text(&mut harness, "i"),
         "look" => type_text(&mut harness, ";"),
         "spells" => type_text(&mut harness, "c"),
         "aim" => type_text(&mut harness, "f"),
         "effects" => {
-            // Caught early in their rise.
+            // A tenth of the way into their rise.
             let fx = effects_around(player_tile(&mut harness));
-            harness.state_mut().effects.add(fx, Instant::now());
+            harness.state_mut().effects.add(fx, start);
+            set_clock(Some(start + FRAME));
             harness.step();
         }
         "sprites" => {
@@ -178,18 +184,38 @@ fn save(dir: &Path, name: &str, image: &RgbaImage) {
 /// Renders the shots `GUI_SHOTS` names (all by default) into
 /// `GUI_SCREENSHOTS`, cropped to `GUI_CROP` (`map`, `side`, `bottom`; the
 /// whole window by default). `fx` is a strip of frames of the effects
-/// animating, cropped around the player. Needs a GPU, so it only runs when asked.
+/// animating, cropped around the player.
+/// With `GUI_CHECK=1` each is also compared with its reference in
+/// `gui/tests/snapshots/` (whole window; `fx` as is). Needs a GPU, so it only runs when asked.
 #[test]
 #[ignore = "needs a GPU; run through scripts/shots.sh"]
 fn screenshots() {
     let dir = out_dir();
     let crop_to = std::env::var("GUI_CROP").unwrap_or_else(|_| "all".into());
     let region = region(&crop_to).unwrap_or_else(|| panic!("no region {crop_to:?}"));
+    let check = std::env::var("GUI_CHECK").is_ok_and(|value| value == "1");
+    let mut failed = Vec::new();
     for name in chosen() {
         let image = match name {
             "fx" => fx_sheet(),
             _ => crop(&scene(name).render().unwrap(), region),
         };
         save(&dir, name, &image);
+        if check && let Err(err) = compare(name, &image) {
+            failed.push(format!("{name}: {err}"));
+        }
     }
+    assert!(failed.is_empty(), "{}", failed.join("\n"));
+}
+
+/// Where the reference shots live, beside their diffs on a mismatch.
+fn references() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots")
+}
+
+/// `image` against its reference (`UPDATE_SNAPSHOTS=1` rewrites a
+/// mismatching one). On a mismatch `<name>.diff.png` shows what changed.
+fn compare(name: &str, image: &RgbaImage) -> Result<(), String> {
+    let options = egui_kittest::SnapshotOptions::new().output_path(references());
+    egui_kittest::try_image_snapshot_options(image, name, &options).map_err(|err| err.to_string())
 }

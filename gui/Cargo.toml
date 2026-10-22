@@ -9,4 +9,4 @@ eframe.workspace = true
 image.workspace = true
 
 [dev-dependencies]
-egui_kittest = { workspace = true, features = ["wgpu"] }
+egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }

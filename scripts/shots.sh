@@ -1,14 +1,33 @@
 #!/usr/bin/env bash
 # Renders gui screens to PNGs, so drawing can be looked at without opening
-# the window. Needs a GPU; not part of check.sh. Prints the PNGs written.
+# the window, or checks them against their references. Needs a GPU; not part
+# of check.sh.
 #
-# Usage: scripts/shots.sh <dir> [shot...] [--crop map|side|bottom]
-#   shots: menu play inventory look spells aim effects sprites fx (default: all)
-#   fx: frames of the effects animating, 100 ms apart, left to right
-# Reading an image costs about width × height / 750 tokens: render only the
-# shots a change touches, cropped to the region it touched.
+#   scripts/shots.sh <dir> [shot...] [--crop map|side|bottom]
+#       Renders into <dir> and prints the PNGs written.
+#   scripts/shots.sh --check [shot...]
+#       Compares with gui/tests/snapshots/; on a mismatch prints the
+#       <shot>.diff.png to look at, and fails.
+#   scripts/shots.sh --update [shot...]
+#       Rewrites the references that changed (commit them with the change).
+#
+# shots: menu play inventory look spells aim effects sprites fx (default all);
+# fx is the effects animating, 100 ms a frame, left to right. Reading an image
+# costs about width × height / 750 tokens: render only what a change touches,
+# cropped to the region it touched.
 set -euo pipefail
-dir=${1:?usage: scripts/shots.sh <dir> [shot...] [--crop map|side|bottom]}
+all=(menu play inventory look spells aim effects sprites fx)
+usage="usage: scripts/shots.sh <dir>|--check|--update [shot...] [--crop map|side|bottom]"
+case ${1:?$usage} in
+--check | --update)
+  mode=${1#--}
+  dir=$(mktemp -d)
+  ;;
+*)
+  mode=render
+  dir=$1
+  ;;
+esac
 shift
 shots=()
 crop=all
@@ -24,16 +43,22 @@ while (($#)); do
     ;;
   esac
 done
+((${#shots[@]})) || shots=("${all[@]}")
 mkdir -p "$dir"
-names=$(
+env=(GUI_SCREENSHOTS="$dir" GUI_CROP="$crop" GUI_SHOTS="$(
   IFS=,
-  echo "${shots[*]:-}"
-)
-if ! out=$(GUI_SCREENSHOTS=$dir GUI_SHOTS=$names GUI_CROP=$crop \
-  cargo test -q -p gui screenshots -- --ignored 2>&1); then
-  grep -A2 panicked <<<"$out" >&2 || echo "$out" | tail -20 >&2
+  echo "${shots[*]}"
+)")
+case $mode in
+check) env+=(GUI_CHECK=1 GUI_CROP=all) ;;
+update) env+=(GUI_CHECK=1 GUI_CROP=all UPDATE_SNAPSHOTS=1) ;;
+esac
+if ! out=$(env "${env[@]}" cargo test -q -p gui screenshots -- --ignored 2>&1); then
+  grep -E "^[a-z]+: '.*' Image did not match|panicked at|^no " <<<"$out" | grep -v "panicked at" >&2 ||
+    echo "$out" | tail -20 >&2
   exit 1
 fi
-for shot in "${shots[@]:-menu play inventory look spells aim effects sprites fx}"; do
-  for name in $shot; do echo "$dir/$name.png"; done
-done
+case $mode in
+render) for shot in "${shots[@]}"; do echo "$dir/$shot.png"; done ;;
+*) echo "ok: ${shots[*]}" ;;
+esac

@@ -18,7 +18,7 @@ named shots, cropped to a region taken from the layout constants.
 The harness runs on a clock the test sets. An `fx` shot renders an effect at
 several moments and tiles the cropped frames into one contact sheet.
 
-### 3. Visual regression
+### 3. Visual regression — done
 `scripts/shots.sh --check` compares shots with references in
 `gui/tests/snapshots/` and writes a diff image on a mismatch; `--update`
 refreshes them. Needs the GPU, so it stays out of `check.sh` and the flake.

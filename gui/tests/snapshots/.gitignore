@@ -1,0 +1,4 @@
+# Written by a check run beside the references; never committed.
+*.new.png
+*.diff.png
+*.old.png
