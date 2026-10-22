@@ -52,7 +52,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tests: a table spawns what it lists, deeper floors spawn more, a bad name fails at load; the shipped
   caves give today's start on seed 3 (same counts, so seeded tests barely move).
 
-### 3. Camp
+### 3. Camp — done
 - `data/camp.ron`: an ASCII layout (walls, floor, the player's start) with entrances, each a tile that
   names a dungeon. No hostiles, no floor items.
 - A new game starts at camp (`Place::Camp`). `>` on an entrance starts a dive (dive number + 1, floor 1

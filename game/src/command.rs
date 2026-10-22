@@ -145,6 +145,8 @@ pub(crate) enum Command {
     Practice(Entity),
     /// Take the stairs down to the next floor (`dive::descend`).
     Descend(Entity),
+    /// Take the stairs up, back to camp (`dive::ascend`).
+    Ascend(Entity),
     /// Take up a style `actor` knows, or set aside the one they follow
     /// (ADR 0019).
     FollowStyle {
@@ -226,7 +228,9 @@ impl Command {
             Command::Cast { actor, spell, .. } => [Some(actor), Some(spell)],
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Study { actor, item } => [Some(actor), Some(item)],
-            Command::Practice(actor) | Command::Descend(actor) => [Some(actor), None],
+            Command::Practice(actor) | Command::Descend(actor) | Command::Ascend(actor) => {
+                [Some(actor), None]
+            }
             Command::Recharge { spell, .. } => [Some(spell), None],
             Command::SpendMana { caster, .. } => [Some(caster), None],
             Command::Attack { attacker, target } => [Some(attacker), Some(target)],
@@ -292,6 +296,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Study { actor, item } => crate::training::study(state, actor, item),
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Descend(actor) => crate::dive::descend(state, actor),
+            Command::Ascend(actor) => crate::dive::ascend(state, actor),
             Command::Recharge { spell, duration } => spell::recharge(state, spell, duration),
             Command::SpendMana { caster, amount } => spell::spend_mana(state, caster, amount),
             Command::Fire { actor, at } => ranged::fire(state, actor, at),
@@ -369,15 +374,19 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
             }
             state.log.push("There is nothing here to pick up.");
         }
-        Command::Descend(entity) => {
+        Command::Descend(entity) | Command::Ascend(entity) => {
+            let (stairs, refusal) = match *command {
+                Command::Descend(_) => (Tile::StairsDown, "There are no stairs down here."),
+                _ => (Tile::StairsUp, "There are no stairs up here."),
+            };
             let on_stairs = state
                 .world
                 .get::<&Position>(entity)
-                .is_ok_and(|at| state.map.get(at.x, at.y) == Some(&Tile::StairsDown));
+                .is_ok_and(|at| state.map.get(at.x, at.y) == Some(&stairs));
             if on_stairs {
                 return false;
             }
-            state.log.push("There are no stairs down here.");
+            state.log.push(refusal);
         }
         Command::Equip { actor, item, part } => {
             let Err(message) = equipment::plan_equip(state, actor, item, part) else {

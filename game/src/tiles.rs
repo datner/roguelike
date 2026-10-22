@@ -157,7 +157,11 @@ mod tests {
     #[test]
     fn a_new_game_shows_sprites_in_view_and_glyphs_from_memory() {
         let data = data();
-        let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
+        // Without the camp: a floor larger than the view, so the camera
+        // follows the player.
+        let blueprints = crate::blueprint::Blueprints::load(&data)
+            .unwrap()
+            .with_camp(None);
         let mut state = crate::state::GameState::new(3, blueprints).unwrap();
         let tiles = state.blueprints.tiles().clone();
         let view = crate::state::render_view(&state, 40, 20);

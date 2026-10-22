@@ -11,6 +11,7 @@
 //! is checked and turned into a `BlueprintId` at load, so a typo fails
 //! loading instead of surfacing mid-game.
 
+use crate::camp::{self, Camp};
 use crate::dungeon::{self, Dungeon};
 use crate::tiles::Tiles;
 use std::collections::BTreeMap;
@@ -268,6 +269,9 @@ pub struct Blueprints {
     /// generated and filled, so a floor can be made mid-game and after a
     /// load.
     dungeons: BTreeMap<String, Dungeon>,
+    /// Where a new game starts and dives end (`data/camp.ron`); without
+    /// one, a new game starts on the first dungeon's first floor.
+    camp: Option<Camp>,
 }
 
 #[derive(Debug)]
@@ -339,6 +343,7 @@ pub enum BlueprintError {
     },
     /// A new game needs a dungeon to start in.
     NoDungeon,
+    BadCamp(String),
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -354,6 +359,7 @@ impl std::fmt::Display for BlueprintError {
             Self::TooManySprites => write!(f, "too many sprites"),
             Self::BadDungeon { dungeon, why } => write!(f, "dungeon {dungeon:?}: {why}"),
             Self::NoDungeon => write!(f, "no dungeons in data/dungeons"),
+            Self::BadCamp(why) => write!(f, "data/camp.ron: {why}"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -419,6 +425,10 @@ impl Blueprints {
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
             .with_tiles(Tiles::load(data)?)?
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)
+            .and_then(|blueprints| {
+                let camp = camp::load(data, &blueprints)?;
+                Ok(blueprints.with_camp(camp))
+            })
     }
 
     /// Reads every `*.ron` file in `dir`, named by file stem.
@@ -578,6 +588,7 @@ impl Blueprints {
             discoveries: Vec::new(),
             tiles: Tiles::default(),
             dungeons: BTreeMap::new(),
+            camp: None,
         })
     }
 
@@ -628,6 +639,16 @@ impl Blueprints {
         }
         self.dungeons = dungeons;
         Ok(self)
+    }
+
+    /// The camp, checked against these blueprints' dungeons already.
+    pub fn with_camp(mut self, camp: Option<Camp>) -> Self {
+        self.camp = camp;
+        self
+    }
+
+    pub fn camp(&self) -> Option<&Camp> {
+        self.camp.as_ref()
     }
 
     pub fn dungeon(&self, key: &str) -> Option<&Dungeon> {

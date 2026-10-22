@@ -20,6 +20,7 @@ pub fn map_key_event(key: KeyEvent) -> Option<InputEvent> {
         KeyCode::Char('.') => Some(InputEvent::Wait),
         KeyCode::Char('x') => Some(InputEvent::Explore),
         KeyCode::Char('>') => Some(InputEvent::Descend),
+        KeyCode::Char('<') => Some(InputEvent::Ascend),
         KeyCode::Char('p') => Some(InputEvent::Practice),
         KeyCode::Char(';') => Some(InputEvent::Look),
         KeyCode::Char('X') => Some(InputEvent::CycleExploreItems),

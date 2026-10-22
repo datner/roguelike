@@ -73,6 +73,8 @@ pub enum InputEvent {
     Cast,
     /// Take the stairs down: `PlayerAction::Descend`.
     Descend,
+    /// Take the stairs up: `PlayerAction::Ascend`.
+    Ascend,
     Quit,
 }
 
@@ -117,6 +119,8 @@ pub enum PlayerAction {
     Practice,
     /// Take the stairs down (`dive`).
     Descend,
+    /// Take the stairs up, back to camp (`dive`).
+    Ascend,
 }
 
 #[cfg(test)]

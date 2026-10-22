@@ -1,0 +1,19 @@
+// Camp (game::camp): where a new game starts and every dive ends. `#` wall,
+// `.` floor, `@` where you arrive; any other character is an entrance,
+// stairs down into the dungeon `entrances` names for it.
+(
+    arrival: "You are at camp. The way down is to the east.",
+    layout: [
+        "##############################",
+        "#............................#",
+        "#..####..............####....#",
+        "#..####..............####....#",
+        "#..####......@.......####..1.#",
+        "#..####..............####....#",
+        "#............................#",
+        "##############################",
+    ],
+    entrances: {
+        '1': "Caves",
+    },
+)

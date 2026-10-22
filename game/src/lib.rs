@@ -27,6 +27,7 @@ pub mod aim;
 pub mod ammo;
 pub mod area;
 pub mod camera;
+pub mod camp;
 pub mod combat;
 pub mod command;
 pub mod cost;
@@ -64,6 +65,7 @@ mod testkit;
 
 pub use aim::{Aim, Chances, FireStep, Shot, aim, aim_range, aim_targets, fire_step};
 pub use camera::{Camera, camera};
+pub use camp::Camp;
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
 pub use dive::Place;

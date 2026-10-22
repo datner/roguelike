@@ -81,8 +81,10 @@ pub struct GameState {
     /// What auto-explore does on reaching a floor item. A player setting,
     /// but it decides actions, so it is game state and saved.
     pub explore_items: ExploreItems,
-    /// Which floor of which dive the player is on (`dive`).
+    /// Which floor of which dive the player is on, or camp (`dive`).
     pub place: crate::dive::Place,
+    /// Dives started, so each gets its own floors.
+    pub dives: u32,
     /// Effects since the frontend last took them, for animation only:
     /// never read by the simulation, never saved (ADR 0022).
     pub(crate) fx: Vec<crate::fx::Fx>,
@@ -97,9 +99,20 @@ impl GameState {
         Ok(state)
     }
 
-    /// Just the first floor and the player, on its stairs up; no other
+    /// Just the starting place and the player: camp if the content has one,
+    /// else the first dungeon's first floor, on its stairs up. No other
     /// entities.
     pub fn bare(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
+        if let Some(camp) = blueprints.camp() {
+            let start = crate::dive::start(seed, camp);
+            let mut rngs = Rngs::new(seed, 0);
+            rngs.map = start.map_stream;
+            rngs.spawn = start.spawn_stream;
+            let (x, y) = start.arrival;
+            let mut state = Self::with_map(seed, rngs, start.map, Position { x, y }, blueprints)?;
+            state.place = crate::dive::Place::Camp;
+            return Ok(state);
+        }
         let dungeon = blueprints
             .first_dungeon()
             .ok_or(BlueprintError::NoDungeon)?
@@ -147,7 +160,12 @@ impl GameState {
         else {
             return Ok(());
         };
-        let crate::dive::Place::Floor { dungeon, floor, .. } = &self.place;
+        let crate::dive::Place::Floor { dungeon, floor, .. } = &self.place else {
+            if let Some(line) = self.blueprints.camp().map(|camp| camp.arrival_line.clone()) {
+                self.log.push(line);
+            }
+            return Ok(());
+        };
         let floor = *floor;
         let Some(dungeon) = self.blueprints.dungeon(dungeon).cloned() else {
             return Ok(());
@@ -255,6 +273,7 @@ impl GameState {
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
             place,
+            dives: 0,
             fx: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;

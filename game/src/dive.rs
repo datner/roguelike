@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use rand_pcg::Pcg64;
 
+use crate::camp::Camp;
 use crate::entity::{Position, Summoned};
 use crate::map::{Grid, Map, Tile};
 use crate::rng::Rngs;
@@ -16,6 +17,8 @@ use crate::zone::{
 /// Where the player is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Place {
+    /// Between dives (`camp`).
+    Camp,
     /// `floor` of the `dive`th dive, both counted from 1, in the dungeon
     /// `data/dungeons/<dungeon>.ron` describes.
     Floor {
@@ -100,24 +103,27 @@ fn travellers(state: &GameState) -> Vec<Entity> {
     travellers
 }
 
-/// `Command::Descend` applier: the next floor of this dive. `reject_input`
-/// has checked the player stands on stairs down.
-pub(crate) fn descend(state: &mut GameState, actor: Entity) {
-    if actor != state.player {
-        return;
+/// The camp as a place to enter: its map, arriving on its `@`. Nothing
+/// there draws randomness, but its streams are seeded like any place's.
+fn camp_floor(world_seed: u64, camp: &Camp) -> Floor {
+    let near = region(
+        &camp.map,
+        camp.arrival,
+        &mut Grid::new(camp.map.width, camp.map.height, false),
+    );
+    let rngs = Rngs::new(world_seed, mix(world_seed, name_seed("camp")));
+    Floor {
+        map: camp.map.clone(),
+        map_stream: rngs.map,
+        spawn_stream: rngs.spawn,
+        arrival: camp.arrival,
+        near,
     }
-    let Place::Floor {
-        dungeon,
-        dive,
-        floor,
-    } = state.place.clone();
-    let Some(cave) = state.blueprints.dungeon(&dungeon).map(|d| d.cave.clone()) else {
-        state.log.push("The stairs lead nowhere.");
-        return;
-    };
-    let floor = floor + 1;
-    let next = build(state.seed, &dungeon, &cave, dive, floor);
+}
 
+/// Moves the player and who travels with them into `next`, now `place`,
+/// forgetting everything else about the place they leave.
+fn enter(state: &mut GameState, next: Floor, place: Place) {
     let travellers = travellers(state);
     let left_behind: Vec<Entity> = state
         .world
@@ -137,11 +143,7 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
     state.visible = Grid::new(width, height, false);
     state.seen = Grid::new(width, height, false);
     state.remembered_items = Grid::new(width, height, None);
-    state.place = Place::Floor {
-        dungeon,
-        dive,
-        floor,
-    };
+    state.place = place;
 
     let arrival = next.arrival;
     let mut spots =
@@ -154,10 +156,86 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
             *position = Position { x, y };
         }
     }
-    state.log.push(format!("You descend to floor {floor}."));
+}
+
+/// `Command::Descend` applier: from camp, the first floor of a new dive
+/// into the dungeon this entrance leads to; from a floor, the next one.
+/// `reject_input` has checked the player stands on stairs down.
+pub(crate) fn descend(state: &mut GameState, actor: Entity) {
+    if actor != state.player {
+        return;
+    }
+    let (dungeon, dive, floor) = match &state.place {
+        Place::Camp => {
+            let at = state
+                .world
+                .get::<&Position>(actor)
+                .map(|pos| (pos.x, pos.y))
+                .ok();
+            let entrance = state
+                .blueprints
+                .camp()
+                .zip(at)
+                .and_then(|(camp, at)| camp.entrance_at(at))
+                .map(str::to_string);
+            let Some(dungeon) = entrance else {
+                state.log.push("These stairs lead nowhere.");
+                return;
+            };
+            (dungeon, state.dives + 1, 1)
+        }
+        Place::Floor {
+            dungeon,
+            dive,
+            floor,
+        } => (dungeon.clone(), *dive, floor + 1),
+    };
+    let Some(found) = state.blueprints.dungeon(&dungeon) else {
+        state.log.push("The stairs lead nowhere.");
+        return;
+    };
+    let (cave, name) = (found.cave.clone(), found.name.clone());
+    let next = build(state.seed, &dungeon, &cave, dive, floor);
+    state.dives = dive;
+    enter(
+        state,
+        next,
+        Place::Floor {
+            dungeon,
+            dive,
+            floor,
+        },
+    );
+    state.log.push(if floor == 1 {
+        format!("You go down into {name}.")
+    } else {
+        format!("You descend to floor {floor}.")
+    });
     if let Err(err) = state.populate() {
         state.log.push(format!("The floor is empty: {err}."));
     }
+}
+
+/// `Command::Ascend` applier: back up to camp, which ends the dive; the
+/// floors below are gone. `reject_input` has checked for stairs up.
+pub(crate) fn ascend(state: &mut GameState, actor: Entity) {
+    if actor != state.player {
+        return;
+    }
+    let Some(camp) = state.blueprints.camp().cloned() else {
+        state.log.push("There is nowhere to climb back to.");
+        return;
+    };
+    enter(state, camp_floor(state.seed, &camp), Place::Camp);
+    state.log.push("You climb back to camp.");
+    if let Err(err) = state.populate() {
+        state.log.push(format!("The camp is empty: {err}."));
+    }
+}
+
+/// Where a new game begins: camp if the content has one.
+pub(crate) fn start(world_seed: u64, camp: &Camp) -> Floor {
+    camp_floor(world_seed, camp)
 }
 
 #[cfg(test)]
@@ -307,6 +385,98 @@ mod tests {
         let first = goblins(&state);
         take_turn(&mut state, PlayerAction::Descend);
         assert_eq!(goblins(&state), first + 1, "one more goblin per floor");
+    }
+
+    fn at_camp() -> GameState {
+        let blueprints = test_blueprints().with_camp(Some(crate::camp::tests::test_camp()));
+        GameState::new(9, blueprints).unwrap()
+    }
+
+    fn walk_to_the_entrance(state: &mut GameState) {
+        // The test camp's entrance is two steps east of the arrival.
+        for _ in 0..2 {
+            take_turn(state, PlayerAction::Move(crate::input::Dir::E));
+        }
+    }
+
+    #[test]
+    fn a_new_game_starts_at_a_quiet_camp() {
+        let state = at_camp();
+        assert_eq!(state.place, Place::Camp);
+        assert_eq!(player_position(&state), Position { x: 2, y: 1 });
+        assert_eq!(crate::testkit::last_log(&state), "The fire is warm.");
+        let others = state.world.query::<&Position>().iter().count();
+        assert_eq!(others, 1, "only the player");
+    }
+
+    #[test]
+    fn camp_to_a_dive_and_back() {
+        let mut state = at_camp();
+        walk_to_the_entrance(&mut state);
+        take_turn(&mut state, PlayerAction::Descend);
+        assert_eq!(
+            state.place,
+            Place::Floor {
+                dungeon: "Test".into(),
+                dive: 1,
+                floor: 1
+            }
+        );
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "You go down into the test caves.")
+        );
+        let first_dive = state.map.clone();
+
+        take_turn(&mut state, PlayerAction::Ascend);
+        assert_eq!(state.place, Place::Camp);
+        assert_eq!(player_position(&state), Position { x: 2, y: 1 });
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "You climb back to camp.")
+        );
+
+        walk_to_the_entrance(&mut state);
+        take_turn(&mut state, PlayerAction::Descend);
+        assert_eq!(state.dives, 2);
+        assert_ne!(state.map, first_dive, "every dive rerolls its floors");
+    }
+
+    #[test]
+    fn going_up_off_the_stairs_is_refused() {
+        let mut state = at_camp();
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Ascend);
+        assert_eq!(state.now, before);
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "There are no stairs up here."
+        );
+    }
+
+    #[test]
+    fn a_save_at_camp_loads_at_camp() {
+        let mut state = at_camp();
+        walk_to_the_entrance(&mut state);
+        take_turn(&mut state, PlayerAction::Descend);
+        take_turn(&mut state, PlayerAction::Ascend);
+        let text = crate::save::to_ron(&state).unwrap();
+        let blueprints = test_blueprints().with_camp(Some(crate::camp::tests::test_camp()));
+        let loaded = crate::save::from_ron(&text, blueprints).unwrap();
+        assert_eq!(loaded.place, Place::Camp);
+        assert_eq!(loaded.dives, 1);
+    }
+
+    #[test]
+    fn practice_works_at_camp() {
+        let mut state = at_camp();
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Practice);
+        assert!(state.now > before, "a turn of drills");
     }
 
     #[test]

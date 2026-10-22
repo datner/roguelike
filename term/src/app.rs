@@ -239,7 +239,8 @@ mod tests {
 
     fn state() -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
-        let blueprints = Blueprints::load(&data).unwrap();
+        // A floor, not the camp: these draw the map around the player.
+        let blueprints = Blueprints::load(&data).unwrap().with_camp(None);
         GameState::new(3, blueprints).unwrap()
     }
 

@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 28;
+pub const SAVE_VERSION: u32 = 29;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -134,6 +134,7 @@ struct Save {
     next_spawn_seq: u64,
     explore_items: ExploreItems,
     place: crate::dive::Place,
+    dives: u32,
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
@@ -444,6 +445,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         next_spawn_seq: state.next_spawn_seq,
         explore_items: state.explore_items,
         place: state.place.clone(),
+        dives: state.dives,
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
@@ -478,8 +480,9 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         });
     }
     let save: Save = ron::from_str(text).map_err(LoadError::Parse)?;
-    let crate::dive::Place::Floor { dungeon, .. } = &save.place;
-    if blueprints.dungeon(dungeon).is_none() {
+    if let crate::dive::Place::Floor { dungeon, .. } = &save.place
+        && blueprints.dungeon(dungeon).is_none()
+    {
         return Err(LoadError::UnknownDungeon(dungeon.clone()));
     }
 
@@ -557,6 +560,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         next_spawn_seq: save.next_spawn_seq,
         explore_items: save.explore_items,
         place: save.place,
+        dives: save.dives,
     };
     fov::update(&mut state);
     Ok(state)
@@ -950,8 +954,10 @@ mod tests {
         Blueprints::load(&dir).unwrap()
     }
 
+    /// A new game on the caves' first floor: the shipped content without
+    /// its camp, so there is something to fight and save.
     fn new_game(seed: u64) -> GameState {
-        GameState::new(seed, data_blueprints()).unwrap()
+        GameState::new(seed, data_blueprints().with_camp(None)).unwrap()
     }
 
     fn reload(state: &GameState, blueprints: Blueprints) -> GameState {
