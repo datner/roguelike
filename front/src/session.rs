@@ -164,6 +164,7 @@ impl Session {
             InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
             InputEvent::Wait => take_turn(state, PlayerAction::Wait),
             InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
+            InputEvent::Descend => take_turn(state, PlayerAction::Descend),
             InputEvent::Explore => self.auto = Some(Auto::Explore),
             InputEvent::Practice => self.auto = Some(Auto::Practice),
             InputEvent::Look => {

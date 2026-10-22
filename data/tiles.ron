@@ -6,11 +6,11 @@
 (
     atlas: "tiles.png",
     cell: (8, 16),
-    terrain: (floor: "floor", wall: "wall", exit: "exit"),
+    terrain: (floor: "floor", wall: "wall", down: "stairs down"),
     sprites: {
         "floor": (frames: [(0, 0)]),
         "wall": (frames: [(1, 0)]),
-        "exit": (frames: [(2, 0)]),
+        "stairs down": (frames: [(2, 0)]),
         "player": (frames: [(0, 1)]),
         "goblin": (frames: [(1, 1), (2, 1)], frame_ms: 600),
         "torch": (frames: [(3, 1), (4, 1)], frame_ms: 180),

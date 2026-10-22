@@ -12,6 +12,7 @@
 //! loading instead of surfacing mid-game.
 
 use crate::tiles::Tiles;
+use crate::zone::{CaveParams, CaveParamsError};
 use std::collections::BTreeMap;
 use std::fs;
 use std::mem::discriminant;
@@ -263,6 +264,9 @@ pub struct Blueprints {
     discoveries: Vec<Discovery>,
     /// Sprites (`data/tiles.ron`, ADR 0023).
     tiles: Tiles,
+    /// How floors are generated (`data/cave.ron`), so a new floor can be
+    /// made mid-game and after a load. `None` makes stairs lead nowhere.
+    cave: Option<CaveParams>,
 }
 
 #[derive(Debug)]
@@ -328,6 +332,7 @@ pub enum BlueprintError {
     },
     SpriteWithoutFrames(String),
     TooManySprites,
+    Cave(CaveParamsError),
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -341,6 +346,7 @@ impl std::fmt::Display for BlueprintError {
             }
             Self::SpriteWithoutFrames(name) => write!(f, "sprite {name:?} has no frames"),
             Self::TooManySprites => write!(f, "too many sprites"),
+            Self::Cave(err) => write!(f, "{err}"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -405,6 +411,11 @@ impl Blueprints {
         Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
             .with_tiles(Tiles::load(data)?)
+            .map(|blueprints| {
+                let cave =
+                    CaveParams::load(&data.join("cave.ron")).map_err(BlueprintError::Cave)?;
+                Ok(blueprints.with_cave(cave))
+            })?
     }
 
     /// Reads every `*.ron` file in `dir`, named by file stem.
@@ -563,6 +574,7 @@ impl Blueprints {
             skills,
             discoveries: Vec::new(),
             tiles: Tiles::default(),
+            cave: None,
         })
     }
 
@@ -600,6 +612,15 @@ impl Blueprints {
 
     pub fn tiles(&self) -> &Tiles {
         &self.tiles
+    }
+
+    pub fn with_cave(mut self, cave: CaveParams) -> Self {
+        self.cave = Some(cave);
+        self
+    }
+
+    pub fn cave(&self) -> Option<&CaveParams> {
+        self.cave.as_ref()
     }
 
     pub(crate) fn discoveries(&self) -> &[Discovery] {

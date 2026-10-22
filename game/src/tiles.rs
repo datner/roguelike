@@ -42,7 +42,8 @@ impl Sprite {
 struct TerrainDef {
     floor: Option<String>,
     wall: Option<String>,
-    exit: Option<String>,
+    down: Option<String>,
+    up: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -66,7 +67,8 @@ pub struct Tiles {
     ids: BTreeMap<String, SpriteId>,
     floor: Option<SpriteId>,
     wall: Option<SpriteId>,
-    exit: Option<SpriteId>,
+    down: Option<SpriteId>,
+    up: Option<SpriteId>,
 }
 
 impl Tiles {
@@ -103,14 +105,16 @@ impl Tiles {
             })
             .transpose()
         };
-        let (floor, wall, exit) = (
+        let (floor, wall, down, up) = (
             terrain(def.terrain.floor)?,
             terrain(def.terrain.wall)?,
-            terrain(def.terrain.exit)?,
+            terrain(def.terrain.down)?,
+            terrain(def.terrain.up)?,
         );
         tiles.floor = floor;
         tiles.wall = wall;
-        tiles.exit = exit;
+        tiles.down = down;
+        tiles.up = up;
         Ok(tiles)
     }
 
@@ -126,7 +130,8 @@ impl Tiles {
         match tile {
             Tile::Floor => self.floor,
             Tile::Wall => self.wall,
-            Tile::Exit => self.exit,
+            Tile::StairsDown => self.down,
+            Tile::StairsUp => self.up,
         }
     }
 }

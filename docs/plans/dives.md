@@ -28,7 +28,7 @@ generated cave whose exit leads nowhere.
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. Floors: going down — game
+### 1. Floors: going down — done
 - `Tile::Exit` becomes `Tile::StairsDown` (`>`) and a new `Tile::StairsUp` (`<`) marks where you arrive.
 - `GameState.place: Place` with `Place::Floor { dive: u32, floor: u32 }` for now (camp comes in slice
   3); saved, `SAVE_VERSION` bumped.

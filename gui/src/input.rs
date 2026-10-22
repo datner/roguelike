@@ -70,6 +70,7 @@ pub fn map_game(press: Press) -> Option<InputEvent> {
         Press::Char('n') => Some(InputEvent::Move(Dir::SE)),
         Press::Char('.') => Some(InputEvent::Wait),
         Press::Char('x') => Some(InputEvent::Explore),
+        Press::Char('>') => Some(InputEvent::Descend),
         Press::Char('p') => Some(InputEvent::Practice),
         Press::Char(';') => Some(InputEvent::Look),
         Press::Char('X') => Some(InputEvent::CycleExploreItems),
@@ -190,6 +191,7 @@ mod tests {
             (Press::Char('x'), InputEvent::Explore),
             (Press::Char('X'), InputEvent::CycleExploreItems),
             (Press::Char('S'), InputEvent::Styles),
+            (Press::Char('>'), InputEvent::Descend),
             (Press::Char('c'), InputEvent::Cast),
             (Press::Esc, InputEvent::Quit),
         ];

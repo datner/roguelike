@@ -33,7 +33,7 @@ use crate::style::StyleDef;
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 27;
+pub const SAVE_VERSION: u32 = 28;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -130,6 +130,7 @@ struct Save {
     player: u32,
     next_spawn_seq: u64,
     explore_items: ExploreItems,
+    place: crate::dive::Place,
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
@@ -439,6 +440,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         player: must_refer(state.player)?,
         next_spawn_seq: state.next_spawn_seq,
         explore_items: state.explore_items,
+        place: state.place,
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
@@ -547,6 +549,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         remembered_items,
         next_spawn_seq: save.next_spawn_seq,
         explore_items: save.explore_items,
+        place: save.place,
     };
     fov::update(&mut state);
     Ok(state)
@@ -1476,7 +1479,7 @@ mod tests {
         let mut state = bare_state();
         thing("found").item().found().at(4, 4).make(&mut state);
         thing("unfound").item().at(5, 4).make(&mut state);
-        state.map.set(6, 4, Tile::Exit);
+        state.map.set(6, 4, Tile::StairsDown);
 
         let loaded = reload(&state, test_blueprints());
         let found: Vec<(String, bool)> = loaded
@@ -1489,7 +1492,7 @@ mod tests {
             found,
             [("found".to_string(), true), ("unfound".to_string(), false)]
         );
-        assert_eq!(loaded.map.get(6, 4), Some(&Tile::Exit));
+        assert_eq!(loaded.map.get(6, 4), Some(&Tile::StairsDown));
     }
 
     #[test]

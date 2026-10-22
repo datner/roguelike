@@ -33,6 +33,7 @@ pub mod combat;
 pub mod command;
 pub mod cost;
 pub mod discovery;
+pub mod dive;
 pub mod effect;
 pub mod entity;
 pub mod equipment;
@@ -66,6 +67,7 @@ pub use aim::{Aim, Chances, FireStep, Shot, aim, aim_range, aim_targets, fire_st
 pub use camera::{Camera, camera};
 pub use command::MAX_COMMANDS_PER_STEP;
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
+pub use dive::Place;
 pub use effect::DurationChange;
 pub use entity::{
     Ammo, AmmoKind, Appearance, Area, Armor, Bleeding, BlocksMovement, Body, BodyPart, DamageType,

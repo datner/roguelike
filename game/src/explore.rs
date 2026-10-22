@@ -1,5 +1,5 @@
 //! Auto-explore: the player's next step toward an unfound floor item, then
-//! unexplored ground, then the exit, judged only from what the player knows.
+//! unexplored ground, then the stairs down, judged only from what the player knows.
 
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
@@ -158,7 +158,7 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
     let targets: [&dyn Fn((i32, i32)) -> bool; 3] = [
         &|at| unfound.contains(&at),
         &|at| is_frontier(state, at),
-        &|(x, y)| state.map.get(x, y) == Some(&Tile::Exit),
+        &|(x, y)| state.map.get(x, y) == Some(&Tile::StairsDown),
     ];
     for is_target in targets {
         if let Some(dir) = paths
@@ -171,11 +171,13 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
             return Ok(dir);
         }
     }
-    Err(if state.map.get(from.x, from.y) == Some(&Tile::Exit) {
-        "You stand at the exit; there is nothing left to find.".to_string()
-    } else {
-        "There is nowhere left to explore.".to_string()
-    })
+    Err(
+        if state.map.get(from.x, from.y) == Some(&Tile::StairsDown) {
+            "Nothing left to find here; > goes deeper.".to_string()
+        } else {
+            "There is nowhere left to explore.".to_string()
+        },
+    )
 }
 
 /// An enemy of the player in view: hostiles and their summons, never
@@ -286,7 +288,7 @@ mod tests {
     #[test]
     fn it_finds_every_item_then_stops_at_the_exit() {
         let mut state = bare_state();
-        state.map.set(30, 15, Tile::Exit);
+        state.map.set(30, 15, Tile::StairsDown);
         let near = item(&mut state, (5, 2));
         let far = item(&mut state, (35, 17));
 
@@ -297,10 +299,7 @@ mod tests {
         assert_eq!(at(&state), (30, 15));
         assert!(state.seen.cells().iter().filter(|&&s| s).count() > 0);
         let log: Vec<&String> = state.log.recent(10).collect();
-        assert_eq!(
-            log[0],
-            "You stand at the exit; there is nothing left to find."
-        );
+        assert_eq!(log[0], "Nothing left to find here; > goes deeper.");
         assert!(log.iter().any(|m| *m == "You find the knife."));
     }
 

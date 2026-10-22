@@ -21,7 +21,9 @@ use crate::rng::Rngs;
 use crate::spawn::{Held, Source, Spawn};
 use crate::spell;
 use crate::time::{Tick, Timers};
-use crate::zone::{CaveParams, ZoneCoord, generate_cave, place_exit, start_position, zone_seed};
+use crate::zone::{
+    CaveParams, ZoneCoord, generate_cave, place_stairs_down, start_position, zone_seed,
+};
 
 /// Goblins placed in a new zone (fewer if the cave has no room).
 pub const GOBLINS: usize = 6;
@@ -89,6 +91,8 @@ pub struct GameState {
     /// What auto-explore does on reaching a floor item. A player setting,
     /// but it decides actions, so it is game state and saved.
     pub explore_items: ExploreItems,
+    /// Which floor of which dive the player is on (`dive`).
+    pub place: crate::dive::Place,
     /// Effects since the frontend last took them, for animation only:
     /// never read by the simulation, never saved (ADR 0022).
     pub(crate) fx: Vec<crate::fx::Fx>,
@@ -96,7 +100,7 @@ pub struct GameState {
 
 impl GameState {
     /// The starting zone: a generated cave, the player on the floor tile
-    /// nearest its centre, the exit on the floor farthest from it, then
+    /// nearest its centre, the stairs down on the floor farthest from it, then
     /// `GOBLINS` goblins and `FLOOR_ITEMS` items on free floor, drawn from
     /// the spawn stream.
     pub fn new(
@@ -121,7 +125,7 @@ impl GameState {
         let mut rngs = Rngs::new(seed, zone_seed);
         rngs.map = map_stream;
         let (x, y) = start_position(&map).unwrap_or((map.width / 2, map.height / 2));
-        place_exit(&mut map, (x, y));
+        place_stairs_down(&mut map, (x, y));
         Self::with_map(seed, rngs, map, Position { x, y }, blueprints)
     }
 
@@ -141,7 +145,7 @@ impl GameState {
         Ok(())
     }
 
-    fn populate(&mut self) -> Result<(), BlueprintError> {
+    pub(crate) fn populate(&mut self) -> Result<(), BlueprintError> {
         let Ok(from) = self
             .world
             .get::<&Position>(self.player)
@@ -245,6 +249,7 @@ impl GameState {
             remembered_items: no_items,
             next_spawn_seq: 0,
             explore_items: ExploreItems::default(),
+            place: crate::dive::Place::default(),
             fx: Vec::new(),
         };
         state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
@@ -370,7 +375,8 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
             let (glyph, fg) = match tile {
                 Tile::Floor => ('.', Rgb(90, 90, 90)),
                 Tile::Wall => ('#', Rgb(140, 140, 140)),
-                Tile::Exit => ('>', Rgb(240, 220, 80)),
+                Tile::StairsDown => ('>', Rgb(240, 220, 80)),
+                Tile::StairsUp => ('<', Rgb(240, 220, 80)),
             };
             let remembered = state
                 .remembered_items
@@ -736,7 +742,7 @@ pub(crate) mod tests {
         .unwrap()
     }
 
-    fn player_position(state: &GameState) -> Position {
+    pub(crate) fn player_position(state: &GameState) -> Position {
         *state.world.get::<&Position>(state.player).unwrap()
     }
 
@@ -790,7 +796,7 @@ pub(crate) mod tests {
                 .map
                 .cells()
                 .iter()
-                .filter(|&&t| t == Tile::Exit)
+                .filter(|&&t| t == Tile::StairsDown)
                 .count();
             assert_eq!(exits, 1, "seed {seed}");
         }

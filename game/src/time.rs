@@ -192,6 +192,7 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
             }
         }
         PlayerAction::Practice => Command::Practice(player),
+        PlayerAction::Descend => Command::Descend(player),
         PlayerAction::FollowStyle(style) => {
             let known = crate::style::known(&state.world, player);
             let Some(style) = style.find(&state.world, &known) else {
@@ -577,6 +578,7 @@ mod tests {
                 InputEvent::Move(dir) => PlayerAction::Move(dir),
                 InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::PickUp => PlayerAction::PickUp,
+                InputEvent::Descend => PlayerAction::Descend,
                 InputEvent::Inventory
                 | InputEvent::Equipment
                 | InputEvent::Skills

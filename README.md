@@ -156,8 +156,10 @@ In game:
 - `.`: wait a turn.
 - `g` or `,`: pick up everything on your tile (one turn; nothing there costs
   nothing).
-- `x`: auto-explore: find every item, explore the zone, then walk to the
-  exit. Stops when a hostile comes into view; any key interrupts it.
+- `x`: auto-explore: find every item, explore the floor, then walk to the
+  stairs down. Stops when a hostile comes into view; any key interrupts it.
+- `>`: take the stairs down to a new floor. You bring what you hold and your
+  summons; the floor you leave is gone.
 - In the window (`gui`), the mouse is a shortcut onto the same keys:
   hovering the map moves the look or aim cursor, a click goes there
   (travel), fires, or picks a list row, a right click cancels aiming,

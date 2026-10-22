@@ -71,6 +71,8 @@ pub enum InputEvent {
     /// Frontend only: pick a known spell and aim it. The cast is
     /// `PlayerAction::Cast`.
     Cast,
+    /// Take the stairs down: `PlayerAction::Descend`.
+    Descend,
     Quit,
 }
 
@@ -113,6 +115,8 @@ pub enum PlayerAction {
     Study(ItemRef),
     /// A turn of drills with what you wield; see `training::practice_step`.
     Practice,
+    /// Take the stairs down (`dive`).
+    Descend,
 }
 
 #[cfg(test)]
