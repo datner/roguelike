@@ -20,7 +20,7 @@ origins and legacy are separate plans; this one stops where they start.
 - No `unwrap`/`expect` in library code. Tests sit next to the code.
 - Every slice ends with `scripts/check.sh` green. Never run `term`; test UI with `TestBackend`.
   Do not commit unless asked. Commits are conventional and scoped by crate.
-- Recipes: `add-part` (components, blueprints, save), `add-command`, `add-term-ui`, `add-spell` (slice 5).
+- Recipes: `add-part` (components, blueprints, save), `add-command`, `add-ui`, `add-spell` (slice 5).
 
 ## Where things stand
 
@@ -142,7 +142,7 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
 ### 2. Seeing skills
 - `view::skills(state) -> Vec<SkillView { name, domain, level, xp, next }>`, skills with XP or a level.
 - `term`: a Skills view in the overlay (beside inventory and equipment), grouped by domain; item
-  inspection lists what an item trains. Follow `add-term-ui`. README Controls if a key is added.
+  inspection lists what an item trains. Follow `add-ui`. README Controls if a key is added.
 
 ### 3. Circumstance skills
 - `used` adds One-handed when one hand holds the striking weapon, Empty offhand when every other hand is

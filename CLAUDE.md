@@ -69,7 +69,8 @@ turns) by driving a `front::Session` with inputs.
 - `game/` — library: all simulation and logic. See `game/CLAUDE.md`.
 - `front/` — library shared by every frontend: `Session` (keyboard flows),
   title menu, save files; no drawing, no key bindings. See `front/CLAUDE.md`.
-- `term/` — binary: crossterm + ratatui frontend. See `term/CLAUDE.md`.
+- `term/` — binary: crossterm + ratatui frontend, **frozen** (fallback only
+  for new modes). See `term/CLAUDE.md`.
 - `gui/` — binary: eframe/egui windowed frontend. See `gui/CLAUDE.md`.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,

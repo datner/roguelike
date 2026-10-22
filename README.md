@@ -118,7 +118,8 @@ This is a Cargo workspace with four crates:
   practice runs), the status text, the title menu, and save files: one per
   character, loaded from the menu and written (atomically) on quit. No
   drawing and no key bindings.
-- `term/` — the binary frontend: crossterm (reached only through
+- `term/` — the terminal frontend, frozen: it keeps working but gets no new
+  features, and screens added later only say to use the window. Crossterm (reached only through
   `ratatui::crossterm`, never as a direct dependency) + ratatui. It maps
   raw key events to `front`'s inputs, renders `Grid<Cell>` through a
   clipped custom `MapWidget`, and owns all terminal lifecycle concerns

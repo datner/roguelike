@@ -2,6 +2,8 @@
 
 Thin shell around `front` and `game`: maps crossterm keys to `front` inputs and draws with ratatui. **No game rules and no flow rules here.** What a key does to the game is `front::session`; what an action does is `game`.
 
+**Frozen (2026-10-22).** `gui` is the frontend; `term` gets no new features and is deleted after the camp-and-dives work unless it is still played. It must keep building and its tests passing: a new `front` mode gets one line, "This screen needs the window (cargo run -p gui).", with `Esc` backing out. Fixing a break is fine; extending is not.
+
 ## Module rules
 
 What each module is for is in the index (`docs/MAP.md`); its API is
