@@ -70,7 +70,7 @@ pub use entity::{
     Item, Launcher, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Position, Projectile, Quiver,
     Shape, SpawnSeq, Speed, Stat, Stats, Throwable, Timed, Weapon,
 };
-pub use explore::{ExploreItems, cycle_explore_items, explore_step};
+pub use explore::{ExploreItems, cycle_explore_items, explore_step, travel_step};
 pub use grammar::{Subject, capitalize};
 pub use lore::{Inspection, inspect, look_targets};
 pub use ranged::{Trail, take_trails};

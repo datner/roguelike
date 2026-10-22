@@ -82,6 +82,39 @@ pub fn explore_step(state: &mut GameState) -> bool {
     }
 }
 
+/// Takes one step toward the known tile `to` as the player's turn, along
+/// the same known ground auto-explore walks, and returns whether to keep
+/// going. It stops on arrival, after a step that didn't move, and without
+/// spending time when an enemy is in view or there is no known way (the
+/// log says why).
+pub fn travel_step(state: &mut GameState, to: (i32, i32)) -> bool {
+    if state.game_over {
+        return false;
+    }
+    let Some(before) = player_position(state) else {
+        return false;
+    };
+    if (before.x, before.y) == to {
+        return false;
+    }
+    if let Some(hostile) = visible_hostile(state) {
+        let reason = Subject::of(&state.world, hostile).sentence("be", "in view");
+        state.log.push(reason);
+        return false;
+    }
+    let Some(dir) = paths_from(state, before)
+        .first
+        .get(to.0, to.1)
+        .copied()
+        .flatten()
+    else {
+        state.log.push("You know no way there.");
+        return false;
+    };
+    take_turn(state, PlayerAction::Move(dir));
+    player_position(state).is_some_and(|after| after != before && (after.x, after.y) != to)
+}
+
 /// Floor items the player has not found yet.
 fn unfound_items(state: &GameState) -> usize {
     state
@@ -351,5 +384,35 @@ mod tests {
                 .all(|(x, y)| flag(&state.seen, x, y))
         );
         assert_eq!(last_log(&state), "There is nowhere left to explore.");
+    }
+
+    #[test]
+    fn travel_walks_known_ground_to_the_tile_and_stops_there() {
+        let mut state = bare_state();
+        let mut steps = 0;
+        while travel_step(&mut state, (6, 3)) {
+            steps += 1;
+            assert!(steps < 100, "travel did not stop");
+        }
+        assert_eq!(at(&state), (6, 3));
+        // Diagonals first: five steps cover five columns and two rows.
+        assert_eq!(steps + 1, 5);
+        let now = state.now;
+        assert!(!travel_step(&mut state, (6, 3)), "already there");
+        assert_eq!(state.now, now);
+    }
+
+    #[test]
+    fn travel_refuses_unknown_ground_and_stops_for_enemies() {
+        let mut state = bare_state();
+        let now = state.now;
+        assert!(!travel_step(&mut state, (38, 18)));
+        assert_eq!(last_log(&state), "You know no way there.");
+        assert_eq!(state.now, now);
+
+        thing("goblin").hostile().at(3, 1).make(&mut state);
+        assert!(!travel_step(&mut state, (2, 2)));
+        assert_eq!(last_log(&state), "The goblin is in view.");
+        assert_eq!(state.now, now);
     }
 }
