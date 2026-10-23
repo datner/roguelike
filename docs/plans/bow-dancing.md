@@ -65,7 +65,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: the tag changes no level (a shot's hit chance is the same with and without it); a short-bow
   shot and bash train it; it is not listed in the panel.
 
-### 3. Kicks
+### 3. Kicks — done
 - `Blow { accuracy, damage_pct, unarmed }`: `BlowMods.unarmed` makes `combat::blow_strike` skip the
   wielded weapon for the natural `Melee`. `aim` previews it through the same function.
 - `Need::Part(PartKind)` checks the `Body`.

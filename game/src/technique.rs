@@ -17,7 +17,7 @@ use crate::entity::{
     Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
     Stamina, Stats, StyleBonus, Technique,
 };
-use crate::entity::{Combo, ComboDisplay, Performed};
+use crate::entity::{Combo, ComboDisplay, PartKind, Performed};
 use crate::event::EventRegistry;
 use crate::grammar::Subject;
 use crate::holding;
@@ -103,6 +103,8 @@ pub enum NeedDef {
     /// A style, by its skill's name.
     Following(String),
     Continuing,
+    /// A body part of this kind.
+    Part(PartKind),
 }
 
 /// A `Rider` as written in RON and saves: an effect by blueprint name.
@@ -172,6 +174,7 @@ impl Names<'_> {
             NeedDef::Skill(skill, level) => Need::Skill(self.skill(skill)?, *level),
             NeedDef::Following(style) => Need::Following(self.skill(style)?),
             NeedDef::Continuing => Need::Continuing,
+            &NeedDef::Part(kind) => Need::Part(kind),
         })
     }
 
@@ -181,6 +184,7 @@ impl Names<'_> {
             Need::Skill(skill, level) => NeedDef::Skill(self.skill_name(*skill)?, *level),
             Need::Following(style) => NeedDef::Following(self.skill_name(*style)?),
             Need::Continuing => NeedDef::Continuing,
+            &Need::Part(kind) => NeedDef::Part(kind),
         })
     }
 
@@ -266,7 +270,7 @@ impl TechniqueDef {
         let needs = self.requires.iter().flat_map(|need| match need {
             NeedDef::Wielding(skills) => skills.iter().collect::<Vec<_>>(),
             NeedDef::Skill(skill, _) | NeedDef::Following(skill) => vec![skill],
-            NeedDef::Continuing => Vec::new(),
+            NeedDef::Continuing | NeedDef::Part(_) => Vec::new(),
         });
         let styles = self.bonuses.iter().map(|bonus| &bonus.style);
         needs.chain(self.uses.iter().flatten()).chain(styles)
@@ -448,6 +452,7 @@ pub(crate) fn inspect(
             + combo.map_or(0, |combo| combo.damage_pct),
         uses: data.uses.clone(),
         xp_pct: combo.map_or(0, |combo| combo.xp_pct) * run.unwrap_or(0),
+        unarmed: blow.unarmed,
     };
     let Some((strike, used)) = combat::blow_strike(world, state.blueprints.skills(), actor, &mods)
     else {
@@ -569,6 +574,14 @@ fn unmet(
             Need::Continuing => {
                 if !continuing {
                     return Some(format!("Your {name} only follows the step before it."));
+                }
+            }
+            &Need::Part(kind) => {
+                let has = world
+                    .get::<&crate::entity::Body>(actor)
+                    .is_ok_and(|body| body.0.iter().any(|part| part.kind == kind));
+                if !has {
+                    return Some(format!("Your {name} needs {}.", kind.noun()));
                 }
             }
             &Need::Following(style) => {
@@ -1220,6 +1233,7 @@ mod tests {
             Blow {
                 accuracy: 2,
                 damage_pct: 50,
+                unarmed: false,
             },
         );
         let (ready, _) = inspect(&state, player, technique).unwrap();
@@ -1858,6 +1872,57 @@ mod tests {
                 .recent(5)
                 .any(|line| line == "Inspiration! You discover the cleave.")
         );
+    }
+
+    /// The real player (a short bow in hand) knowing the push kick.
+    fn kicker() -> (GameState, Entity) {
+        let mut state = real();
+        let player = state.player;
+        let id = state.blueprints.id("PushKick").unwrap();
+        let kick = state
+            .spawn(crate::spawn::Spawn::id(id).attached_to(player))
+            .unwrap();
+        (state, kick)
+    }
+
+    #[test]
+    fn a_kick_strikes_with_the_leg_whatever_is_in_hand() {
+        let (mut state, kick) = kicker();
+        let player = state.player;
+        let book = state.blueprints.skills().clone();
+        let bump = combat::strike(&state.world, &book, player).unwrap();
+        assert!(bump.weapon.is_some(), "a bump hits with the bow");
+        let (ready, blocked) = inspect(&state, player, kick).unwrap();
+        assert_eq!(blocked, None);
+        assert_eq!(ready.strike.weapon, None);
+        assert_eq!(
+            (ready.strike.min, ready.strike.max),
+            (2, 4),
+            "the player's own"
+        );
+
+        let goblin = thing("goblin")
+            .at(2, 1)
+            .health(1000)
+            .hostile()
+            .make(&mut state);
+        crate::testkit::sure_hits(&mut state, player);
+        perform(&mut state, kick, (2, 1));
+        assert_eq!(at(&state, goblin), (3, 1), "kicked back a step");
+        let xp = |name| skill::xp(&state.world, player, book.id(name).unwrap());
+        assert!(xp("Unarmed") > 0);
+        assert_eq!((xp("Bow"), xp("Short bow")), (0, 0), "the bow did nothing");
+    }
+
+    #[test]
+    fn a_kick_needs_feet() {
+        let (mut state, kick) = kicker();
+        let player = state.player;
+        goblin(&mut state, (2, 1));
+        let _ = state
+            .world
+            .insert_one(player, crate::entity::Body(Vec::new()));
+        refused(&mut state, kick, (2, 1), "Your push kick needs feet.");
     }
 
     #[test]

@@ -1,0 +1,19 @@
+// A technique (ADR 0024): a kick that drives the enemy back a step. Struck
+// with the leg, not what is in hand (`Blow(unarmed)`), so it is the way to
+// fight up close with a bow, or with anything else. Anyone with feet can
+// learn it; bow dancing invents it.
+(
+    components: [
+        Name("push kick"),
+        Technique(
+            domain: Martial,
+            verb: "kick",
+            reach: 1,
+            recharge: 300,
+            stamina: 0,
+            requires: [Part(Feet)],
+            riders: [Shove(tiles: 1)],
+        ),
+        Blow(damage_pct: -25, unarmed: true),
+    ],
+)

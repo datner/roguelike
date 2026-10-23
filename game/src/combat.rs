@@ -141,7 +141,8 @@ pub(crate) fn strike(world: &World, skills: &SkillBook, attacker: Entity) -> Opt
 }
 
 /// `strike` shifted by `mods`, with the skills it uses: the weapon's
-/// (`skill::melee`), or `mods.uses` instead.
+/// (`skill::melee`), or `mods.uses` instead. An unarmed blow skips what is
+/// wielded for the natural `Melee`.
 pub(crate) fn blow_strike(
     world: &World,
     skills: &SkillBook,
@@ -150,16 +151,19 @@ pub(crate) fn blow_strike(
 ) -> Option<(Strike, Vec<SkillId>)> {
     let mut worn = equipped(world, attacker);
     worn.sort_by_key(|&(_, part)| part);
-    let wielded = worn.into_iter().find_map(|(item, _)| {
-        let weapon = *world.get::<&Weapon>(item).ok()?;
-        Some((
-            weapon.min,
-            weapon.max,
-            weapon.stat,
-            weapon.types,
-            Some(item),
-        ))
-    });
+    let wielded = worn
+        .into_iter()
+        .filter(|_| !mods.unarmed)
+        .find_map(|(item, _)| {
+            let weapon = *world.get::<&Weapon>(item).ok()?;
+            Some((
+                weapon.min,
+                weapon.max,
+                weapon.stat,
+                weapon.types,
+                Some(item),
+            ))
+        });
     let natural = || {
         let melee = *world.get::<&Melee>(attacker).ok()?;
         Some((
@@ -203,6 +207,8 @@ pub(crate) struct BlowMods {
     pub uses: Option<Vec<SkillId>>,
     /// Percent more the attacker learns from it.
     pub xp_pct: u32,
+    /// Struck with the body, whatever is wielded (`Blow::unarmed`).
+    pub unarmed: bool,
 }
 
 impl BlowMods {

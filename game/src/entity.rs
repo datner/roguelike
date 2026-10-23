@@ -990,6 +990,8 @@ pub enum Need {
     Following(SkillId),
     /// Only as the next step of a run of its form (`Combo`).
     Continuing,
+    /// A body part of this kind: feet to kick with.
+    Part(PartKind),
 }
 
 /// Technique part: it strikes with what its performer wields, shifted.
@@ -1000,6 +1002,10 @@ pub struct Blow {
     /// Percent added to the damage rolled; negative takes it away.
     #[serde(default)]
     pub damage_pct: i32,
+    /// Struck with the body (a kick), not what is wielded: the creature's
+    /// natural `Melee`, trained as an unarmed blow, whatever is in hand.
+    #[serde(default)]
+    pub unarmed: bool,
 }
 
 /// Technique part: the performer first moves up to `tiles` along the line to

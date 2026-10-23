@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 37;
+pub const SAVE_VERSION: u32 = 38;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1276,6 +1276,7 @@ mod tests {
             requires: vec![
                 crate::entity::Need::Wielding(vec![book.id("Pierce").unwrap()]),
                 crate::entity::Need::Skill(book.id("Dagger").unwrap(), 3),
+                crate::entity::Need::Part(crate::entity::PartKind::Feet),
             ],
             riders: vec![
                 crate::entity::Rider::Shove { tiles: 2 },
@@ -1308,6 +1309,7 @@ mod tests {
             .with(Blow {
                 accuracy: 2,
                 damage_pct: 25,
+                unarmed: true,
             })
             .attached_to(player)
             .make(&mut state);
