@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use game::Blueprints;
-use game::balance::{self, Build, Run, Scenario, Summary};
+use game::balance::{self, Build, Cost, Run, Scenario, Summary};
 
 /// The start of a fight: everything off recharge, every pool full.
 pub const BURST: u64 = 1000;
@@ -14,6 +14,8 @@ pub const BURST: u64 = 1000;
 pub const SUSTAINED: u64 = 10_000;
 /// Seeds `0..SEEDS` per run.
 pub const SEEDS: u64 = 50;
+/// How far above the median damage per XP a build is flagged.
+pub const OUTLIER: f64 = 1.5;
 
 /// Everything in `bench/`.
 #[derive(Debug, Clone)]
@@ -76,7 +78,7 @@ pub fn measure(blueprints: &Blueprints, bench: &Bench, seeds: u64) -> Result<Vec
 }
 
 /// The report, as markdown: the builds, then one table per scenario.
-pub fn report(bench: &Bench, rows: &[Row], seeds: u64) -> String {
+pub fn report(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "# Balance report\n");
     let _ = writeln!(
@@ -86,9 +88,22 @@ pub fn report(bench: &Bench, rows: &[Row], seeds: u64) -> String {
          {BURST} ticks, sustained the first {SUSTAINED}. Landed and grazed are shares of every \
          blow, over the sustained window.\n"
     );
+    let costs: Vec<Cost> = bench
+        .builds
+        .iter()
+        .map(|build| balance::cost(blueprints, build))
+        .collect();
     let _ = writeln!(out, "## Builds\n");
-    for build in &bench.builds {
+    for (build, cost) in bench.builds.iter().zip(&costs) {
         let _ = writeln!(out, "- **{}**: {}", build.name, build.note);
+        for need in &cost.needs {
+            let from = if need.from.is_empty() {
+                "nothing in the content gives it".to_string()
+            } else {
+                need.from.join("; ")
+            };
+            let _ = writeln!(out, "  - {}: {from}", need.thing);
+        }
     }
     for scenario in &bench.scenarios {
         let _ = writeln!(out, "\n## {}\n", scenario.name);
@@ -108,8 +123,59 @@ pub fn report(bench: &Bench, rows: &[Row], seeds: u64) -> String {
     }
     if let Some(first) = bench.scenarios.first() {
         spending(&mut out, rows, first);
+        costing(&mut out, bench, &costs, rows, first);
     }
     out
+}
+
+/// How hard each build is to reach next to what it deals: damage per turn
+/// (sustained, against `scenario`) per 1000 XP of skill. A build far above
+/// the others' median is flagged; whether that is a problem is the owner's
+/// call. A build of no skill at all has no ratio.
+fn costing(out: &mut String, bench: &Bench, costs: &[Cost], rows: &[Row], scenario: &Scenario) {
+    let ratios: Vec<Option<f64>> = bench
+        .builds
+        .iter()
+        .zip(costs)
+        .map(|(build, cost)| {
+            let row = rows
+                .iter()
+                .find(|row| row.scenario == scenario.name && row.build == build.name)?;
+            (cost.xp > 0).then(|| row.sustained.mean * 1000.0 / f64::from(cost.xp))
+        })
+        .collect();
+    let mut sorted: Vec<f64> = ratios.iter().flatten().copied().collect();
+    sorted.sort_by(f64::total_cmp);
+    let median = sorted.get(sorted.len() / 2).copied();
+    let _ = writeln!(out, "\n## What it costs\n");
+    let _ = writeln!(
+        out,
+        "XP to build: the XP its skills hold. Damage per turn is the sustained mean against \"{}\"; \
+         a build above {OUTLIER}× the median per 1000 XP is flagged.\n",
+        scenario.name
+    );
+    let _ = writeln!(
+        out,
+        "| build | XP to build | damage per turn | per 1000 XP | |"
+    );
+    let _ = writeln!(out, "|---|---|---|---|---|");
+    for ((build, cost), ratio) in bench.builds.iter().zip(costs).zip(&ratios) {
+        let mean = rows
+            .iter()
+            .find(|row| row.scenario == scenario.name && row.build == build.name)
+            .map_or(0.0, |row| row.sustained.mean);
+        let flag = match (ratio, median) {
+            (Some(ratio), Some(median)) if *ratio > median * OUTLIER => "**outlier**",
+            _ => "",
+        };
+        let _ = writeln!(
+            out,
+            "| {} | {} | {mean:.2} | {} | {flag} |",
+            build.name,
+            cost.xp,
+            ratio.map_or_else(|| "—".to_string(), |ratio| format!("{ratio:.2}")),
+        );
+    }
 }
 
 /// What each build spends over the sustained window of `scenario`, and

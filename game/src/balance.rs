@@ -526,6 +526,125 @@ fn mean(runs: &[Run], of: impl Fn(&Run) -> u32) -> f64 {
     runs.iter().map(|run| f64::from(of(run))).sum::<f64>() / runs.len().max(1) as f64
 }
 
+/// What a build takes to reach.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cost {
+    /// XP its skills hold, summed over the curve: how much use it took.
+    pub xp: u32,
+    /// Everything it holds or knows, with where each comes from.
+    pub needs: Vec<Source>,
+}
+
+/// One thing a build needs and the ways to come by it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Source {
+    /// Its blueprint.
+    pub thing: String,
+    /// "starting kit", "found lying about, 1 in 23 finds", "taught by the
+    /// lunge treatise", …; empty if nothing in the content gives it.
+    pub from: Vec<String>,
+}
+
+/// What `build` costs, read from the content: the starting kit, what lies
+/// about in dungeons, what their creatures wear, manuals, discoveries and
+/// styles' inventions.
+pub fn cost(blueprints: &Blueprints, build: &Build) -> Cost {
+    let xp = build
+        .skills
+        .values()
+        .map(|&level| skill::xp_for(level))
+        .sum();
+    let needs = build
+        .equipment
+        .iter()
+        .chain(&build.techniques)
+        .chain(&build.spells)
+        .chain(&build.style)
+        .map(|thing| Source {
+            thing: thing.clone(),
+            from: sources(blueprints, thing),
+        })
+        .collect();
+    Cost { xp, needs }
+}
+
+fn sources(blueprints: &Blueprints, name: &str) -> Vec<String> {
+    let Some(id) = blueprints.id(name) else {
+        return Vec::new();
+    };
+    let noun = |id| {
+        blueprints
+            .by_id(id)
+            .and_then(|bp| bp.noun())
+            .unwrap_or("something")
+            .to_string()
+    };
+    let skill_name = |skill| {
+        blueprints
+            .skills()
+            .get(skill)
+            .map_or_else(String::new, |def| def.name.clone())
+    };
+    let mut from = Vec::new();
+    if let Some(player) = blueprints.get("Player")
+        && [&player.equipment, &player.techniques, &player.spells]
+            .iter()
+            .any(|list| list.contains(&id))
+    {
+        from.push("starting kit".to_string());
+    }
+    if blueprints.items().contains(&id) {
+        let finds = blueprints.items().len();
+        from.push(format!("found lying about, 1 in {finds} finds"));
+    }
+    for (_, dungeon) in blueprints.dungeons() {
+        for inhabitant in &dungeon.creatures {
+            if let Some(creature) = blueprints.get(&inhabitant.blueprint)
+                && creature.equipment.contains(&id)
+            {
+                let source = format!(
+                    "worn by the {} in {}",
+                    creature.noun().unwrap_or("?"),
+                    dungeon.name
+                );
+                if !from.contains(&source) {
+                    from.push(source);
+                }
+            }
+        }
+    }
+    for (other, blueprint) in blueprints.all() {
+        if blueprint
+            .teaches
+            .as_ref()
+            .is_some_and(|teaches| teaches.0.contains(&id))
+        {
+            from.push(format!("taught by the {}", noun(other)));
+        }
+        if let Some(style) = &blueprint.style {
+            for &(level, invented) in &style.invents {
+                if invented == id {
+                    from.push(format!(
+                        "invented by {} at {level}",
+                        skill_name(style.skill)
+                    ));
+                }
+            }
+        }
+    }
+    for discovery in blueprints.discoveries() {
+        if discovery.grants == id {
+            let needs: Vec<String> = discovery
+                .requires
+                .iter()
+                .map(|&(skill, level)| format!("{} {level}", skill_name(skill)))
+                .collect();
+            from.push(format!("discovered from {}", needs.join(" and ")));
+        }
+    }
+    from
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -737,5 +856,46 @@ mod tests {
         assert!(run.arrows_broken <= stocked);
         let shots = run.landed + run.misses;
         assert!(shots > stocked, "it bashed once the quiver was empty");
+    }
+
+    #[test]
+    fn a_build_costs_the_xp_of_its_levels() {
+        let fencer = fencer();
+        let cost = cost(&data(), &fencer);
+        assert_eq!(cost.xp, 4 * skill::xp_for(5), "four skills at 5");
+    }
+
+    #[test]
+    fn where_things_come_from_is_read_from_the_content() {
+        let mut lunger = fencer();
+        lunger.equipment = vec!["ShortBow".into()];
+        lunger.techniques = vec!["Lunge".into(), "Cleave".into()];
+        lunger.style = Some("Brawling".into());
+        let cost = cost(&data(), &lunger);
+        let from = |thing: &str| {
+            cost.needs
+                .iter()
+                .find(|need| need.thing == thing)
+                .unwrap()
+                .from
+                .clone()
+        };
+        let bow = from("ShortBow");
+        assert_eq!(bow[0], "starting kit");
+        assert!(bow[1].starts_with("found lying about, 1 in "), "{bow:?}");
+        let lunge = from("Lunge");
+        assert!(
+            lunge.contains(&"taught by the treatise on the lunge".to_string()),
+            "{lunge:?}"
+        );
+        assert!(
+            lunge.contains(&"invented by Fencing at 3".to_string()),
+            "{lunge:?}"
+        );
+        assert!(from("Cleave").contains(&"discovered from Melee 3 and Slash 3".to_string()));
+        assert_eq!(
+            from("Brawling"),
+            ["discovered from Melee 3 and Unarmed 3 and Dodge 3"]
+        );
     }
 }

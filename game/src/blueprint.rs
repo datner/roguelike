@@ -754,6 +754,20 @@ impl Blueprints {
         self.dungeons.get(key)
     }
 
+    /// Every dungeon, by key.
+    pub fn dungeons(&self) -> impl Iterator<Item = (&str, &Dungeon)> {
+        self.dungeons
+            .iter()
+            .map(|(key, dungeon)| (key.as_str(), dungeon))
+    }
+
+    /// Every blueprint, in id (name) order.
+    pub(crate) fn all(&self) -> impl Iterator<Item = (BlueprintId, &ResolvedBlueprint)> {
+        (0..)
+            .zip(&self.resolved)
+            .map(|(id, blueprint)| (BlueprintId(id), blueprint))
+    }
+
     /// The dungeon a new game starts in, until there is a camp: the first
     /// by name.
     pub fn first_dungeon(&self) -> Option<&str> {

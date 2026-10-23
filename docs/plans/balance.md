@@ -90,12 +90,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   the cheapest price paid in the whole run, so a caster is not called dry for want of a big spell it
   stops casting. The spending table covers the first scenario only. Arrows are never picked up.
 
-### 4. What it costs
+### 4. What it costs — done
 - `balance::cost(blueprints, &Build) -> Cost`: XP to build, and the sources of each thing it needs, read
   from the starting kit, dungeon spawn lists, `Teaches`, discoveries and `Style.invents`.
 - Report: XP to build, sources, damage per turn per 1000 XP, the outlier flag.
 - Tests: XP to build sums the curve; a manual's technique names the manual and its dungeon; a
   discovery's style lists its requirements.
+- As built: items are not listed per dungeon (every item blueprint can lie about anywhere), so an
+  item's source says how rare it is ("1 in 17 finds") and which dungeon creatures wear it. XP to build
+  depends only on levels, so for now it mostly counts how many skills a build leans on; the skill
+  weights are not in it.
 
 ### 5. The checked-in report
 - `bench/report.md` written by `scripts/balance.sh`; `--check` regenerates to a scratch file and diffs.

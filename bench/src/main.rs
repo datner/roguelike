@@ -35,7 +35,7 @@ fn run() -> Result<(), String> {
         game::Blueprints::load(&root.join("../data")).map_err(|err| err.to_string())?;
     let bench = bench::load(root)?;
     let rows = bench::measure(&blueprints, &bench, seeds)?;
-    let report = bench::report(&bench, &rows, seeds);
+    let report = bench::report(&blueprints, &bench, &rows, seeds);
     match out {
         Some(path) => std::fs::write(&path, report).map_err(|err| format!("{path}: {err}")),
         None => {
