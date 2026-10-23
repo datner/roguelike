@@ -1,0 +1,10 @@
+// The pit fighter: leather, a torch and fists, Brawling known, and a
+// headbutt nobody taught them (an ability, ADR 0025).
+(
+    inherits: "Player",
+    components: [
+        Skills({"Melee": 2, "Unarmed": 2, "Dodge": 1}),
+    ],
+    equipment: ["LeatherArmor", "Torch"],
+    techniques: ["Trip", "Headbutt"],
+)

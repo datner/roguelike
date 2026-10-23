@@ -73,6 +73,14 @@ impl App {
         app
     }
 
+    /// Straight into `character`'s game, a new one starting as `origin`
+    /// if they have no save.
+    pub fn new_as(setup: Setup, character: &str, origin: Option<&str>) -> Self {
+        let mut app = Self::new(setup, None);
+        app.play(character, origin);
+        app
+    }
+
     pub fn game(&self) -> Option<&Game> {
         self.game.as_ref()
     }

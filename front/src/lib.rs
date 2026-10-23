@@ -17,8 +17,13 @@ pub(crate) mod tests {
 
     /// A new game from the real data, seed 3.
     pub fn state() -> GameState {
+        state_as("Wanderer")
+    }
+
+    /// `state`, starting as another origin (`data/origins.ron`).
+    pub fn state_as(origin: &str) -> GameState {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = Blueprints::load(&data).unwrap();
-        GameState::new(3, blueprints).unwrap()
+        GameState::new_as(3, blueprints, Some(origin)).unwrap()
     }
 }

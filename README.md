@@ -23,6 +23,9 @@ This is a Cargo workspace with four crates:
     in place of a class: a blueprint inheriting the bare `Player` with the
     kit, skills and techniques, and styles known from the start. Abilities
     (`Ability`) come only from an origin, never from a manual or a style.
+    Four so far: the wanderer (a bow; the default), the duelist (a rapier,
+    fencing followed), the hedge mage (three spells) and the pit fighter
+    (fists, Brawling, a headbutt).
   - Camp (`data/camp.ron`, drawn as rows of characters): a new game starts
     there, nothing hostile comes there, and each entrance is stairs down
     into a dungeon. Taking one starts a dive; climbing any floor's stairs
@@ -81,16 +84,17 @@ This is a Cargo workspace with four crates:
     wall, and meets that creature like a blow (it may miss and drop at its
     feet). Throwing trains Thrown, shooting Archery and Bow. `aim`
     previews a shot for frontends. A quiver holds arrows and
-    supplies the bow; a nocked arrow overrides it. You start with a short
-    bow and 12 arrows, and a torch in the off hand: a held `Light` widens
+    supplies the bow; a nocked arrow overrides it. The wanderer starts with
+    a short bow and 12 arrows, and a torch in the off hand: a held `Light` widens
     the view (8 tiles to 11) and warms the colour of everything it lights.
   - Spells (ADR 0014): a spell is a part attached to its caster; how it is
     paid for, and which stat it scales with, is the caster's discipline for
-    its school. You start with pyromancy (firebolt, and the fireball that
-    bursts where it lands: a recharge, scales with Willpower) and arcane
-    magic (magic missile, and the arcane lance, a beam through every foe in
-    line: mana that regenerates over time, scales with Intelligence),
-    plus a delayed fire rune, chain lightning and a spirit-wolf summoning.
+    its school. Everyone has pyromancy (paid in recharges, scaling with
+    Willpower) and arcane magic (mana that regenerates over time, scaling
+    with Intelligence); the hedge mage starts knowing firebolt, magic
+    missile and the arcane lance (a beam through every foe in line). The
+    fireball, a delayed fire rune, chain lightning and a spirit-wolf
+    summoning exist for styles to invent.
     Casting runs `ModifyCast` (a worn focus), `CheckCast` (the spell, then
     the caster), `CastRisk` (armor makes casting fizzle) and `PayCost`.
     Parts make a spell an area (burst, cone, beam, nova), a chain, a
@@ -104,7 +108,8 @@ This is a Cargo workspace with four crates:
     graze and train like a bump. `Need`s gate them on what is wielded or a
     skill's level. Area techniques cover ground as spells of their shape do.
     Riders do more on a full hit: a shove, or a timed effect.
-    You start knowing only the trip; manuals teach techniques when studied
+    Every origin starts knowing the trip (the pit fighter its headbutt too);
+    manuals teach techniques when studied
     (`Teaches`), inspiration can bring one (the cleave), and a followed
     style invents its own at levels of its skill (Fencing the lunge,
     Brawling the shove), only in a real fight.

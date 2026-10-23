@@ -1,0 +1,19 @@
+// An ability (ADR 0025): the pit fighter's forehead, harder than a fist and
+// leaving the enemy reeling (`OffBalance.ron`). Never taught or invented;
+// it comes with the origin.
+(
+    components: [
+        Name("headbutt"),
+        Ability,
+        Technique(
+            domain: Martial,
+            verb: "headbutt",
+            reach: 1,
+            recharge: 800,
+            stamina: 0,
+            requires: [Part(Head)],
+            riders: [Effect("OffBalance")],
+        ),
+        Blow(damage_pct: 25, unarmed: true),
+    ],
+)

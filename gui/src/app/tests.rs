@@ -89,8 +89,6 @@ fn every_mode_draws_over_the_map() {
         ("q", "Play"),
         (";", "Look"),
         ("q", "Play"),
-        ("c", "ChooseSpell"),
-        ("q", "Play"),
         ("a", "ChooseTechnique"),
         ("q", "Play"),
         ("f", "Aim"),
@@ -102,6 +100,17 @@ fn every_mode_draws_over_the_map() {
             mode(&harness)
         );
     }
+}
+
+#[test]
+fn a_hedge_mage_opens_the_spell_list() {
+    let mut harness = crate::testing::window_as("spells", "HedgeMage");
+    type_text(&mut harness, "c");
+    assert!(
+        mode(&harness).starts_with("ChooseSpell"),
+        "{}",
+        mode(&harness)
+    );
 }
 
 #[test]

@@ -54,6 +54,11 @@ pub fn window(name: &str) -> Harness<'static, App> {
     harness(App::new(setup(name), Some("hero".into())))
 }
 
+/// `window`, the hero starting as `origin` (`data/origins.ron`).
+pub fn window_as(name: &str, origin: &str) -> Harness<'static, App> {
+    harness(App::new_as(setup(name), "hero", Some(origin)))
+}
+
 pub fn harness(app: App) -> Harness<'static, App> {
     let mut fonts_installed = false;
     let mut harness = Harness::builder().with_size(WINDOW).build_ui_state(

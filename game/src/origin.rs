@@ -347,6 +347,111 @@ mod tests {
         );
     }
 
+    /// The bare test room with the player at (1, 1), starting as `origin`.
+    fn room_as(origin: &str) -> GameState {
+        GameState::with_map(
+            1,
+            crate::rng::Rngs::new(1, 1),
+            crate::map::tests::room(),
+            Position { x: 1, y: 1 },
+            Blueprints::load(&data()).unwrap(),
+            Some(origin),
+        )
+        .unwrap()
+    }
+
+    fn nouns(state: &GameState, things: Vec<Entity>) -> Vec<String> {
+        things
+            .into_iter()
+            .map(|thing| {
+                crate::grammar::Subject::of(&state.world, thing)
+                    .noun()
+                    .to_string()
+            })
+            .collect()
+    }
+
+    fn equipped(state: &GameState) -> Vec<String> {
+        let items = crate::equipment::equipped(&state.world, state.player);
+        nouns(state, items.into_iter().map(|(item, _)| item).collect())
+    }
+
+    fn level(state: &GameState, skill: &str) -> u32 {
+        let id = state.blueprints.skills().id(skill).unwrap();
+        crate::skill::level(crate::skill::xp(&state.world, state.player, id))
+    }
+
+    #[test]
+    fn each_origin_starts_as_described() {
+        let wanderer = room_as("Wanderer");
+        assert_eq!(
+            equipped(&wanderer),
+            ["the short bow", "the quiver", "the torch"]
+        );
+        assert_eq!(level(&wanderer, "Archery"), 1);
+        assert!(crate::view::known_spells(&wanderer).is_empty());
+
+        let duelist = room_as("Duelist");
+        assert_eq!(equipped(&duelist), ["the rapier"]);
+        assert_eq!(
+            (level(&duelist, "Pierce"), level(&duelist, "Fencing")),
+            (2, 1)
+        );
+        let followed = crate::style::followed(&duelist.world, duelist.player);
+        assert_eq!(nouns(&duelist, followed), ["the fencing"]);
+
+        let mage = room_as("HedgeMage");
+        assert_eq!(equipped(&mage), ["the torch"]);
+        assert_eq!(
+            nouns(&mage, crate::view::known_spells(&mage)),
+            ["the firebolt", "the magic missile", "the arcane lance"]
+        );
+
+        let fighter = room_as("PitFighter");
+        assert_eq!(equipped(&fighter), ["the leather armor", "the torch"]);
+        assert_eq!(level(&fighter, "Unarmed"), 2);
+        let player = fighter.player;
+        assert_eq!(
+            nouns(&fighter, crate::style::known(&fighter.world, player)),
+            ["the brawling"]
+        );
+        assert!(crate::style::followed(&fighter.world, player).is_empty());
+    }
+
+    #[test]
+    fn the_headbutt_is_an_ability_that_lands() {
+        let mut state = room_as("PitFighter");
+        let player = state.player;
+        crate::testkit::see_everything(&mut state);
+        crate::testkit::sure_hits(&mut state, player);
+        let goblin = crate::testkit::thing("goblin")
+            .at(2, 1)
+            .health(30)
+            .hostile()
+            .make(&mut state);
+        let views = crate::technique::techniques(&state);
+        let headbutt = views.iter().find(|view| view.name == "headbutt").unwrap();
+        assert!(headbutt.ability);
+        assert!(views.iter().filter(|view| view.ability).count() == 1);
+
+        crate::time::take_turn(
+            &mut state,
+            crate::input::PlayerAction::Perform {
+                technique: headbutt.technique,
+                at: (2, 1),
+            },
+        );
+        let health = state.world.get::<&crate::entity::Health>(goblin).unwrap();
+        assert!(health.current < 30);
+        drop(health);
+        let log: Vec<&str> = state.log.recent(10).map(String::as_str).collect();
+        assert!(
+            log.contains(&"You headbutt at the goblin.")
+                && log.contains(&"The goblin starts reeling."),
+            "{log:?}"
+        );
+    }
+
     #[test]
     fn a_save_keeps_the_origin() {
         let blueprints = with_bare();

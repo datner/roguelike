@@ -819,6 +819,7 @@ mod tests {
     #[test]
     fn spells_are_cast_at_the_doll() {
         let mut caster = build(&["Torch"], &[("Magic", 5), ("Arcane", 5), ("Bolt", 5)]);
+        caster.spells = vec!["MagicMissile".into()];
         caster.policy = vec![Act::Cast("MagicMissile".into())];
         let far = Scenario {
             name: "far".into(),
@@ -830,6 +831,7 @@ mod tests {
     #[test]
     fn a_caster_spends_mana_until_it_cannot_pay() {
         let mut caster = build(&["Torch"], &[("Magic", 5), ("Arcane", 5), ("Bolt", 5)]);
+        caster.spells = vec!["MagicMissile".into()];
         caster.policy = vec![Act::Cast("MagicMissile".into())];
         let run = run(&data(), &caster, &one("Doll"), 3000, 1).unwrap();
         assert!(run.mana.total > 0);

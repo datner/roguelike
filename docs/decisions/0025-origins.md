@@ -39,6 +39,13 @@ began.
   every frontend says the same. Loading a save never asks. The character
   sheet heads with the origin's name.
 
+- The first origins: the wanderer (bow, quiver, torch, Archery 1; the
+  default), the duelist (rapier, the off hand empty, fencing followed at 1),
+  the hedge mage (torch, three spells) and the pit fighter (leather, torch,
+  Brawling known, the headbutt as its ability). The seven spells every
+  character used to know went to the hedge mage (three) or wait for magic
+  styles to invent them (ADR 0016).
+
 ## Consequences
 
 - A new origin is a blueprint and an entry; no code.

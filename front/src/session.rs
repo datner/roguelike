@@ -529,7 +529,7 @@ mod tests {
 
     #[test]
     fn the_spell_list_opens_and_lists_what_can_be_cast() {
-        let mut session = session();
+        let mut session = Session::new(crate::tests::state_as("HedgeMage"), "hero");
         session.handle(Input::Game(InputEvent::Cast));
         assert!(matches!(session.mode(), Mode::ChooseSpell(_)));
         session.handle(Input::List(OverlayInput::Select));

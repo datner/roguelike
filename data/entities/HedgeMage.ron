@@ -1,0 +1,11 @@
+// The hedge mage: a torch, a little fire and a little of the arcane, and
+// three spells. The rest are for magic styles to invent (ADR 0016).
+(
+    inherits: "Player",
+    components: [
+        Skills({"Magic": 2, "Pyromancy": 1, "Arcane": 1}),
+    ],
+    equipment: ["Torch"],
+    spells: ["Firebolt", "MagicMissile", "ArcaneLance"],
+    techniques: ["Trip"],
+)

@@ -82,7 +82,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - README Controls.
 - Tests: a `Menu` flow name → origin → play, and Esc back; a loaded save never asks; the shot.
 
-### 4. The origins
+### 4. The origins — done
 - **Wanderer** (first, default): short bow, quiver, torch; Archery 1; the trip. Spells leave it.
 - **Duelist**: rapier, nothing in the off hand; Pierce 2, Sword 1, One-handed 2, Empty offhand 2;
   Fencing known and followed at level 1. Ability: none, the style is its gift.

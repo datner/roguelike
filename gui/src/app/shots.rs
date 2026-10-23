@@ -7,7 +7,7 @@ use egui_kittest::Harness;
 use image::RgbaImage;
 
 use crate::panels::{BOTTOM_HEIGHT, SIDE_WIDTH};
-use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, window};
+use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, window, window_as};
 
 use super::*;
 
@@ -108,7 +108,11 @@ fn scene(name: &str) -> Harness<'static, App> {
         press_key(&mut harness, egui::Key::Enter);
         return harness;
     }
-    let mut harness = window(&format!("shot-{name}"));
+    // Spells are the hedge mage's; everything else starts as the default.
+    let mut harness = match name {
+        "spells" => window_as("shot-spells", "HedgeMage"),
+        _ => window(&format!("shot-{name}")),
+    };
     harness.state_mut().started = start;
     match name {
         "inventory" => type_text(&mut harness, "i"),
