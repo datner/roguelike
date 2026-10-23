@@ -65,3 +65,7 @@ style only if one of its skills is in one of the style's domains, so casting
 a spell with a bow in hand trains no martial style. Existing styles behave
 as before. A second principle, `SteadyClose`, waives point blank (ADR 0013);
 `style::principle` answers whether a followed style has one switched on.
+
+A third principle, `Gather` (bow dancing from level 1): with every action
+its follower takes, arrows lying on or next to its tile go back in its
+quiver, free (`ammo::gather`, run where an action's energy is charged).

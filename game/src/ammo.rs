@@ -5,7 +5,7 @@
 
 use hecs::{Entity, World};
 
-use crate::entity::{Ammo, AmmoKind, Launcher, Quiver};
+use crate::entity::{Ammo, AmmoKind, Does, Launcher, Position, Quiver, SpawnSeq};
 use crate::equipment::equipped;
 use crate::grammar::Subject;
 use crate::holding;
@@ -160,6 +160,44 @@ fn log_quivered(state: &mut GameState, actor: Entity, arrow: Entity) {
     let what = Subject::of(&state.world, arrow);
     let rest = format!("{} in {} quiver", what.noun(), you.possessive());
     state.log.push(you.sentence("put", &rest));
+}
+
+/// Bow dancing's gathering (`Does::Gather`): with every action `actor`
+/// takes, arrows lying on or next to its tile go back in its quiver while
+/// there is room, at no cost. Oldest arrows first, so it is deterministic.
+pub(crate) fn gather(state: &mut GameState, actor: Entity) {
+    if !crate::style::principle(&state.world, actor, Does::Gather) {
+        return;
+    }
+    let Some(at) = crate::ranged::position(state, actor) else {
+        return;
+    };
+    let mut near: Vec<(SpawnSeq, Entity)> = state
+        .world
+        .query::<(Entity, &Ammo, &Position, &SpawnSeq)>()
+        .iter()
+        .filter(|(_, _, pos, _)| crate::ranged::distance(at, (pos.x, pos.y)) <= 1)
+        .map(|(arrow, _, _, seq)| (*seq, arrow))
+        .collect();
+    near.sort();
+    let mut gathered = 0;
+    for (_, arrow) in near {
+        let Some(quiver) = quiver_with_room(&state.world, actor, arrow) else {
+            continue;
+        };
+        let _ = state.world.remove_one::<Position>(arrow);
+        holding::stow(&mut state.world, quiver, arrow);
+        gathered += 1;
+    }
+    if gathered > 0 {
+        let what = if gathered == 1 {
+            "an arrow".to_string()
+        } else {
+            format!("{gathered} arrows")
+        };
+        let message = Subject::of(&state.world, actor).sentence("gather", &what);
+        state.log.push(message);
+    }
 }
 
 /// A launcher leaving `actor`'s hands gives its nocked arrow back to the pack.

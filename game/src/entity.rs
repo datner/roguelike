@@ -854,6 +854,8 @@ pub enum Does {
     Riposte,
     /// Shooting with an enemy alongside costs no accuracy (point blank).
     SteadyClose,
+    /// With every action, arrows lying within a tile go back in the quiver.
+    Gather,
 }
 
 /// Item part: studying it teaches these skills this much XP, once per kind

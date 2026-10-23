@@ -1,5 +1,6 @@
 // The archer's skills plus kicking, following bow dancing at 5: the style
-// waives point blank, so it shoots up close; it kicks and trips between.
+// waives point blank and gathers its arrows, so it shoots up close all fight
+// long, tripping between shots.
 (
     name: "bow dancer",
     note: "the archer following Bow dancing at 5 with the push kick and the parting shot",
@@ -15,5 +16,7 @@
     equipment: ["ShortBow", "Quiver", "Torch"],
     techniques: ["PushKick", "PartingShot"],
     style: Some("BowDancing"),
-    policy: [Perform("PartingShot"), Perform("Trip"), Perform("PushKick"), Fire, Bump],
+    // No push kick or parting shot: both open distance a doll never closes
+    // again, so its arrows would land out of reach. A real enemy walks back.
+    policy: [Perform("Trip"), Fire, Bump],
 )

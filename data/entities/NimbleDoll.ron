@@ -4,7 +4,7 @@
     inherits: "Doll",
     components: [
         Name("nimble doll"),
-        Stats(strength: 10, agility: 16, intelligence: 10, willpower: 10),
+        Stats(strength: 16, agility: 20, intelligence: 16, willpower: 16),
         Skills({"Dodge": 5}),
     ],
 )

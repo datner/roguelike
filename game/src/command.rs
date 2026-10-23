@@ -305,6 +305,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
         }
         if let Some((actor, cost)) = cost::of(&command) {
             spend_energy(state, actor, cost);
+            ammo::gather(state, actor);
         }
         match command {
             Command::TryMove(entity, dir) => try_move(state, entity, dir),

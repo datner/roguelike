@@ -1,4 +1,4 @@
-// A training doll: a target that never acts (no `Speed`, so the scheduler
+// A training doll, as average as a creature gets (every stat 16): a target that never acts (no `Speed`, so the scheduler
 // never gives it a turn) and never dies in a bench window. Hostile, so a
 // blow at it is a real blow. For the balance bench, and later for sparring.
 (
@@ -8,6 +8,6 @@
         BlocksMovement,
         Hostile,
         Health(current: 1000000, max: 1000000),
-        Stats(strength: 10, agility: 10, intelligence: 10, willpower: 10),
+        Stats(strength: 16, agility: 16, intelligence: 16, willpower: 16),
     ],
 )

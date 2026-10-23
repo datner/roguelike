@@ -2359,6 +2359,37 @@ mod tests {
     }
 
     #[test]
+    fn a_bow_dancer_gathers_arrows_within_a_tile_with_any_action() {
+        let gathered = |level| {
+            let (mut state, _) = bow_dancer(level);
+            let arrow = |state: &mut GameState, x, y| {
+                let id = state.blueprints.id("Arrow").unwrap();
+                state.spawn(crate::spawn::Spawn::id(id).at(x, y)).unwrap()
+            };
+            // The player stands at (1, 1); the goblin at (2, 1).
+            let near = [arrow(&mut state, 1, 2), arrow(&mut state, 2, 2)];
+            let far = arrow(&mut state, 3, 3);
+            let before = arrows_held(&state);
+            take_turn(&mut state, PlayerAction::Wait);
+            let on_floor = |e| state.world.satisfies::<&Position>(e);
+            assert!(on_floor(far), "two tiles off is out of reach");
+            let said = state
+                .log
+                .recent(5)
+                .any(|line| line == "You gather 2 arrows.");
+            (
+                arrows_held(&state) - before,
+                near.iter().all(|&e| !on_floor(e)),
+                said,
+            )
+        };
+        let (count, taken, said) = gathered(1);
+        assert_eq!((count, taken), (2, true));
+        assert!(said);
+        assert_eq!(gathered(0).0, 0, "a fresh style gathers nothing");
+    }
+
+    #[test]
     fn a_lone_step_of_a_form_shows_no_step() {
         let (state, _) = bow_dancer(1);
         let trip = techniques(&state)
