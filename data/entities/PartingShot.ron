@@ -4,9 +4,9 @@
 (
     components: [
         Name("parting shot"),
+        Verb(word: "shoot"),
         Technique(
             domain: Martial,
-            verb: "shoot",
             reach: 6,
             recharge: 600,
             stamina: 0,

@@ -3,10 +3,9 @@
 (
     components: [
         Name("stab"),
+        Verb(word: "stab", at: true),
         Technique(
             domain: Martial,
-            verb: "stab",
-            at: true,
             reach: 1,
             recharge: 0,
             stamina: 0,

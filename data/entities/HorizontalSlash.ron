@@ -4,10 +4,9 @@
 (
     components: [
         Name("horizontal slash"),
+        Verb(word: "slash", at: true),
         Technique(
             domain: Martial,
-            verb: "slash",
-            at: true,
             reach: 1,
             recharge: 400,
             stamina: 0,

@@ -4,9 +4,9 @@
 (
     components: [
         Name("shove"),
+        Verb(word: "shove"),
         Technique(
             domain: Martial,
-            verb: "shove",
             reach: 1,
             recharge: 400,
             stamina: 0,

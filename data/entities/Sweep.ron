@@ -4,9 +4,9 @@
 (
     components: [
         Name("sweep"),
+        Verb(word: "sweep"),
         Technique(
             domain: Martial,
-            verb: "sweep",
             reach: 2,
             recharge: 800,
             stamina: 0,

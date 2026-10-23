@@ -50,6 +50,8 @@ Everything a frontend needs is re-exported from `lib.rs`; keep that list current
 
 ## Patterns
 
+**One concern per part:** a component's data describes what it is or does, nothing else. How it reads (words, verbs, phrasing), how it is shown and other auxiliary data go in their own part (`Name`, `Verb`), never as extra fields on a mechanical component like `Technique` or `Spell`. The same holds for any data struct: give a separate concern its own entry instead of growing the struct.
+
 **Reacting to something (a part's behaviour):** register a handler for (event, component) in the `EventRegistry` with a priority from `prio.rs`. It may rewrite the event, stop propagation, or push `Command`s into `ctx.out`. It must not mutate the world.
 
 **Changing the world:** add a `Command` variant, handle it in `apply_commands` through a small `fn` taking `&mut GameState`. Handlers read what they need in a scoped block, drop the borrow, then write. If a handler wants to trigger follow-up effects, push more commands rather than recursing.

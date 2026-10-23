@@ -384,8 +384,6 @@ mod tests {
         let trip = thing("trip")
             .with(crate::entity::Technique {
                 domain: crate::skill::Domain::Martial,
-                verb: "trip".to_string(),
-                at: false,
                 reach: 1,
                 recharge: 0,
                 stamina: 0,

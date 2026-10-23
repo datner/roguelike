@@ -14,9 +14,11 @@ turning it on later must not mean a refactor.
 ## Decision
 
 - **A technique is a blueprint entity attached to its holder**, like a
-  spell (ADR 0014): `Technique { domain, verb, reach, recharge, stamina,
+  spell (ADR 0014): `Technique { domain, reach, recharge, stamina,
   requires }` says how it is aimed, what it asks and what it costs; payload
-  parts (`Blow`, `Dash`) say what it does. A creature's `techniques:` list
+  parts (`Blow`, `Dash`) say what it does. How its use reads in the log is
+  a language part beside `Name`, `Verb { word, at }` (amended 2026-10-23:
+  it was `Technique.verb`; a technique without one fails at load). A creature's `techniques:` list
   in its blueprint attaches them at spawn, inherited or replaced like
   `spells:`. `Technique` holds skill ids, so it is built from
   `TechniqueDef` at load and saved by name.

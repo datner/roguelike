@@ -826,6 +826,19 @@ pub struct Footwork {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Discovered(pub Vec<String>);
 
+/// Language part, beside `Name`: the verb a thing's use is logged with,
+/// conjugated for whoever does it: "trip" reads "You trip the goblin." and
+/// "The goblin trips you." Kept apart from what the thing does, so its data
+/// describes only that.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Verb {
+    pub word: String,
+    /// Whether it takes its object with "at": "You lunge at the goblin."
+    #[serde(default)]
+    pub at: bool,
+}
+
 /// Where a character started (docs/plans/origins.md): the key of its origin
 /// in `data/origins.ron`. Saved by key; legacy will read it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -901,12 +914,6 @@ pub struct Attuned(pub Vec<String>);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Technique {
     pub domain: crate::skill::Domain,
-    /// The log's verb, conjugated for the performer: "trip" reads "You trip
-    /// the goblin." and "The goblin trips you."
-    pub verb: String,
-    /// Whether the verb takes its target with "at": "You lunge at the
-    /// goblin."
-    pub at: bool,
     /// How far away, in tiles, its target may stand.
     pub reach: i32,
     /// Ticks before it can be performed again, whatever its holder's speed.

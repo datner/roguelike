@@ -3,9 +3,9 @@
 (
     components: [
         Name("cleave"),
+        Verb(word: "cleave"),
         Technique(
             domain: Martial,
-            verb: "cleave",
             reach: 1,
             recharge: 600,
             stamina: 0,

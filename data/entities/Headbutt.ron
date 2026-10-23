@@ -4,10 +4,10 @@
 (
     components: [
         Name("headbutt"),
+        Verb(word: "headbutt"),
         Ability,
         Technique(
             domain: Martial,
-            verb: "headbutt",
             reach: 1,
             recharge: 800,
             stamina: 0,

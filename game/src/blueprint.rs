@@ -102,6 +102,8 @@ pub enum ComponentDef {
     Proficiency,
     /// From what the holder is, never learned (ADR 0025).
     Ability,
+    /// The verb its use is logged with (a language part, like `Name`).
+    Verb(crate::entity::Verb),
     Footwork(Footwork),
     /// Skills by name; spawned from `ResolvedBlueprint::style`.
     Style(StyleDef),
@@ -183,6 +185,7 @@ impl ComponentDef {
             ComponentDef::Light(c) => builder.add(c),
             ComponentDef::Proficiency => builder.add(Proficiency),
             ComponentDef::Ability => builder.add(crate::entity::Ability),
+            ComponentDef::Verb(verb) => builder.add(verb.clone()),
             ComponentDef::Footwork(c) => builder.add(c),
             ComponentDef::Blow(c) => builder.add(c),
             ComponentDef::Dash(c) => builder.add(c),
@@ -390,6 +393,8 @@ pub enum BlueprintError {
     BadCamp(String),
     BadPhases(String),
     BadOrigins(String),
+    /// A technique without the `Verb` its log needs.
+    TechniqueWithoutVerb(String),
     /// A manual, a style's inventions or a discovery (`by`) hands out an
     /// ability, which only an origin gives (ADR 0025).
     AbilityHandedOut {
@@ -417,6 +422,9 @@ impl std::fmt::Display for BlueprintError {
             Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
             Self::BadOrigins(why) => write!(f, "data/origins.ron: {why}"),
             Self::UnknownOrigin(key) => write!(f, "no origin {key:?}"),
+            Self::TechniqueWithoutVerb(name) => {
+                write!(f, "technique {name:?} has no Verb to be logged with")
+            }
             Self::AbilityHandedOut { by, ability } => write!(
                 f,
                 "{by} hands out the ability {ability:?}; abilities come only from origins"
@@ -985,6 +993,13 @@ fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
                 });
             }
         }
+        let has_verb = blueprint
+            .components
+            .iter()
+            .any(|c| matches!(c, ComponentDef::Verb(_)));
+        if blueprint.technique.is_some() && !has_verb {
+            return Err(BlueprintError::TechniqueWithoutVerb(blueprint.name.clone()));
+        }
         if let Some(&id) = learned
             .iter()
             .find(|id| resolved[id.0 as usize].is_ability())
@@ -1395,8 +1410,6 @@ mod tests {
         let technique = || {
             ComponentDef::Technique(TechniqueDef {
                 domain: crate::skill::Domain::Martial,
-                verb: "strike".to_string(),
-                at: false,
                 reach: 1,
                 recharge: 0,
                 stamina: 0,
@@ -1407,10 +1420,16 @@ mod tests {
                 combo: None,
             })
         };
+        let verb = || {
+            ComponentDef::Verb(crate::entity::Verb {
+                word: "strike".to_string(),
+                at: false,
+            })
+        };
         let raw = |child: Option<&[&str]>| {
             BTreeMap::from([
-                ("Lunge".to_string(), bp(None, vec![technique()])),
-                ("Shove".to_string(), bp(None, vec![technique()])),
+                ("Lunge".to_string(), bp(None, vec![technique(), verb()])),
+                ("Shove".to_string(), bp(None, vec![technique(), verb()])),
                 ("Rock".to_string(), bp(None, vec![])),
                 (
                     "Duelist".to_string(),
@@ -1441,6 +1460,12 @@ mod tests {
             }
             other => panic!("expected UnknownTechnique, got {other:?}"),
         }
+        let mut mute = raw(None);
+        mute.insert("Lunge".to_string(), bp(None, vec![technique()]));
+        assert_eq!(
+            Blueprints::resolve(mute).unwrap_err().to_string(),
+            "technique \"Lunge\" has no Verb to be logged with"
+        );
         // Known by name, but not a technique.
         match Blueprints::resolve(raw(Some(&["Rock"]))) {
             Err(BlueprintError::UnknownTechnique { owner, technique }) => {

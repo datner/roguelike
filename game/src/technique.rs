@@ -35,10 +35,6 @@ use crate::view::ItemRef;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TechniqueDef {
     pub domain: Domain,
-    pub verb: String,
-    /// "lunge at the goblin" rather than "trip the goblin".
-    #[serde(default)]
-    pub at: bool,
     #[serde(default = "one")]
     pub reach: i32,
     /// In ticks.
@@ -302,8 +298,6 @@ impl TechniqueDef {
             .collect::<Result<_, Missing>>()?;
         Ok(Technique {
             domain: self.domain,
-            verb: self.verb.clone(),
-            at: self.at,
             reach: self.reach,
             recharge: self.recharge,
             stamina: self.stamina,
@@ -340,8 +334,6 @@ impl TechniqueDef {
             .collect::<Result<_, Missing>>()?;
         Ok(Self {
             domain: technique.domain,
-            verb: technique.verb.clone(),
-            at: technique.at,
             reach: technique.reach,
             recharge: technique.recharge,
             stamina: technique.stamina,
@@ -402,8 +394,6 @@ pub(crate) struct Ready {
     pub riders: Vec<Rider>,
     pub stamina: u32,
     pub recharge: u64,
-    pub verb: String,
-    pub at: bool,
     /// The styles (by skill) whose bonuses it has now.
     pub styled: Vec<SkillId>,
     /// What performing it now records, for a step of a form.
@@ -511,8 +501,6 @@ pub(crate) fn inspect(
             .try_into()
             .unwrap_or(u32::MAX),
         recharge: scaled(data.recharge, sum(|bonus| bonus.recharge_pct)),
-        verb: data.verb.clone(),
-        at: data.at,
         styled: bonuses.iter().map(|bonus| bonus.style).collect(),
         performed: data.combo.as_ref().map(|combo| Performed {
             group: combo.group.clone(),
@@ -882,10 +870,18 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
         }
         return;
     }
+    // Content always gives a technique its `Verb` (checked at load).
+    let (verb, at_target) = state
+        .world
+        .get::<&crate::entity::Verb>(technique)
+        .map_or_else(
+            |_| (name(&state.world, technique), false),
+            |verb| (verb.word.clone(), verb.at),
+        );
     let aimed = match footprint.targets.as_slice() {
         [target] if ready.area.is_none() => {
             let target = Subject::of(&state.world, *target).noun().to_string();
-            if ready.at {
+            if at_target {
                 format!("at {target}")
             } else {
                 target
@@ -893,7 +889,7 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
         }
         _ => String::new(),
     };
-    let message = Subject::of(&state.world, actor).sentence(&ready.verb, &aimed);
+    let message = Subject::of(&state.world, actor).sentence(&verb, &aimed);
     state.log.push(message);
     for target in footprint.targets {
         // Riders follow a full hit's damage in the queue, so a target the
@@ -1095,8 +1091,6 @@ mod tests {
     fn lunge(stamina: u32, needs: Vec<Need>) -> Technique {
         Technique {
             domain: Domain::Martial,
-            verb: "lunge".to_string(),
-            at: true,
             reach: 2,
             recharge: 500,
             stamina,
@@ -1141,6 +1135,10 @@ mod tests {
         let player = state.player;
         thing("lunge")
             .with(technique)
+            .with(crate::entity::Verb {
+                word: "lunge".to_string(),
+                at: true,
+            })
             .with(Dash {
                 tiles: 1,
                 away: false,
@@ -1425,7 +1423,6 @@ mod tests {
         wield(&mut state, &[DamageType::Slashing]);
         let technique = thing("cleave")
             .with(Technique {
-                verb: "cleave".to_string(),
                 ..lunge(0, Vec::new())
             })
             .with(Area {
@@ -1503,7 +1500,6 @@ mod tests {
         wield(&mut state, &[DamageType::Piercing]);
         let technique = thing("shove")
             .with(Technique {
-                verb: "shove".to_string(),
                 reach: 1,
                 riders,
                 ..lunge(0, Vec::new())
@@ -1770,7 +1766,6 @@ mod tests {
             };
             thing(&format!("step {step}"))
                 .with(Technique {
-                    verb: "cut".to_string(),
                     reach: 1,
                     recharge: 0,
                     combo: Some(Combo {

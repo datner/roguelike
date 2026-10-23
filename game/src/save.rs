@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
     Ability, Attuned, Blow, Dash, Lesson, Loose, OffBalance, Origin, Performed, Sighted, Stamina,
-    Studied, Teaches, Technique, TechniqueAi,
+    Studied, Teaches, Technique, TechniqueAi, Verb,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 44;
+pub const SAVE_VERSION: u32 = 45;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -242,6 +242,7 @@ enum ComponentKind {
     Light,
     Proficiency,
     Ability,
+    Verb,
     Footwork,
     Discovered,
     Origin,
@@ -262,7 +263,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 77] = [
+    const ALL: [ComponentKind; 78] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -323,6 +324,7 @@ impl ComponentKind {
         Self::Light,
         Self::Proficiency,
         Self::Ability,
+        Self::Verb,
         Self::Footwork,
         Self::Discovered,
         Self::Origin,
@@ -409,6 +411,7 @@ enum SavedComponent {
     Light(Light),
     Proficiency,
     Ability,
+    Verb(Verb),
     Footwork(Footwork),
     Discovered(Discovered),
     Origin(Origin),
@@ -788,6 +791,7 @@ fn save_component(
         ComponentKind::Light => copy(entity).map(S::Light),
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
         ComponentKind::Ability => marker::<Ability>(entity, S::Ability),
+        ComponentKind::Verb => copy(entity).map(S::Verb),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
         ComponentKind::Origin => copy(entity).map(S::Origin),
@@ -988,6 +992,7 @@ fn load_component(
         S::Light(c) => builder.add(c),
         S::Proficiency => builder.add(Proficiency),
         S::Ability => builder.add(Ability),
+        S::Verb(c) => builder.add(c),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),
         S::Origin(c) => builder.add(c),
@@ -1284,8 +1289,6 @@ mod tests {
         let book = state.blueprints.skills();
         let technique = Technique {
             domain: crate::skill::Domain::Martial,
-            verb: "lunge".to_string(),
-            at: true,
             reach: 2,
             recharge: 500,
             stamina: 1,

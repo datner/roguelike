@@ -6,10 +6,9 @@
 (
     components: [
         Name("lunge"),
+        Verb(word: "lunge", at: true),
         Technique(
             domain: Martial,
-            verb: "lunge",
-            at: true,
             reach: 2,
             recharge: 500,
             stamina: 0,

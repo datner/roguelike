@@ -3,9 +3,9 @@
 (
     components: [
         Name("trip"),
+        Verb(word: "trip"),
         Technique(
             domain: Martial,
-            verb: "trip",
             reach: 1,
             recharge: 600,
             stamina: 0,
