@@ -59,7 +59,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: the hit chance drops with an adjacent enemy and not with an adjacent ally or a distant enemy;
   the preview and the shot agree; throwing is unaffected; seeded shots draw the combat stream as before.
 
-### 2. The short bow tag
+### 2. The short bow tag — done
 - `data/skills.ron`: `(name: "Short bow", domain: Martial, weight: 0)`. `ShortBow.ron` trains both.
 - The skills panel (`view`/`front::text`) leaves out weightless skills.
 - Tests: the tag changes no level (a shot's hit chance is the same with and without it); a short-bow

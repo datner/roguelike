@@ -304,7 +304,7 @@ pub struct SkillView {
 }
 
 /// The skills the player has any XP in, by domain, then in skill-file
-/// order.
+/// order. Weightless tags are left out.
 pub fn skills(state: &GameState) -> Vec<SkillView> {
     let book = state.blueprints.skills();
     let Ok(learned) = state.world.get::<&Skills>(state.player) else {
@@ -315,7 +315,9 @@ pub fn skills(state: &GameState) -> Vec<SkillView> {
         .iter()
         .filter(|&&(_, xp)| xp > 0)
         .filter_map(|&(id, xp)| {
-            let def = book.get(id)?;
+            // A weightless skill is a tag (the short bow), not something to
+            // grow: it never counts toward a level.
+            let def = book.get(id).filter(|def| def.weight > 0)?;
             let level = skill::level(xp);
             let view = SkillView {
                 name: def.name.clone(),
@@ -357,6 +359,48 @@ mod tests {
     use super::*;
     use crate::entity::{Stat, Trains};
     use crate::input::PlayerAction;
+
+    fn data_state() -> GameState {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        crate::state::tests::bare_state_with(crate::Blueprints::load(&data).unwrap())
+    }
+
+    #[test]
+    fn the_short_bow_tag_trains_but_counts_toward_no_level_and_is_not_listed() {
+        let mut state = data_state();
+        let book = state.blueprints.skills().clone();
+        let id = |name| book.id(name).unwrap();
+        let (bow, archery, tag) = (id("Bow"), id("Archery"), id("Short bow"));
+        let player = state.player;
+        let mut learned = Skills::default();
+        learned.set(bow, skill::xp_for(6));
+        learned.set(archery, skill::xp_for(2));
+        state.world.insert_one(player, learned).unwrap();
+        let level = |state: &GameState, skills: &[SkillId]| {
+            skill::effective(&state.world, &book, player, skills)
+        };
+        assert_eq!(
+            level(&state, &[bow, archery, tag]),
+            level(&state, &[bow, archery])
+        );
+
+        // The player starts with a short bow in hand: bashing with it trains
+        // the tag.
+        let goblin = crate::testkit::thing("goblin")
+            .hostile()
+            .health(1000)
+            .at(2, 1)
+            .make(&mut state);
+        crate::testkit::sure_hits(&mut state, player);
+        state.run(crate::command::Command::TryMove(
+            player,
+            crate::input::Dir::E,
+        ));
+        assert!(state.world.contains(goblin));
+        assert!(skill::xp(&state.world, player, tag) > 0);
+        assert!(skills(&state).iter().all(|view| view.name != "Short bow"));
+        assert!(skills(&state).iter().any(|view| view.name == "Bow"));
+    }
 
     #[test]
     fn skills_list_those_with_xp_by_domain_and_items_list_what_they_train() {

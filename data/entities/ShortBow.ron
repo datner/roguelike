@@ -8,6 +8,6 @@
         Equippable(part: Hand),
         Launcher(range: 9, ammo: Arrow, stat: Agility),
         Weapon(min: 2, max: 3, stat: Strength, types: [Blunt]),
-        Trains(["Bow"]),
+        Trains(["Bow", "Short bow"]),
     ],
 )
