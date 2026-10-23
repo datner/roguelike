@@ -12,8 +12,9 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 13] = [
+const SHOTS: [&str; 14] = [
     "menu",
+    "origins",
     "play",
     "inventory",
     "look",
@@ -98,6 +99,14 @@ fn scene(name: &str) -> Harness<'static, App> {
     set_clock(Some(start));
     if name == "menu" {
         return harness(App::new(setup("shot-menu"), None));
+    }
+    if name == "origins" {
+        // New game, a name, then the origin to start as.
+        let mut harness = harness(App::new(setup("shot-origins"), None));
+        press_key(&mut harness, egui::Key::Enter);
+        type_text(&mut harness, "hero");
+        press_key(&mut harness, egui::Key::Enter);
+        return harness;
     }
     let mut harness = window(&format!("shot-{name}"));
     harness.state_mut().started = start;

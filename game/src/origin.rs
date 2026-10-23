@@ -81,6 +81,81 @@ pub(crate) fn check(origins: &[OriginDef], blueprints: &Blueprints) -> Result<()
     Ok(())
 }
 
+/// An origin as the new-game chooser shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginView {
+    pub key: String,
+    pub name: String,
+    pub summary: String,
+    /// What it starts with, a line per kind in plain words ("Carries: short
+    /// bow, quiver, torch"); kinds it has none of are left out.
+    pub starts_with: Vec<String>,
+}
+
+/// Every origin in menu order, read from the content, so every frontend
+/// says the same about them.
+pub fn origins(blueprints: &Blueprints) -> Vec<OriginView> {
+    let noun = |name: &str| -> Option<String> { Some(blueprints.get(name)?.noun()?.to_string()) };
+    let nouns = |ids: &[crate::blueprint::BlueprintId]| -> Vec<String> {
+        ids.iter()
+            .filter_map(|&id| Some(blueprints.by_id(id)?.noun()?.to_string()))
+            .collect()
+    };
+    blueprints
+        .origins()
+        .iter()
+        .map(|def| {
+            let mut starts_with = Vec::new();
+            let mut add = |label: &str, things: Vec<String>| {
+                if !things.is_empty() {
+                    starts_with.push(format!("{label}: {}", things.join(", ")));
+                }
+            };
+            if let Some(bp) = blueprints.get(&def.blueprint) {
+                add("Carries", nouns(&bp.equipment));
+                let skills = bp.skills.iter().flat_map(|skills| &skills.0);
+                add(
+                    "Skills",
+                    skills
+                        .filter_map(|&(id, xp)| {
+                            let def = blueprints.skills().get(id)?;
+                            Some(format!("{} {}", def.name, crate::skill::level(xp)))
+                        })
+                        .collect(),
+                );
+                let (abilities, learned): (Vec<_>, Vec<_>) = bp
+                    .techniques
+                    .iter()
+                    .copied()
+                    .partition(|&id| blueprints.by_id(id).is_some_and(|bp| bp.is_ability()));
+                add("Abilities", nouns(&abilities));
+                add("Techniques", nouns(&learned));
+                add("Spells", nouns(&bp.spells));
+            }
+            add(
+                "Styles",
+                def.styles
+                    .iter()
+                    .filter_map(|style| {
+                        let noun = noun(style)?;
+                        Some(if def.follow.as_ref() == Some(style) {
+                            format!("{noun} (followed)")
+                        } else {
+                            noun
+                        })
+                    })
+                    .collect(),
+            );
+            OriginView {
+                key: def.key.clone(),
+                name: def.name.clone(),
+                summary: def.summary.clone(),
+                starts_with,
+            }
+        })
+        .collect()
+}
+
 impl GameState {
     /// The player as `origin` (a key; `None` for the first) makes them, at
     /// `at`: its blueprint, then its styles. Content without origins (tests'
@@ -245,6 +320,30 @@ mod tests {
             world(&wanderer),
             world(&bare),
             "the same seed, the same world"
+        );
+    }
+
+    #[test]
+    fn an_origin_says_what_it_starts_with() {
+        let views = origins(&with_bare());
+        let wanderer = &views[0];
+        assert_eq!(wanderer.name, "Wanderer");
+        assert!(
+            wanderer
+                .starts_with
+                .contains(&"Carries: short bow, quiver, torch".to_string()),
+            "{:?}",
+            wanderer.starts_with
+        );
+        assert!(
+            wanderer
+                .starts_with
+                .contains(&"Techniques: trip".to_string())
+        );
+        let bare = views.last().unwrap();
+        assert_eq!(
+            bare.starts_with,
+            ["Styles: fencing (followed), bow dancing"]
         );
     }
 

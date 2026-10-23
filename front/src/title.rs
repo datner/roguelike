@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use game::{Blueprints, GameState, random_seed};
+use game::{Blueprints, GameState, OriginView, random_seed};
 
 use crate::menu::{Action, Menu};
 use crate::saves::{self, Loaded};
@@ -18,7 +18,12 @@ pub struct Setup {
 /// What a menu action leaves for the frontend once files are dealt with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Next {
-    Play(String),
+    /// Play the character: their save, or a new game as `origin` (a key;
+    /// `None` for the first) if they have none.
+    Play {
+        character: String,
+        origin: Option<String>,
+    },
     Quit,
 }
 
@@ -27,9 +32,15 @@ pub enum Next {
 pub fn perform(menu: &mut Menu, saves_dir: &Path, action: Action) -> Option<Next> {
     let outcome = match action {
         Action::Quit => return Some(Next::Quit),
-        Action::Play(character) => return Some(Next::Play(character)),
-        Action::Replace(character) => match saves::delete(saves_dir, &character) {
-            Ok(()) => return Some(Next::Play(character)),
+        Action::Play(character) => {
+            return Some(Next::Play {
+                character,
+                origin: None,
+            });
+        }
+        Action::New { character, origin } => return Some(Next::Play { character, origin }),
+        Action::Replace { character, origin } => match saves::delete(saves_dir, &character) {
+            Ok(()) => return Some(Next::Play { character, origin }),
             Err(err) => Err(err),
         },
         Action::Delete(character) => {
@@ -61,24 +72,37 @@ pub fn refresh(menu: &mut Menu, saves_dir: &Path) {
     }
 }
 
+/// What a new character can start as, for the menu; none if the content
+/// fails to load (starting a game then says why).
+pub fn origins(setup: &Setup) -> Vec<OriginView> {
+    Blueprints::load(&setup.data_dir)
+        .map(|blueprints| game::origins(&blueprints))
+        .unwrap_or_default()
+}
+
 /// A game being played and where it saves.
 pub struct Game {
     pub session: Session,
     path: PathBuf,
 }
 
-/// The character's saved game, or a new one if it has no save yet. The
-/// error is a message for the menu.
-pub fn start(setup: &Setup, character: &str) -> Result<Game, String> {
+/// The character's saved game, or a new one as `origin` if it has no save
+/// yet. The error is a message for the menu.
+pub fn start(setup: &Setup, character: &str, origin: Option<&str>) -> Result<Game, String> {
     let path = saves::path(&setup.saves_dir, character)?;
-    let state = load_or_new(setup, character, &path)?;
+    let state = load_or_new(setup, character, origin, &path)?;
     Ok(Game {
         session: Session::new(state, character),
         path,
     })
 }
 
-fn load_or_new(setup: &Setup, character: &str, save_path: &Path) -> Result<GameState, String> {
+fn load_or_new(
+    setup: &Setup,
+    character: &str,
+    origin: Option<&str>,
+    save_path: &Path,
+) -> Result<GameState, String> {
     let blueprints = Blueprints::load(&setup.data_dir).map_err(|err| {
         format!(
             "Failed to load blueprints from {}: {err}",
@@ -97,7 +121,7 @@ fn load_or_new(setup: &Setup, character: &str, save_path: &Path) -> Result<GameS
         }
         Loaded::New(blueprints) => {
             let seed = setup.seed.unwrap_or_else(random_seed);
-            GameState::new(seed, *blueprints)
+            GameState::new_as(seed, *blueprints, origin)
                 .map_err(|err| format!("Failed to start a game: {err}"))
         }
     }
@@ -128,8 +152,18 @@ mod tests {
         let file = saves::path(&dir, "old").unwrap();
         std::fs::write(&file, "(version: 1)").unwrap();
         let mut menu = Menu::new(Vec::new());
-        let next = perform(&mut menu, &dir, Action::Replace("old".into()));
-        assert!(matches!(next, Some(Next::Play(name)) if name == "old"));
+        let replace = Action::Replace {
+            character: "old".into(),
+            origin: Some("Wanderer".into()),
+        };
+        let next = perform(&mut menu, &dir, replace);
+        assert_eq!(
+            next,
+            Some(Next::Play {
+                character: "old".into(),
+                origin: Some("Wanderer".into())
+            })
+        );
         assert!(!file.exists());
         std::fs::remove_dir_all(dir).unwrap();
     }

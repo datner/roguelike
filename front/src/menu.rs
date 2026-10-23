@@ -1,5 +1,7 @@
 //! Title menu: new game, continue, load, and save management (rename, delete). Pure state; `view` says what to draw.
 
+use game::OriginView;
+
 use crate::input::MenuInput;
 
 /// What the menu asks the session to do. The menu never touches files
@@ -8,8 +10,17 @@ use crate::input::MenuInput;
 pub enum Action {
     /// Load the character's save, or start a new game if there is none.
     Play(String),
+    /// Start a new game for a character with no save, as `origin` (a key;
+    /// `None` for the first).
+    New {
+        character: String,
+        origin: Option<String>,
+    },
     /// Delete the character's outdated save and start a new game.
-    Replace(String),
+    Replace {
+        character: String,
+        origin: Option<String>,
+    },
     Delete(String),
     Rename {
         from: String,
@@ -26,12 +37,30 @@ const LOAD: usize = 2;
 const MAX_NAME: usize = 24;
 /// Rows of the save list shown at once; longer lists scroll.
 const VISIBLE_SAVES: usize = 10;
+/// Where an origin's description wraps, inside the menu's box.
+const DETAIL_WIDTH: usize = 44;
 
 enum Screen {
-    Main { selected: usize },
-    Load { selected: usize },
-    ConfirmDelete { selected: usize },
-    Name { naming: Naming, text: String },
+    Main {
+        selected: usize,
+    },
+    Load {
+        selected: usize,
+    },
+    ConfirmDelete {
+        selected: usize,
+    },
+    Name {
+        naming: Naming,
+        text: String,
+    },
+    /// Choosing what a new character starts as; `replace` when its name
+    /// has an outdated save.
+    Origin {
+        character: String,
+        replace: bool,
+        selected: usize,
+    },
 }
 
 enum Naming {
@@ -45,6 +74,8 @@ pub struct Menu {
     saves: Vec<String>,
     /// Saves from another save format, which a new game may replace.
     outdated: Vec<String>,
+    /// What a new character can start as; none skips the choice.
+    origins: Vec<OriginView>,
     message: Option<String>,
 }
 
@@ -64,6 +95,11 @@ pub enum Body {
     List(Vec<Row>),
     /// Plain lines, such as a question or "No saves.".
     Text(Vec<String>),
+    /// Rows to pick from and, below them, lines about the selected one.
+    Choice {
+        rows: Vec<Row>,
+        details: Vec<String>,
+    },
     /// A text field after a prompt.
     Field { prompt: &'static str, text: String },
 }
@@ -81,8 +117,14 @@ impl Menu {
             screen: Screen::Main { selected: NEW },
             saves,
             outdated: Vec::new(),
+            origins: Vec::new(),
             message: None,
         }
+    }
+
+    /// What a new character can start as (`game::origins`), in order.
+    pub fn set_origins(&mut self, origins: Vec<OriginView>) {
+        self.origins = origins;
     }
 
     /// Replaces the save list after the session changed it, keeping any
@@ -172,8 +214,40 @@ impl Menu {
                 MenuInput::Select => return self.submit_name(),
                 _ => {}
             },
+            Screen::Origin {
+                character,
+                replace,
+                selected,
+            } => match input {
+                MenuInput::Up => *selected = selected.saturating_sub(1),
+                MenuInput::Down => {
+                    *selected = (*selected + 1).min(self.origins.len().saturating_sub(1));
+                }
+                MenuInput::Back => {
+                    self.screen = Screen::Name {
+                        naming: Naming::New,
+                        text: std::mem::take(character),
+                    };
+                }
+                MenuInput::Select => {
+                    let origin = self.origins.get(*selected).map(|o| o.key.clone());
+                    let (character, replace) = (std::mem::take(character), *replace);
+                    return Some(self.start(character, replace, origin));
+                }
+                _ => {}
+            },
         }
         None
+    }
+
+    /// A new game for `character`, back on the main menu.
+    fn start(&mut self, character: String, replace: bool, origin: Option<String>) -> Action {
+        self.screen = Screen::Main { selected: CONTINUE };
+        if replace {
+            Action::Replace { character, origin }
+        } else {
+            Action::New { character, origin }
+        }
     }
 
     fn choose_main(&mut self) -> Option<Action> {
@@ -205,17 +279,21 @@ impl Menu {
         }
         let name = text.clone();
         match *naming {
-            Naming::New if self.outdated.contains(&name) => {
-                self.screen = Screen::Main { selected: CONTINUE };
-                Some(Action::Replace(name))
-            }
-            Naming::New if self.saves.contains(&name) => {
+            Naming::New if self.saves.contains(&name) && !self.outdated.contains(&name) => {
                 self.show(format!("{name} already has a save; load or delete it."));
                 None
             }
             Naming::New => {
-                self.screen = Screen::Main { selected: CONTINUE };
-                Some(Action::Play(name))
+                let replace = self.outdated.contains(&name);
+                if self.origins.is_empty() {
+                    return Some(self.start(name, replace, None));
+                }
+                self.screen = Screen::Origin {
+                    character: name,
+                    replace,
+                    selected: 0,
+                };
+                None
             }
             Naming::Rename { selected } => {
                 let from = self.saves.get(selected)?.clone();
@@ -274,6 +352,32 @@ impl Menu {
                     "Enter confirm  Esc back",
                 )
             }
+            Screen::Origin { selected, .. } => {
+                let rows = self
+                    .origins
+                    .iter()
+                    .enumerate()
+                    .map(|(i, origin)| Row {
+                        text: origin.name.clone(),
+                        selected: i == *selected,
+                        disabled: false,
+                    })
+                    .collect();
+                let details = self.origins.get(*selected).map_or_else(Vec::new, |origin| {
+                    let mut lines = vec![String::new()];
+                    lines.extend(wrap(&origin.summary, DETAIL_WIDTH, ""));
+                    lines.push(String::new());
+                    for line in &origin.starts_with {
+                        lines.extend(wrap(line, DETAIL_WIDTH, "  "));
+                    }
+                    lines
+                });
+                (
+                    "Origin",
+                    Body::Choice { rows, details },
+                    "↑↓ select  Enter start  Esc back",
+                )
+            }
         };
         MenuView {
             title,
@@ -282,6 +386,29 @@ impl Menu {
             hint,
         }
     }
+}
+
+/// `text` in lines of at most `width` characters, broken between words; a
+/// line after the first starts with `indent`.
+fn wrap(text: &str, width: usize, indent: &str) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let indent = if lines.is_empty() { 0 } else { indent.len() };
+        if !line.is_empty() && indent + line.chars().count() + 1 + word.chars().count() > width {
+            lines.push(std::mem::take(&mut line));
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    lines.push(line);
+    let mut lines = lines.into_iter();
+    let first = lines.next().unwrap_or_default();
+    std::iter::once(first)
+        .chain(lines.map(|line| format!("{indent}{line}")))
+        .collect()
 }
 
 /// Names become file names (`saves::path`); this keeps them portable.
@@ -350,6 +477,14 @@ mod tests {
                     format!("{marker}{}", row.text)
                 })
                 .collect(),
+            Body::Choice { rows, details } => rows
+                .into_iter()
+                .map(|row| {
+                    let marker = if row.selected { "> " } else { "  " };
+                    format!("{marker}{}", row.text)
+                })
+                .chain(details)
+                .collect(),
             Body::Text(lines) => lines,
             Body::Field { prompt, text } => vec![prompt.to_string(), text],
         };
@@ -367,9 +502,90 @@ mod tests {
         type_text(&mut menu, "hero/..");
         assert_eq!(
             press(&mut menu, &[Backspace, Select]),
-            Some(Action::Play("her".into()))
+            Some(Action::New {
+                character: "her".into(),
+                origin: None
+            }),
+            "no origins to choose from: the default"
         );
         assert!(!menu.typing());
+    }
+
+    fn origin(key: &str, summary: &str) -> OriginView {
+        OriginView {
+            key: key.into(),
+            name: key.into(),
+            summary: summary.into(),
+            starts_with: vec![format!("Carries: {key}'s things")],
+        }
+    }
+
+    fn with_origins(saves: &[&str]) -> Menu {
+        let mut menu = menu(saves);
+        menu.set_origins(vec![
+            origin("Wanderer", "A traveller."),
+            origin("Duelist", "A fencer."),
+        ]);
+        menu
+    }
+
+    #[test]
+    fn a_new_game_asks_for_an_origin_after_the_name() {
+        let mut menu = with_origins(&[]);
+        press(&mut menu, &[Select]);
+        type_text(&mut menu, "hero");
+        assert_eq!(press(&mut menu, &[Select]), None);
+        assert!(!menu.typing());
+        assert_eq!(menu.view().title, "Origin");
+        assert!(text(&menu).contains("> Wanderer\n  Duelist"));
+        assert!(text(&menu).contains("A traveller."));
+        press(&mut menu, &[Down]);
+        assert!(text(&menu).contains("A fencer."));
+        assert!(text(&menu).contains("Carries: Duelist's things"));
+        assert_eq!(
+            press(&mut menu, &[Select]),
+            Some(Action::New {
+                character: "hero".into(),
+                origin: Some("Duelist".into())
+            })
+        );
+    }
+
+    #[test]
+    fn esc_from_the_origins_goes_back_to_the_name() {
+        let mut menu = with_origins(&[]);
+        press(&mut menu, &[Select]);
+        type_text(&mut menu, "hero");
+        press(&mut menu, &[Select, Back]);
+        assert!(menu.typing());
+        assert!(text(&menu).contains("hero"));
+        press(&mut menu, &[Backspace]);
+        assert_eq!(
+            press(&mut menu, &[Select, Select]),
+            Some(Action::New {
+                character: "her".into(),
+                origin: Some("Wanderer".into())
+            })
+        );
+    }
+
+    #[test]
+    fn loading_a_save_never_asks_for_an_origin() {
+        let mut menu = with_origins(&["hero"]);
+        assert_eq!(
+            press(&mut menu, &[Down, Select]),
+            Some(Action::Play("hero".into()))
+        );
+    }
+
+    #[test]
+    fn long_details_wrap_inside_the_box() {
+        let lines = wrap(&"word ".repeat(20), 20, "  ");
+        assert!(
+            lines.iter().all(|line| line.chars().count() <= 20),
+            "{lines:?}"
+        );
+        assert!(lines[1].starts_with("  word"));
     }
 
     #[test]
@@ -392,7 +608,10 @@ mod tests {
         type_text(&mut menu, "old");
         assert_eq!(
             press(&mut menu, &[Select]),
-            Some(Action::Replace("old".into()))
+            Some(Action::Replace {
+                character: "old".into(),
+                origin: None
+            })
         );
     }
 

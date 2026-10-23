@@ -159,6 +159,8 @@ pub struct CharacterSheet {
     /// What melee hits are made with, if not bare-handed.
     pub wielding: Option<String>,
     pub speed: u32,
+    /// The origin's name, as the menu showed it; `None` without one.
+    pub origin: Option<String>,
 }
 
 pub fn character_sheet(state: &GameState) -> CharacterSheet {
@@ -183,6 +185,11 @@ pub fn character_sheet(state: &GameState) -> CharacterSheet {
             .and_then(|strike| strike.weapon)
             .and_then(|weapon| world.get::<&Name>(weapon).ok().map(|name| name.0.clone())),
         speed: world.get::<&Speed>(player).map_or(0, |speed| speed.0),
+        origin: world
+            .get::<&crate::entity::Origin>(player)
+            .ok()
+            .and_then(|origin| state.blueprints.origin(&origin.0))
+            .map(|origin| origin.name.clone()),
     }
 }
 

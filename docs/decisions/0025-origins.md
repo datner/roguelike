@@ -34,6 +34,11 @@ began.
   can have one. Lists show abilities apart from what was learned. Saved as a
   marker; the save version moved to 43.
 
+- A new game asks for the origin after the name (`front::menu`), from
+  `game::origins`, which says what each starts with in plain words, so
+  every frontend says the same. Loading a save never asks. The character
+  sheet heads with the origin's name.
+
 ## Consequences
 
 - A new origin is a blueprint and an entry; no code.

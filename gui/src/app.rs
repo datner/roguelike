@@ -54,6 +54,7 @@ impl App {
     pub fn new(setup: Setup, first: Option<String>) -> Self {
         let mut menu = Menu::new(Vec::new());
         title::refresh(&mut menu, &setup.saves_dir);
+        menu.set_origins(title::origins(&setup));
         let mut app = Self {
             setup,
             menu,
@@ -67,7 +68,7 @@ impl App {
             started: Instant::now(),
         };
         if let Some(character) = first {
-            app.play(&character);
+            app.play(&character, None);
         }
         app
     }
@@ -76,8 +77,8 @@ impl App {
         self.game.as_ref()
     }
 
-    fn play(&mut self, character: &str) {
-        match title::start(&self.setup, character) {
+    fn play(&mut self, character: &str, origin: Option<&str>) {
+        match title::start(&self.setup, character, origin) {
             Ok(game) => self.game = Some(game),
             Err(err) => self.menu.show(err),
         }
@@ -135,8 +136,8 @@ impl App {
             };
             return match title::perform(&mut self.menu, &self.setup.saves_dir, action) {
                 Some(Next::Quit) => Flow::Exit,
-                Some(Next::Play(character)) => {
-                    self.play(&character);
+                Some(Next::Play { character, origin }) => {
+                    self.play(&character, origin.as_deref());
                     Flow::Continue
                 }
                 None => Flow::Continue,

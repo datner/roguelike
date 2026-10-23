@@ -19,6 +19,10 @@ This is a Cargo workspace with four crates:
   - A `GameState` holding an `hecs::World`, the tile map, a message log,
     and seeded RNG streams, mutated only by draining an internal `Command`
     queue rather than directly from input handlers.
+  - Origins (`data/origins.ron`, ADR 0025): what a new character starts as,
+    in place of a class: a blueprint inheriting the bare `Player` with the
+    kit, skills and techniques, and styles known from the start. Abilities
+    (`Ability`) come only from an origin, never from a manual or a style.
   - Camp (`data/camp.ron`, drawn as rows of characters): a new game starts
     there, nothing hostile comes there, and each entrance is stairs down
     into a dungeon. Taking one starts a dive; climbing any floor's stairs
@@ -162,7 +166,9 @@ This is a Cargo workspace with four crates:
 Title menu (New game, Continue, Load):
 
 - Arrow keys or `j`/`k`: select; `Enter`: choose; `Esc` or `q`: back/quit.
-- New game asks for a character name (letters, digits, `-`, `_`). A save
+- New game asks for a character name (letters, digits, `-`, `_`), then
+  an origin: what the character starts as, with its kit, skills, techniques,
+  spells and styles listed under it; `Esc` goes back to the name. A save
   from an older save format can't load; a new game with its name replaces
   it (Load marks such saves).
 - Continue resumes the most recently saved character.

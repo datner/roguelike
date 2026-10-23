@@ -1,7 +1,7 @@
-//! Draws the title menu (`front::menu`): new game, continue, load, and save management, in a titled box.
+//! Draws the title menu (`front::menu`): new game and its origin, continue, load, and save management, in a titled box.
 
 use eframe::egui::{self, Align2, Frame, Vec2};
-use front::menu::{Body, Menu};
+use front::menu::{Body, Menu, Row};
 
 use crate::theme::CELL;
 use crate::theme::{self, BG, DIM, FG, boxed, title};
@@ -21,16 +21,11 @@ pub fn draw(ui: &mut egui::Ui, menu: &Menu) {
         .show(ui.ctx(), |ui| {
             boxed(ui, title(view.title), None, |ui| {
                 match view.body {
-                    Body::List(rows) => {
-                        for row in rows {
-                            let marker = if row.selected { "> " } else { "  " };
-                            let text = format!("{marker}{}", row.text);
-                            let colour = if row.disabled { DIM } else { FG };
-                            ui.label(if row.selected {
-                                theme::reversed(&text)
-                            } else {
-                                theme::line(&text, colour)
-                            });
+                    Body::List(rows) => draw_rows(ui, rows),
+                    Body::Choice { rows, details } => {
+                        draw_rows(ui, rows);
+                        for line in details {
+                            ui.label(theme::line(&line, FG));
                         }
                     }
                     Body::Text(lines) => {
@@ -50,4 +45,17 @@ pub fn draw(ui: &mut egui::Ui, menu: &Menu) {
                 ui.label(theme::line(view.hint, DIM));
             });
         });
+}
+
+fn draw_rows(ui: &mut egui::Ui, rows: Vec<Row>) {
+    for row in rows {
+        let marker = if row.selected { "> " } else { "  " };
+        let text = format!("{marker}{}", row.text);
+        let colour = if row.disabled { DIM } else { FG };
+        ui.label(if row.selected {
+            theme::reversed(&text)
+        } else {
+            theme::line(&text, colour)
+        });
+    }
 }

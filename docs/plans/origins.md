@@ -72,7 +72,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: the load refusals, each with its message; an ability is listed apart; it performs like any
   technique.
 
-### 3. Choosing an origin
+### 3. Choosing an origin — done
 - `game::origins(blueprints) -> Vec<OriginView { key, name, summary, starts_with: Vec<String> }>`: the
   kit, skills, techniques, spells, styles and abilities in plain words.
 - `front/menu.rs`: after a new name, an origin screen (↑↓, Enter, Esc back to the name); `Action::Play`

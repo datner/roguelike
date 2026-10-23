@@ -87,7 +87,7 @@ pub use fx::{Fx, Outcome, take_fx};
 pub use grammar::{Subject, capitalize};
 pub use light::{Lit, render_layers, tint};
 pub use lore::{Inspection, inspect, look_targets};
-pub use origin::OriginDef;
+pub use origin::{OriginDef, OriginView, origins};
 pub use phase::{Phase, PhaseView, phases, wait_refusal};
 pub use ranged::Trail;
 pub use rng::Rngs;

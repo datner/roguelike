@@ -94,10 +94,15 @@ pub fn whereabouts(state: &GameState) -> Vec<Row> {
 /// Health, mana, stats, armor, damage and the rest of the player's sheet.
 pub fn character(state: &GameState) -> Vec<Row> {
     let sheet = character_sheet(state);
-    let mut rows = vec![vec![
+    let mut rows: Vec<Row> = sheet
+        .origin
+        .iter()
+        .map(|origin| vec![plain(origin.clone())])
+        .collect();
+    rows.push(vec![
         quiet("HP "),
         plain(format!("{}/{}", sheet.health, sheet.max_health)),
-    ]];
+    ]);
     if let Some((mana, max)) = sheet.mana {
         let mut row = vec![quiet("MP "), plain(format!("{mana}/{max}"))];
         // Turns per point, to a tenth: the pace Willpower buys.
@@ -232,7 +237,8 @@ mod tests {
     #[test]
     fn the_sheet_lines_up_labels_and_values() {
         let rows: Vec<String> = character(&state()).iter().map(|row| flat(row)).collect();
-        assert!(rows[0].starts_with("HP 20/20"), "{rows:?}");
+        assert_eq!(rows[0], "Wanderer", "the origin heads the sheet");
+        assert!(rows[1].starts_with("HP 20/20"), "{rows:?}");
         assert!(rows.iter().any(|row| row.starts_with("STR ")), "{rows:?}");
         assert!(
             rows.iter().any(|row| row == "Explore note items"),
