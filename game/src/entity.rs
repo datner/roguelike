@@ -1010,6 +1010,10 @@ pub struct Blow {
     /// natural `Melee`, trained as an unarmed blow, whatever is in hand.
     #[serde(default)]
     pub unarmed: bool,
+    /// Percent added to the damage per level of the blow's skill: a form
+    /// rewards understanding far more than a formless bump does.
+    #[serde(default)]
+    pub mastery: i32,
 }
 
 /// Technique part: the performer first moves up to `tiles` along the line to

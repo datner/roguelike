@@ -1,0 +1,9 @@
+// The tri-sword mastered: a form scales with its skills far more than a bump.
+(
+    name: "tri-sword (10)",
+    note: "the tri-sword form with the sword skills at 10",
+    skills: {"Melee": 10, "Sword": 10, "Slash": 10, "Pierce": 10, "One-handed": 10},
+    equipment: ["Sabre", "Torch"],
+    techniques: ["HorizontalSlash", "VerticalSlash", "Stab"],
+    policy: [Perform("Stab"), Perform("VerticalSlash"), Perform("HorizontalSlash"), Bump],
+)

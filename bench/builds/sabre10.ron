@@ -1,0 +1,8 @@
+// The sabre build mastered: the skills at 10, to set beside the tri-sword's.
+(
+    name: "sabre (10)",
+    note: "sabre and a torch, the slashing skills at 10",
+    skills: {"Melee": 10, "Sword": 10, "Slash": 10, "One-handed": 10},
+    equipment: ["Sabre", "Torch"],
+    policy: [Bump],
+)

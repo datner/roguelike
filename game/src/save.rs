@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 40;
+pub const SAVE_VERSION: u32 = 41;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1322,6 +1322,7 @@ mod tests {
                 accuracy: 2,
                 damage_pct: 25,
                 unarmed: true,
+                mastery: 4,
             })
             .attached_to(player)
             .make(&mut state);

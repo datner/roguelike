@@ -448,7 +448,7 @@ pub(crate) fn inspect(
     let combo = data.combo.as_ref().filter(|_| run.is_some());
     let loose = world.get::<&Loose>(technique).ok().map(|loose| *loose);
     let shot = loose.unwrap_or_default();
-    let mods = BlowMods {
+    let mut mods = BlowMods {
         accuracy: blow.accuracy
             + shot.accuracy
             + sum(|bonus| bonus.accuracy)
@@ -484,6 +484,9 @@ pub(crate) fn inspect(
             (strike, used, None)
         }
     };
+    // Mastery scales with the level the blow is struck at, read from the
+    // strike, so the preview and the blow agree.
+    mods.damage_pct += blow.mastery * i32::try_from(strike.level).unwrap_or(0);
     let mut riders = data.riders.clone();
     riders.extend(
         bonuses
@@ -1341,6 +1344,7 @@ mod tests {
                 accuracy: 2,
                 damage_pct: 50,
                 unarmed: false,
+                mastery: 0,
             },
         );
         let (ready, _) = inspect(&state, player, technique).unwrap();
@@ -1983,6 +1987,43 @@ mod tests {
                 .recent(5)
                 .any(|line| line == "Inspiration! You discover the cleave.")
         );
+    }
+
+    #[test]
+    fn mastery_adds_damage_per_level_of_the_blow() {
+        let (mut state, _) = lunger();
+        let player = state.player;
+        let form = learn(
+            &mut state,
+            lunge(0, Vec::new()),
+            Blow {
+                damage_pct: -30,
+                mastery: 8,
+                ..Blow::default()
+            },
+        );
+        let pct = |state: &GameState| {
+            let (ready, _) = inspect(state, player, form).unwrap();
+            (ready.strike.level, ready.mods.damage_pct)
+        };
+        let (level, at_first) = pct(&state);
+        assert_eq!(at_first, -30 + 8 * i32::try_from(level).unwrap());
+        let mut skills = crate::entity::Skills::default();
+        for skill in combat::blow_strike(
+            &state.world,
+            state.blueprints.skills(),
+            player,
+            &BlowMods::default(),
+        )
+        .unwrap()
+        .1
+        {
+            skills.set(skill, skill::xp_for(level + 5));
+        }
+        let _ = state.world.insert_one(player, skills);
+        let (higher, later) = pct(&state);
+        assert_eq!(higher, level + 5);
+        assert_eq!(later - at_first, 40, "8% for each of 5 levels");
     }
 
     /// The real player (a short bow in hand) knowing the push kick.

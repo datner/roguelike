@@ -19,5 +19,8 @@
                 display: Turns,
             ),
         ),
+        // A form (ADR 0024): weaker than a bump untrained, far stronger
+        // mastered, 8% more damage per level of the blow's skill.
+        Blow(damage_pct: -30, mastery: 8),
     ],
 )

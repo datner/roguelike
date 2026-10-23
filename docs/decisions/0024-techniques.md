@@ -106,3 +106,11 @@ turning it on later must not mean a refactor.
   parting shot, and the bow dance form (push kick → trip → parting shot,
   shown as separate rows). Bow dancing invents the kick and the shot.
 - `SAVE_VERSION` 40.
+
+## Amendment (balance pass): mastery
+
+`Blow { mastery }` adds that many percent of damage per level of the blow's
+skill (`Strike::level`), on top of the flat bonus every blow gets from skill.
+A form (the tri-sword) uses it: weaker than a bump untrained, far stronger
+mastered, as a practised technique should be against a formless strike.
+`SAVE_VERSION` 41.
