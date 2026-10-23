@@ -4,4 +4,12 @@
     (name: "One doll, adjacent", dolls: [("Doll", (1, 0))]),
     (name: "One armored doll, adjacent", dolls: [("ArmoredDoll", (1, 0))]),
     (name: "One nimble doll, adjacent", dolls: [("NimbleDoll", (1, 0))]),
+    // Melee builds walk to it first; shots and spells need not.
+    (name: "One doll, five tiles away", dolls: [("Doll", (5, 0))]),
+    // For cleaves and sweeps: three in a row in front.
+    (name: "Three dolls, adjacent in a row", dolls: [
+        ("Doll", (1, -1)),
+        ("Doll", (1, 0)),
+        ("Doll", (1, 1)),
+    ]),
 ]

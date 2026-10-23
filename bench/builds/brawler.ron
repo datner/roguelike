@@ -1,0 +1,8 @@
+(
+    name: "brawler",
+    note: "bare hands following Brawling at 5, tripping whenever it can",
+    skills: {"Melee": 5, "Unarmed": 5, "Blunt": 5, "Brawling": 5},
+    equipment: ["Torch"],
+    style: Some("Brawling"),
+    policy: [Perform("Trip"), Bump],
+)

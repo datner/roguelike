@@ -1,0 +1,7 @@
+(
+    name: "archer",
+    note: "short bow and a full quiver, the archery skills at 5; shoots, bashes when out of arrows",
+    skills: {"Melee": 5, "Archery": 5, "Bow": 5, "Pierce": 5, "Blunt": 5},
+    equipment: ["ShortBow", "Quiver", "Torch"],
+    policy: [Fire, Bump],
+)

@@ -41,6 +41,9 @@ pub struct Build {
     /// Technique blueprints known, beside the player's own.
     #[serde(default)]
     pub techniques: Vec<String>,
+    /// Spell blueprints known, beside the player's own.
+    #[serde(default)]
+    pub spells: Vec<String>,
     /// A style blueprint, followed from the start.
     #[serde(default)]
     pub style: Option<String>,
@@ -54,6 +57,12 @@ pub struct Build {
 pub enum Act {
     /// Step toward the nearest doll; attack it when next to it.
     Bump,
+    /// Perform this technique (by blueprint) at the nearest doll.
+    Perform(String),
+    /// Cast this spell (by blueprint) at the nearest doll.
+    Cast(String),
+    /// Shoot the wielded launcher at the nearest doll.
+    Fire,
 }
 
 /// Where the dolls stand, as written in `bench/scenarios.ron`.
@@ -203,6 +212,24 @@ fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
             spawn(state, build, Spawn::blueprint(name).attached_to(player))?;
         }
     }
+    for name in &build.spells {
+        if named(state, crate::view::castable(state), name).is_none() {
+            spawn(state, build, Spawn::blueprint(name).attached_to(player))?;
+        }
+    }
+    for act in &build.policy {
+        let known = match act {
+            Act::Perform(name) => named(state, technique::known(&state.world, player), name),
+            Act::Cast(name) => named(state, crate::view::castable(state), name),
+            Act::Bump | Act::Fire => Some(player),
+        };
+        if known.is_none() {
+            return Err(format!(
+                "{}: its policy names {act:?}, unknown to it",
+                build.name
+            ));
+        }
+    }
     if let Some(name) = &build.style {
         let known = spawn(state, build, Spawn::blueprint(name).carried_by(player))?;
         style::follow(state, player, known);
@@ -270,7 +297,29 @@ fn command(state: &GameState, act: &Act, target: Entity) -> Option<Command> {
             };
             Some(Command::TryMove(player, dir))
         }
+        Act::Perform(name) => Some(Command::Perform {
+            actor: player,
+            technique: named(state, technique::known(&state.world, player), name)?,
+            at,
+        }),
+        Act::Cast(name) => Some(Command::Cast {
+            actor: player,
+            spell: named(state, crate::view::castable(state), name)?,
+            at,
+        }),
+        Act::Fire => Some(Command::Fire { actor: player, at }),
     }
+}
+
+/// The one of `things` made from `blueprint`, by its name.
+fn named(state: &GameState, things: Vec<Entity>, blueprint: &str) -> Option<Entity> {
+    let noun = noun(state, blueprint)?;
+    things.into_iter().find(|&thing| {
+        state
+            .world
+            .get::<&crate::entity::Name>(thing)
+            .is_ok_and(|name| name.0 == noun)
+    })
 }
 
 fn tally(run: &mut Run, effects: &[Fx]) {
@@ -348,6 +397,7 @@ mod tests {
             stats: None,
             equipment: equipment.iter().map(|s| s.to_string()).collect(),
             techniques: vec![],
+            spells: vec![],
             style: None,
             policy: vec![Act::Bump],
         }
@@ -437,5 +487,72 @@ mod tests {
         let mut odd = fencer();
         odd.skills.insert("Juggling".into(), 3);
         assert!(run(&data(), &odd, &one("Doll"), 100, 1).is_err());
+        let mut odd = fencer();
+        odd.policy = vec![Act::Perform("Lunge".into())];
+        assert!(
+            run(&data(), &odd, &one("Doll"), 100, 1).is_err(),
+            "not known"
+        );
+    }
+
+    fn dealt(build: &Build, scenario: &Scenario, window: u64) -> i64 {
+        let data = data();
+        (0..10)
+            .map(|seed| run(&data, build, scenario, window, seed).unwrap().dealt)
+            .sum()
+    }
+
+    #[test]
+    fn a_policy_falls_through_a_recharging_technique() {
+        let mut lunger = fencer();
+        lunger.techniques = vec!["Lunge".into()];
+        lunger.policy = vec![Act::Perform("Lunge".into())];
+        let far = Scenario {
+            name: "far".into(),
+            dolls: vec![("Doll".into(), (2, 0))],
+        };
+        let alone = dealt(&lunger, &far, 3000);
+        assert!(alone > 0, "it lunges");
+        lunger.policy.push(Act::Bump);
+        assert!(
+            dealt(&lunger, &far, 3000) > alone,
+            "and bumps between lunges"
+        );
+    }
+
+    #[test]
+    fn an_area_technique_strikes_every_doll_it_catches() {
+        let mut cleaver = build(&["Sabre"], &[("Melee", 5), ("Slash", 5), ("Sword", 5)]);
+        cleaver.techniques = vec!["Cleave".into()];
+        cleaver.policy = vec![Act::Perform("Cleave".into())];
+        let pack = Scenario {
+            name: "pack".into(),
+            dolls: vec![
+                ("Doll".into(), (1, -1)),
+                ("Doll".into(), (1, 0)),
+                ("Doll".into(), (1, 1)),
+            ],
+        };
+        assert!(dealt(&cleaver, &pack, 3000) > 2 * dealt(&cleaver, &one("Doll"), 3000));
+    }
+
+    #[test]
+    fn a_shot_without_arrows_falls_through_to_a_bump() {
+        let mut archer = build(&["ShortBow"], &[("Archery", 5), ("Bow", 5)]);
+        archer.policy = vec![Act::Fire];
+        assert_eq!(dealt(&archer, &one("Doll"), 1000), 0, "no quiver");
+        archer.policy.push(Act::Bump);
+        assert!(dealt(&archer, &one("Doll"), 1000) > 0);
+    }
+
+    #[test]
+    fn spells_are_cast_at_the_doll() {
+        let mut caster = build(&["Torch"], &[("Magic", 5), ("Arcane", 5), ("Bolt", 5)]);
+        caster.policy = vec![Act::Cast("MagicMissile".into())];
+        let far = Scenario {
+            name: "far".into(),
+            dolls: vec![("Doll".into(), (5, 0))],
+        };
+        assert!(dealt(&caster, &far, 1000) > 0);
     }
 }

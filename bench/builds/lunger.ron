@@ -1,0 +1,16 @@
+(
+    name: "fencing lunger",
+    note: "the fencer following Fencing at 5, lunging whenever it can",
+    skills: {
+        "Melee": 5,
+        "Sword": 5,
+        "Pierce": 5,
+        "One-handed": 5,
+        "Empty offhand": 5,
+        "Fencing": 5,
+    },
+    equipment: ["Rapier"],
+    techniques: ["Lunge"],
+    style: Some("Fencing"),
+    policy: [Perform("Lunge"), Bump],
+)

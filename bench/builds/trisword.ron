@@ -1,0 +1,9 @@
+// The form's later steps first: each only goes when it continues a run.
+(
+    name: "tri-sword",
+    note: "the sabre build performing the tri-sword form over and over",
+    skills: {"Melee": 5, "Sword": 5, "Slash": 5, "Pierce": 5, "One-handed": 5},
+    equipment: ["Sabre", "Torch"],
+    techniques: ["HorizontalSlash", "VerticalSlash", "Stab"],
+    policy: [Perform("Stab"), Perform("VerticalSlash"), Perform("HorizontalSlash"), Bump],
+)

@@ -1,0 +1,8 @@
+(
+    name: "cleaver",
+    note: "the sabre build with the cleave and the sweep",
+    skills: {"Melee": 5, "Sword": 5, "Slash": 5, "One-handed": 5},
+    equipment: ["Sabre", "Torch"],
+    techniques: ["Cleave", "Sweep"],
+    policy: [Perform("Cleave"), Perform("Sweep"), Bump],
+)

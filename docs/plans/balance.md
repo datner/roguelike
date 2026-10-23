@@ -69,13 +69,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tests (in `game`): a doll never acts and never dies; a run is the same per seed; the build does not
   gain XP; the fencer deals more to a bare doll than to an armored one.
 
-### 2. Policies: techniques, spells, shots, areas
+### 2. Policies: techniques, spells, shots, areas — done
 - Policy entries `Perform`, `Cast`, `Fire`; dolls placed at range for shots and spells, in a pack of
   three for cleaves and novas (scenarios name which).
 - Builds: an archer (short bow, quiver), a cleaver (sabre, cleave), a tri-sword form, a mana caster,
   a blood caster, a brawler.
 - Tests: a policy falls through a recharging technique to a bump; an area technique counts every doll
   it hits; a shot with no arrows falls through to a bump.
+- As built: no blood caster. Blood casting is a discipline part on the caster (`BloodCasting`), which a
+  build cannot add; it waits for a build field for extra parts. A pyromancer (cooldowns) and a fencing
+  lunger (a style and a technique) joined instead. Every build runs every scenario.
 
 ### 3. What it spends
 - `Run` gains mana, health and stamina spent, arrows shot and broken, and the first tick each ran dry.
