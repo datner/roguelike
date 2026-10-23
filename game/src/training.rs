@@ -228,7 +228,7 @@ mod tests {
     fn practice_drills_up_to_half_the_best_level_in_the_domain() {
         let mut state = learner(&[("Melee", 8)]);
         see_everything(&mut state);
-        // The player starts with a bow: unarmed drills are Melee, Unarmed
+        // The player starts with a bow, and drills strike with it: Melee, Bow
         // and Blunt; Melee is past its ceiling of 4 already.
         let mut turns = 0;
         while practice_step(&mut state) {
@@ -236,7 +236,7 @@ mod tests {
             assert!(turns < 10_000, "practice never stopped");
         }
         assert_eq!(last_log(&state), "You can learn no more by drilling alone.");
-        for name in ["Unarmed", "Blunt"] {
+        for name in ["Bow", "Blunt"] {
             assert_eq!(skill::level(xp(&state, name)), 4, "{name}");
         }
         assert_eq!(xp(&state, "Melee"), skill::xp_for(8));
@@ -247,7 +247,7 @@ mod tests {
         let mut state = learner(&[]);
         see_everything(&mut state);
         while practice_step(&mut state) {}
-        assert_eq!(skill::level(xp(&state, "Unarmed")), PRACTICE_FLOOR);
+        assert_eq!(skill::level(xp(&state, "Bow")), PRACTICE_FLOOR);
 
         let mut state = learner(&[]);
         thing("goblin")

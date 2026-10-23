@@ -1,5 +1,5 @@
 // Shoots arrows from the quiver on your back, or one you nocked by hand.
-// Not a melee weapon: wielding it, you still punch.
+// Up close you strike with it, weakly: a bump hits with the bow, not a fist.
 (
     components: [
         Name("short bow"),
@@ -7,6 +7,7 @@
         Item,
         Equippable(part: Hand),
         Launcher(range: 9, ammo: Arrow, stat: Agility),
+        Weapon(min: 2, max: 3, stat: Strength, types: [Blunt]),
         Trains(["Bow"]),
     ],
 )
