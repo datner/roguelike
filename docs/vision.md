@@ -156,6 +156,45 @@ preview) but not its *source or payment*: there is no scroll of an ability, and 
 a discipline. Techniques are learned (a teacher, a manual) or invented by a style; abilities come from
 what the creature is.
 
+## Crafting and life skills
+
+- **Crafting is options, never upkeep.** Time is neutral: no hunger, no wear clock. Crafting makes
+  things you could not otherwise have, from what the dives gave you, and every build may ignore it.
+- **Materials have properties** (hard, light, flexible, conductive, cold, holy, rotten, …). Creatures,
+  ruins and phases supply them (goblin bone, wraith dust, Rime crystal, Ember slag), so each phase and
+  faction feeds crafting through its materials, with no rules of its own.
+- **Two kinds of recipe.** Most are **rules over properties** ("a blade from anything hard, a grip from
+  anything flexible"), and the product takes the properties of what went in: a Rime-crystal blade deals
+  cold, a bone one is light and brittle. One rule times many materials gives variety without a
+  catalogue, the way runes compose spells (ADR 0016). Some are **unique, authored recipes** that make
+  one specific product.
+- **Most crafting is done at camp**, in its places (forge, workbench, alchemy table, kitchen). Only
+  trivial or essential crafts can be done during a dive (a field dressing, fletching an arrow). Materials
+  are part of what a dive banks by coming home.
+- **Growth.** Crafting passes the *consumption* test (it uses up something finite); novelty applies, so
+  a new material teaches and the hundredth identical arrow does not; low skill can make a worse product
+  (*odds*). Batches are one keystroke, running until done or interrupted.
+- **Where recipes come from**: discovery (combinations inspire recipes and crafting styles), crafting
+  styles inventing at milestones, **taking a thing apart** (a lesson, once per kind: break down a
+  goblin's crossbow to learn crossbows), teachers, faction secrets, a predecessor's recipe notes.
+- **Each life skill pays off in one place**: scavenging (what bodies, aftermaths and ruins yield),
+  fletching (arrows), smithing (weapons, armor, repair; acid makes repair matter), tinkering (devices,
+  traps), alchemy (potions, oils, reagents for a reagent discipline), cooking (meals), scribing (scrolls
+  and manuals).
+- **Cooking** is one of the game's joys, not a survival chore. A meal is composed like any recipe: its
+  ingredients' properties decide its effects, a timed lean for the dive ahead (ADR 0006), so the meal
+  before a dive is a choice like the phase and the teller. Phases bring their own ingredients; a dish can
+  be discovered and become a signature; a cook's table is a camp place, and feeding people is a deed
+  that settlers remember.
+- **Scribing lets you write your own legacy.** A scribe can write manuals of their own techniques and
+  skills for whoever comes next, still capped as lessons. It balances itself: writing one costs
+  resources you would otherwise spend on yourself, and needs real expertise in what it teaches.
+- **Things carry their maker.** A crafted item bears a maker's mark; a masterwork survives the gap
+  better, and a renowned maker's work becomes a relic ("Ana's blade"). Crafts carry tags for
+  perception too: poisons, or bone-craft from the wrong bones, make a reputation.
+- **Against tedium**: few kinds of material with many properties, no weight juggling; the recipe list
+  shows what you can make now from what you carry; wear only where a phase makes it a choice.
+
 ## Legacy
 
 When a life ends, by death or by retiring, a **legacy record** is written: plain data (name, origin,
