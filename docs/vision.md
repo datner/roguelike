@@ -15,8 +15,9 @@ decided while building. When a plan and this document disagree, ask the owner wh
 - **No classes.** A character starts from an **origin** (what they are: abilities, a few starting skills,
   maybe a style already in progress) and becomes what they do. Origins need not be equally strong:
   there is no difficulty setting, and choosing an origin is the difficulty choice.
-- **Permadeath, with legacy.** A dead character's camp is found in ruins by the next one, after an
-  unknown amount of time. What they left helps (see below), but the new character does not start stronger.
+- **Permadeath, with legacy.** A life ends by death or by retiring. The next character finds what it
+  left, after an unknown amount of time; what is left depends on how the life is remembered. It helps
+  (see "Legacy"), but the new character does not start stronger.
 
 ## Pillars
 
@@ -31,6 +32,21 @@ decided while building. When a plan and this document disagree, ask the owner wh
    The phase you choose at camp is the only thing time decides.
 6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons and legacy contents
    are RON, composed from reusable parts.
+
+## Runs and endings
+
+- **Three loops.** A *dive* pushes its luck: deeper is newer and harder, and returning to camp banks what
+  you carry. A *life* is an arc of becoming. A *lineage* is many lives, and what it gains is knowledge of
+  the world, not power.
+- **Every dungeon has a bottom, and it differs by phase.** The Castle's bottom in the Embers is not its
+  bottom in the Rime.
+- **Many endings.** Most are *character* endings, which close one life's story. A few are *world*
+  endings, like finishing the game without reaching 100%. One is the *true* (final) ending.
+- **At an ending the character may retire or continue.** Retiring ends that character and forces a new
+  one, and it should be very attractive anyway. It is never required: one character can go all the way
+  to the true ending as the first of its line.
+- **Revelations persist across the lineage**, though maybe not all of them, or not fully. That is a
+  direction to decide per revelation, not one rule.
 
 ## Interconnection
 
@@ -142,16 +158,91 @@ what the creature is.
 
 ## Legacy
 
-On death, a **legacy record** is written: plain data (name, where and how they fell, best skills, styles,
-techniques, recipes, notable items), not the save. A new character finds that camp in ruins, and its
-contents are spawned from blueprints through channels that already exist:
+When a life ends, by death or by retiring, a **legacy record** is written: plain data (name, origin,
+where and how it ended, best skills, styles, techniques, recipes, notable items, deeds), not the save.
+The next character finds what is left, spawned from blueprints through channels that already exist:
 
-- technique books and manuals are **lessons**, capped at a fraction of the predecessor's level;
+- technique books and memoirs are **lessons**, capped at a fraction of the predecessor's level;
 - their journal reveals the requirements of the styles they found (the inspiration still needs stakes);
 - recipe notes are **recipes**; their gear is worn items; the grave and its note are story.
 
-How long has passed is rolled at character creation (its own RNG stream) and decides how much survived.
-Ruins can stack over generations; only the last few are kept.
+How long has passed (the **gap**) is rolled when a character is made (its own RNG stream) and decides
+how much survived. Ruins can stack over generations; only the last few are kept. Time between lives is
+counted in lives, never in turns: nothing ages while you play.
+
+### Judgement: what a life is remembered as
+
+- **Two axes.** *Renown* is how widely a life is known (unknown → local → known → legend); it decides
+  how much survives and for how long. *Repute* is what they are known as (hero, wicked, holy, scholar,
+  wild, oathbreaker, …); it decides what kind of thing is left. Not every life leaves a legend or even an
+  epitaph.
+- **What is left depends on repute.** These are examples, all data:
+  - *unknown*: bones and whatever lasted;
+  - *known local*: a grave and an epitaph;
+  - *hero*: a shrine, a relic that does not decay, a tale that works as a lesson, perhaps a blessing
+    (a proficiency obtained from outside);
+  - *wicked*: haunted ruins, a revenant built from their record that walks a dungeon with their own
+    techniques, tainted gear (power at a cost), a journal of dark discoveries;
+  - *holy*: relics that heal or bless, a sacred site that may even reveal a phase;
+  - *scholar*: a library whose memoirs teach to a higher cap.
+- **Reputation is perception, not truth.** Deeds are facts with tags (blood magic, a rescue, present at
+  a necromantic ritual). People judge the tags through **beliefs** ("blood magic is evil"), so the same
+  deed reads differently to different people. A deed big enough can outweigh a bias and reframe a whole
+  story: the feared hemomancer who saves someone important is remembered for redemption and sacrifice.
+  The holy paladin seen at a necromantic ritual who never comes back to explain is remembered as an
+  oathbreaker.
+- **Tales are told at camp.** Coming back lets you tell your side; dying mid-dive leaves only how things
+  looked. So a dive risks being misremembered as well as dying.
+- **Lineages unlock understandings.** A legacy can split a belief: thanks to a past scholar people now
+  tell sorcery from magic, a mystic from an archwizard, psionics from arcana, or stop seeing hemomancy
+  as evil. Understandings are lineage knowledge, like phase revelations, and they change how every
+  later life is judged.
+- **Judgement is legible.** While you live, camp lets you know what is said of you and why ("They say
+  you bled a man to save yourself"); the legacy screen names who told the tale. Never a surprise score.
+- **One language of conditions.** Judgements, endings, discoveries, settlers' arrivals and phase
+  revelations are all written as requirements over the same things (skills, styles, deeds, phases,
+  places, the lineage), so every system can be a condition for every other.
+
+### Retiring, mentors and heirs
+
+- **Retiring is the best way to end a life** (offered at an ending, never required). A retired
+  character stays alive at camp as a **mentor**: a teacher whose lessons go higher than any memoir's
+  cap. Their legacy does not decay while they live.
+- **Mentors age by lives, not turns.** They decline visibly one life ahead ("Ana is growing frail"),
+  never as a surprise, and dying of age gives the best legacy there is: full renown, nothing decayed.
+  Nothing is lost when they go; their tale and memoir carry it on. Only two or three generations are
+  alive in camp at once.
+- **Heirs are recognized origins.** A known or heroic life can leave an origin ("Child of Ana", "Squire
+  of Ana"), and so can other lineage events (a revealed phase, a settler's trade). The world recognizes
+  only a fixed number of origins beyond the base ones: recognizing a new one means forgetting one, chosen
+  at character creation. An heir starts differently, never stronger (a style in progress, a relic).
+
+## Camp
+
+- **Camp starts as yours alone.** Before anyone retires, no one lives there: a death leaves the camp in
+  ruins and no one judges the life. Renown, perception and settlers all unlock with the **first
+  retirement**, the way the Stillness looks simple until it isn't.
+- **Settlers come for reasons**, each a condition over the lineage: they married the retired one, their
+  child went into the dungeon, they heard the stories and lost their nerve, they saw people living here
+  and came to trade. A handful of people, each with a role (teacher, trader, healer, storyteller), a
+  reason and a few beliefs. Camp opinion is what its people think. No needs and no economy beyond trade.
+- **Places last; people change.** A settler founds a **place** (an inn, a shrine, a healer's hut, a
+  library, a forge) and the place outlives them. The gap decides what happened in between: after a
+  short one the same person, older; after a medium one a named successor ("Mira, granddaughter of Tova
+  the healer"); after a long one the place is abandoned, or a newcomer drawn by its ruin. The same
+  person across many generations happens only when the content explains it (an elf, a ghost, a relic).
+- **Beliefs drift with succession.** A successor knows the old tales second-hand: things decay with the
+  gap, but a legend can grow in the retelling.
+- **"Since Ana's time…"**: a new character arrives to a short summary of what changed hands, fell
+  silent or arrived. After that, looking at a settler shows their tie in one line.
+- **Tales need a teller, and the teller is a place.** With no teller, an unwitnessed death is just
+  "vanished" and nothing is judged. An inn's rumor mill tells the worst reading; a storyteller a random
+  one; a bard paid before you leave tells the spin you chose, all your life. It's decided before a dive
+  in at most one action, never a chore during one.
+- **A death no longer ruins everything once there is a village.** Only the character's own things (their
+  tent, their stash) fall to ruin; the village carries on.
+- **Camp grows by lives.** Retirements found places, gaps age them, renown draws people. Nothing changes
+  while you are in a dive.
 
 ## Platforms
 
@@ -166,3 +257,6 @@ map full screen and panels as overlays. The Android SDK and NDK would come from 
 - How much a legacy is worth: the lesson cap, how much survives a long gap.
 - How a phase is chosen or reached (waiting, a cycle, a ritual, a roll, something earned).
 - What the Stillness really is, and how it is revealed.
+- Which revelations persist across the lineage, and how fully.
+- Whether settlers can leave or turn against you when camp opinion sours.
+- Where moral weight comes from in play (neutral creatures, oaths, desecration, factions).

@@ -1,70 +1,85 @@
 # Plan: legacy
 
-Handoff document. Read `docs/vision.md` ("The shape of the game", "Legacy"), `docs/plans/origins.md`
-(origins are the head start; legacy reads `Origin`), `docs/plans/dives.md` (camp, its follow-ups),
-ADR 0005 (RNG streams), ADR 0008 (saves), ADR 0017 (skills, lessons), ADR 0018 (discovery),
-ADR 0025 (origins) and `game/CLAUDE.md` first.
+Handoff document. Read `docs/vision.md` ("The shape of the game", "Runs and endings", "Legacy",
+"Camp"), `docs/plans/origins.md` (origins are the head start; legacy reads `Origin`),
+`docs/plans/dives.md` (camp, its follow-ups), ADR 0005 (RNG streams), ADR 0008 (saves), ADR 0017
+(skills, lessons), ADR 0018 (discovery), ADR 0025 (origins) and `game/CLAUDE.md` first.
 
 ## Goal
 
-Permadeath, with legacy. Today a death leaves the last save on disk and nothing else happens. After
-this plan a death ends that character for good and leaves a **legacy record**. The next new character
-finds the dead one's camp in ruins: a grave and its note, whatever gear survived, a memoir and a
-journal. A memoir's lessons are capped below the predecessor's levels and a journal names the
-requirements of the styles they found. So the ruins help a new character, but never make them stronger
-than their origin did. How long ago the predecessor died is rolled when the new character is made, and
-it decides how much survived.
+Permadeath, with legacy: the first stage, **the camp that is yours alone**. Today a death leaves the
+last save on disk and nothing else happens. After this plan a death ends that character for good and
+leaves a **legacy record**. The next character finds the dead one's camp in ruins: what they left in
+the stash, a memoir and a journal. A memoir's lessons are capped below the predecessor's levels, and a
+journal names the requirements of the styles they found. So the ruins help a new character, but never
+make them stronger than their origin did. How long ago the predecessor died is rolled when the new
+character is made, and it decides how much survived.
+
+The vision's later stages (judgement, perception and tellers, retiring and mentors, heirs, settlers and
+places) all need the first retirement, so they are out of scope here. This plan must not close doors
+on them; the decisions below say where each one will attach.
 
 ## Decisions taken for this plan
 
 - **Death is final.** On death the character's save file is deleted and a record is appended to the
   lineage. Today the last save stays and can be continued, which undoes permadeath. `saves.rs`'s rule
   "no save after death" becomes "no save after death, and the old one is removed".
-- **A record is plain data, not the save**: `legacy::Record { name, origin, turn, cause, place,
-  skills, styles, techniques, discoveries, gear, stash }`. Everything is a name (skill, blueprint,
-  style, dungeon, phase), never an id, so content changes don't break a record: a name that no longer
-  exists is skipped when the ruins are built, never an error. `skills` holds each skill's level, not
-  its XP. `techniques` leaves out abilities, which come from what a creature is and can't be passed
-  on. `gear` is what the character wore and held.
+- **A record is plain data, not the save**: `legacy::Record { name, origin, turn, ending, place, skills,
+  styles, techniques, discoveries, gear, stash }`. Everything is a name (skill, blueprint, style,
+  dungeon, phase), never an id, so content changes don't break a record: a name that no longer exists
+  is skipped when the ruins are built, never an error. `skills` holds each skill's level, not its XP.
+  `techniques` leaves out abilities, which come from what a creature is and can't be passed on.
+- **A life ends in an `Ending`, not only a death**: `Ending::Died(Cause)` is the only variant this plan
+  builds. Retiring will be another variant, so nothing may assume a record means a death; text says
+  "how it ended". Deeds and judgement will be new record fields (records are versioned), not a
+  reworking of these.
+- **Nobody judges or buries anyone yet.** No one lives at camp before the first retirement, so there is
+  no grave, no epitaph and no tale. The dead are unknown. What they left is their own: the camp they
+  kept, their writings, and whatever was in it. Their **gear died with them in the dungeon** and is
+  recorded but not spawned (a later remains or revenant may use it). If they died in camp it is with
+  the rest.
 - **One lineage per saves directory.** `<saves dir>/legacy.ron` holds the records, newest first,
   trimmed to `keep` (data) whenever one is added. Every new character in that directory finds the
-  ruins of the last `keep` dead. Living characters don't affect each other. If two are alive at once,
+  ruins of the last `keep` lives. Living characters don't affect each other. If two are alive at once,
   each found the ruins that existed when it was made.
 - **Records are an input to a new game, like the seed and the origin.** `GameState::new_as` takes
   `&[Record]`. Ruins are built once, at creation, from a new `rng::stream::LEGACY` stream seeded from
   the world seed. After that they are ordinary entities in camp and are saved like anything else, and
   the lineage file is never read again for that character. The same seed, origin and records give the
-  same game.
-- **Time passed is rolled per set of ruins**, at creation: the newest ruins get one roll from the gap
-  table, and each older set gets its newer neighbour's gap plus another roll. So older ruins are never
-  better kept than newer ones, and no file is changed when a character is made.
+  same game. Later lineage state (understandings, recognized origins, places) joins the records as the
+  same kind of input.
+- **The gap is counted in lives and rolled per set of ruins**, at creation: the newest ruins get one
+  roll from the gap table, and each older set gets its newer neighbour's gap plus another roll. So older
+  ruins are never better kept than newer ones, no file is changed when a character is made, and nothing
+  ages during play.
 - **How much a legacy is worth is data**: `data/legacy.ron` sets `keep` and a weighted gap table. Each
-  gap entry has `name` (the words the note uses: "a season", "years", "an age"), `weight`,
-  `survives` (the % chance each piece of gear lasts), `lesson` (the % of the predecessor's level that a
-  memoir can teach) and `journal` (whether it can still be read). The first numbers are a guess (keep
-  3; lesson 25–50%); tuning them is the vision's open question and comes after playing.
+  gap entry has `name` (the words used for it: "a season", "years", "an age"), `weight`, `survives`
+  (the % chance each stashed item lasts), `lesson` (the % of the predecessor's level that a memoir can
+  teach) and `journal` (whether it can still be read). The first numbers are a guess (keep 3; lesson
+  25–50%); tuning them is the vision's open question and comes after playing. Renown will later scale
+  `survives` and how long ruins last; the table is where it will hook in.
 - **The camp keeps what's left in it.** Legacy needs a camp stash and nothing persists in camp today.
-  Items dropped on the camp floor are still there when you come back from a dive. Their stack is
-  `stash` in the record, and in ruins it survives like gear.
+  Items dropped on the camp floor are still there when you come back from a dive. They are `stash` in
+  the record, and in ruins each item survives by the gap's `survives`.
 - **Ruins are spawned from blueprints through channels that already exist:**
-  - **Grave** (`Grave.ron`): an impassable feature with a `Note` part, built from the record ("Here
-    lies Ana, a pit fighter, slain by a goblin on the third floor of the Caves, in the Embers, years
-    ago."). Looking at it reads the note.
+  - **Abandoned camp** (`AbandonedCamp.ron`): a ruined tent feature at the ruin spot, with a `Note` part
+    giving only what can be seen ("An abandoned camp, left years ago."). Whose it was is learned by
+    reading what is in it, not given.
   - **Memoir** (`Memoir.ron` plus a `Memoir` part filled from the record): studied with the existing
     `Study`, once per memoir (the kind is "Ana's memoir"). It raises each recorded skill to at most
     `lesson`% of the predecessor's level, through `skill::gain`, and never lowers one. It also teaches
-    the recorded techniques. Because it is a lesson, it has no stakes and gives no inspiration
-    (ADR 0017).
+    the recorded techniques. Studying it tells who they were and how they ended. Because it is a
+    lesson, it has no stakes and gives no inspiration (ADR 0017).
   - **Journal** (`Journal.ron` plus a `Reveals` part): studying it reveals the recorded discoveries.
     `Revealed(names)` on the player makes `discovery::ideas` list each one with all of its
     requirements, met or not. The inspiration still needs stakes. If the gap makes the journal
     unreadable, it spawns as a ruined page that teaches nothing.
-  - **Gear and stash**: each surviving piece is spawned by blueprint name near the grave.
+  - **Stash**: each surviving item is spawned by blueprint name around the ruin spot.
 - **Where ruins go is camp data**: `camp.ron` marks ruin spots, one per kept record, newest nearest the
   fire. A camp with no records is the camp of today.
 - **Cause of death is recorded where it happens**: `Command::Die` gains `cause: Cause` (`By(Entity)`,
   meaning a killer whose name is read at death, or `Of(String)`, for "burned" or "bled out"). Every
-  path that pushes `Die` says why.
+  path that pushes `Die` says why. Later, when tales are told, this is the fact a teller reads.
 - New ADR **0026 — Legacy**, written in slice 1 and amended in each slice.
 
 ## Slices
@@ -76,9 +91,10 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 ### 1. The record
 - `Command::Die { entity, cause }`; every producer passes its cause. `die` keeps it on the player
   (`DiedOf(Cause)`, with the killer's name resolved at that moment) when the game ends.
-- `game/src/legacy.rs` (new): `Record`, `legacy::record(&GameState) -> Option<Record>` (`Some` only
-  after death), and `to_ron`/`from_ron` for a list of records with its own `version`. A file of
-  another version is ignored with a message and never overwritten until the next death replaces it.
+- `game/src/legacy.rs` (new): `Record`, `Ending`, `legacy::record(&GameState) -> Option<Record>`
+  (`Some` only once the life has ended), and `to_ron`/`from_ron` for a list of records with its own
+  `version`. A file of another version is ignored with a message and never overwritten until the next
+  ending replaces it.
 - `front/saves.rs`: `bury(dir, character, record)` deletes the save and appends the record to
   `legacy.ron` (written atomically, trimmed to `keep`). `title::finish` calls it after a death and
   returns "Ana died on turn 812." as it does today.
@@ -100,19 +116,20 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
   percentages ≤ 100). `rng::stream::LEGACY` with an `Rngs` field.
 - `camp.ron` gets ruin spots; load fails if it has fewer than `keep`.
 - `GameState::new_as(seed, blueprints, origin, records)`. The current callers pass `&[]`. Building the
-  ruins rolls the gaps, then for each record spawns a grave with its `Note`, then the surviving gear
-  and stash, from that record's spot. The order of draws is fixed: gap first, then gear in record
-  order.
+  ruins rolls the gaps, then for each record spawns the abandoned camp with its `Note` at that record's
+  spot, then the surviving stash around it. The order of draws is fixed: gap first, then stash items
+  in record order.
 - `look`/`inspect` shows a `Note`'s text.
 - `title::start` reads the lineage and passes it in.
 - Tests: no records give today's camp; the same seed and records give the same ruins; a longer gap
-  never keeps more than a shorter one; unknown names are skipped; the note's wording; two records
-  stack with the older one more decayed.
+  never keeps more than a shorter one; unknown names are skipped; gear is not spawned unless the death
+  was in camp; two records stack with the older one more decayed.
 
 ### 4. Memoirs and journals
-- `Memoir { skills: Vec<(SkillId, u32 cap)>, teaches }` (saved by name). `Study` of a memoir raises
-  each skill to its cap through `skill::gain` (`skill::xp_for(cap)` minus what is already there,
-  never negative) and teaches its techniques with the existing `learn`.
+- `Memoir { skills: Vec<(SkillId, u32 cap)>, teaches, story }` (saved by name; `story` in its own
+  language part per "one concern per part"). `Study` of a memoir raises each skill to its cap through
+  `skill::gain` (`skill::xp_for(cap)` minus what is already there, never negative), teaches its
+  techniques with the existing `learn`, and logs who they were and how they ended.
 - `Reveals(Vec<String>)` on a journal; studying it adds to `Revealed` on the learner;
   `discovery::ideas` lists revealed discoveries with their full requirements, marked as revealed.
 - Ruins spawn one memoir and one journal per record (or a ruined page when `journal` is false).
@@ -121,7 +138,8 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 
 ### 5. Seeing it
 - Death: the status line and a death panel show the record's summary from a `game` view
-  (`legacy::summary`), built in `front/text.rs`, so the session and the menu say the same thing.
+  (`legacy::summary`), built in `front/text.rs`, so the session and the menu say the same thing. This is
+  what the *player* sees; within the world no one tells it yet.
 - Title menu: a **Fallen** list (newest first, read-only) with each record's summary, from
   `title::lineage`.
 - gui: draws the death panel and the Fallen list; `death` and `fallen` shots, plus `ruins` (a camp
@@ -132,8 +150,11 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 
 ## Out of scope
 
-- Family trees, inheritance between relatives, or choosing whose ruins to visit.
-- Tuning a legacy's worth beyond the first numbers (vision's open question).
+- Everything that needs the first retirement: endings and retiring, judgement (renown, repute, deeds,
+  beliefs, tellers), mentors, heirs and recognized origins, settlers and places, the "Since Ana's
+  time…" summary. Each gets its own plan.
+- Graves and epitaphs: they need someone to bury and remember the dead.
+- Remains or revenants in dungeons (a predecessor's gear where they fell).
 - Recipes and recipe notes: there are no recipes yet. The record leaves room for them by name.
-- Ruins in dungeons (a predecessor's body where they fell).
+- Tuning a legacy's worth beyond the first numbers (vision's open question).
 - A legacy bench scenario.
