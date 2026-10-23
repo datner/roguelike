@@ -64,7 +64,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   the same seed builds the same world for two origins; a save keeps the origin; a bad origin file
   fails at load with its message.
 
-### 2. Abilities
+### 2. Abilities — done
 - `Ability` marker component (blueprint `ComponentDef`, saved). Load refuses an ability in `Teaches`,
   a discovery's grant or a style's `invents`.
 - `view::techniques` rows carry `ability: bool`; the Styles panel (`front/overlay.rs`) lists abilities

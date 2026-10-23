@@ -100,6 +100,8 @@ pub enum ComponentDef {
     Deflect(Deflect),
     Light(Light),
     Proficiency,
+    /// From what the holder is, never learned (ADR 0025).
+    Ability,
     Footwork(Footwork),
     /// Skills by name; spawned from `ResolvedBlueprint::style`.
     Style(StyleDef),
@@ -180,6 +182,7 @@ impl ComponentDef {
             ComponentDef::Deflect(c) => builder.add(c),
             ComponentDef::Light(c) => builder.add(c),
             ComponentDef::Proficiency => builder.add(Proficiency),
+            ComponentDef::Ability => builder.add(crate::entity::Ability),
             ComponentDef::Footwork(c) => builder.add(c),
             ComponentDef::Blow(c) => builder.add(c),
             ComponentDef::Dash(c) => builder.add(c),
@@ -247,6 +250,11 @@ pub struct ResolvedBlueprint {
 }
 
 impl ResolvedBlueprint {
+    /// Whether it comes only from an origin (ADR 0025).
+    pub fn is_ability(&self) -> bool {
+        self.components.contains(&ComponentDef::Ability)
+    }
+
     pub fn body(&self) -> &[BodyPart] {
         self.components
             .iter()
@@ -382,6 +390,12 @@ pub enum BlueprintError {
     BadCamp(String),
     BadPhases(String),
     BadOrigins(String),
+    /// A manual, a style's inventions or a discovery (`by`) hands out an
+    /// ability, which only an origin gives (ADR 0025).
+    AbilityHandedOut {
+        by: String,
+        ability: String,
+    },
     /// A new game asked for an origin the content lacks.
     UnknownOrigin(String),
 }
@@ -403,6 +417,10 @@ impl std::fmt::Display for BlueprintError {
             Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
             Self::BadOrigins(why) => write!(f, "data/origins.ron: {why}"),
             Self::UnknownOrigin(key) => write!(f, "no origin {key:?}"),
+            Self::AbilityHandedOut { by, ability } => write!(
+                f,
+                "{by} hands out the ability {ability:?}; abilities come only from origins"
+            ),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -949,7 +967,7 @@ fn check_effect_durations(
 }
 
 /// What a manual teaches, a creature knows and a style invents must be
-/// techniques.
+/// techniques; what is taught or invented must not be an ability.
 fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
     for blueprint in resolved {
         let taught = blueprint.teaches.iter().flat_map(|teaches| &teaches.0);
@@ -957,7 +975,8 @@ fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
             .style
             .iter()
             .flat_map(|style| style.invents.iter().map(|(_, id)| id));
-        for &id in taught.chain(&blueprint.techniques).chain(invented) {
+        let learned: Vec<BlueprintId> = taught.chain(invented).copied().collect();
+        for &id in learned.iter().chain(&blueprint.techniques) {
             let target = &resolved[id.0 as usize];
             if target.technique.is_none() {
                 return Err(BlueprintError::UnknownTechnique {
@@ -965,6 +984,15 @@ fn check_taught(resolved: &[ResolvedBlueprint]) -> Result<(), BlueprintError> {
                     technique: target.name.clone(),
                 });
             }
+        }
+        if let Some(&id) = learned
+            .iter()
+            .find(|id| resolved[id.0 as usize].is_ability())
+        {
+            return Err(BlueprintError::AbilityHandedOut {
+                by: format!("blueprint {:?}", blueprint.name),
+                ability: resolved[id.0 as usize].name.clone(),
+            });
         }
     }
     Ok(())
@@ -1419,6 +1447,37 @@ mod tests {
             }
             other => panic!("expected UnknownTechnique, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn abilities_are_never_taught_invented_or_discovered() {
+        let data = data_dir();
+        let skills = || SkillBook::load(&data.join("skills.ron")).unwrap();
+        let refused = |ability: &str| {
+            let mut raw = Blueprints::read_dir(&data.join("entities")).unwrap();
+            let marked = raw.get_mut(ability).unwrap();
+            marked.components.push(ComponentDef::Ability);
+            Blueprints::resolve_with(raw, skills())
+                .and_then(|blueprints| {
+                    blueprints
+                        .with_discoveries(discovery::read(&data.join("discoveries.ron")).unwrap())
+                })
+                .map(|_| ())
+                .unwrap_err()
+                .to_string()
+        };
+        let message = |by: &str, ability: &str| {
+            format!("{by} hands out the ability {ability:?}; abilities come only from origins")
+        };
+        assert_eq!(
+            refused("Sweep"),
+            message("blueprint \"EdgeManual\"", "Sweep")
+        );
+        assert_eq!(refused("Shove"), message("blueprint \"Brawling\"", "Shove"));
+        assert_eq!(
+            refused("Cleave"),
+            message("discovery \"the cleave\"", "Cleave")
+        );
     }
 
     #[test]

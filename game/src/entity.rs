@@ -810,6 +810,11 @@ pub struct Familiarity(pub Vec<(SkillId, String, u32)>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proficiency;
 
+/// Marks an ability (ADR 0025): a technique or part that comes from what its
+/// holder is, from its origin, never taught, discovered or invented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ability;
+
 /// Proficiency part: dodging perfectly is `perfect_bp` (out of 10 000) more
 /// likely when the holder is attacked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

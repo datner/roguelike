@@ -87,9 +87,20 @@ fn shape_text(shape: Option<Shape>) -> String {
     }
 }
 
-/// A technique as a list row: its reach and damage, then quieter notes: how
-/// long it recharges, and why it can't be performed now, if it can't.
+/// A technique as a list row: its reach and damage, then quieter notes:
+/// whether it is an ability, how long it recharges, and why it can't be
+/// performed now, if it can't.
 pub fn technique_text(technique: &TechniqueView) -> (String, Vec<String>) {
+    let (main, mut notes) = technique_row(technique);
+    if technique.ability {
+        notes.insert(0, "ability".to_string());
+    }
+    (main, notes)
+}
+
+/// `technique_text` without the ability note, for a list that heads its
+/// abilities apart.
+pub(crate) fn technique_row(technique: &TechniqueView) -> (String, Vec<String>) {
     let (low, high) = technique.damage;
     let shape = shape_text(technique.shape);
     let main = format!(

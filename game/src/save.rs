@@ -14,6 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
+    Ability, Attuned, Blow, Dash, Lesson, Loose, OffBalance, Origin, Performed, Sighted, Stamina,
+    Studied, Teaches, Technique, TechniqueAi,
+};
+use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
     BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Discovered, Duration,
     EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
@@ -21,10 +25,6 @@ use crate::entity::{
     Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
     Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
     Summoned, Throwable, Timed, Trains, Weapon,
-};
-use crate::entity::{
-    Attuned, Blow, Dash, Lesson, Loose, OffBalance, Origin, Performed, Sighted, Stamina, Studied,
-    Teaches, Technique, TechniqueAi,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 42;
+pub const SAVE_VERSION: u32 = 43;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -241,6 +241,7 @@ enum ComponentKind {
     Deflect,
     Light,
     Proficiency,
+    Ability,
     Footwork,
     Discovered,
     Origin,
@@ -261,7 +262,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 76] = [
+    const ALL: [ComponentKind; 77] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -321,6 +322,7 @@ impl ComponentKind {
         Self::Deflect,
         Self::Light,
         Self::Proficiency,
+        Self::Ability,
         Self::Footwork,
         Self::Discovered,
         Self::Origin,
@@ -406,6 +408,7 @@ enum SavedComponent {
     Deflect(Deflect),
     Light(Light),
     Proficiency,
+    Ability,
     Footwork(Footwork),
     Discovered(Discovered),
     Origin(Origin),
@@ -784,6 +787,7 @@ fn save_component(
         ComponentKind::Deflect => copy(entity).map(S::Deflect),
         ComponentKind::Light => copy(entity).map(S::Light),
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
+        ComponentKind::Ability => marker::<Ability>(entity, S::Ability),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
         ComponentKind::Origin => copy(entity).map(S::Origin),
@@ -983,6 +987,7 @@ fn load_component(
         S::Deflect(c) => builder.add(c),
         S::Light(c) => builder.add(c),
         S::Proficiency => builder.add(Proficiency),
+        S::Ability => builder.add(Ability),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),
         S::Origin(c) => builder.add(c),

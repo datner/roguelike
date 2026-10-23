@@ -981,6 +981,8 @@ pub struct TechniqueView {
     /// For a step of a form: which, of how many the player knows; `None`
     /// unless they know two steps or more of it.
     pub step: Option<(u32, u32)>,
+    /// From the player's origin, never learned (ADR 0025).
+    pub ability: bool,
     /// Why it can't be performed now, if it can't.
     pub blocked: Option<String>,
 }
@@ -1038,6 +1040,7 @@ pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
                     let steps = group.iter().copied().max().unwrap_or(combo.step);
                     (group.len() > 1).then_some((combo.step, steps))
                 }),
+                ability: world.satisfies::<&crate::entity::Ability>(technique),
                 blocked,
             })
         })
@@ -1172,6 +1175,20 @@ mod tests {
                 .recent(10)
                 .any(|line| line == "You lunge at the goblin.")
         );
+    }
+
+    #[test]
+    fn an_ability_is_listed_as_one_and_performs_like_any_technique() {
+        let (mut state, technique) = lunger();
+        let player = state.player;
+        let _ = state.world.insert_one(technique, crate::entity::Ability);
+        sure_hits(&mut state, player);
+        let goblin = goblin(&mut state, (3, 1));
+
+        assert!(techniques(&state).iter().all(|view| view.ability));
+        perform(&mut state, technique, (3, 1));
+
+        assert!(health(&state, goblin) < 10);
     }
 
     #[test]

@@ -533,7 +533,8 @@ fn skill_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<
 }
 
 /// What the player has made of their skills: styles (the selected one
-/// focused), proficiencies, techniques and half-formed ideas.
+/// focused), proficiencies, abilities (if any), techniques and half-formed
+/// ideas.
 fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<usize>) {
     let none = |text: &str| PanelLine::plain(vec![quiet(format!("  {text}"))]);
     let mut lines = vec![PanelLine::heading("Styles")];
@@ -563,16 +564,23 @@ fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<us
             .iter()
             .map(|p| PanelLine::plain(vec![Seg::Plain(format!("  {p}"))])),
     );
-    lines.push(PanelLine::heading("Techniques"));
-    if contents.techniques.is_empty() {
-        lines.push(none("None known yet."));
-    }
-    lines.extend(contents.techniques.iter().map(|technique| {
-        let (main, notes) = crate::targeting::technique_text(technique);
+    let technique_line = |technique: &TechniqueView| {
+        let (main, notes) = crate::targeting::technique_row(technique);
         let mut row = vec![Seg::Plain(format!("  {main}"))];
         row.extend(notes.into_iter().map(|note| quiet(format!("  {note}"))));
         PanelLine::plain(row)
-    }));
+    };
+    let (abilities, learned): (Vec<&TechniqueView>, Vec<&TechniqueView>) =
+        contents.techniques.iter().partition(|t| t.ability);
+    if !abilities.is_empty() {
+        lines.push(PanelLine::heading("Abilities"));
+        lines.extend(abilities.into_iter().map(technique_line));
+    }
+    lines.push(PanelLine::heading("Techniques"));
+    if learned.is_empty() {
+        lines.push(none("None known yet."));
+    }
+    lines.extend(learned.into_iter().map(technique_line));
     if !contents.ideas.is_empty() {
         lines.push(PanelLine::heading("Ideas"));
         for idea in contents.ideas {
@@ -634,6 +642,39 @@ fn part_lines(parts: &[PartView], selected: usize) -> Vec<PanelLine> {
 mod tests {
     use super::*;
     use crate::tests::state;
+
+    #[test]
+    fn abilities_are_listed_under_their_own_heading() {
+        let mut views = Views::of(&state());
+        let trip = views.techniques.first().unwrap().name.clone();
+        let text = |views: &Views| -> Vec<String> {
+            way_lines(&views.contents(), 0)
+                .0
+                .iter()
+                .map(|line| {
+                    line.row
+                        .iter()
+                        .map(|seg| match seg {
+                            Seg::Plain(text) | Seg::Quiet(text) => text.trim().to_string(),
+                            Seg::Glyph(..) => String::new(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+                .collect()
+        };
+        assert!(!text(&views).contains(&"Abilities".to_string()));
+
+        views.techniques[0].ability = true;
+        let lines = text(&views);
+        let at = |wanted: &str| lines.iter().position(|line| line.starts_with(wanted));
+        let (abilities, techniques) = (at("Abilities").unwrap(), at("Techniques").unwrap());
+        let row = at(&trip).unwrap();
+        assert!(abilities < row && row < techniques, "{lines:?}");
+        assert!(!lines[row].contains("ability"), "the heading says it");
+        let (_, notes) = crate::targeting::technique_text(&views.techniques[0]);
+        assert_eq!(notes.first().map(String::as_str), Some("ability"));
+    }
 
     #[test]
     fn focusing_a_row_selects_it_and_offers_its_actions() {

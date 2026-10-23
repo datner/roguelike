@@ -95,6 +95,12 @@ pub(crate) fn resolve(
                 .id(granted)
                 .filter(|&id| blueprints.by_id(id).is_some_and(fits))
                 .ok_or_else(|| unknown(granted.clone()))?;
+            if blueprints.by_id(grants).is_some_and(|bp| bp.is_ability()) {
+                return Err(BlueprintError::AbilityHandedOut {
+                    by: format!("discovery {:?}", def.name),
+                    ability: granted.clone(),
+                });
+            }
             Ok(Discovery {
                 name: def.name,
                 requires,

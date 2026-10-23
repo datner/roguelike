@@ -28,6 +28,11 @@ began.
   no RNG, so a seed builds the same world for every origin; only `SpawnSeq`
   numbers after the player shift.
 - Content without origins (tests' blueprints) starts from `Player`.
+- An **ability** is a technique or part marked `Ability`: it comes from what
+  the creature is. Load refuses one named by a manual (`Teaches`), a style's
+  `invents` or a discovery, so only a blueprint (an origin's, a monster's)
+  can have one. Lists show abilities apart from what was learned. Saved as a
+  marker; the save version moved to 43.
 
 ## Consequences
 
