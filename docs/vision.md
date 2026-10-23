@@ -10,6 +10,7 @@ decided while building. When a plan and this document disagree, ask the owner wh
   to wait for, and enter the dungeon in it. The phase is fixed for the whole dive. Each phase has its own
   creatures, floors and finds on top of the dungeon's shared content: entering the castle in the fire
   phase, you never see the floors and enemies of the other phases, and you meet ones only it has.
+  Layouts are rolled anew on every dive; a phase decides what you meet, never a map to learn.
 - **No classes.** A character starts from an **origin** (what they are: abilities, a few starting skills,
   maybe a style already in progress) and becomes what they do. Origins need not be equally strong:
   there is no difficulty setting, and choosing an origin is the difficulty choice.
@@ -136,7 +137,5 @@ map full screen and panels as overlays. The Android SDK and NDK would come from 
 
 ## Open questions
 
-- Within one life, do dungeons reroll on every dive, or does each phase keep its layout (learned like a
-  place, but exhausted sooner)?
 - How much a legacy is worth: the lesson cap, how much survives a long gap.
 - How many phases, and what each one changes.
