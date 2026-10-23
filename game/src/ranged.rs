@@ -186,7 +186,8 @@ pub(crate) fn ready_fire_from(
     ) else {
         return Err("You can't fire that.".to_string());
     };
-    if stand.is_some_and(|stand| point_blank_at(state, actor, stand)) {
+    let steady = crate::style::principle(world, actor, crate::entity::Does::SteadyClose);
+    if !steady && stand.is_some_and(|stand| point_blank_at(state, actor, stand)) {
         strike.accuracy -= POINT_BLANK;
     }
     Ok(Ready {

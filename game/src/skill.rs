@@ -406,7 +406,13 @@ pub(crate) fn train(
     }
     // A followed style trains along with any use that follows it.
     let mut skills = skills.to_vec();
-    skills.extend(crate::style::following(&state.world, learner, &skills));
+    let book = state.blueprints.skills();
+    skills.extend(crate::style::following(
+        &state.world,
+        book,
+        learner,
+        &skills,
+    ));
     skills.sort();
     skills.dedup();
     let kind = state

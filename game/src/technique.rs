@@ -975,7 +975,8 @@ pub struct TechniqueView {
     pub recharge: u64,
     /// The styles whose bonuses it has now, by name.
     pub styled: Vec<String>,
-    /// For a step of a form: which, of how many the player knows.
+    /// For a step of a form: which, of how many the player knows; `None`
+    /// unless they know two steps or more of it.
     pub step: Option<(u32, u32)>,
     /// Why it can't be performed now, if it can't.
     pub blocked: Option<String>,
@@ -1022,15 +1023,17 @@ pub fn techniques(state: &GameState) -> Vec<TechniqueView> {
                     .filter_map(|&style| state.blueprints.skills().get(style))
                     .map(|def| def.name.clone())
                     .collect(),
-                step: combo.as_ref().map(|combo| {
-                    let steps = combos
+                // A lone known step of a form (the trip, before the rest of
+                // the bow dance) is no form yet: no step is shown.
+                step: combo.as_ref().and_then(|combo| {
+                    let group: Vec<u32> = combos
                         .iter()
                         .flatten()
                         .filter(|other| other.group == combo.group)
                         .map(|other| other.step)
-                        .max()
-                        .unwrap_or(combo.step);
-                    (combo.step, steps)
+                        .collect();
+                    let steps = group.iter().copied().max().unwrap_or(combo.step);
+                    (group.len() > 1).then_some((combo.step, steps))
                 }),
                 blocked,
             })
@@ -1619,6 +1622,7 @@ mod tests {
             domains: vec![Domain::Martial],
             skill: dagger,
             follows: Vec::new(),
+            wielding: Vec::new(),
             principles: Vec::new(),
             invents: Vec::new(),
         });
@@ -2208,5 +2212,147 @@ mod tests {
                 .iter()
                 .any(|idea| idea.name == "lunge")
         );
+    }
+
+    /// The real player following bow dancing at `level`, a goblin beside.
+    fn bow_dancer(level: u32) -> (GameState, Entity) {
+        let mut state = real();
+        let player = state.player;
+        let id = state.blueprints.id("BowDancing").unwrap();
+        let style = state
+            .spawn(crate::spawn::Spawn::id(id).carried_by(player))
+            .unwrap();
+        crate::style::follow(&mut state, player, style);
+        let skill = state.blueprints.skills().id("Bow dancing").unwrap();
+        let mut skills = state
+            .world
+            .get::<&crate::entity::Skills>(player)
+            .map(|skills| (*skills).clone())
+            .unwrap_or_default();
+        skills.set(skill, skill::xp_for(level));
+        let _ = state.world.insert_one(player, skills);
+        let goblin = thing("goblin")
+            .at(2, 1)
+            .health(1000)
+            .hostile()
+            .make(&mut state);
+        (state, goblin)
+    }
+
+    fn named(state: &GameState, name: &str) -> SkillId {
+        state.blueprints.skills().id(name).unwrap()
+    }
+
+    #[test]
+    fn a_kick_follows_bow_dancing_with_a_short_bow_in_hand_only() {
+        let (mut state, _) = bow_dancer(1);
+        let player = state.player;
+        let book = state.blueprints.skills().clone();
+        let kick = [named(&state, "Melee"), named(&state, "Unarmed")];
+        let dancing = named(&state, "Bow dancing");
+        let follows = |state: &GameState, used: &[SkillId]| {
+            crate::style::following(&state.world, &book, player, used)
+        };
+        assert_eq!(follows(&state, &kick), [dancing]);
+        let spell = [named(&state, "Magic"), named(&state, "Arcane")];
+        assert!(follows(&state, &spell).is_empty(), "a spell is not martial");
+
+        for (item, _) in crate::equipment::equipped(&state.world, player) {
+            holding::take_off(&mut state.world, player, item);
+        }
+        let sabre = state
+            .spawn(crate::spawn::Spawn::blueprint("Sabre").carried_by(player))
+            .unwrap();
+        crate::equipment::equip(&mut state, player, sabre, None);
+        assert!(
+            follows(&state, &kick).is_empty(),
+            "not with a sabre in hand"
+        );
+    }
+
+    #[test]
+    fn bow_dancing_steadies_a_shot_up_close_from_its_level_2() {
+        let accuracy = |level| {
+            let (state, _) = bow_dancer(level);
+            ranged::ready_fire(&state, state.player)
+                .unwrap()
+                .strike
+                .accuracy
+        };
+        let (state, goblin) = bow_dancer(1);
+        let mut calm = state;
+        let _ = calm.world.despawn(goblin);
+        let open = ranged::ready_fire(&calm, calm.player)
+            .unwrap()
+            .strike
+            .accuracy;
+        assert_eq!(accuracy(1), open - ranged::POINT_BLANK);
+        // Level 2 adds its own skill nowhere (styles never count toward a
+        // use's level), so the shot is exactly as sure as with room.
+        assert_eq!(accuracy(2), open);
+    }
+
+    #[test]
+    fn bow_dancing_invents_the_push_kick_at_2_once() {
+        let (mut state, goblin) = bow_dancer(1);
+        let player = state.player;
+        let dancing = named(&state, "Bow dancing");
+        let mut skills = state
+            .world
+            .get::<&crate::entity::Skills>(player)
+            .map(|skills| (*skills).clone())
+            .unwrap();
+        skills.set(dancing, skill::xp_for(2) - 1);
+        let _ = state.world.insert_one(player, skills);
+        assert!(!knows(&state.world, player, "push kick"));
+        sure_hits(&mut state, player);
+        let bash = [named(&state, "Melee"), named(&state, "Bow")];
+        skill::train(&mut state, player, &bash, goblin, 10);
+        assert!(knows(&state.world, player, "push kick"));
+        skill::train(&mut state, player, &bash, goblin, 10);
+        let kicks = known(&state.world, player)
+            .into_iter()
+            .filter(|&t| name(&state.world, t) == "push kick")
+            .count();
+        assert_eq!(kicks, 1);
+    }
+
+    #[test]
+    fn a_lone_step_of_a_form_shows_no_step() {
+        let (state, _) = bow_dancer(1);
+        let trip = techniques(&state)
+            .into_iter()
+            .find(|view| view.name == "trip")
+            .unwrap();
+        assert_eq!(trip.step, None);
+    }
+
+    #[test]
+    fn the_bow_dance_is_surer_along_a_run() {
+        let (mut state, _) = bow_dancer(1);
+        let player = state.player;
+        let id = state.blueprints.id("PushKick").unwrap();
+        let kick = state
+            .spawn(crate::spawn::Spawn::id(id).attached_to(player))
+            .unwrap();
+        let trip = known(&state.world, player)
+            .into_iter()
+            .find(|&t| name(&state.world, t) == "trip")
+            .unwrap();
+        let alone = inspect(&state, player, trip).unwrap().0.mods.accuracy;
+        let step = |state: &GameState| {
+            techniques(state)
+                .into_iter()
+                .find(|view| view.name == "trip")
+                .unwrap()
+                .step
+        };
+        assert_eq!(step(&state), Some((2, 2)), "with the push kick known");
+        sure_hits(&mut state, player);
+        perform(&mut state, kick, (2, 1));
+        let (ready, blocked) = inspect(&state, player, trip).unwrap();
+        assert_eq!(blocked, None);
+        assert_eq!(ready.mods.accuracy, alone + 1, "the form's step 2");
+        assert!(ready.performed.is_some_and(|p| p.run == 2));
     }
 }

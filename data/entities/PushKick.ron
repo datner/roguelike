@@ -13,6 +13,9 @@
             stamina: 0,
             requires: [Part(Feet)],
             riders: [Shove(tiles: 1)],
+            bonuses: [(style: "Bow dancing", from_level: 1, accuracy: 1, recharge_pct: -33)],
+            // The bow dance, step 1: push kick, trip, parting shot.
+            combo: (group: "bow dance", step: 1, within: 200, xp_pct: 50, display: Steps),
         ),
         Blow(damage_pct: -25, unarmed: true),
     ],

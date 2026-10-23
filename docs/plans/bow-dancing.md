@@ -92,7 +92,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   the shot from there for `perform` and `aim` alike, its damage scaled before the shot rolls it. A shot
   carries no riders, and a form's extra XP does not reach it (the shot trains through `ranged`).
 
-### 5. The style
+### 5. The style — done
 - `Style.wielding` (see decisions), checked where a use's following is decided in `style.rs`.
 - `Does::SteadyClose`: a principle that waives the point-blank penalty for whoever follows the style
   (checked in `ranged::point_blank`'s caller, so the preview shows it).
@@ -108,6 +108,11 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: the discovery fires from the skills; a kick follows the style with a short bow in hand and
   not with a sabre; existing styles follow as before; following it waives point blank only from level
   2; it invents at its levels and skips what is known; the form's bonuses along a run.
+- As built: a use also follows a style only if one of its skills is in the style's domains, so a
+  spell cast with a bow in hand does not train bow dancing (`follows: []` would otherwise match
+  anything). The bench has a bow dancer: better than the archer in a burst, much worse sustained,
+  because once its arrows run out its kicks and trips are weaker blows than a bow bash. Left as data
+  for the owner (numbers are out of scope here).
 
 ## Out of scope
 

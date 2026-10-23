@@ -1,0 +1,19 @@
+// The archer's skills plus kicking, following bow dancing at 5: the style
+// waives point blank, so it shoots up close; it kicks and trips between.
+(
+    name: "bow dancer",
+    note: "the archer following Bow dancing at 5 with the push kick and the parting shot",
+    skills: {
+        "Melee": 5,
+        "Archery": 5,
+        "Bow": 5,
+        "Pierce": 5,
+        "Blunt": 5,
+        "Unarmed": 5,
+        "Bow dancing": 5,
+    },
+    equipment: ["ShortBow", "Quiver", "Torch"],
+    techniques: ["PushKick", "PartingShot"],
+    style: Some("BowDancing"),
+    policy: [Perform("PartingShot"), Perform("Trip"), Perform("PushKick"), Fire, Bump],
+)

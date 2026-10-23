@@ -16,7 +16,7 @@ use crate::event::{Ctx, EventRegistry};
 use crate::grammar::{Subject, capitalize};
 use crate::holding;
 use crate::prio;
-use crate::skill::{self, Domain, SkillId};
+use crate::skill::{self, Domain, SkillBook, SkillId};
 use crate::spawn::Spawn;
 use crate::state::GameState;
 use crate::technique::{Missing, Names};
@@ -28,6 +28,10 @@ pub struct StyleDef {
     pub domains: Vec<Domain>,
     pub skill: String,
     pub follows: Vec<String>,
+    /// Skills the wielded weapon must have for a use to follow it (the
+    /// short bow); read from the hand, not the use.
+    #[serde(default)]
+    pub wielding: Vec<String>,
     #[serde(default)]
     pub principles: Vec<Principle>,
     /// Technique blueprints by name, each at a level of its skill.
@@ -38,7 +42,9 @@ pub struct StyleDef {
 impl StyleDef {
     /// The skills it names, for checking at load.
     pub(crate) fn names(&self) -> impl Iterator<Item = &String> {
-        std::iter::once(&self.skill).chain(&self.follows)
+        std::iter::once(&self.skill)
+            .chain(&self.follows)
+            .chain(&self.wielding)
     }
 
     /// With every name resolved, or the first one `names` lacks.
@@ -51,10 +57,17 @@ impl StyleDef {
         };
         let mut follows = self.follows.iter().map(id).collect::<Result<Vec<_>, _>>()?;
         follows.sort();
+        let mut wielding = self
+            .wielding
+            .iter()
+            .map(id)
+            .collect::<Result<Vec<_>, _>>()?;
+        wielding.sort();
         Ok(Style {
             domains: self.domains.clone(),
             skill: id(&self.skill)?,
             follows,
+            wielding,
             principles: self.principles.clone(),
             invents: self
                 .invents
@@ -82,6 +95,11 @@ impl StyleDef {
             skill: name(style.skill)?,
             follows: style
                 .follows
+                .iter()
+                .map(|&id| name(id))
+                .collect::<Result<_, _>>()?,
+            wielding: style
+                .wielding
                 .iter()
                 .map(|&id| name(id))
                 .collect::<Result<_, _>>()?,
@@ -212,19 +230,49 @@ pub(crate) fn known(world: &World, creature: Entity) -> Vec<Entity> {
 }
 
 /// The skills of `creature`'s followed styles that a use of `used` skills
-/// follows: they train with it, but never count toward its level.
-pub(crate) fn following(world: &World, creature: Entity, used: &[SkillId]) -> Vec<SkillId> {
+/// follows: they train with it, but never count toward its level. A use
+/// follows a style when it is in one of the style's domains, uses all it
+/// `follows`, and the wielded weapon has all it asks to be `wielding`.
+pub(crate) fn following(
+    world: &World,
+    book: &SkillBook,
+    creature: Entity,
+    used: &[SkillId],
+) -> Vec<SkillId> {
+    let in_hand = || {
+        crate::combat::blow_strike(world, book, creature, &Default::default())
+            .map_or_else(Vec::new, |(_, skills)| skills)
+    };
     followed(world, creature)
         .into_iter()
         .filter_map(|thing| {
             let style = world.get::<&Style>(thing).ok()?;
-            style
-                .follows
-                .iter()
-                .all(|skill| used.contains(skill))
-                .then_some(style.skill)
+            let in_domain = used.iter().any(|&skill| {
+                book.get(skill)
+                    .is_some_and(|def| style.domains.contains(&def.domain))
+            });
+            let follows = style.follows.iter().all(|skill| used.contains(skill));
+            let wielding = style.wielding.is_empty() || {
+                let hand = in_hand();
+                style.wielding.iter().all(|skill| hand.contains(skill))
+            };
+            (in_domain && follows && wielding).then_some(style.skill)
         })
         .collect()
+}
+
+/// Whether one of `creature`'s followed styles has `does` switched on at
+/// its skill's level.
+pub(crate) fn principle(world: &World, creature: Entity, does: Does) -> bool {
+    followed(world, creature).into_iter().any(|thing| {
+        world.get::<&Style>(thing).is_ok_and(|style| {
+            let level = skill::level(skill::xp(world, creature, style.skill));
+            style
+                .principles
+                .iter()
+                .any(|p| p.does == does && level >= p.from_level)
+        })
+    })
 }
 
 /// Applies `Command::FollowStyle`: sets a followed style aside, or takes up

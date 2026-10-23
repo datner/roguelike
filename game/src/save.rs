@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 39;
+pub const SAVE_VERSION: u32 = 40;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1382,6 +1382,7 @@ mod tests {
             domains: vec![crate::skill::Domain::Martial],
             skill: book.id("Dagger").unwrap(),
             follows: vec![book.id("Melee").unwrap()],
+            wielding: vec![book.id("Dagger").unwrap()],
             principles: vec![crate::entity::Principle {
                 from_level: 5,
                 does: crate::entity::Does::Riposte,

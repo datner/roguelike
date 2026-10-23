@@ -268,6 +268,22 @@ mod tests {
     }
 
     #[test]
+    fn archery_and_unarmed_inspire_bow_dancing() {
+        let mut state = learner(&[("Archery", 3), ("Unarmed", 2)]);
+        train_once(&mut state);
+        assert_eq!(last_log(&state), "Inspiration! You discover Bow dancing.");
+        let player = state.player;
+        assert!(
+            crate::style::known(&state.world, player)
+                .into_iter()
+                .any(
+                    |style| state.world.get::<&crate::entity::Name>(style).unwrap().0
+                        == "bow dancing"
+                )
+        );
+    }
+
+    #[test]
     fn footwork_helps_only_its_holder_dodge() {
         let mut state = learner(&[("Dodge", 4), ("Poise", 2)]);
         train_once(&mut state);
@@ -305,7 +321,7 @@ mod tests {
             }]
         );
         // In no discovery at all.
-        assert!(ideas(&learner(&[("Archery", 9)])).is_empty());
+        assert!(ideas(&learner(&[("Thrown", 9)])).is_empty());
     }
 
     #[test]

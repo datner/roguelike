@@ -833,6 +833,8 @@ pub struct Style {
     pub skill: SkillId,
     /// A use follows the style when it uses all of these.
     pub follows: Vec<SkillId>,
+    /// ... and the wielded weapon has all of these (`style::following`).
+    pub wielding: Vec<SkillId>,
     pub principles: Vec<Principle>,
     /// Techniques it invents at levels of its skill (ADR 0024).
     pub invents: Vec<(u32, crate::blueprint::BlueprintId)>,
@@ -850,6 +852,8 @@ pub struct Principle {
 pub enum Does {
     /// After a perfect dodge, strike back at once, for free.
     Riposte,
+    /// Shooting with an enemy alongside costs no accuracy (point blank).
+    SteadyClose,
 }
 
 /// Item part: studying it teaches these skills this much XP, once per kind

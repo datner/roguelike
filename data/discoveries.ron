@@ -25,6 +25,11 @@
         grants: Style("Brawling"),
     ),
     (
+        name: "Bow dancing",
+        requires: [Skill("Archery", 3), Skill("Unarmed", 2)],
+        grants: Style("BowDancing"),
+    ),
+    (
         name: "the cleave",
         requires: [Skill("Melee", 3), Skill("Slash", 3)],
         grants: Technique("Cleave"),

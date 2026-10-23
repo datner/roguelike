@@ -88,3 +88,21 @@ turning it on later must not mean a refactor.
   `Performed`, `Need::Continuing`); 35 (`TechniqueAi`); 36 (`Teaches`); 37 (`Style` inventions).
 - The player starts knowing only the trip; the rest are found, read,
   inspired or invented.
+
+## Amendment (docs/plans/bow-dancing.md): kicks and shots
+
+- **Unarmed blows.** `Blow { unarmed: true }` strikes with the creature's
+  natural `Melee` whatever it wields, and trains as an unarmed blow: a kick.
+  `Need::Part(PartKind)` asks for a body part ("Your push kick needs feet.").
+- **Shots.** A `Loose { accuracy, damage_pct }` technique fires the wielded
+  launcher's next arrow instead of striking. `technique::fired` builds the
+  shot from where it would fly (`ranged::ready_fire_from`, so point blank is
+  judged there), shifted by the technique's mods, and `perform` hands it to
+  `ranged::launch`: flight, odds, breaking and training are a plain shot's.
+  A shot carries no riders. `aim` previews it from the same `fired`.
+- **Stepping back.** `Dash { away: true }` moves the performer back from the
+  target first, over open, empty ground ("There is no room behind you.").
+- Content: the push kick (anyone with feet; a primer teaches it), the
+  parting shot, and the bow dance form (push kick → trip → parting shot,
+  shown as separate rows). Bow dancing invents the kick and the shot.
+- `SAVE_VERSION` 40.
