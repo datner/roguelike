@@ -11,6 +11,7 @@ decided while building. When a plan and this document disagree, ask the owner wh
   creatures, floors and finds on top of the dungeon's shared content: entering the castle in the fire
   phase, you never see the floors and enemies of the other phases, and you meet ones only it has.
   Layouts are rolled anew on every dive; a phase decides what you meet, never a map to learn.
+  See "Phases" below.
 - **No classes.** A character starts from an **origin** (what they are: abilities, a few starting skills,
   maybe a style already in progress) and becomes what they do. Origins need not be equally strong:
   there is no difficulty setting, and choosing an origin is the difficulty choice.
@@ -30,6 +31,27 @@ decided while building. When a plan and this document disagree, ask the owner wh
    The phase you choose at camp is the only thing time decides.
 6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons and legacy contents
    are RON, composed from reusable parts.
+
+## Interconnection
+
+The experiment of this game is a system as interconnected as possible. A new system earns its place by
+reaching into the others (skills, styles, discovery, lore, phases, legacy), and the others read it
+back. A system that only adds content beside the rest is not finished.
+
+## Phases
+
+- **A phase leans the whole world one way, for everyone.** Each has an element that is stronger for
+  every creature while it lasts, you included, and one rule of the world it bends. It also has natives
+  made for it and finds only it has. A phase is a choice that cuts both ways, never simply better: a
+  pyromancer in the Embers burns hotter and meets things that burn back.
+- **Phases have opposites**, arranged on a wheel. Styles, discoveries and skills read the phase: a style
+  may thrive in one phase, a discovery may need stakes in one, and time spent in a phase attunes you to
+  it.
+- **Five to start; more are revealed as time goes on.** The **Stillness** looks like the neutral
+  baseline, where nothing leans and the game loop is learned. Later it is revealed to be a phase of its
+  own, with an opposite (Chaos, or similar), so it is unique and only seems simple at first.
+- **How a phase is chosen is not settled.** Today you wait for any phase at camp. That will change in a
+  big way, so the choosing lives behind one seam and nothing else assumes how it works.
 
 ## The character
 
@@ -138,4 +160,5 @@ map full screen and panels as overlays. The Android SDK and NDK would come from 
 ## Open questions
 
 - How much a legacy is worth: the lesson cap, how much survives a long gap.
-- How many phases, and what each one changes.
+- How a phase is chosen or reached (waiting, a cycle, a ritual, a roll, something earned).
+- What the Stillness really is, and how it is revealed.
