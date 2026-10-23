@@ -50,7 +50,7 @@ with; only a short bow qualifies.
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first. Every changed
 component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_VERSION` bump.
 
-### 1. Point blank
+### 1. Point blank — done
 - `ranged::point_blank(state, actor) -> bool`: an enemy (`side::enemies`) on any of the 8 tiles around
   the shooter. `ready_fire` lowers `strike.accuracy` by `POINT_BLANK` when it holds.
 - `front/targeting.rs`: the aim status says "point blank" when the penalty applies, from a flag on

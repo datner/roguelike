@@ -7,7 +7,7 @@ use hecs::Entity;
 use crate::ammo;
 use crate::combat::{self, Strike};
 use crate::entity::{DamageTypes, Dead, Health, Name, Position};
-use crate::ranged::{check_range, distance, flight, ready_fire, ready_throw};
+use crate::ranged::{check_range, distance, flight, point_blank, ready_fire, ready_throw};
 use crate::side;
 use crate::spell::{check_target, footprint, ready_cast};
 use crate::state::GameState;
@@ -61,6 +61,9 @@ pub struct Aim {
     /// How a missile would meet its target, from the odds the shot rolls
     /// (ADR 0017); `None` without a target, and for spells.
     pub chances: Option<Chances>,
+    /// A launcher fired with an enemy alongside: its aim suffers
+    /// (`ranged::POINT_BLANK`), already counted in `chances`.
+    pub point_blank: bool,
 }
 
 /// Chances, out of 10 000, of each way a shot can land that does damage.
@@ -207,6 +210,7 @@ pub fn aim(state: &GameState, shot: Shot, at: (i32, i32)) -> Option<Aim> {
                 graze_bp: odds.graze_overall_bp(),
             }
         }),
+        point_blank: matches!(shot, Shot::Fire) && point_blank(state, state.player),
     })
 }
 
@@ -245,6 +249,7 @@ fn aim_cast(state: &GameState, spell: ItemRef, at: (i32, i32)) -> Option<Aim> {
         area: footprint.area,
         summons: footprint.placed,
         chances: None,
+        point_blank: false,
     })
 }
 
@@ -295,6 +300,7 @@ fn aim_technique(state: &GameState, technique: ItemRef, at: (i32, i32)) -> Optio
                 graze_bp: odds.graze_overall_bp(),
             }
         }),
+        point_blank: false,
     })
 }
 
@@ -447,6 +453,72 @@ mod tests {
         let aim = aim(&state, Shot::Fire, (4, 1)).unwrap();
         assert_eq!((aim.range, aim.damage), (8, (2, 2)));
         assert_eq!(aim.target.as_deref(), Some("goblin"));
+    }
+
+    /// A bow with a stocked quiver, a goblin to shoot at (4, 1), and the hit
+    /// chance at it.
+    fn shooting() -> (GameState, impl Fn(&GameState) -> (u32, bool)) {
+        let mut state = bare_state();
+        bow(&mut state);
+        let quiver = thing("quiver")
+            .item()
+            .quiver(AmmoKind::Arrow, 5)
+            .equipped_on(state.player, 2)
+            .make(&mut state);
+        let arrow = arrow().make(&mut state);
+        crate::holding::stow(&mut state.world, quiver, arrow);
+        goblin(&mut state, 4, 1);
+        see_everything(&mut state);
+        let chance = |state: &GameState| {
+            let aim = aim(state, Shot::Fire, (4, 1)).unwrap();
+            (aim.chances.unwrap().hit_bp, aim.point_blank)
+        };
+        (state, chance)
+    }
+
+    #[test]
+    fn shooting_with_an_enemy_alongside_is_harder() {
+        let (mut state, chance) = shooting();
+        let (open, close) = chance(&state);
+        assert!(!close);
+
+        thing("ally").at(1, 2).health(5).make(&mut state);
+        assert_eq!(
+            chance(&state),
+            (open, false),
+            "an ally alongside is no bother"
+        );
+        goblin(&mut state, 3, 3);
+        assert_eq!(
+            chance(&state),
+            (open, false),
+            "two tiles off is room enough"
+        );
+
+        let close = goblin(&mut state, 2, 2);
+        let (pressed, flagged) = chance(&state);
+        assert!(flagged && pressed < open, "{pressed} vs {open}");
+        let ready = crate::ranged::ready_fire(&state, state.player).unwrap();
+        let _ = state.world.despawn(close);
+        let calm = crate::ranged::ready_fire(&state, state.player).unwrap();
+        assert_eq!(
+            ready.strike.accuracy,
+            calm.strike.accuracy - crate::ranged::POINT_BLANK,
+            "the shot rolls the odds the preview shows"
+        );
+    }
+
+    #[test]
+    fn a_thrown_knife_is_no_harder_up_close() {
+        let mut state = bare_state();
+        let shot = knife(&mut state);
+        goblin(&mut state, 4, 1);
+        see_everything(&mut state);
+        let chance = |state: &GameState| aim(state, shot, (4, 1)).unwrap().chances;
+        let open = chance(&state);
+        goblin(&mut state, 2, 2);
+        assert_eq!(chance(&state), open);
+        assert!(!aim(&state, shot, (4, 1)).unwrap().point_blank);
     }
 
     fn firebolt(state: &mut GameState) -> (Entity, Shot) {

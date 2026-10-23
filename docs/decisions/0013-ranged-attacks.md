@@ -75,3 +75,12 @@ meets the first creature in line is rolled. A graze or deflection stops it
 like a hit (and may break an arrow); a miss or perfect dodge comes to rest
 at the target's feet, so the path the aim preview drew stays true. `aim`
 shows the hit and graze chances from the same odds.
+
+## Amendment (docs/plans/bow-dancing.md): point blank
+
+Firing a launcher with a living enemy on any of the 8 tiles around the
+shooter costs `ranged::POINT_BLANK` (4) accuracy: a bow wants room to draw.
+It applies to every shooter, not only the player, and is worked out in
+`ranged::ready_fire`, which the command, `aim` and AI share, so the preview
+shows the lower chance and flags it (`Aim::point_blank`). Thrown things are
+not affected. A style may waive it (bow dancing, its own slice).

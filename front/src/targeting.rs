@@ -211,9 +211,14 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
             n => format!("Catches {n}: {low}-{high}{kinds} each  {keys}"),
         };
     }
+    let close = if shot.point_blank {
+        ", point blank"
+    } else {
+        ""
+    };
     let odds = shot.chances.map_or_else(String::new, |chances| {
         format!(
-            " ({}% hit, {}% graze)",
+            " ({}% hit, {}% graze{close})",
             chances.hit_bp / 100,
             chances.graze_bp / 100
         )

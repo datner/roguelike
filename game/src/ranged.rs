@@ -166,7 +166,7 @@ pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, Stri
     let Some((arrow, container)) = ammo::next_arrow(world, actor, launcher, spec.ammo) else {
         return Err("You have no arrows.".to_string());
     };
-    let Some((strike, break_bp)) = fire_strike(
+    let Some((mut strike, break_bp)) = fire_strike(
         world,
         state.blueprints.skills(),
         actor,
@@ -175,6 +175,9 @@ pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, Stri
     ) else {
         return Err("You can't fire that.".to_string());
     };
+    if point_blank(state, actor) {
+        strike.accuracy -= POINT_BLANK;
+    }
     Ok(Ready {
         missile: arrow,
         strike,
@@ -183,6 +186,28 @@ pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, Stri
         container: Some(container),
         verb: "shoot",
         break_bp: Some(break_bp),
+    })
+}
+
+/// Accuracy lost firing a launcher with an enemy next to the shooter: a
+/// bow wants room to draw (docs/plans/bow-dancing.md). Thrown things are
+/// not affected.
+pub(crate) const POINT_BLANK: i32 = 4;
+
+/// Whether a living enemy stands on any of the 8 tiles around `actor`.
+pub fn point_blank(state: &GameState, actor: Entity) -> bool {
+    let Some((x, y)) = position(state, actor) else {
+        return false;
+    };
+    let world = &state.world;
+    let mut creatures = world
+        .query::<(Entity, &Position, &Health)>()
+        .without::<&Dead>();
+    creatures.iter().any(|(other, pos, health)| {
+        other != actor
+            && health.current > 0
+            && distance((x, y), (pos.x, pos.y)) == 1
+            && side::enemies(world, actor, other)
     })
 }
 
