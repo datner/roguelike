@@ -43,6 +43,10 @@ decided while building. When a plan and this document disagree, ask the owner wh
 - **Three loops.** A *dive* pushes its luck: deeper is newer and harder, and returning to camp banks what
   you carry. A *life* is an arc of becoming. A *lineage* is many lives, and what it gains is knowledge of
   the world and what waits at camp, never a stronger start.
+- **Returning costs commitment.** A dungeon's data says which floors have a **way-landing**, a way back to
+  camp (say every third floor and the bottom). Between landings the only way is down, so each landing is
+  a point to bank or push on. A **recall** takes you home from anywhere, at a price: crafted (scribing,
+  alchemy) or bought from a trader, so it is rare until camp has a maker or a trader.
 - **Every dungeon has a bottom, and it differs by phase.** The Castle's bottom in the Embers is not its
   bottom in the Rime.
 - **Many endings.** Most are *character* endings, which close one life's story. A few are *world*
@@ -104,7 +108,15 @@ a few unlock information or an action at thresholds (Lore reveals a creature's r
 exists only once a system reads it.
 
 Domains, as they come online: martial, defence, magic, disciplines, lore, body, senses, care, handling,
-and life skills (scavenging, fletching, smithing, tinkering, alchemy, cooking, scribing).
+attunement (one skill per phase), social, and life skills (scavenging, fletching, smithing, tinkering,
+alchemy, cooking, scribing).
+
+**Social** skills each pay off in one place: *Persuasion* (whether a parley lands), *Insight* (telling a
+truce from a trap), *Deceit* (your own lies and bluffs; a deed if found out), *Haggling* (prices when
+paying or trading), *Intimidation* (making those who talk only when losing believe they will).
+**Tongues** are lore-like skills, one per language, grown by novelty (hearing it spoken, a first
+parley) and lessons (a phrasebook, a captive or settler who teaches). Thresholds turn noise into
+understood speech, then parley, then hearing their lies. An origin can start fluent.
 
 Attacks can miss: combat skills raise hit chance as well as damage, and Dodge is a skill. A miss can
 still **graze** (half damage, and only effects meant for grazes), so missing is less frustrating and
@@ -350,11 +362,11 @@ counted in lives, never in turns: nothing ages while you play.
   distance and calls out, and a short chooser opens (parley, pay, refuse). No dialogue trees.
 - **Whether a creature talks at all is a condition, not a given**, written in the shared language of
   conditions. Goblins may talk only when they expect to lose or are alone; only the clever ones (a
-  shaman) may talk at all; only if you speak their tongue (a skill, learned like others, or from an
-  origin); only if you wear or hold something they recognize; or they may simply hate your kind and never
-  talk. The restless dead never do.
+  shaman) may talk at all; only if you speak their tongue (see "Skills"); only if you wear or hold
+  something they recognize; or they may simply hate your kind and never talk. The restless dead never
+  do.
 - **Talk is not truth.** A creature may lie: a truce can be a trap, a promised passage an ambush. How
-  far it can be trusted is part of what its faction is and what it believes of you.
+  often is part of what its faction is; Insight is how you tell.
 - **Every outcome costs something, and no path is the grind path.** Paying costs items; a truce binds
   you for the floor and breaking it is a deed; a failed parley gives them the distance you had; sparing
   gives no loot. Fighting gives loot and martial XP; talk gives information, passage or trade, and as a
@@ -377,5 +389,3 @@ map full screen and panels as overlays. The Android SDK and NDK would come from 
 - Whether settlers can leave or turn against you when camp opinion sours.
 - Which deeds carry moral weight first (killing the unthreatening, breaking a truce, robbing a grave).
 - What endings are, concretely, and what the first, simple one is.
-- What returning to camp costs, so a dive pushes its luck.
-- The social domain: which skills, and how tongues are learned.
