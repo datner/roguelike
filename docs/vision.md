@@ -6,8 +6,8 @@ decided while building. When a plan and this document disagree, ask the owner wh
 ## The shape of the game
 
 - **A camp, and dives into themed dungeons** (a castle, a cave, …). You return to camp between dives.
-- **Phases.** The world turns through phases (e.g. a fire-strong phase). At camp you choose which phase
-  to wait for, and enter the dungeon in it. The phase is fixed for the whole dive. Each phase has its own
+- **Phases.** The world turns through phases (e.g. a fire-strong phase). You enter a dungeon in one
+  phase, and it is fixed for the whole dive; how a phase is reached is still open. Each phase has its own
   creatures, floors and finds on top of the dungeon's shared content: entering the castle in the fire
   phase, you never see the floors and enemies of the other phases, and you meet ones only it has.
   Layouts are rolled anew on every dive; a phase decides what you meet, never a map to learn.
@@ -16,8 +16,10 @@ decided while building. When a plan and this document disagree, ask the owner wh
   maybe a style already in progress) and becomes what they do. Origins need not be equally strong:
   there is no difficulty setting, and choosing an origin is the difficulty choice.
 - **Permadeath, with legacy.** A life ends by death or by retiring. The next character finds what it
-  left, after an unknown amount of time; what is left depends on how the life is remembered. It helps
-  (see "Legacy"), but the new character does not start stronger.
+  left, after an unknown amount of time; what is left depends on how the life is remembered.
+- **An origin is the same start on every life.** Picking an origin on life 3, 30 or 80 gives the same
+  starting point. What the lineage changes is what waits at camp: the options, teachers, relics and
+  power available to earn and learn in play, never the start itself.
 
 ## Pillars
 
@@ -26,22 +28,28 @@ decided while building. When a plan and this document disagree, ask the owner wh
    and danger restore it. Grinding is not punished, it is pointless.
 3. **Boring-but-useful is one keystroke.** If the best option is dull (practice, waiting for a phase), it
    is a single action that runs until done or interrupted.
-4. **Discoveries need stakes.** The moment of inspiration that unlocks a style or proficiency only comes
-   from a use with something at risk, never from practice.
+4. **Discoveries need stakes.** The moment of inspiration that unlocks a style, proficiency or recipe
+   only comes from a use with something at risk, never from practice. What is at risk differs by
+   domain: your life in a fight, a rare material in a craft.
 5. **Time is neutral.** No hunger, no clocks, no ratchets that punish slow players or reward fast ones.
-   The phase you choose at camp is the only thing time decides.
-6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons and legacy contents
-   are RON, composed from reusable parts.
+   Nothing changes during play; time passes only between lives (the gap), and that is where decay,
+   ageing and succession happen.
+6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons, legacy contents,
+   factions and their beliefs, situations, materials, recipes and endings are RON, composed from
+   reusable parts.
 
 ## Runs and endings
 
 - **Three loops.** A *dive* pushes its luck: deeper is newer and harder, and returning to camp banks what
   you carry. A *life* is an arc of becoming. A *lineage* is many lives, and what it gains is knowledge of
-  the world, not power.
+  the world and what waits at camp, never a stronger start.
 - **Every dungeon has a bottom, and it differs by phase.** The Castle's bottom in the Embers is not its
   bottom in the Rime.
 - **Many endings.** Most are *character* endings, which close one life's story. A few are *world*
   endings, like finishing the game without reaching 100%. One is the *true* (final) ending.
+- **The first ending is simple to reach.** Retiring, and everything it unlocks (settlers, renown,
+  perception, creeds, tellers, heirs), waits for an ending, so the first one must come within the first
+  few lives, not after mastering the game.
 - **At an ending the character may retire or continue.** Retiring ends that character and forces a new
   one, and it should be very attractive anyway. It is never required: one character can go all the way
   to the true ending as the first of its line.
@@ -56,8 +64,8 @@ back. A system that only adds content beside the rest is not finished.
 
 ## Phases
 
-- **A phase leans the whole world one way, for everyone.** Each has an element that is stronger for
-  every creature while it lasts, you included, and one rule of the world it bends. It also has natives
+- **A phase leans the whole world one way, for everyone.** Its leans apply to every creature while it
+  lasts, you included: an element that is stronger, a rule of the world it bends. It also has natives
   made for it and finds only it has. A phase is a choice that cuts both ways, never simply better: a
   pyromancer in the Embers burns hotter and meets things that burn back.
 - **Elements are the first layer, not the definition.** Only the first phases map onto elements (fire,
@@ -102,15 +110,15 @@ Attacks can miss: combat skills raise hit chance as well as damage, and Dodge is
 still **graze** (half damage, and only effects meant for grazes), so missing is less frustrating and
 forgiving weapons graze more. Defenders answer in two ways, each an outcome other things react to:
 a **perfect dodge** (the body) means no graze is even calculated (a riposte; an ability that makes every
-dodge perfect); a **deflection** (the gear: a buckler, a pauldron) turns a graze aside (a shield bash,
-wear on the item).
+dodge perfect); a **deflection** (the gear: a buckler, a pauldron) turns a graze aside (a shield bash).
 
 **Only the player learns.** Monsters have fixed skills from their blueprint; they do not live long or act
 consistently enough for growth to mean anything.
 
 **How skills grow.** Three sources:
 
-- **Use.** A use counts only if it passes its domain's test: *stakes* (something hostile involved),
+- **Use.** A use counts only if it passes its domain's test: *stakes* (something at risk: your life, a
+  truce, a rare material; not merely a hostile nearby),
   *novelty* (first time with this kind of thing), *odds* (it could have failed), or *consumption* (it
   used up something finite, like materials). How much it is worth decays with repetition against the
   same kind of thing.
@@ -174,6 +182,9 @@ what the creature is.
 - **Growth.** Crafting passes the *consumption* test (it uses up something finite); novelty applies, so
   a new material teaches and the hundredth identical arrow does not; low skill can make a worse product
   (*odds*). Batches are one keystroke, running until done or interrupted.
+- **Recipe inspiration comes both ways.** At camp, the stakes of a craft are what it could waste: working
+  a rare material can inspire, common ones never do. In a dive, the stakes are the dive's: tasting
+  something new under threat, taking apart a weapon wrested from an enemy.
 - **Where recipes come from**: discovery (combinations inspire recipes and crafting styles), crafting
   styles inventing at milestones, **taking a thing apart** (a lesson, once per kind: break down a
   goblin's crossbow to learn crossbows), teachers, faction secrets, a predecessor's recipe notes.
@@ -182,7 +193,8 @@ what the creature is.
   traps), alchemy (potions, oils, reagents for a reagent discipline), cooking (meals), scribing (scrolls
   and manuals).
 - **Cooking** is one of the game's joys, not a survival chore. A meal is composed like any recipe: its
-  ingredients' properties decide its effects, a timed lean for the dive ahead (ADR 0006), so the meal
+  ingredients' properties decide its effects, which last the dive ahead and end on returning to camp (a
+  state bounded by the dive, not a duration in ticks: a new kind of timing to name), so the meal
   before a dive is a choice like the phase and the teller. Phases bring their own ingredients; a dish can
   be discovered and become a signature; a cook's table is a camp place, and feeding people is a deed
   that settlers remember.
@@ -203,7 +215,10 @@ The next character finds what is left, spawned from blueprints through channels 
 
 - technique books and memoirs are **lessons**, capped at a fraction of the predecessor's level;
 - their journal reveals the requirements of the styles they found (the inspiration still needs stakes);
-- recipe notes are **recipes**; their gear is worn items; the grave and its note are story.
+- recipe notes are **recipes**; what they kept at camp is items.
+
+What they carried died with them in the dungeon, unless they died at camp or retired. A grave, an
+epitaph or a tale needs someone to make it, so those come only once people live at camp (see "Camp").
 
 How long has passed (the **gap**) is rolled when a character is made (its own RNG stream) and decides
 how much survived. Ruins can stack over generations; only the last few are kept. Time between lives is
@@ -216,7 +231,7 @@ counted in lives, never in turns: nothing ages while you play.
   wild, oathbreaker, …); it decides what kind of thing is left. Not every life leaves a legend or even an
   epitaph.
 - **What is left depends on repute.** These are examples, all data:
-  - *unknown*: bones and whatever lasted;
+  - *unknown*: whatever lasted, and no one to say whose it was;
   - *known local*: a grave and an epitaph;
   - *hero*: a shrine, a relic that does not decay, a tale that works as a lesson, perhaps a blessing
     (a proficiency obtained from outside);
@@ -251,6 +266,9 @@ counted in lives, never in turns: nothing ages while you play.
   never as a surprise, and dying of age gives the best legacy there is: full renown, nothing decayed.
   Nothing is lost when they go; their tale and memoir carry it on. Only two or three generations are
   alive in camp at once.
+- **A retirement bounds the next two gaps.** The two lives after a retirement get short gaps, so you are
+  guaranteed to meet the mentor at least twice. After that the gap is rolled as usual. Chaining
+  retirements keeps gaps short and the camp in good shape; a death lets time run.
 - **Heirs are recognized origins.** A known or heroic life can leave an origin ("Child of Ana", "Squire
   of Ana"), and so can other lineage events (a revealed phase, a settler's trade). The world recognizes
   only a fixed number of origins beyond the base ones: recognizing a new one means forgetting one, chosen
@@ -321,6 +339,8 @@ counted in lives, never in turns: nothing ages while you play.
 - **The whole scene wakes when the player first perceives any part of it.** No rooms or trigger tiles;
   it works in any generator. If you leave, the fight carries on and you come back to the aftermath it
   really produced. Fighting out of sight is heard ("You hear fighting to the east").
+- **Walking away means on the same floor.** A floor you leave is gone (`dive.rs`); a situation you
+  never finished is gone with it.
 
 ### Talking
 
@@ -355,4 +375,7 @@ map full screen and panels as overlays. The Android SDK and NDK would come from 
 - What the Stillness really is, and how it is revealed.
 - Which revelations persist across the lineage, and how fully.
 - Whether settlers can leave or turn against you when camp opinion sours.
-- Where moral weight comes from in play (neutral creatures, oaths, desecration, factions).
+- Which deeds carry moral weight first (killing the unthreatening, breaking a truce, robbing a grave).
+- What endings are, concretely, and what the first, simple one is.
+- What returning to camp costs, so a dive pushes its luck.
+- The social domain: which skills, and how tongues are learned.
