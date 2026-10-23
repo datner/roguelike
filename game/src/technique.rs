@@ -17,7 +17,7 @@ use crate::entity::{
     Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
     Stamina, Stats, StyleBonus, Technique,
 };
-use crate::entity::{Combo, ComboDisplay, PartKind, Performed};
+use crate::entity::{Combo, ComboDisplay, Loose, PartKind, Performed};
 use crate::event::EventRegistry;
 use crate::grammar::Subject;
 use crate::holding;
@@ -402,6 +402,9 @@ pub(crate) struct Ready {
     pub styled: Vec<SkillId>,
     /// What performing it now records, for a step of a form.
     pub performed: Option<Performed>,
+    /// It shoots (`Loose`) rather than strikes: `strike` is the shot's, from
+    /// where the performer stands now.
+    pub loose: bool,
 }
 
 /// `actor`'s stamina pool and its size and pace for their stats.
@@ -443,20 +446,43 @@ pub(crate) fn inspect(
         .as_ref()
         .and_then(|combo| continues(world, actor, combo, state.now));
     let combo = data.combo.as_ref().filter(|_| run.is_some());
+    let loose = world.get::<&Loose>(technique).ok().map(|loose| *loose);
+    let shot = loose.unwrap_or_default();
     let mods = BlowMods {
         accuracy: blow.accuracy
+            + shot.accuracy
             + sum(|bonus| bonus.accuracy)
             + combo.map_or(0, |combo| combo.accuracy),
         damage_pct: blow.damage_pct
+            + shot.damage_pct
             + sum(|bonus| bonus.damage_pct)
             + combo.map_or(0, |combo| combo.damage_pct),
         uses: data.uses.clone(),
         xp_pct: combo.map_or(0, |combo| combo.xp_pct) * run.unwrap_or(0),
         unarmed: blow.unarmed,
     };
-    let Some((strike, used)) = combat::blow_strike(world, state.blueprints.skills(), actor, &mods)
-    else {
-        return Err("You have nothing to strike with.".to_string());
+    let book = state.blueprints.skills();
+    // A shot's strike is the launcher's; why it can't shoot is a refusal.
+    let fired = loose.map(|_| ranged::ready_fire(state, actor));
+    let (strike, used, unfired) = match fired {
+        Some(Ok(fired)) => {
+            let used = skill::missile(world, book, fired.launch, &fired.strike);
+            let mut strike = fired.strike;
+            strike.accuracy += mods.accuracy;
+            (strike, used, None)
+        }
+        Some(Err(reason)) => {
+            let Some((strike, used)) = combat::blow_strike(world, book, actor, &mods) else {
+                return Err(reason);
+            };
+            (strike, used, Some(reason))
+        }
+        None => {
+            let Some((strike, used)) = combat::blow_strike(world, book, actor, &mods) else {
+                return Err("You have nothing to strike with.".to_string());
+            };
+            (strike, used, None)
+        }
     };
     let mut riders = data.riders.clone();
     riders.extend(
@@ -484,6 +510,7 @@ pub(crate) fn inspect(
             at: state.now,
             run: run.unwrap_or(0) + 1,
         }),
+        loose: loose.is_some(),
     };
     let blocked = unmet(
         state,
@@ -493,7 +520,8 @@ pub(crate) fn inspect(
         &used,
         ready.stamina,
         run.is_some(),
-    );
+    )
+    .or(unfired);
     Ok((ready, blocked))
 }
 
@@ -639,6 +667,9 @@ pub(crate) fn footprint(
     if let Some(area) = ready.area {
         return swept(state, actor, ready, area, from, at);
     }
+    if ready.loose {
+        return loosed(state, actor, ready, from, at);
+    }
     if from == at {
         return Err("You can't aim at yourself.".to_string());
     }
@@ -671,6 +702,69 @@ pub(crate) fn footprint(
         stand: (from.0 + step.0 * moves, from.1 + step.1 * moves),
         area: Vec::new(),
     })
+}
+
+/// A shot's footprint: aimed within reach and view, stepping back first if it
+/// dashes away (open, empty ground behind), then flying as a plain shot does
+/// from there (`ranged::flight`): whoever is first in line must be an enemy.
+fn loosed(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    from: (i32, i32),
+    at: (i32, i32),
+) -> Result<Footprint, String> {
+    if from == at {
+        return Err("You can't aim at yourself.".to_string());
+    }
+    if ranged::distance(from, at) > ready.reach {
+        return Err("That is out of reach.".to_string());
+    }
+    if !in_view(state, actor, at) {
+        return Err("You can't see that spot.".to_string());
+    }
+    let mut stand = from;
+    if let Some(dash) = ready.dash.filter(|dash| dash.away) {
+        let back = ((from.0 - at.0).signum(), (from.1 - at.1).signum());
+        for _ in 0..dash.tiles {
+            let next = (stand.0 + back.0, stand.1 + back.1);
+            if !Tile::is_open(state.map.get(next.0, next.1)) || spell::occupied(&state.world, next)
+            {
+                return Err("There is no room behind you.".to_string());
+            }
+            stand = next;
+        }
+    }
+    let shot = fired(state, actor, ready, stand)?;
+    let flight = ranged::flight(state, actor, stand, at, shot.range);
+    let target = flight
+        .hit
+        .filter(|&target| side::enemies(&state.world, actor, target))
+        .ok_or_else(|| "There is no enemy in line.".to_string())?;
+    Ok(Footprint {
+        targets: vec![target],
+        stand,
+        area: Vec::new(),
+    })
+}
+
+/// The shot a `Loose` technique fires from `stand`: the launcher's next
+/// arrow (`ranged::ready_fire_from`, so point blank is judged there), surer
+/// and harder by its mods. Its damage is scaled here, since the shot rolls
+/// it itself; `ready.strike` stays unscaled, as a blow's does.
+pub(crate) fn fired(
+    state: &GameState,
+    actor: Entity,
+    ready: &Ready,
+    stand: (i32, i32),
+) -> Result<ranged::Ready, String> {
+    let mut shot = ranged::ready_fire_from(state, actor, Some(stand))?;
+    let (low, high) = shot.strike.range();
+    shot.strike.accuracy += ready.mods.accuracy;
+    shot.strike.min = ready.mods.scale(low);
+    shot.strike.max = ready.mods.scale(high);
+    shot.strike.bonus = 0;
+    Ok(shot)
 }
 
 fn in_view(state: &GameState, actor: Entity, at: (i32, i32)) -> bool {
@@ -770,6 +864,13 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
     }
     if actor == state.player && ranged::position(state, actor) != Some(at) {
         state.commands.push_back(Command::FindItems(actor));
+    }
+    if ready.loose {
+        // The shot logs, lands, breaks and trains as a plain shot does.
+        if let Ok(shot) = fired(state, actor, &ready, footprint.stand) {
+            ranged::launch(state, actor, shot, at);
+        }
+        return;
     }
     let aimed = match footprint.targets.as_slice() {
         [target] if ready.area.is_none() => {
@@ -1018,7 +1119,10 @@ mod tests {
         let player = state.player;
         thing("lunge")
             .with(technique)
-            .with(Dash { tiles: 1 })
+            .with(Dash {
+                tiles: 1,
+                away: false,
+            })
             .with(blow)
             .attached_to(player)
             .make(state)
@@ -1759,7 +1863,10 @@ mod tests {
             })
             .equipped_on(fighter, 2)
             .make(state);
-        let mut known = thing("lunge").with(technique).with(Dash { tiles: 1 });
+        let mut known = thing("lunge").with(technique).with(Dash {
+            tiles: 1,
+            away: false,
+        });
         if let Some(area) = area {
             known = known.with(area);
         }
@@ -1923,6 +2030,97 @@ mod tests {
             .world
             .insert_one(player, crate::entity::Body(Vec::new()));
         refused(&mut state, kick, (2, 1), "Your push kick needs feet.");
+    }
+
+    /// The real player (short bow, stocked quiver) at (5, 5) knowing the
+    /// parting shot, with a sturdy goblin at `goblin`.
+    fn parting(goblin: (i32, i32)) -> (GameState, Entity, Entity) {
+        let mut state = real();
+        let player = state.player;
+        let _ = state.world.insert_one(player, Position { x: 5, y: 5 });
+        let id = state.blueprints.id("PartingShot").unwrap();
+        let shot = state
+            .spawn(crate::spawn::Spawn::id(id).attached_to(player))
+            .unwrap();
+        let target = thing("goblin")
+            .at(goblin.0, goblin.1)
+            .health(1000)
+            .hostile()
+            .make(&mut state);
+        see_everything(&mut state);
+        (state, shot, target)
+    }
+
+    fn arrows_held(state: &GameState) -> usize {
+        state
+            .world
+            .query::<(&crate::entity::Ammo, Option<&Position>)>()
+            .iter()
+            .filter(|(_, position)| position.is_none())
+            .count()
+    }
+
+    #[test]
+    fn a_parting_shot_steps_back_and_shoots_without_point_blank() {
+        let (mut state, shot, goblin) = parting((6, 5));
+        let player = state.player;
+        let technique = ItemRef::of(&state.world, shot).unwrap();
+        let aim = crate::aim::aim(&state, crate::aim::Shot::Technique(technique), (6, 5)).unwrap();
+        assert_eq!(aim.problem, None);
+        assert!(!aim.point_blank, "it shoots from a step back");
+        let plain = crate::aim::aim(&state, crate::aim::Shot::Fire, (6, 5)).unwrap();
+        assert!(plain.point_blank);
+        assert!(aim.chances.unwrap().hit_bp > plain.chances.unwrap().hit_bp);
+
+        let before = arrows_held(&state);
+        crate::testkit::sure_hits(&mut state, player);
+        perform(&mut state, shot, (6, 5));
+        assert_eq!(at(&state, player), (4, 5));
+        assert_eq!(arrows_held(&state), before - 1);
+        assert!(health(&state, goblin) < 1000);
+        let book = state.blueprints.skills();
+        let xp = |name| skill::xp(&state.world, player, book.id(name).unwrap());
+        assert!(xp("Archery") > 0 && xp("Bow") > 0, "it trains as a shot");
+        assert_eq!(xp("Unarmed"), 0);
+    }
+
+    #[test]
+    fn a_parting_shot_needs_room_behind_arrows_and_reach() {
+        let (mut state, shot, _) = parting((6, 5));
+        thing("crate")
+            .at(4, 5)
+            .with(crate::entity::BlocksMovement)
+            .make(&mut state);
+        let refuse = |state: &mut GameState, at, why: &str| {
+            let now = state.now;
+            perform(state, shot, at);
+            assert_eq!(last_log(state), why);
+            assert_eq!(state.now, now);
+        };
+        refuse(&mut state, (6, 5), "There is no room behind you.");
+
+        let (mut state, shot, _) = parting((12, 5));
+        let refuse = |state: &mut GameState, at, why: &str| {
+            let now = state.now;
+            perform(state, shot, at);
+            assert_eq!(last_log(state), why);
+            assert_eq!(state.now, now);
+        };
+        refuse(&mut state, (12, 5), "That is out of reach.");
+
+        let (mut state, shot, _) = parting((8, 5));
+        // The quiver goes, and its arrows with it.
+        let player = state.player;
+        for (item, _) in crate::equipment::equipped(&state.world, player) {
+            if state.world.satisfies::<&crate::entity::Quiver>(item) {
+                holding::take_off(&mut state.world, player, item);
+                crate::command::despawn_with_holdings(&mut state, item);
+            }
+        }
+        let now = state.now;
+        perform(&mut state, shot, (8, 5));
+        assert_eq!(last_log(&state), "You have no arrows.");
+        assert_eq!(state.now, now);
     }
 
     #[test]

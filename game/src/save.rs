@@ -23,7 +23,7 @@ use crate::entity::{
     Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::entity::{
-    Attuned, Blow, Dash, Lesson, OffBalance, Performed, Sighted, Stamina, Studied, Teaches,
+    Attuned, Blow, Dash, Lesson, Loose, OffBalance, Performed, Sighted, Stamina, Studied, Teaches,
     Technique, TechniqueAi,
 };
 use crate::explore::ExploreItems;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 38;
+pub const SAVE_VERSION: u32 = 39;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -251,6 +251,7 @@ enum ComponentKind {
     Technique,
     Blow,
     Dash,
+    Loose,
     Stamina,
     OffBalance,
     Performed,
@@ -259,7 +260,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 74] = [
+    const ALL: [ComponentKind; 75] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -329,6 +330,7 @@ impl ComponentKind {
         Self::Technique,
         Self::Blow,
         Self::Dash,
+        Self::Loose,
         Self::Stamina,
         Self::OffBalance,
         Self::Performed,
@@ -415,6 +417,7 @@ enum SavedComponent {
     Technique(TechniqueDef),
     Blow(Blow),
     Dash(Dash),
+    Loose(Loose),
     Stamina(Stamina),
     OffBalance(OffBalance),
     Performed(Performed),
@@ -835,6 +838,7 @@ fn save_component(
         },
         ComponentKind::Blow => copy(entity).map(S::Blow),
         ComponentKind::Dash => copy(entity).map(S::Dash),
+        ComponentKind::Loose => copy(entity).map(S::Loose),
         ComponentKind::Stamina => copy(entity).map(S::Stamina),
         ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
             Some(Familiarity(entries)) => Some(S::Familiarity(
@@ -1019,6 +1023,7 @@ fn load_component(
         )),
         S::Blow(c) => builder.add(c),
         S::Dash(c) => builder.add(c),
+        S::Loose(c) => builder.add(c),
         S::Stamina(c) => builder.add(c),
         S::Familiarity(entries) => {
             let mut familiarity = entries
@@ -1305,7 +1310,14 @@ mod tests {
         };
         let lunge = thing("lunge")
             .with(technique.clone())
-            .with(Dash { tiles: 1 })
+            .with(Dash {
+                tiles: 1,
+                away: false,
+            })
+            .with(Loose {
+                accuracy: 1,
+                damage_pct: 10,
+            })
             .with(Blow {
                 accuracy: 2,
                 damage_pct: 25,

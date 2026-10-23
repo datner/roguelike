@@ -76,7 +76,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: a kick deals natural damage with a bow, a sabre or nothing in hand; it trains Unarmed, not
   the weapon's skills; it is refused without feet, with its message.
 
-### 4. Techniques that shoot
+### 4. Techniques that shoot — done
 - `Shot { accuracy, damage_pct }` payload: `perform` fires through `ranged` with the mods; `check_target`
   uses the flight line (first creature in line, as a plain shot), within `reach`. Refusals come from
   `ready_fire` ("You have no arrows.").
@@ -87,6 +87,10 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: the parting shot steps back then shoots; refused with no room behind, no arrows, or out of
   reach; the arrow lands and breaks like a plain shot; it trains Bow and Archery like a shot; the preview
   matches.
+- As built: the payload is `Loose { accuracy, damage_pct }` (`Shot` is already `aim::Shot`). Point
+  blank is judged where the shot flies from (`ranged::ready_fire_from`), and `technique::fired` builds
+  the shot from there for `perform` and `aim` alike, its damage scaled before the shot rolls it. A shot
+  carries no riders, and a form's extra XP does not reach it (the shot trains through `ranged`).
 
 ### 5. The style
 - `Style.wielding` (see decisions), checked where a use's following is decided in `style.rs`.

@@ -1,0 +1,17 @@
+// A technique (ADR 0024): a step back and a shot, drawn as the gap opens, so
+// an enemy at your elbow is no longer point blank. The shot is the wielded
+// launcher's next arrow, a little surer; bow dancing invents it.
+(
+    components: [
+        Name("parting shot"),
+        Technique(
+            domain: Martial,
+            verb: "shoot",
+            reach: 6,
+            recharge: 600,
+            stamina: 0,
+        ),
+        Dash(tiles: 1, away: true),
+        Loose(accuracy: 2),
+    ],
+)

@@ -1009,8 +1009,23 @@ pub struct Blow {
 }
 
 /// Technique part: the performer first moves up to `tiles` along the line to
-/// its target, stopping beside it.
+/// its target, stopping beside it; or, `away`, steps back that far from it,
+/// needing open, empty ground behind (a shot then flies from there).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dash {
     pub tiles: i32,
+    #[serde(default)]
+    pub away: bool,
+}
+
+/// Technique part: it shoots the wielded launcher's next arrow (ADR 0013)
+/// instead of striking, shifted like a blow. The shot is an ordinary shot:
+/// its flight, odds, breaking and training are `ranged`'s.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Loose {
+    #[serde(default)]
+    pub accuracy: i32,
+    /// Percent added to its damage; negative takes it away.
+    #[serde(default)]
+    pub damage_pct: i32,
 }

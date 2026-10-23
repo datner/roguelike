@@ -267,14 +267,25 @@ fn aim_technique(state: &GameState, technique: ItemRef, at: (i32, i32)) -> Optio
     // One blow is shown after its target's armor and with its odds; an area's
     // before, since each creature caught meets the blow on its own.
     let single = targets.first().copied().filter(|_| ready.area.is_none());
-    let (low, high) = ready.strike.range();
+    // A shot is previewed from where it would fly, as `perform` fires it.
+    let stand = footprint.as_ref().ok().map(|footprint| footprint.stand);
+    let shot = stand
+        .filter(|_| ready.loose)
+        .and_then(|stand| technique::fired(state, state.player, &ready, stand).ok());
+    let strike = shot.as_ref().map_or(ready.strike, |shot| shot.strike);
+    let scale = |amount| match shot {
+        Some(_) => amount,
+        None => ready.mods.scale(amount),
+    };
+    let (low, high) = strike.range();
     let resisted = single.map_or(0, |target| {
-        total_armor(&state.world, target).against(ready.strike.types)
+        total_armor(&state.world, target).against(strike.types)
     });
     let step = ((at.0 - origin.0).signum(), (at.1 - origin.1).signum());
-    let path = match ready.area {
-        Some(_) => Vec::new(),
-        None => (1..=distance(origin, at).min(ready.reach))
+    let path = match (ready.area, &shot, stand) {
+        (Some(_), ..) => Vec::new(),
+        (None, Some(shot), Some(stand)) => flight(state, state.player, stand, at, shot.range).path,
+        (None, ..) => (1..=distance(origin, at).min(ready.reach))
             .map(|k| (origin.0 + step.0 * k, origin.1 + step.1 * k))
             .collect(),
     };
@@ -285,22 +296,23 @@ fn aim_technique(state: &GameState, technique: ItemRef, at: (i32, i32)) -> Optio
         landing: at,
         target: targets.first().map(|&target| noun(state, target)),
         damage: (
-            (ready.mods.scale(low) - resisted).max(0),
-            (ready.mods.scale(high) - resisted).max(0),
+            (scale(low) - resisted).max(0),
+            (scale(high) - resisted).max(0),
         ),
-        types: ready.strike.types,
+        types: strike.types,
         problem: footprint.as_ref().err().cloned(),
         area: footprint.map_or_else(|_| Vec::new(), |footprint| footprint.area),
         caught: targets.len(),
         summons: Vec::new(),
         chances: single.map(|target| {
-            let odds = combat::odds(state, &ready.strike, state.player, target);
+            let odds = combat::odds(state, &strike, state.player, target);
             Chances {
                 hit_bp: odds.hit_bp,
                 graze_bp: odds.graze_overall_bp(),
             }
         }),
-        point_blank: false,
+        point_blank: shot.is_some()
+            && stand.is_some_and(|stand| crate::ranged::point_blank_at(state, state.player, stand)),
     })
 }
 

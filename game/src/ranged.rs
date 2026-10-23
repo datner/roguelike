@@ -159,6 +159,17 @@ pub(crate) fn ready_throw(state: &GameState, actor: Entity, item: Entity) -> Res
 /// `actor` firing the launcher they wield with the arrow it would use: the
 /// nocked one, else the next in an equipped quiver.
 pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, String> {
+    let stand = position(state, actor);
+    ready_fire_from(state, actor, stand)
+}
+
+/// `ready_fire` as it would be from `stand`, where a technique steps before
+/// it shoots (ADR 0024): point blank is judged there.
+pub(crate) fn ready_fire_from(
+    state: &GameState,
+    actor: Entity,
+    stand: Option<(i32, i32)>,
+) -> Result<Ready, String> {
     let world = &state.world;
     let Some((launcher, spec)) = ammo::wielded_launcher(world, actor) else {
         return Err("You have nothing to fire.".to_string());
@@ -175,7 +186,7 @@ pub(crate) fn ready_fire(state: &GameState, actor: Entity) -> Result<Ready, Stri
     ) else {
         return Err("You can't fire that.".to_string());
     };
-    if point_blank(state, actor) {
+    if stand.is_some_and(|stand| point_blank_at(state, actor, stand)) {
         strike.accuracy -= POINT_BLANK;
     }
     Ok(Ready {
@@ -196,9 +207,11 @@ pub(crate) const POINT_BLANK: i32 = 4;
 
 /// Whether a living enemy stands on any of the 8 tiles around `actor`.
 pub fn point_blank(state: &GameState, actor: Entity) -> bool {
-    let Some((x, y)) = position(state, actor) else {
-        return false;
-    };
+    position(state, actor).is_some_and(|at| point_blank_at(state, actor, at))
+}
+
+/// `point_blank` for `actor` standing on `(x, y)`.
+pub(crate) fn point_blank_at(state: &GameState, actor: Entity, (x, y): (i32, i32)) -> bool {
     let world = &state.world;
     let mut creatures = world
         .query::<(Entity, &Position, &Health)>()
@@ -282,7 +295,7 @@ pub(crate) fn fire(state: &mut GameState, actor: Entity, at: (i32, i32)) {
 /// `flight` says, and whoever is first in line takes `DealDamage`. The
 /// damage roll is one combat-stream draw, made only when something is hit;
 /// ammunition then makes a second, for breaking.
-fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
+pub(crate) fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i32, i32)) {
     let Some(from) = position(state, actor) else {
         return;
     };

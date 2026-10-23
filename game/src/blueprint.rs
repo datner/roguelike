@@ -28,7 +28,7 @@ use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
     Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
-    Focus, Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Mana,
+    Focus, Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Loose, Mana,
     ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver,
     School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats, Style, Summon,
     SummonLimit, Technique, Throwable, Trains, Weapon,
@@ -110,6 +110,7 @@ pub enum ComponentDef {
     Teaches(Vec<String>),
     Blow(Blow),
     Dash(Dash),
+    Loose(Loose),
     Stamina(Stamina),
     OffBalance(OffBalance),
 }
@@ -181,6 +182,7 @@ impl ComponentDef {
             ComponentDef::Footwork(c) => builder.add(c),
             ComponentDef::Blow(c) => builder.add(c),
             ComponentDef::Dash(c) => builder.add(c),
+            ComponentDef::Loose(c) => builder.add(c),
             ComponentDef::Stamina(c) => builder.add(c),
             ComponentDef::OffBalance(c) => builder.add(c),
             // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
