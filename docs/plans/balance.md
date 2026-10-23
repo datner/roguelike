@@ -130,3 +130,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tuning anything: the bench reports, the owner decides.
 - Movement, kiting and positioning in policies; combos beyond listed steps.
 - Running in CI or `check.sh`.
+
+## After the plan: the first balance pass
+
+- Forms scale with skill (`Blow::mastery`, ADR 0024); the tri-sword is weaker than a bump at skill 5
+  and far stronger at 10.
+- Bow dancing gathers arrows within a tile with every action (ADR 0019).
+- The dolls are average creatures (every stat 16); the nimble one has Agility 20.
+- A build is compared with its peers (XP to build within a factor of two), not by damage per XP, which
+  the steep XP curve skewed and which rewarded leaning on fewer skills. Flagged at 1.25×.
+- The sabre's top roll went from 6 to 5: both builds wielding it were flagged.
+

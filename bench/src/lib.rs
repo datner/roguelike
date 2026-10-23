@@ -14,8 +14,8 @@ pub const BURST: u64 = 1000;
 pub const SUSTAINED: u64 = 10_000;
 /// Seeds `0..SEEDS` per run.
 pub const SEEDS: u64 = 50;
-/// How far above the median damage per XP a build is flagged.
-pub const OUTLIER: f64 = 1.5;
+/// How far above its peers' median damage a build is flagged.
+pub const OUTLIER: f64 = 1.25;
 
 /// Everything in `bench/`.
 #[derive(Debug, Clone)]
@@ -128,52 +128,86 @@ pub fn report(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) 
     out
 }
 
-/// How hard each build is to reach next to what it deals: damage per turn
-/// (sustained, against `scenario`) per 1000 XP of skill. A build far above
-/// the others' median is flagged; whether that is a problem is the owner's
-/// call. A build of no skill at all has no ratio.
-fn costing(out: &mut String, bench: &Bench, costs: &[Cost], rows: &[Row], scenario: &Scenario) {
-    let ratios: Vec<Option<f64>> = bench
+/// Each build's damage per turn (sustained, against `scenario`) as a
+/// multiple of its peers' median: builds whose XP to build is within a
+/// factor of two of its own. XP grows steeply with level, so only builds
+/// about as hard to reach are compared; `None` without two peers, or for a
+/// build of no skill.
+pub fn standing(
+    bench: &Bench,
+    costs: &[Cost],
+    rows: &[Row],
+    scenario: &Scenario,
+) -> Vec<Option<f64>> {
+    let dealt = |build: &Build| {
+        rows.iter()
+            .find(|row| row.scenario == scenario.name && row.build == build.name)
+            .map_or(0.0, |row| row.sustained.mean)
+    };
+    bench
         .builds
         .iter()
         .zip(costs)
         .map(|(build, cost)| {
-            let row = rows
+            if cost.xp == 0 {
+                return None;
+            }
+            let mut peers: Vec<f64> = bench
+                .builds
                 .iter()
-                .find(|row| row.scenario == scenario.name && row.build == build.name)?;
-            (cost.xp > 0).then(|| row.sustained.mean * 1000.0 / f64::from(cost.xp))
+                .zip(costs)
+                .filter(|(other, peer)| {
+                    other.name != build.name
+                        && peer.xp > 0
+                        && peer.xp * 2 >= cost.xp
+                        && peer.xp <= cost.xp * 2
+                })
+                .map(|(other, _)| dealt(other))
+                .collect();
+            if peers.len() < 2 {
+                return None;
+            }
+            peers.sort_by(f64::total_cmp);
+            let median = peers[peers.len() / 2];
+            (median > 0.0).then(|| dealt(build) / median)
         })
-        .collect();
-    let mut sorted: Vec<f64> = ratios.iter().flatten().copied().collect();
-    sorted.sort_by(f64::total_cmp);
-    let median = sorted.get(sorted.len() / 2).copied();
+        .collect()
+}
+
+/// How hard each build is to reach next to what it deals, against its
+/// peers (`standing`). A build far above them is flagged; whether that is a
+/// problem is the owner's call.
+fn costing(out: &mut String, bench: &Bench, costs: &[Cost], rows: &[Row], scenario: &Scenario) {
+    let standing = standing(bench, costs, rows, scenario);
     let _ = writeln!(out, "\n## What it costs\n");
     let _ = writeln!(
         out,
-        "XP to build: the XP its skills hold. Damage per turn is the sustained mean against \"{}\"; \
-         a build above {OUTLIER}× the median per 1000 XP is flagged.\n",
+        "XP to build: the XP its skills hold. Damage per turn is the sustained mean against \"{}\". \
+         Against peers: that damage over the median of the builds whose XP to build is within a \
+         factor of two; {OUTLIER}× or more is flagged.\n",
         scenario.name
     );
     let _ = writeln!(
         out,
-        "| build | XP to build | damage per turn | per 1000 XP | |"
+        "| build | XP to build | damage per turn | against peers | |"
     );
     let _ = writeln!(out, "|---|---|---|---|---|");
-    for ((build, cost), ratio) in bench.builds.iter().zip(costs).zip(&ratios) {
+    for ((build, cost), standing) in bench.builds.iter().zip(costs).zip(&standing) {
         let mean = rows
             .iter()
             .find(|row| row.scenario == scenario.name && row.build == build.name)
             .map_or(0.0, |row| row.sustained.mean);
-        let flag = match (ratio, median) {
-            (Some(ratio), Some(median)) if *ratio > median * OUTLIER => "**outlier**",
-            _ => "",
+        let flag = if standing.is_some_and(|s| s >= OUTLIER) {
+            "**outlier**"
+        } else {
+            ""
         };
         let _ = writeln!(
             out,
             "| {} | {} | {mean:.2} | {} | {flag} |",
             build.name,
             cost.xp,
-            ratio.map_or_else(|| "—".to_string(), |ratio| format!("{ratio:.2}")),
+            standing.map_or_else(|| "—".to_string(), |s| format!("{s:.2}×")),
         );
     }
 }
@@ -244,11 +278,21 @@ fn spread(summary: &Summary) -> String {
 /// Every number the report has, as JSON, for anything that draws it (the
 /// page, `page.html`). Written by hand: the shape is small and fixed.
 pub fn json(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) -> String {
+    let costs: Vec<Cost> = bench
+        .builds
+        .iter()
+        .map(|build| balance::cost(blueprints, build))
+        .collect();
+    let standing = bench
+        .scenarios
+        .first()
+        .map_or_else(Vec::new, |first| standing(bench, &costs, rows, first));
     let builds: Vec<String> = bench
         .builds
         .iter()
-        .map(|build| {
-            let cost = balance::cost(blueprints, build);
+        .zip(&costs)
+        .zip(standing.iter().copied().chain(std::iter::repeat(None)))
+        .map(|((build, cost), standing)| {
             let needs: Vec<String> = cost
                 .needs
                 .iter()
@@ -262,10 +306,11 @@ pub fn json(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) ->
                 })
                 .collect();
             format!(
-                "{{\"name\":{},\"note\":{},\"xp\":{},\"needs\":[{}]}}",
+                "{{\"name\":{},\"note\":{},\"xp\":{},\"standing\":{},\"needs\":[{}]}}",
                 text(&build.name),
                 text(&build.note),
                 cost.xp,
+                standing.map_or_else(|| "null".to_string(), number),
                 needs.join(",")
             )
         })
@@ -412,7 +457,7 @@ mod tests {
         for expected in [
             "| sabre | 4.75 (3.75–5.75) | 4.50 (3.50–5.50) | 90% | 5% |",
             "| starter | 0.0 | 0.0 | 0.0 (0.0) | 0.0 | — |",
-            "| sabre | 5000 | 4.50 | 0.90 |  |",
+            "| sabre | 5000 | 4.50 | — |  |",
             "| starter | 0 | 2.00 | — |  |",
         ] {
             assert!(lines.contains(&expected), "{expected:?} not in\n{report}");

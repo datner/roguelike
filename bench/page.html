@@ -152,13 +152,11 @@ function render() {
   if (!reading.querySelector("p, ul, ol")) reading.hidden = true;
 
   // Scatter: damage per turn (sustained, first scenario) against XP to build.
-  const points = REPORT.builds.map((b) => ({ name: b.name, xp: b.xp, dmg: row(b.name, first)?.sustained.mean ?? 0 }));
-  const ratios = points.filter((p) => p.xp > 0).map((p) => (p.dmg * 1000) / p.xp).sort((a, b) => a - b);
-  const median = ratios[Math.floor(ratios.length / 2)] ?? 0;
-  const outlier = (p) => p.xp > 0 && (p.dmg * 1000) / p.xp > median * REPORT.outlier;
+  const points = REPORT.builds.map((b) => ({ name: b.name, xp: b.xp, dmg: row(b.name, first)?.sustained.mean ?? 0, standing: b.standing }));
+  const outlier = (p) => p.standing != null && p.standing >= REPORT.outlier;
   $("scatter-note").textContent =
     `Sustained damage per turn against "${first}", by the XP its skills hold. ` +
-    `Amber marks a build above ${REPORT.outlier}× the median damage per 1000 XP (${fmt(median)}).`;
+    `Amber marks a build ${REPORT.outlier}× or more above its peers, the builds within a factor of two of its XP.`;
   {
     const W = 720, H = 340, L = 56, R = 140, T = 16, B = 44;
     const x = ticks(Math.max(...points.map((p) => p.xp), 1));
@@ -175,10 +173,6 @@ function render() {
     }
     svg.append(el("text", { x: (L + W - R) / 2, y: H - 6, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, "XP to build"));
     svg.append(el("text", { x: 12, y: (T + H - B) / 2, "font-size": 11, fill: "var(--muted)", transform: `rotate(-90 12 ${(T + H - B) / 2})`, "text-anchor": "middle" }, "damage per turn"));
-    if (median > 0) {
-      const end = x.top;
-      svg.append(el("line", { x1: sx(0), y1: sy(0), x2: sx(end), y2: sy((median * end) / 1000), stroke: "var(--mark-soft)", "stroke-dasharray": "4 4" }));
-    }
     // Labels sorted top to bottom, nudged apart so none overlap.
     const placed = [];
     [...points].sort((a, b) => b.dmg - a.dmg).forEach((p) => {

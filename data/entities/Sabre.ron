@@ -6,7 +6,7 @@
         Appearance(glyph: '(', fg: (210, 200, 170), bg: (0, 0, 0)),
         Item,
         Equippable(part: Hand),
-        Weapon(min: 2, max: 6, stat: Strength, types: [Slashing]),
+        Weapon(min: 2, max: 5, stat: Strength, types: [Slashing]),
         Trains(["Sword"]),
     ],
 )
