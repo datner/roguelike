@@ -48,3 +48,7 @@ one viewer: the player's field of view, reused by every hostile (ADR 0007).
   existing seeded result changes.
 - Revisit perception when lighting, differing sight radii or fights out of
   view matter: each breaks the shared-view assumption.
+- Planned (`docs/vision.md`, "Factions"): faction relations replace the two
+  sides behind `side::enemies`, and a situation's engaged participants
+  perceive each other out of the player's view, the one planned exception to
+  the shared view.

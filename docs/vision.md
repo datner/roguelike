@@ -244,6 +244,63 @@ counted in lives, never in turns: nothing ages while you play.
 - **Camp grows by lives.** Retirements found places, gaps age them, renown draws people. Nothing changes
   while you are in a dive.
 
+## Factions
+
+- **Factions are the groups that hold beliefs.** A faction has beliefs, wants, relations with other
+  factions and members. Two kinds:
+  - **Dungeon factions**: who lives below (goblins, the restless dead, phase natives). Beasts are no
+    faction: territorial, not hostile on principle. Relations between factions are data and replace
+    today's two sides (ADR 0015): who fights whom is a lookup, never a check for `Hostile`.
+  - **Creeds**: who lives above, carried by settlers (an order of oath-sworn paladins, a persecuted
+    circle of hemomancers, scholars through whom understandings arrive, wardens of the Stillness who
+    know about Chaos, traders). Creeds wait for settlers, so they arrive with the first retirement.
+- **Standing is perception, not a number.** What a faction thinks of you is what it believes you did,
+  judged by its own beliefs: the same tale of blood magic shames you with the oath-sworn and raises you
+  with the hemomancers. There is no absolute good and evil; "wicked" is always wicked in someone's eyes.
+  **Moral weight comes from factions**: killing what was not threatening you, breaking a truce or
+  robbing a grave is a deed someone judges.
+- **Ways to belong differ by faction**, as data: some you *join* (vows, obligations), some you
+  *affiliate* with (favour without vows), some you must be *born* into (only an origin starts you
+  inside), and some *adopt* you because of how they perceive you, wanted or not. Their enemies then
+  treat you as one of them.
+- **Factions reach everything.** Their styles are taught only to those they favour, discoveries can need
+  standing, origins can start inside one and heirs inherit part of it, their strength and mood shift with
+  the phase, and some world endings run through them. They remember across generations: standing fades
+  with the gap, legend does not.
+
+### Situations: the world reads as alive without being simulated
+
+- **The player's view is the reality bubble.** A floor exists only while you are on it, and nothing is
+  simulated beyond it.
+- **A dungeon places situations, not just creatures**: data saying who is there, how they are arranged
+  and what state they are in. Examples: a skirmish between goblins and the dead at a chokepoint, the
+  aftermath of one (bodies, a wounded survivor, loot), a camp at rest with captives, a border between
+  two territories.
+- **A situation's participants are engaged**: they know where their foes are, so they perceive each
+  other regardless of the player's view, until the situation ends. This is the one exception to
+  perceiving through the player's view (ADR 0007, 0015).
+- **The whole scene wakes when the player first perceives any part of it.** No rooms or trigger tiles;
+  it works in any generator. If you leave, the fight carries on and you come back to the aftermath it
+  really produced. Fighting out of sight is heard ("You hear fighting to the east").
+
+### Talking
+
+- **Parley happens at a distance.** Once you are adjacent, the time for talk has passed. Parley is
+  aimed like a throw, at a creature in view within shouting range, and is off with a faction once blood
+  is drawn between you on that floor. A creature willing to talk may hail you first: it halts at a
+  distance and calls out, and a short chooser opens (parley, pay, refuse). No dialogue trees.
+- **Whether a creature talks at all is a condition, not a given**, written in the shared language of
+  conditions. Goblins may talk only when they expect to lose or are alone; only the clever ones (a
+  shaman) may talk at all; only if you speak their tongue (a skill, learned like others, or from an
+  origin); only if you wear or hold something they recognize; or they may simply hate your kind and never
+  talk. The restless dead never do.
+- **Talk is not truth.** A creature may lie: a truce can be a trap, a promised passage an ambush. How
+  far it can be trusted is part of what its faction is and what it believes of you.
+- **Every outcome costs something, and no path is the grind path.** Paying costs items; a truce binds
+  you for the floor and breaking it is a deed; a failed parley gives them the distance you had; sparing
+  gives no loot. Fighting gives loot and martial XP; talk gives information, passage or trade, and as a
+  use with stakes it trains the social skills and can inspire (a diplomat's style).
+
 ## Platforms
 
 Desktop first. Phones (Android) later, not soon. The seam makes it a frontend's job: `game` and `front`
