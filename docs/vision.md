@@ -125,6 +125,14 @@ contents are spawned from blueprints through channels that already exist:
 How long has passed is rolled at character creation (its own RNG stream) and decides how much survived.
 Ruins can stack over generations; only the last few are kept.
 
+## Platforms
+
+Desktop first. Phones (Android) later, not soon. The seam makes it a frontend's job: `game` and `front`
+build as they are, and eframe runs on Android. What it takes: data embedded in the app instead of read
+from a path, saves in the app's own storage, a touch layer onto the same `front` flows (tap a tile,
+buttons for the action keys; keyboard-first stays the rule on desktop), and a portrait layout with the
+map full screen and panels as overlays. The Android SDK and NDK would come from the flake.
+
 ## Open questions
 
 - Within one life, do dungeons reroll on every dive, or does each phase keep its layout (learned like a
