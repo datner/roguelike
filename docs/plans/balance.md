@@ -97,7 +97,18 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tests: `bench` formats a fixed `Run` into the expected table (the report's shape is pinned without
   running the slow bench).
 
-## Out of scope
+### 6. A report to read (nice to have)
+- `bench` also writes `bench/report.json`: every number the table has, plus the per-seed spread, so
+  anything can draw it. The markdown table stays the checked-in, diffable record.
+- A page template, `bench/page.html`: self-contained, reading the JSON embedded in it at generation.
+  Damage per turn against XP to build (one point per build, outliers marked), burst against sustained
+  per build, a timeline of when each resource ran dry, the cost sources as a list per build, and what
+  moved since the committed report.
+- A project skill, `/balance-report`: runs `scripts/balance.sh`, fills the page, publishes it as a
+  private artifact, and adds a short written reading on top (what stands out, what moved and why it
+  likely did, given the recent commits). The numbers come from the bench; only the reading is written
+  by the agent.
+- Tests: the JSON round-trips; the page builds from a fixed report without errors.
 
 - Enemies that fight back, survivability, and damage taken: dolls only measure offence. A "how long
   does this build last against a goblin pack" bench is a later plan.
