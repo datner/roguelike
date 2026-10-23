@@ -1,0 +1,12 @@
+// What a character can start as (docs/plans/origins.md, ADR 0025), in the
+// order the menu shows them; the first is the default. Each blueprint
+// inherits "Player" and adds the kit, skills and techniques; `styles` are
+// known from the start, `follow` names one taken up.
+[
+    (
+        key: "Wanderer",
+        name: "Wanderer",
+        summary: "A traveller with a short bow, a torch and nowhere to be.",
+        blueprint: "Wanderer",
+    ),
+]

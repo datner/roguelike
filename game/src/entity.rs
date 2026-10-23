@@ -821,6 +821,11 @@ pub struct Footwork {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Discovered(pub Vec<String>);
 
+/// Where a character started (docs/plans/origins.md): the key of its origin
+/// in `data/origins.ron`. Saved by key; legacy will read it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Origin(pub String);
+
 /// A style (ADR 0019): a practice its holder follows. A known style is
 /// carried (`Inventory`), inert; the one followed is attached, so its
 /// principles take part in events. One followed per domain; a hybrid fills

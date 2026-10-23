@@ -280,6 +280,7 @@ fn arena(blueprints: &Blueprints, seed: u64) -> Result<GameState, String> {
         map,
         Position { x, y },
         blueprints.clone(),
+        None,
     )
     .map_err(|err| err.to_string())
 }
@@ -586,7 +587,10 @@ fn sources(blueprints: &Blueprints, name: &str) -> Vec<String> {
             .map_or_else(String::new, |def| def.name.clone())
     };
     let mut from = Vec::new();
-    if let Some(player) = blueprints.get("Player")
+    if let Some(player) = blueprints
+        .origins()
+        .first()
+        .and_then(|origin| blueprints.get(&origin.blueprint))
         && [&player.equipment, &player.techniques, &player.spells]
             .iter()
             .any(|list| list.contains(&id))

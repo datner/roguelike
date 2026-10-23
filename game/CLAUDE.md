@@ -14,6 +14,7 @@ can't show at a glance.
 - `dive.rs` — a floor exists only while the player is on it; `dive::build` is the one way to make one (new game and stairs alike), its seed from `floor_seed`. Only the player, what they hold and their summons cross floors.
 - `camp.rs` — camp is data (`data/camp.ron`); a new game starts there when content has one (tests built from `test_blueprints` have none, so start on a floor). Nothing hostile spawns there.
 - `phase.rs` — phases are data (`data/phases.ron`, first = where the world starts); saved by key, passed as an index. Waiting is camp-only (`wait_refusal`, shared with the frontends); a dive keeps its phase in `Place::Floor`, so it never changes mid-dive.
+- `origin.rs` — origins are data (`data/origins.ron`, first = the default); an origin's blueprint inherits the bare `Player`, so kit, skills and techniques belong to origins, never to `Player`. `spawn_player` is the one way a player is made; it draws no RNG (ADR 0025).
 - `dungeon.rs` — dungeons are data (`data/dungeons/<Key>.ron`), checked against the blueprints at load; spawn counts belong there, never in code. A dungeon picks its layout with `Generator` (`Cave` in `zone.rs`, `Rooms` in `rooms.rs`); a new generator is a variant there.
 - `entity.rs` — plain data only. `Attachments` = in use (parts fire); `Inventory` = carried, inert; equipped = attached + `EquippedOn` (ADR 0010).
 - `holding.rs` — every change to `Attachments`, `Inventory` or `EquippedOn` goes through here. Save and event dispatch read them directly.

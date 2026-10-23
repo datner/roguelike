@@ -23,8 +23,8 @@ use crate::entity::{
     Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::entity::{
-    Attuned, Blow, Dash, Lesson, Loose, OffBalance, Performed, Sighted, Stamina, Studied, Teaches,
-    Technique, TechniqueAi,
+    Attuned, Blow, Dash, Lesson, Loose, OffBalance, Origin, Performed, Sighted, Stamina, Studied,
+    Teaches, Technique, TechniqueAi,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 41;
+pub const SAVE_VERSION: u32 = 42;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -243,6 +243,7 @@ enum ComponentKind {
     Proficiency,
     Footwork,
     Discovered,
+    Origin,
     Style,
     Lesson,
     Studied,
@@ -260,7 +261,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 75] = [
+    const ALL: [ComponentKind; 76] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -322,6 +323,7 @@ impl ComponentKind {
         Self::Proficiency,
         Self::Footwork,
         Self::Discovered,
+        Self::Origin,
         Self::Style,
         Self::Lesson,
         Self::Studied,
@@ -406,6 +408,7 @@ enum SavedComponent {
     Proficiency,
     Footwork(Footwork),
     Discovered(Discovered),
+    Origin(Origin),
     /// Skills by name.
     Style(StyleDef),
     /// XP by skill name.
@@ -783,6 +786,7 @@ fn save_component(
         ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
         ComponentKind::Footwork => copy(entity).map(S::Footwork),
         ComponentKind::Discovered => copy(entity).map(S::Discovered),
+        ComponentKind::Origin => copy(entity).map(S::Origin),
         ComponentKind::Lesson => match copy::<Lesson>(entity) {
             Some(Lesson(grants)) => Some(S::Lesson(
                 grants
@@ -981,6 +985,7 @@ fn load_component(
         S::Proficiency => builder.add(Proficiency),
         S::Footwork(c) => builder.add(c),
         S::Discovered(c) => builder.add(c),
+        S::Origin(c) => builder.add(c),
         S::Lesson(grants) => builder.add(Lesson(
             grants
                 .into_iter()

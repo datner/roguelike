@@ -96,7 +96,17 @@ impl GameState {
     /// The first floor of the first dungeon (`dive::build`), filled from
     /// the dungeon's spawn table by the spawn stream.
     pub fn new(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
-        let mut state = Self::bare(seed, blueprints)?;
+        Self::new_as(seed, blueprints, None)
+    }
+
+    /// `new`, the player starting as `origin` (a key in `data/origins.ron`;
+    /// `None` for the first). The world is the same for every origin.
+    pub fn new_as(
+        seed: u64,
+        blueprints: Blueprints,
+        origin: Option<&str>,
+    ) -> Result<Self, BlueprintError> {
+        let mut state = Self::bare_as(seed, blueprints, origin)?;
         state.populate()?;
         Ok(state)
     }
@@ -105,13 +115,23 @@ impl GameState {
     /// else the first dungeon's first floor, on its stairs up. No other
     /// entities.
     pub fn bare(seed: u64, blueprints: Blueprints) -> Result<Self, BlueprintError> {
+        Self::bare_as(seed, blueprints, None)
+    }
+
+    /// `bare`, the player starting as `origin`.
+    pub fn bare_as(
+        seed: u64,
+        blueprints: Blueprints,
+        origin: Option<&str>,
+    ) -> Result<Self, BlueprintError> {
         if let Some(camp) = blueprints.camp() {
             let start = crate::dive::start(seed, camp);
             let mut rngs = Rngs::new(seed, 0);
             rngs.map = start.map_stream;
             rngs.spawn = start.spawn_stream;
             let (x, y) = start.arrival;
-            let mut state = Self::with_map(seed, rngs, start.map, Position { x, y }, blueprints)?;
+            let mut state =
+                Self::with_map(seed, rngs, start.map, Position { x, y }, blueprints, origin)?;
             state.place = crate::dive::Place::Camp;
             return Ok(state);
         }
@@ -134,7 +154,8 @@ impl GameState {
         rngs.map = floor.map_stream;
         rngs.spawn = floor.spawn_stream;
         let (x, y) = floor.arrival;
-        let mut state = Self::with_map(seed, rngs, floor.map, Position { x, y }, blueprints)?;
+        let mut state =
+            Self::with_map(seed, rngs, floor.map, Position { x, y }, blueprints, origin)?;
         state.place = crate::dive::Place::Floor {
             dungeon,
             phase,
@@ -261,6 +282,7 @@ impl GameState {
         map: Map,
         player_at: Position,
         blueprints: Blueprints,
+        origin: Option<&str>,
     ) -> Result<Self, BlueprintError> {
         let unseen = Grid::new(map.width, map.height, false);
         let no_items = Grid::new(map.width, map.height, None);
@@ -303,7 +325,7 @@ impl GameState {
             phase: first_phase,
             fx: Vec::new(),
         };
-        state.player = state.spawn(Spawn::blueprint("Player").with(player_at))?;
+        state.player = state.spawn_player(origin, player_at)?;
         state.stock_quivers()?;
         fov::update(&mut state);
         Ok(state)
@@ -785,6 +807,7 @@ pub(crate) mod tests {
             room(),
             Position { x: 1, y: 1 },
             blueprints,
+            None,
         )
         .unwrap()
     }
@@ -798,6 +821,7 @@ pub(crate) mod tests {
             room(),
             Position { x: 1, y: 1 },
             test_blueprints(),
+            None,
         )
         .unwrap()
     }

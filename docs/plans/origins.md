@@ -49,7 +49,7 @@ its whole head start).
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first. Every new
 component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_VERSION` bump.
 
-### 1. An origin, end to end in `game`: the wanderer
+### 1. An origin, end to end in `game`: the wanderer — done
 - `game/src/origin.rs` (new): `OriginDef { key, name, summary, blueprint, styles, follow }`, read from
   `data/origins.ron` and checked at load (blueprint exists and inherits `Player`; styles are style
   blueprints; `follow` is one of them). `Blueprints::origins()`.

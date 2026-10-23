@@ -13,6 +13,7 @@
 
 use crate::camp::{self, Camp};
 use crate::dungeon::{self, Dungeon};
+use crate::origin::OriginDef;
 use crate::phase::{self, Phase};
 use crate::tiles::Tiles;
 use std::collections::BTreeMap;
@@ -301,6 +302,8 @@ pub struct Blueprints {
     camp: Option<Camp>,
     /// The phases the world turns through, in order (`data/phases.ron`).
     phases: Vec<Phase>,
+    /// What a character can start as, in menu order (`data/origins.ron`).
+    origins: Vec<OriginDef>,
 }
 
 #[derive(Debug)]
@@ -378,6 +381,9 @@ pub enum BlueprintError {
     NoDungeon,
     BadCamp(String),
     BadPhases(String),
+    BadOrigins(String),
+    /// A new game asked for an origin the content lacks.
+    UnknownOrigin(String),
 }
 
 impl std::fmt::Display for BlueprintError {
@@ -395,6 +401,8 @@ impl std::fmt::Display for BlueprintError {
             Self::NoDungeon => write!(f, "no dungeons in data/dungeons"),
             Self::BadCamp(why) => write!(f, "data/camp.ron: {why}"),
             Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
+            Self::BadOrigins(why) => write!(f, "data/origins.ron: {why}"),
+            Self::UnknownOrigin(key) => write!(f, "no origin {key:?}"),
             Self::UnknownParent { child, parent } => {
                 write!(f, "blueprint {child:?} inherits from unknown {parent:?}")
             }
@@ -465,6 +473,7 @@ impl Blueprints {
         Self::resolve_with(Self::read_dir(&data.join("entities"))?, skills)?
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
             .with_tiles(Tiles::load(data)?)?
+            .with_origins(crate::origin::read(data)?)?
             .with_phases(phase::read(data)?)
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)
             .and_then(|blueprints| {
@@ -680,6 +689,7 @@ impl Blueprints {
             dungeons: BTreeMap::new(),
             camp: None,
             phases: Vec::new(),
+            origins: Vec::new(),
         })
     }
 
@@ -740,6 +750,22 @@ impl Blueprints {
 
     pub fn phases(&self) -> &[Phase] {
         &self.phases
+    }
+
+    /// These blueprints with `origins`, each checked (`origin::check`).
+    pub fn with_origins(mut self, origins: Vec<OriginDef>) -> Result<Self, BlueprintError> {
+        crate::origin::check(&origins, &self)?;
+        self.origins = origins;
+        Ok(self)
+    }
+
+    /// Every origin, in menu order; the first is the default.
+    pub fn origins(&self) -> &[OriginDef] {
+        &self.origins
+    }
+
+    pub fn origin(&self, key: &str) -> Option<&OriginDef> {
+        self.origins.iter().find(|origin| origin.key == key)
     }
 
     /// The camp, checked against these blueprints' dungeons already.

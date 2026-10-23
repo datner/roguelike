@@ -50,3 +50,4 @@ What this makes easier, what it makes harder, what we'd revisit and when.
 | [0022](0022-effects-stream.md) | `game::fx`: an animation-only stream of flights, damage, outcomes and deaths the player sees | Accepted |
 | [0023](0023-sprites.md) | Sprites named in `data/tiles.ron` and `Appearance`, drawn by `gui` (F2), glyphs in `term` and for memory | Accepted |
 | [0024](0024-techniques.md) | Techniques: attached like spells, paid in turns, recharge and (dormant) stamina; their blows are ordinary blows | Accepted |
+| [0025](0025-origins.md) | Origins: `data/origins.ron` names a blueprint inheriting the bare `Player`, its styles; `Origin(key)` saved | Accepted |

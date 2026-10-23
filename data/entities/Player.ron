@@ -3,6 +3,9 @@
     components: [
         Name("player"),
         Player,
+        // The bare person: what a character holds and knows at the start
+        // comes from its origin (`data/origins.ron`), whose blueprint
+        // inherits this one.
         // Skills grow by use (ADR 0017); only the player learns.
         Learner,
         Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
@@ -30,18 +33,4 @@
         // Willpower modifier. Unarmored, casting never fizzles.
         Fizzle(base_bp: 0, per_armor_bp: 500, per_modifier_bp: 100, stat: Willpower),
     ],
-    // The bow takes the right hand, so the torch goes in the left.
-    equipment: ["ShortBow", "Quiver", "Torch"],
-    spells: [
-        "Firebolt",
-        "Fireball",
-        "FireRune",
-        "MagicMissile",
-        "ArcaneLance",
-        "ChainLightning",
-        "SummonWolf",
-    ],
-    // Anyone can trip; other techniques come from manuals, inspiration and
-    // styles (ADR 0024).
-    techniques: ["Trip"],
 )

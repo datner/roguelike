@@ -1,0 +1,19 @@
+// The wanderer: today's start, and the default origin.
+(
+    inherits: "Player",
+    components: [],
+    // The bow takes the right hand, so the torch goes in the left.
+    equipment: ["ShortBow", "Quiver", "Torch"],
+    spells: [
+        "Firebolt",
+        "Fireball",
+        "FireRune",
+        "MagicMissile",
+        "ArcaneLance",
+        "ChainLightning",
+        "SummonWolf",
+    ],
+    // Anyone can trip; other techniques come from manuals, inspiration and
+    // styles (ADR 0024).
+    techniques: ["Trip"],
+)
