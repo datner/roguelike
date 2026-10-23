@@ -31,21 +31,28 @@ pub struct Build {
     /// What the build is, for the report.
     #[serde(default)]
     pub note: String,
-    /// Levels by skill name; every other skill is 0.
+    /// The origin it starts as (a key in `data/origins.ron`); the first if
+    /// absent.
+    #[serde(default)]
+    pub origin: Option<String>,
+    /// Levels by skill name, over the origin's; every other skill is 0.
+    #[serde(default)]
     pub skills: BTreeMap<String, u32>,
-    /// The player's own if absent.
+    /// The origin's own if absent.
     #[serde(default)]
     pub stats: Option<Stats>,
-    /// Blueprints worn, replacing the player's starting kit; a quiver comes
-    /// stocked.
-    pub equipment: Vec<String>,
-    /// Technique blueprints known, beside the player's own.
+    /// Blueprints worn, replacing the origin's kit; the origin's if absent.
+    /// A quiver comes stocked.
+    #[serde(default)]
+    pub equipment: Option<Vec<String>>,
+    /// Technique blueprints known, beside the origin's own.
     #[serde(default)]
     pub techniques: Vec<String>,
-    /// Spell blueprints known, beside the player's own.
+    /// Spell blueprints known, beside the origin's own.
     #[serde(default)]
     pub spells: Vec<String>,
-    /// A style blueprint, followed from the start.
+    /// A style blueprint, followed from the start (the origin's own, if it
+    /// knows it).
     #[serde(default)]
     pub style: Option<String>,
     /// What it does each turn: the first entry it can, else it waits.
@@ -189,7 +196,7 @@ fn simulate(
     window: u64,
     seed: u64,
 ) -> Result<(GameState, Run), String> {
-    let mut state = arena(blueprints, seed)?;
+    let mut state = arena(blueprints, build, seed)?;
     dress(&mut state, build)?;
     let dolls = place(&mut state, scenario)?;
     state.run(Command::UpdateFov);
@@ -262,7 +269,7 @@ fn arrows(state: &GameState) -> (u32, u32) {
 }
 
 /// A walled, open floor with the player at `START`.
-fn arena(blueprints: &Blueprints, seed: u64) -> Result<GameState, String> {
+fn arena(blueprints: &Blueprints, build: &Build, seed: u64) -> Result<GameState, String> {
     let (width, height) = ARENA;
     let mut map: Map = Grid::new(width, height, Tile::Floor);
     for x in 0..width {
@@ -280,17 +287,21 @@ fn arena(blueprints: &Blueprints, seed: u64) -> Result<GameState, String> {
         map,
         Position { x, y },
         blueprints.clone(),
-        None,
+        build.origin.as_deref(),
     )
-    .map_err(|err| err.to_string())
+    .map_err(|err| format!("{}: {err}", build.name))
 }
 
-/// The player made into `build`: its skills (and no learning), stats, gear,
-/// techniques and style.
+/// The origin's player made into `build`: its skills (and no learning),
+/// stats, gear, techniques and style.
 fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
     let player = state.player;
     let _ = state.world.remove_one::<Learner>(player);
-    let mut skills = Skills::default();
+    let mut skills = state
+        .world
+        .get::<&Skills>(player)
+        .map(|skills| (*skills).clone())
+        .unwrap_or_default();
     for (name, &level) in &build.skills {
         let id = state
             .blueprints
@@ -304,21 +315,23 @@ fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
         let _ = state.world.insert_one(player, stats);
     }
 
-    for (item, _) in equipment::equipped(&state.world, player) {
-        holding::take_off(&mut state.world, player, item);
-        command::despawn_with_holdings(state, item);
-    }
-    for name in &build.equipment {
-        let item = spawn(state, build, Spawn::blueprint(name).carried_by(player))?;
-        equipment::equip(state, player, item, None);
-        if !equipment::equipped(&state.world, player)
-            .iter()
-            .any(|&(worn, _)| worn == item)
-        {
-            return Err(format!("{}: {name} does not fit", build.name));
+    if let Some(kit) = &build.equipment {
+        for (item, _) in equipment::equipped(&state.world, player) {
+            holding::take_off(&mut state.world, player, item);
+            command::despawn_with_holdings(state, item);
         }
+        for name in kit {
+            let item = spawn(state, build, Spawn::blueprint(name).carried_by(player))?;
+            equipment::equip(state, player, item, None);
+            if !equipment::equipped(&state.world, player)
+                .iter()
+                .any(|&(worn, _)| worn == item)
+            {
+                return Err(format!("{}: {name} does not fit", build.name));
+            }
+        }
+        state.stock_quivers().map_err(|err| err.to_string())?;
     }
-    state.stock_quivers().map_err(|err| err.to_string())?;
 
     for name in &build.techniques {
         let noun = noun(state, name).ok_or_else(|| format!("{}: unknown {name:?}", build.name))?;
@@ -345,8 +358,14 @@ fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
         }
     }
     if let Some(name) = &build.style {
-        let known = spawn(state, build, Spawn::blueprint(name).carried_by(player))?;
-        style::follow(state, player, known);
+        let noun = noun(state, name).ok_or_else(|| format!("{}: unknown {name:?}", build.name))?;
+        let known = match named_style(state, &noun) {
+            Some(known) => known,
+            None => spawn(state, build, Spawn::blueprint(name).carried_by(player))?,
+        };
+        if !style::followed(&state.world, player).contains(&known) {
+            style::follow(state, player, known);
+        }
     }
     Ok(())
 }
@@ -355,6 +374,18 @@ fn spawn(state: &mut GameState, build: &Build, spawn: Spawn) -> Result<Entity, S
     state
         .spawn(spawn)
         .map_err(|err| format!("{}: {err}", build.name))
+}
+
+/// The style the player knows by `noun`, followed or not.
+fn named_style(state: &GameState, noun: &str) -> Option<Entity> {
+    style::known(&state.world, state.player)
+        .into_iter()
+        .find(|&known| {
+            state
+                .world
+                .get::<&crate::entity::Name>(known)
+                .is_ok_and(|name| name.0 == noun)
+        })
 }
 
 /// The bare noun a blueprint's things are named by ("lunge").
@@ -541,23 +572,39 @@ pub struct Cost {
 pub struct Source {
     /// Its blueprint.
     pub thing: String,
-    /// "starting kit", "found lying about, 1 in 23 finds", "taught by the
+    /// "origin: Wanderer", "found lying about, 1 in 23 finds", "taught by the
     /// lunge treatise", …; empty if nothing in the content gives it.
     pub from: Vec<String>,
 }
 
-/// What `build` costs, read from the content: the starting kit, what lies
+/// What `build` costs, read from the content: origins' starts, what lies
 /// about in dungeons, what their creatures wear, manuals, discoveries and
-/// styles' inventions.
+/// styles' inventions. XP is what it takes beyond its origin's skills.
 pub fn cost(blueprints: &Blueprints, build: &Build) -> Cost {
+    let origin = match &build.origin {
+        Some(key) => blueprints.origin(key),
+        None => blueprints.origins().first(),
+    };
+    let start = origin
+        .and_then(|origin| blueprints.get(&origin.blueprint))
+        .and_then(|bp| bp.skills.clone())
+        .unwrap_or_default();
     let xp = build
         .skills
-        .values()
-        .map(|&level| skill::xp_for(level))
+        .iter()
+        .map(|(name, &level)| {
+            let had = blueprints
+                .skills()
+                .id(name)
+                .and_then(|id| start.0.iter().find(|&&(skill, _)| skill == id))
+                .map_or(0, |&(_, xp)| xp);
+            skill::xp_for(level).saturating_sub(had)
+        })
         .sum();
     let needs = build
         .equipment
         .iter()
+        .flatten()
         .chain(&build.techniques)
         .chain(&build.spells)
         .chain(&build.style)
@@ -587,15 +634,21 @@ fn sources(blueprints: &Blueprints, name: &str) -> Vec<String> {
             .map_or_else(String::new, |def| def.name.clone())
     };
     let mut from = Vec::new();
-    if let Some(player) = blueprints
+    let origins: Vec<&str> = blueprints
         .origins()
-        .first()
-        .and_then(|origin| blueprints.get(&origin.blueprint))
-        && [&player.equipment, &player.techniques, &player.spells]
-            .iter()
-            .any(|list| list.contains(&id))
-    {
-        from.push("starting kit".to_string());
+        .iter()
+        .filter(|origin| {
+            let starts_with = blueprints.get(&origin.blueprint).is_some_and(|player| {
+                [&player.equipment, &player.techniques, &player.spells]
+                    .iter()
+                    .any(|list| list.contains(&id))
+            });
+            starts_with || origin.styles.iter().any(|style| style == name)
+        })
+        .map(|origin| origin.name.as_str())
+        .collect();
+    if !origins.is_empty() {
+        from.push(format!("origin: {}", origins.join(", ")));
     }
     if blueprints.items().contains(&id) {
         let finds = blueprints.items().len();
@@ -664,9 +717,10 @@ mod tests {
         Build {
             name: "test".into(),
             note: String::new(),
+            origin: None,
             skills: skills.iter().map(|&(s, l)| (s.to_string(), l)).collect(),
             stats: None,
-            equipment: equipment.iter().map(|s| s.to_string()).collect(),
+            equipment: Some(equipment.iter().map(|s| s.to_string()).collect()),
             techniques: vec![],
             spells: vec![],
             style: None,
@@ -753,7 +807,7 @@ mod tests {
     #[test]
     fn a_build_that_names_nothing_real_is_refused() {
         let mut odd = fencer();
-        odd.equipment = vec!["Nothing".into()];
+        odd.equipment = Some(vec!["Nothing".into()]);
         assert!(run(&data(), &odd, &one("Doll"), 100, 1).is_err());
         let mut odd = fencer();
         odd.skills.insert("Juggling".into(), 3);
@@ -874,7 +928,7 @@ mod tests {
     #[test]
     fn where_things_come_from_is_read_from_the_content() {
         let mut lunger = fencer();
-        lunger.equipment = vec!["ShortBow".into()];
+        lunger.equipment = Some(vec!["ShortBow".into()]);
         lunger.techniques = vec!["Lunge".into(), "Cleave".into()];
         lunger.style = Some("Brawling".into());
         let cost = cost(&data(), &lunger);
@@ -887,7 +941,7 @@ mod tests {
                 .clone()
         };
         let bow = from("ShortBow");
-        assert_eq!(bow[0], "starting kit");
+        assert_eq!(bow[0], "origin: Wanderer");
         assert!(bow[1].starts_with("found lying about, 1 in "), "{bow:?}");
         let lunge = from("Lunge");
         assert!(
@@ -901,7 +955,45 @@ mod tests {
         assert!(from("Cleave").contains(&"discovered from Melee 3 and Slash 3".to_string()));
         assert_eq!(
             from("Brawling"),
-            ["discovered from Melee 3 and Unarmed 3 and Dodge 3"]
+            [
+                "origin: Pit fighter",
+                "discovered from Melee 3 and Unarmed 3 and Dodge 3"
+            ]
         );
+    }
+
+    #[test]
+    fn a_build_starts_from_its_origin() {
+        let mut duelist = build(&[], &[("Pierce", 5)]);
+        duelist.origin = Some("Duelist".into());
+        duelist.equipment = None;
+        duelist.style = Some("Fencing".into());
+        let (state, done) = simulate(&data(), &duelist, &one("Doll"), 3000, 1).unwrap();
+        assert!(done.dealt > 0);
+        let player = state.player;
+        let held: Vec<String> = equipment::equipped(&state.world, player)
+            .into_iter()
+            .map(|(item, _)| state.world.get::<&Name>(item).unwrap().0.clone())
+            .collect();
+        assert_eq!(held, ["rapier"], "the origin's kit");
+        assert_eq!(style::known(&state.world, player).len(), 1, "fencing once");
+        let level = |name| {
+            let id = state.blueprints.skills().id(name).unwrap();
+            skill::level(skill::xp(&state.world, player, id))
+        };
+        assert_eq!(
+            (level("Pierce"), level("Sword")),
+            (5, 1),
+            "over the origin's"
+        );
+
+        // Pierce 2 came with the origin; only the rest is paid for.
+        let cost = cost(&data(), &duelist);
+        assert_eq!(cost.xp, skill::xp_for(5) - skill::xp_for(2));
+        assert_eq!(cost.needs[0].from[0], "origin: Duelist");
+
+        duelist.origin = Some("Nobody".into());
+        let refused = run(&data(), &duelist, &one("Doll"), 100, 1).unwrap_err();
+        assert_eq!(refused, "test: no origin \"Nobody\"");
     }
 }

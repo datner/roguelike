@@ -95,7 +95,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   `spells` and `aim` shots start as a hedge mage.
 - Tests: each origin loads and starts as described; the headbutt is an ability and performs.
 
-### 5. The bench starts from origins
+### 5. The bench starts from origins — done
 - `Build.origin: Option<String>` (default: the first origin) replaces the hard-coded `Player`; the
   build's `equipment`, `techniques` and `style` still replace or add as today.
 - One starter build per origin, so the report compares where each origin begins.

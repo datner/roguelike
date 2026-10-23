@@ -15,7 +15,7 @@
     },
     equipment: ["ShortBow", "Quiver", "Torch"],
     techniques: ["PushKick", "PartingShot"],
-    style: Some("BowDancing"),
+    style: "BowDancing",
     // No push kick or parting shot: both open distance a doll never closes
     // again, so its arrows would land out of reach. A real enemy walks back.
     policy: [Perform("Trip"), Fire, Bump],

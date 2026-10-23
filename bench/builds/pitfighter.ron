@@ -1,0 +1,7 @@
+// A new pit fighter: the headbutt whenever it is ready, trips between.
+(
+    name: "pit fighter",
+    note: "a new pit fighter: fists, leather, the headbutt and the trip",
+    origin: "PitFighter",
+    policy: [Perform("Headbutt"), Perform("Trip"), Bump],
+)

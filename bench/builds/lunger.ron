@@ -11,6 +11,6 @@
     },
     equipment: ["Rapier"],
     techniques: ["Lunge"],
-    style: Some("Fencing"),
+    style: "Fencing",
     policy: [Perform("Lunge"), Bump],
 )

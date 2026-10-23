@@ -36,9 +36,15 @@ pub fn load(dir: &Path) -> Result<Bench, String> {
         .filter(|path| path.extension().is_some_and(|ext| ext == "ron"))
         .collect();
     paths.sort();
+    // As content is written: an optional field is just its value.
+    let ron =
+        ron::Options::default().with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME);
     let builds = paths
         .iter()
-        .map(|path| ron::from_str(&read(path)?).map_err(|err| format!("{}: {err}", path.display())))
+        .map(|path| {
+            ron.from_str(&read(path)?)
+                .map_err(|err| format!("{}: {err}", path.display()))
+        })
         .collect::<Result<_, String>>()?;
     let path = dir.join("scenarios.ron");
     let scenarios =
@@ -431,7 +437,7 @@ mod tests {
             builds: bench
                 .builds
                 .into_iter()
-                .filter(|build| ["sabre", "starter"].contains(&build.name.as_str()))
+                .filter(|build| ["sabre", "wanderer"].contains(&build.name.as_str()))
                 .collect(),
             scenarios: bench.scenarios.into_iter().take(1).collect(),
         };
@@ -443,7 +449,7 @@ mod tests {
             grazed: 0.05,
             ..Summary::default()
         };
-        let rows: Vec<Row> = [("sabre", 4.5), ("starter", 2.0)]
+        let rows: Vec<Row> = [("sabre", 4.5), ("wanderer", 2.0)]
             .into_iter()
             .map(|(build, mean)| Row {
                 build: build.into(),
@@ -456,9 +462,9 @@ mod tests {
         let lines: Vec<&str> = report.lines().collect();
         for expected in [
             "| sabre | 4.75 (3.75–5.75) | 4.50 (3.50–5.50) | 90% | 5% |",
-            "| starter | 0.0 | 0.0 | 0.0 (0.0) | 0.0 | — |",
+            "| wanderer | 0.0 | 0.0 | 0.0 (0.0) | 0.0 | — |",
             "| sabre | 5000 | 4.50 | — |  |",
-            "| starter | 0 | 2.00 | — |  |",
+            "| wanderer | 0 | 2.00 | — |  |",
         ] {
             assert!(lines.contains(&expected), "{expected:?} not in\n{report}");
         }

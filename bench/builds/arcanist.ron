@@ -2,6 +2,7 @@
     name: "arcanist",
     note: "arcane magic at 5 on the player's mana: chain lightning, the lance, then missiles",
     skills: {"Magic": 5, "Arcane": 5, "Bolt": 5, "Beam": 5, "Chain": 5},
+    origin: "HedgeMage",
     equipment: ["Torch"],
     spells: ["ChainLightning", "ArcaneLance", "MagicMissile"],
     policy: [Cast("ChainLightning"), Cast("ArcaneLance"), Cast("MagicMissile"), Bump],

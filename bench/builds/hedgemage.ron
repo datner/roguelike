@@ -1,0 +1,7 @@
+// A new hedge mage: firebolt while it is ready, then mana spells.
+(
+    name: "hedge mage",
+    note: "a new hedge mage: firebolt, the arcane lance and magic missiles",
+    origin: "HedgeMage",
+    policy: [Cast("Firebolt"), Cast("ArcaneLance"), Cast("MagicMissile"), Bump],
+)

@@ -49,4 +49,8 @@ began.
 ## Consequences
 
 - A new origin is a blueprint and an entry; no code.
-- Origins are compared on the bench like any build.
+- Origins are compared on the bench like any build: a build names the
+  origin it starts as (`origin:`, the first if absent) and keeps its kit
+  unless it lists `equipment`; its skills are set over the origin's, and
+  its XP cost counts only what it adds. Each origin has a starter build,
+  and an origin is named as a source of what it starts with.

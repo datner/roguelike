@@ -1,0 +1,8 @@
+// A new wanderer as the game starts one: the origin's bow, quiver and
+// torch, Archery 1, nothing else learned.
+(
+    name: "wanderer",
+    note: "a new wanderer: short bow, quiver and torch, Archery 1",
+    origin: "Wanderer",
+    policy: [Fire, Bump],
+)

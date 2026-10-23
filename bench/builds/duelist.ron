@@ -1,0 +1,7 @@
+// A new duelist: the origin's rapier and its fencing, followed at 1.
+(
+    name: "duelist",
+    note: "a new duelist: rapier, the off hand empty, fencing followed at 1",
+    origin: "Duelist",
+    policy: [Bump],
+)

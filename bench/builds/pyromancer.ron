@@ -3,6 +3,7 @@
     name: "pyromancer",
     note: "pyromancy at 5 on cooldowns: firebolt whenever it is ready",
     skills: {"Magic": 5, "Pyromancy": 5, "Bolt": 5},
+    origin: "HedgeMage",
     equipment: ["Torch"],
     spells: ["Firebolt"],
     policy: [Cast("Firebolt"), Bump],
