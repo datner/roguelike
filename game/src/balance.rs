@@ -9,14 +9,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::Blueprints;
 use crate::command::{self, Command};
-use crate::entity::{Health, Learner, Position, Skills, Stats};
+use crate::entity::{Ammo, Health, Learner, Pool, PoolRates, Position, Skills, Stats};
 use crate::fx::{self, Fx, Outcome};
 use crate::input::Dir;
 use crate::map::{Grid, Map, Tile};
 use crate::rng::Rngs;
 use crate::spawn::Spawn;
 use crate::state::GameState;
-use crate::{ai, equipment, holding, skill, style, technique, time};
+use crate::time::Tick;
+use crate::{ai, equipment, holding, skill, spell, style, technique, time};
 
 /// The arena: open floor, walled, with room for dolls on every side.
 const ARENA: (i32, i32) = (31, 15);
@@ -85,6 +86,79 @@ pub struct Run {
     pub grazes: u32,
     /// Misses and perfect dodges.
     pub misses: u32,
+    pub mana: Spent,
+    pub stamina: Spent,
+    /// Arrows shot (lost from what the build holds; it never picks one up).
+    pub arrows: Spent,
+    /// Of those, how many broke instead of landing.
+    pub arrows_broken: u32,
+    /// The build's own health lost (blood, its own blasts).
+    pub health: u32,
+}
+
+/// What a run took from one resource.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Spent {
+    pub total: u32,
+    /// Ticks into the run when it first could not pay for the cheapest
+    /// thing it paid for in the whole run (a pool), or held none (arrows);
+    /// `None` if never.
+    pub dry: Option<u64>,
+    /// The smallest payment, for `dry`.
+    pub cheapest: Option<u32>,
+}
+
+/// A resource watched turn by turn; `dry` is judged once the run is over,
+/// so a pool is not called dry for want of a price it later stops paying.
+#[derive(Default)]
+struct Gauge {
+    spent: Spent,
+    /// Ticks into the run, and what was left then.
+    levels: Vec<(u64, u32)>,
+}
+
+impl Gauge {
+    /// A pool before and after an action taken at `acted`: a spend sets the
+    /// pool to what it held then, less the price.
+    fn pool(
+        &mut self,
+        before: Option<(Pool, PoolRates)>,
+        after: Option<(Pool, PoolRates)>,
+        (acted, now): (Tick, Tick),
+        elapsed: u64,
+    ) {
+        let (Some((old, rates)), Some((new, new_rates))) = (before, after) else {
+            return;
+        };
+        if new != old {
+            let price = old.current(rates, acted).saturating_sub(new.value);
+            if price > 0 {
+                self.spent.total += price;
+                let cheapest = self.spent.cheapest.map_or(price, |c| c.min(price));
+                self.spent.cheapest = Some(cheapest);
+            }
+        }
+        self.levels.push((elapsed, new.current(new_rates, now)));
+    }
+
+    /// A count of things held before and after an action.
+    fn stock(&mut self, before: u32, after: u32, elapsed: u64) {
+        self.spent.total += before.saturating_sub(after);
+        if self.spent.total > 0 {
+            self.spent.cheapest = Some(1);
+        }
+        self.levels.push((elapsed, after));
+    }
+
+    fn done(self) -> Spent {
+        let dry = self.spent.cheapest.and_then(|cheapest| {
+            self.levels
+                .iter()
+                .find(|&&(_, left)| left < cheapest)
+                .map(|&(elapsed, _)| elapsed)
+        });
+        Spent { dry, ..self.spent }
+    }
 }
 
 impl Run {
@@ -124,10 +198,19 @@ fn simulate(
     let start = state.now;
     let end = start.after(window);
     let mut run = Run::default();
+    let player = state.player;
+    let arrows_at_start = arrows(&state).0;
+    let (mut mana_gauge, mut stamina_gauge, mut arrow_gauge) =
+        (Gauge::default(), Gauge::default(), Gauge::default());
     while state.now < end && !state.game_over {
         let Some(target) = nearest(&state, &dolls) else {
             break;
         };
+        let acted = state.now;
+        let mana = spell::pool(&state.world, player);
+        let stamina = technique::stamina(&state.world, player);
+        let health = health(&state, player);
+        let (held, _) = arrows(&state);
         let mut took = false;
         for act in &build.policy {
             if let Some(command) = command(&state, act, target)
@@ -142,10 +225,40 @@ fn simulate(
             time::submit(&mut state, wait);
         }
         tally(&mut run, &fx::take_fx(&mut state));
+        let (now, elapsed) = (state.now, state.now.since(start));
+        let pool = spell::pool(&state.world, player);
+        mana_gauge.pool(mana, pool, (acted, now), elapsed);
+        let pool = technique::stamina(&state.world, player);
+        stamina_gauge.pool(stamina, pool, (acted, now), elapsed);
+        run.health += health.saturating_sub(self::health(&state, player));
+        arrow_gauge.stock(held, arrows(&state).0, elapsed);
     }
+    run.mana = mana_gauge.done();
+    run.stamina = stamina_gauge.done();
+    run.arrows = arrow_gauge.done();
     run.ticks = state.now.since(start);
     run.dealt = dolls.iter().map(|&doll| lost(&state, doll)).sum();
+    let (held, landed) = arrows(&state);
+    run.arrows_broken = arrows_at_start.saturating_sub(held + landed);
     Ok((state, run))
+}
+
+fn health(state: &GameState, creature: Entity) -> u32 {
+    state
+        .world
+        .get::<&Health>(creature)
+        .map_or(0, |health| u32::try_from(health.current).unwrap_or(0))
+}
+
+/// Arrows held (nocked or in a quiver: no position) and lying on the floor.
+fn arrows(state: &GameState) -> (u32, u32) {
+    let mut query = state.world.query::<(&Ammo, Option<&Position>)>();
+    query
+        .iter()
+        .fold((0, 0), |(held, lying), (_, position)| match position {
+            Some(_) => (held, lying + 1),
+            None => (held + 1, lying),
+        })
 }
 
 /// A walled, open floor with the player at `START`.
@@ -356,6 +469,32 @@ pub struct Summary {
     /// Of every blow, the share that landed (grazes included).
     pub landed: f64,
     pub grazed: f64,
+    pub mana: Use,
+    pub stamina: Use,
+    pub arrows: Use,
+    /// Mean arrows broken and own health lost per run.
+    pub arrows_broken: f64,
+    pub health: f64,
+}
+
+/// One resource over the runs.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Use {
+    /// Mean spent per run.
+    pub spent: f64,
+    /// The share of runs that ran dry, and when, on average, they did.
+    pub dry: f64,
+    pub dry_at: Option<f64>,
+}
+
+fn usage(runs: &[Run], of: impl Fn(&Run) -> Spent) -> Use {
+    let count = runs.len().max(1) as f64;
+    let dried: Vec<u64> = runs.iter().filter_map(|run| of(run).dry).collect();
+    Use {
+        spent: runs.iter().map(|run| f64::from(of(run).total)).sum::<f64>() / count,
+        dry: dried.len() as f64 / count,
+        dry_at: (!dried.is_empty()).then(|| dried.iter().sum::<u64>() as f64 / dried.len() as f64),
+    }
 }
 
 pub fn summarize(runs: &[Run]) -> Summary {
@@ -375,7 +514,16 @@ pub fn summarize(runs: &[Run]) -> Summary {
         high: at(0.9),
         landed: f64::from(landed) / blows,
         grazed: f64::from(grazes) / blows,
+        mana: usage(runs, |run| run.mana),
+        stamina: usage(runs, |run| run.stamina),
+        arrows: usage(runs, |run| run.arrows),
+        arrows_broken: mean(runs, |run| run.arrows_broken),
+        health: mean(runs, |run| run.health),
     }
+}
+
+fn mean(runs: &[Run], of: impl Fn(&Run) -> u32) -> f64 {
+    runs.iter().map(|run| f64::from(of(run))).sum::<f64>() / runs.len().max(1) as f64
 }
 
 #[cfg(test)]
@@ -554,5 +702,40 @@ mod tests {
             dolls: vec![("Doll".into(), (5, 0))],
         };
         assert!(dealt(&caster, &far, 1000) > 0);
+    }
+
+    #[test]
+    fn a_caster_spends_mana_until_it_cannot_pay() {
+        let mut caster = build(&["Torch"], &[("Magic", 5), ("Arcane", 5), ("Bolt", 5)]);
+        caster.policy = vec![Act::Cast("MagicMissile".into())];
+        let run = run(&data(), &caster, &one("Doll"), 3000, 1).unwrap();
+        assert!(run.mana.total > 0);
+        assert_eq!(
+            run.mana.total % run.mana.cheapest.unwrap(),
+            0,
+            "whole casts"
+        );
+        assert!(run.mana.dry.is_some_and(|tick| tick < 3000), "{run:?}");
+        assert_eq!((run.stamina.total, run.arrows.total, run.health), (0, 0, 0));
+
+        caster.policy = vec![Act::Bump];
+        assert_eq!(run_of(&caster).mana, Spent::default(), "bumping is free");
+    }
+
+    fn run_of(build: &Build) -> Run {
+        run(&data(), build, &one("Doll"), 3000, 1).unwrap()
+    }
+
+    #[test]
+    fn an_archer_runs_out_of_arrows_and_bashes_on() {
+        let mut archer = build(&["ShortBow", "Quiver"], &[("Archery", 5), ("Bow", 5)]);
+        archer.policy = vec![Act::Fire, Act::Bump];
+        let run = run(&data(), &archer, &one("Doll"), 3000, 1).unwrap();
+        let stocked = u32::try_from(crate::state::STARTING_ARROWS).unwrap();
+        assert_eq!(run.arrows.total, stocked);
+        assert!(run.arrows.dry.is_some_and(|tick| tick < 3000));
+        assert!(run.arrows_broken <= stocked);
+        let shots = run.landed + run.misses;
+        assert!(shots > stocked, "it bashed once the quiver was empty");
     }
 }

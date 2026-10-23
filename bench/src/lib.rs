@@ -106,7 +106,66 @@ pub fn report(bench: &Bench, rows: &[Row], seeds: u64) -> String {
             );
         }
     }
+    if let Some(first) = bench.scenarios.first() {
+        spending(&mut out, rows, first);
+    }
     out
+}
+
+/// What each build spends over the sustained window of `scenario`, and
+/// when it runs dry. Running dry inside the burst window is flagged: such a
+/// build can't keep up even a short fight.
+fn spending(out: &mut String, rows: &[Row], scenario: &Scenario) {
+    let _ = writeln!(out, "\n## What it spends\n");
+    let _ = writeln!(
+        out,
+        "Per run of the sustained window against \"{}\". Runs dry: the share of runs that could no \
+         longer pay for the cheapest thing they had paid for (or held no arrows), and when on \
+         average.\n",
+        scenario.name
+    );
+    let _ = writeln!(
+        out,
+        "| build | mana | stamina | arrows (broken) | own health | runs dry |"
+    );
+    let _ = writeln!(out, "|---|---|---|---|---|---|");
+    for row in rows.iter().filter(|row| row.scenario == scenario.name) {
+        let s = &row.sustained;
+        let dry: Vec<String> = [
+            ("mana", s.mana),
+            ("stamina", s.stamina),
+            ("arrows", s.arrows),
+        ]
+        .into_iter()
+        .filter_map(|(name, use_)| {
+            let at = use_.dry_at?;
+            let flag = if at < BURST as f64 && use_.dry >= 0.5 {
+                " **in burst**"
+            } else {
+                ""
+            };
+            Some(format!(
+                "{name} {:.0}% at {at:.0} ticks{flag}",
+                use_.dry * 100.0
+            ))
+        })
+        .collect();
+        let _ = writeln!(
+            out,
+            "| {} | {:.1} | {:.1} | {:.1} ({:.1}) | {:.1} | {} |",
+            row.build,
+            s.mana.spent,
+            s.stamina.spent,
+            s.arrows.spent,
+            s.arrows_broken,
+            s.health,
+            if dry.is_empty() {
+                "—".to_string()
+            } else {
+                dry.join("; ")
+            },
+        );
+    }
 }
 
 fn spread(summary: &Summary) -> String {

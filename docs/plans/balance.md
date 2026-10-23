@@ -80,11 +80,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   build cannot add; it waits for a build field for extra parts. A pyromancer (cooldowns) and a fencing
   lunger (a style and a technique) joined instead. Every build runs every scenario.
 
-### 3. What it spends
+### 3. What it spends — done
 - `Run` gains mana, health and stamina spent, arrows shot and broken, and the first tick each ran dry.
 - Report columns for them; the burst-dry flag.
 - Tests: a caster's mana spent matches its casts; an archer runs dry of arrows in the sustained window
   with a small quiver and falls back to bumping.
+- As built: a pool's spend is read from the pool itself (what it held when the action was taken, less
+  what it holds after), so no counter is added to the game. "Dry" is judged after the run against
+  the cheapest price paid in the whole run, so a caster is not called dry for want of a big spell it
+  stops casting. The spending table covers the first scenario only. Arrows are never picked up.
 
 ### 4. What it costs
 - `balance::cost(blueprints, &Build) -> Cost`: XP to build, and the sources of each thing it needs, read
