@@ -21,6 +21,10 @@ prefix commands with `nix develop --command`.
   `--update` rewrites changed references, committed with the drawing change.
   Run `--check` after any drawing change.
 - `nix flake check` only sees files git tracks: `git add -N` new files first.
+- Balance bench: `scripts/balance.sh` rewrites `bench/report.md` (builds in `bench/builds/` against
+  training dolls, through the real game); `--check` diffs against it, `--print --seeds 5` is a quick
+  look. Run it after changing numbers in content, combat, skills or techniques, and commit the
+  report with the change: a moved number is a balance change to mention, not an error.
 - Play (humans only): `cargo run -p gui -- --seed 42`
 
 `gui` opens a window. **Never run it**: it hangs your shell and you can't see
@@ -68,6 +72,7 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 - `front/` — library shared by every frontend: `Session` (keyboard flows),
   title menu, save files; no drawing, no key bindings. See `front/CLAUDE.md`.
 - `gui/` — binary: eframe/egui windowed frontend. See `gui/CLAUDE.md`.
+- `bench/` — binary: the balance bench, a tool (not the game); builds and scenarios as RON.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,
   legacy). Read before designing a new system; `docs/plans/` hold build plans.

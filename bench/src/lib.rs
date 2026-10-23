@@ -260,4 +260,50 @@ mod tests {
         let rows = measure(&data(), &bench, 1).unwrap();
         assert_eq!(rows.len(), bench.builds.len() * bench.scenarios.len());
     }
+
+    /// The report's shape, pinned without running the bench.
+    #[test]
+    fn a_report_puts_damage_next_to_spending_and_cost() {
+        let bench = load(&dir()).unwrap();
+        let bench = Bench {
+            builds: bench
+                .builds
+                .into_iter()
+                .filter(|build| ["sabre", "starter"].contains(&build.name.as_str()))
+                .collect(),
+            scenarios: bench.scenarios.into_iter().take(1).collect(),
+        };
+        let summary = |mean| Summary {
+            mean,
+            low: mean - 1.0,
+            high: mean + 1.0,
+            landed: 0.9,
+            grazed: 0.05,
+            ..Summary::default()
+        };
+        let rows: Vec<Row> = [("sabre", 4.5), ("starter", 2.0)]
+            .into_iter()
+            .map(|(build, mean)| Row {
+                build: build.into(),
+                scenario: bench.scenarios[0].name.clone(),
+                burst: summary(mean + 0.25),
+                sustained: summary(mean),
+            })
+            .collect();
+        let report = report(&data(), &bench, &rows, 3);
+        let lines: Vec<&str> = report.lines().collect();
+        for expected in [
+            "| sabre | 4.75 (3.75–5.75) | 4.50 (3.50–5.50) | 90% | 5% |",
+            "| starter | 0.0 | 0.0 | 0.0 (0.0) | 0.0 | — |",
+            "| sabre | 5000 | 4.50 | 0.90 |  |",
+            "| starter | 0 | 2.00 | — |  |",
+        ] {
+            assert!(lines.contains(&expected), "{expected:?} not in\n{report}");
+        }
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("  - Sabre: found lying about, 1 in "))
+        );
+    }
 }

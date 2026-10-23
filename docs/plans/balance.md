@@ -101,7 +101,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   depends only on levels, so for now it mostly counts how many skills a build leans on; the skill
   weights are not in it.
 
-### 5. The checked-in report
+### 5. The checked-in report — done
 - `bench/report.md` written by `scripts/balance.sh`; `--check` regenerates to a scratch file and diffs.
 - `game/CLAUDE.md`: a rule line for `balance.rs`; root `CLAUDE.md` commands: when to run the bench
   (after changing numbers in content, combat or skills).

@@ -41,6 +41,7 @@ can't show at a glance.
 - `technique.rs` — techniques (ADR 0024) are attached like spells but paid in turns, `Recharging` and `Stamina`, never through disciplines. `inspect`/`ready` and `footprint` are the one check, shared by `Perform`, refused input, the list, aim and AI. A technique's blow goes through `combat::blow` like a bump; a new requirement is a `Need` variant checked in `unmet`.
 - `training.rs` — lessons and practice grant XP through `skill::gain` only, never `skill::train`: no stakes, so no familiarity, styles or inspiration (ADR 0017).
 - `lore.rs` — Beast lore grows only by first sightings (`sight`, after `fov::update`); `inspect` is the one place that decides what looking reveals.
+- `balance.rs` — the bench's simulation (docs/plans/balance.md): drives the player through `time::submit` like the keyboard, against dolls that never act; measures by reading the world and `fx`, never by counters added to the game. Nothing in play calls it.
 - `testkit.rs` — test-only methods on `Spawn` (`thing("knife").item().at(3, 1).make(&mut state)`) and `last_log`. Add a shortcut when a component is used by more than one test; `.with(c)` covers the rest.
 
 Everything a frontend needs is re-exported from `lib.rs`; keep that list current.
