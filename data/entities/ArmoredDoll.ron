@@ -1,0 +1,8 @@
+// A doll wearing what a castle guard might: armor against every kind of blow.
+(
+    inherits: "Doll",
+    components: [
+        Name("armored doll"),
+        Armor(slashing: 2, blunt: 2, piercing: 2),
+    ],
+)

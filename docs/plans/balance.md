@@ -57,7 +57,7 @@ in its context. It is a tool for the owner and for agents changing content, not 
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. A doll, a build, a number
+### 1. A doll, a build, a number — done
 - `data/entities/Doll.ron`, `ArmoredDoll.ron`, `NimbleDoll.ron`.
 - `game/src/balance.rs`: `Build` (base, skills, stats, equipment, policy with `Bump` only for now),
   `Scenario { dolls: Vec<(blueprint, (dx, dy))>, window: u64 }`, `run(blueprints, &Build, &Scenario,

@@ -1,0 +1,7 @@
+(
+    name: "sabre",
+    note: "sabre and a torch, the slashing skills at 5",
+    skills: {"Melee": 5, "Sword": 5, "Slash": 5, "One-handed": 5},
+    equipment: ["Sabre", "Torch"],
+    policy: [Bump],
+)

@@ -1,0 +1,10 @@
+// A doll that moves its body out of the way: practised at dodging, so
+// blows miss and graze more (ADR 0017).
+(
+    inherits: "Doll",
+    components: [
+        Name("nimble doll"),
+        Stats(strength: 10, agility: 16, intelligence: 10, willpower: 10),
+        Skills({"Dodge": 5}),
+    ],
+)

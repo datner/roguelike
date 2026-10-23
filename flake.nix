@@ -39,6 +39,8 @@
             (craneLib.fileset.commonCargoSources ./.)
             ./data
             ./gui/assets
+            # Bench builds and scenarios, read by its tests.
+            ./bench
             (lib.fileset.fileFilter (file: file.name == "clippy.toml") ./.)
           ];
         };

@@ -193,7 +193,7 @@ pub(crate) fn can_see_player(state: &GameState, actor: Entity) -> bool {
 /// The passable direction that ends closest to `goal` (Chebyshev, then
 /// squared Euclidean so it prefers lining up), ties going to the earlier
 /// entry in `Dir::ALL`. `None` if no step gets closer.
-fn step_toward(state: &GameState, from: Position, goal: Position) -> Option<Dir> {
+pub(crate) fn step_toward(state: &GameState, from: Position, goal: Position) -> Option<Dir> {
     let current = chebyshev(from, goal);
     Dir::ALL
         .into_iter()

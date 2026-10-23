@@ -1,0 +1,7 @@
+(
+    name: "fencer",
+    note: "rapier and an empty off hand, the fencing skills at 5",
+    skills: {"Melee": 5, "Sword": 5, "Pierce": 5, "One-handed": 5, "Empty offhand": 5},
+    equipment: ["Rapier"],
+    policy: [Bump],
+)

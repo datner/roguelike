@@ -26,6 +26,7 @@ pub mod ai;
 pub mod aim;
 pub mod ammo;
 pub mod area;
+pub mod balance;
 pub mod camera;
 pub mod camp;
 pub mod combat;

@@ -146,7 +146,7 @@ impl GameState {
 
     /// Arrows in the player's quiver at the start: a bow is no use without,
     /// and no RNG is drawn, so seeded worlds are unchanged by it.
-    fn stock_quivers(&mut self) -> Result<(), BlueprintError> {
+    pub(crate) fn stock_quivers(&mut self) -> Result<(), BlueprintError> {
         let quivers: Vec<Entity> = crate::equipment::equipped(&self.world, self.player)
             .into_iter()
             .map(|(item, _)| item)
@@ -255,7 +255,7 @@ impl GameState {
         Ok(())
     }
 
-    fn with_map(
+    pub(crate) fn with_map(
         seed: u64,
         rngs: Rngs,
         map: Map,

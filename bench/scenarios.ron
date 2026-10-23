@@ -1,0 +1,7 @@
+// Where the dolls stand for each scenario: a doll blueprint and its offset
+// from the build. Every build runs every scenario.
+[
+    (name: "One doll, adjacent", dolls: [("Doll", (1, 0))]),
+    (name: "One armored doll, adjacent", dolls: [("ArmoredDoll", (1, 0))]),
+    (name: "One nimble doll, adjacent", dolls: [("NimbleDoll", (1, 0))]),
+]

@@ -6,7 +6,7 @@ convention.
 
 ## Structure
 
-This is a Cargo workspace with three crates:
+This is a Cargo workspace with four crates:
 
 - `game/` — a library with all simulation and game logic. It has **no**
   dependency on egui, a terminal crate, or any other graphics crate —
@@ -150,6 +150,10 @@ This is a Cargo workspace with three crates:
   (`game::fx`). Its build plan was `docs/plans/gui.md`. (A terminal
   frontend, `term`, came first; it was retired once the window had
   everything, and lives on in git history.)
+- `bench/` — the balance bench (`docs/plans/balance.md`), a tool, not part
+  of the game: builds (`bench/builds/*.ron`) fight training dolls
+  (`bench/scenarios.ron`) through the real game (`game::balance`) over many
+  seeds. `scripts/balance.sh` writes the report.
 
 ## Controls
 

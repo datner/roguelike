@@ -1,0 +1,8 @@
+// A new character as the game starts one: nothing learned yet.
+(
+    name: "starter",
+    note: "a new character: short bow, quiver and torch, no skills",
+    skills: {},
+    equipment: ["ShortBow", "Quiver", "Torch"],
+    policy: [Bump],
+)

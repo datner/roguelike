@@ -233,12 +233,20 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
             }
         }
     };
+    submit(state, command);
+}
+
+/// The player's `command`, as a turn: refused (`reject_input`, no time
+/// spent), or applied and the world run until the player is ready again.
+/// Whether it was taken.
+pub(crate) fn submit(state: &mut GameState, command: Command) -> bool {
     if state.game_over || reject_input(state, &command) {
-        return;
+        return false;
     }
     state.run(command);
     state.run(Command::UpdateFov);
     advance(state);
+    true
 }
 
 /// Runs timers and non-player actors until the player is ready, the game is
