@@ -1,5 +1,7 @@
-//! Balance bench entry point: `bench [--seeds N] [--out FILE]`. Prints the report, or writes it to
-//! `FILE`. Run through `scripts/balance.sh`.
+//! Balance bench entry point: `bench [--seeds N] [--out FILE] [--json FILE] [--page FILE
+//! [--previous FILE]]`. Prints the report, or writes it to `FILE`; `--json` also writes every
+//! number as JSON, `--page` the readable page (`bench/page.html` filled in, with what moved since
+//! `--previous`, a report's JSON). Run through `scripts/balance.sh`.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -16,9 +18,10 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), String> {
     let mut seeds = bench::SEEDS;
-    let mut out = None;
+    let (mut out, mut json, mut page, mut previous) = (None, None, None, None);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
+        let mut file = || args.next().ok_or(format!("{arg} takes a file"));
         match arg.as_str() {
             "--seeds" => {
                 seeds = args
@@ -26,7 +29,10 @@ fn run() -> Result<(), String> {
                     .and_then(|n| n.parse().ok())
                     .ok_or("--seeds takes a number")?;
             }
-            "--out" => out = Some(args.next().ok_or("--out takes a file")?),
+            "--out" => out = Some(file()?),
+            "--json" => json = Some(file()?),
+            "--page" => page = Some(file()?),
+            "--previous" => previous = Some(file()?),
             other => return Err(format!("unknown argument {other:?}")),
         }
     }
@@ -35,9 +41,27 @@ fn run() -> Result<(), String> {
         game::Blueprints::load(&root.join("../data")).map_err(|err| err.to_string())?;
     let bench = bench::load(root)?;
     let rows = bench::measure(&blueprints, &bench, seeds)?;
+    let write =
+        |path: &str, text: &str| std::fs::write(path, text).map_err(|err| format!("{path}: {err}"));
+    let read = |path: &Path| {
+        std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", path.display()))
+    };
+    let numbers = bench::json(&blueprints, &bench, &rows, seeds);
+    if let Some(path) = &json {
+        write(path, &numbers)?;
+    }
+    if let Some(path) = &page {
+        let template = read(&root.join("page.html"))?;
+        let previous = previous
+            .as_deref()
+            .map(|p| read(Path::new(p)))
+            .transpose()?;
+        write(path, &bench::page(&template, &numbers, previous.as_deref()))?;
+    }
     let report = bench::report(&blueprints, &bench, &rows, seeds);
     match out {
-        Some(path) => std::fs::write(&path, report).map_err(|err| format!("{path}: {err}")),
+        Some(path) => write(&path, &report),
+        None if page.is_some() || json.is_some() => Ok(()),
         None => {
             print!("{report}");
             Ok(())

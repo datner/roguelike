@@ -24,7 +24,8 @@ prefix commands with `nix develop --command`.
 - Balance bench: `scripts/balance.sh` rewrites `bench/report.md` (builds in `bench/builds/` against
   training dolls, through the real game); `--check` diffs against it, `--print --seeds 5` is a quick
   look. Run it after changing numbers in content, combat, skills or techniques, and commit the
-  report with the change: a moved number is a balance change to mention, not an error.
+  report (`.md` and `.json`) with the change: a moved number is a balance change to mention, not an
+  error. `--page FILE` writes the readable page; the `/balance-report` skill publishes it.
 - Play (humans only): `cargo run -p gui -- --seed 42`
 
 `gui` opens a window. **Never run it**: it hangs your shell and you can't see

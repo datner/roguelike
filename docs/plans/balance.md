@@ -108,7 +108,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Tests: `bench` formats a fixed `Run` into the expected table (the report's shape is pinned without
   running the slow bench).
 
-### 6. A report to read (nice to have)
+### 6. A report to read (nice to have) — done
 - `bench` also writes `bench/report.json`: every number the table has, plus the per-seed spread, so
   anything can draw it. The markdown table stays the checked-in, diffable record.
 - A page template, `bench/page.html`: self-contained, reading the JSON embedded in it at generation.
@@ -120,6 +120,10 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   likely did, given the recent commits). The numbers come from the bench; only the reading is written
   by the agent.
 - Tests: the JSON round-trips; the page builds from a fixed report without errors.
+- As built: the JSON is written by hand (a small fixed shape; no new crate), so the test checks its
+  escaping, rounding and shape instead of parsing it back. `scripts/balance.sh` writes
+  `bench/report.json` beside the markdown; `--page FILE` fills the template, comparing with the
+  committed JSON. Charts are inline SVG drawn by the page's own script, no library.
 
 - Enemies that fight back, survivability, and damage taken: dolls only measure offence. A "how long
   does this build last against a goblin pack" bench is a later plan.

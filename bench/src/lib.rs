@@ -241,6 +241,123 @@ fn spread(summary: &Summary) -> String {
     )
 }
 
+/// Every number the report has, as JSON, for anything that draws it (the
+/// page, `page.html`). Written by hand: the shape is small and fixed.
+pub fn json(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) -> String {
+    let builds: Vec<String> = bench
+        .builds
+        .iter()
+        .map(|build| {
+            let cost = balance::cost(blueprints, build);
+            let needs: Vec<String> = cost
+                .needs
+                .iter()
+                .map(|need| {
+                    let from: Vec<String> = need.from.iter().map(|f| text(f)).collect();
+                    format!(
+                        "{{\"thing\":{},\"from\":[{}]}}",
+                        text(&need.thing),
+                        from.join(",")
+                    )
+                })
+                .collect();
+            format!(
+                "{{\"name\":{},\"note\":{},\"xp\":{},\"needs\":[{}]}}",
+                text(&build.name),
+                text(&build.note),
+                cost.xp,
+                needs.join(",")
+            )
+        })
+        .collect();
+    let scenarios: Vec<String> = bench.scenarios.iter().map(|s| text(&s.name)).collect();
+    let rows: Vec<String> = rows
+        .iter()
+        .map(|row| {
+            format!(
+                "{{\"build\":{},\"scenario\":{},\"burst\":{},\"sustained\":{}}}",
+                text(&row.build),
+                text(&row.scenario),
+                summary(&row.burst),
+                summary(&row.sustained)
+            )
+        })
+        .collect();
+    format!(
+        "{{\"seeds\":{seeds},\"burst\":{BURST},\"sustained\":{SUSTAINED},\"outlier\":{OUTLIER},\
+         \"builds\":[{}],\"scenarios\":[{}],\"rows\":[{}]}}\n",
+        builds.join(","),
+        scenarios.join(","),
+        rows.join(",")
+    )
+}
+
+fn summary(s: &Summary) -> String {
+    let usage = |u: &balance::Use| {
+        format!(
+            "{{\"spent\":{},\"dry\":{},\"dry_at\":{}}}",
+            number(u.spent),
+            number(u.dry),
+            u.dry_at.map_or_else(|| "null".to_string(), number)
+        )
+    };
+    format!(
+        "{{\"mean\":{},\"low\":{},\"high\":{},\"landed\":{},\"grazed\":{},\
+         \"mana\":{},\"stamina\":{},\"arrows\":{},\"arrows_broken\":{},\"health\":{}}}",
+        number(s.mean),
+        number(s.low),
+        number(s.high),
+        number(s.landed),
+        number(s.grazed),
+        usage(&s.mana),
+        usage(&s.stamina),
+        usage(&s.arrows),
+        number(s.arrows_broken),
+        number(s.health)
+    )
+}
+
+/// A JSON number, rounded so the file diffs quietly.
+fn number(value: f64) -> String {
+    if value.is_finite() {
+        format!("{:.4}", value)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    } else {
+        "null".to_string()
+    }
+}
+
+/// A JSON string.
+fn text(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            c if u32::from(c) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", u32::from(c));
+            }
+            // Never close the page's <script> early.
+            '<' => out.push_str("\\u003c"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// The page template with `report` (and the committed one, `previous`, to
+/// show what moved) filled in.
+pub fn page(template: &str, report: &str, previous: Option<&str>) -> String {
+    template
+        .replace("/*REPORT*/null", report.trim())
+        .replace("/*PREVIOUS*/null", previous.map_or("null", str::trim))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,5 +422,36 @@ mod tests {
                 .iter()
                 .any(|line| line.starts_with("  - Sabre: found lying about, 1 in "))
         );
+    }
+
+    #[test]
+    fn json_text_and_numbers_are_escaped_and_rounded() {
+        assert_eq!(text("a \"b\" \\ <c>\n"), r#""a \"b\" \\ \u003cc>\n""#);
+        assert_eq!(number(2.5), "2.5");
+        assert_eq!(number(1.0 / 3.0), "0.3333");
+        assert_eq!(number(4.0), "4");
+        assert_eq!(number(f64::NAN), "null");
+    }
+
+    #[test]
+    fn the_page_template_is_filled_in_full() {
+        let template = std::fs::read_to_string(dir().join("page.html")).unwrap();
+        assert!(template.contains("/*REPORT*/null") && template.contains("/*PREVIOUS*/null"));
+        assert!(
+            template.contains("<!--READING-->"),
+            "the skill writes its reading there"
+        );
+        let bench = load(&dir()).unwrap();
+        let rows = measure(&data(), &bench, 1).unwrap();
+        let numbers = json(&data(), &bench, &rows, 1);
+        let page = page(&template, &numbers, Some(&numbers));
+        assert!(!page.contains("/*REPORT*/") && !page.contains("/*PREVIOUS*/"));
+        assert_eq!(page.matches(numbers.trim()).count(), 2);
+        let opens = numbers.matches(['{', '[']).count();
+        let closes = numbers.matches(['}', ']']).count();
+        assert_eq!(opens, closes);
+        for key in ["\"seeds\":1", "\"builds\":[", "\"rows\":[", "\"dry_at\":"] {
+            assert!(numbers.contains(key), "{key}");
+        }
     }
 }

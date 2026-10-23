@@ -153,7 +153,9 @@ This is a Cargo workspace with four crates:
 - `bench/` — the balance bench (`docs/plans/balance.md`), a tool, not part
   of the game: builds (`bench/builds/*.ron`) fight training dolls
   (`bench/scenarios.ron`) through the real game (`game::balance`) over many
-  seeds. `scripts/balance.sh` writes the report.
+  seeds. `scripts/balance.sh` writes the report (`bench/report.md`, and
+  its numbers as `bench/report.json`); `--page FILE` writes a readable page
+  with charts and what moved since the committed report.
 
 ## Controls
 
