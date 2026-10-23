@@ -29,6 +29,11 @@ five phases: the Stillness, which looks neutral, and two opposed pairs.
   rather than burn. The Stillness has no element, rule or opposite **on purpose**. It is not modelled
   as "no phase": it is a `Phase` like the others whose lists happen to be empty, so revealing it later
   is new data on an existing entry, not a new kind of thing.
+- **An element is one kind of lean, not what a phase is.** Later phases (Lush, Forgotten, Shining,
+  Regretful, Hungry) lean other systems and may have no element. So `element` is optional and holds no
+  special place: the lean and rules sit beside it, and nothing may treat "the phase's element" as the
+  phase's identity (no `match` on element to decide behaviour, no UI that assumes every non-Stillness
+  phase has one).
 - **The element lean is symmetric**: in a phase with element E, all damage of type E is multiplied by
   the phase's `lean` (data; first guess +50%), whoever deals it. It is applied in the one function
   where typed damage is finished, which the shot, the cast, the technique and the previews share, so

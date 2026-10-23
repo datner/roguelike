@@ -44,6 +44,10 @@ back. A system that only adds content beside the rest is not finished.
   every creature while it lasts, you included, and one rule of the world it bends. It also has natives
   made for it and finds only it has. A phase is a choice that cuts both ways, never simply better: a
   pyromancer in the Embers burns hotter and meets things that burn back.
+- **Elements are the first layer, not the definition.** Only the first phases map onto elements (fire,
+  cold, …), which makes them look simple. Later phases are stranger and lean the world in other ways:
+  Lush, Forgotten, Shining, Regretful, Hungry. A phase is a set of leans on any system (growth, memory,
+  light, regret, appetite); an element is just one kind of lean.
 - **Phases have opposites**, arranged on a wheel. Styles, discoveries and skills read the phase: a style
   may thrive in one phase, a discovery may need stakes in one, and time spent in a phase attunes you to
   it.
