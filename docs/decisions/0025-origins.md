@@ -46,6 +46,10 @@ began.
   character used to know went to the hedge mage (three) or wait for magic
   styles to invent them (ADR 0016).
 
+- Origins are not balanced against each other: there is no difficulty
+  setting, and choosing an origin is the difficulty choice (vision). The
+  bench measures how far apart they start; a gap is not a defect.
+
 ## Consequences
 
 - A new origin is a blueprint and an entry; no code.

@@ -446,7 +446,7 @@ mod tests {
         drop(health);
         let log: Vec<&str> = state.log.recent(10).map(String::as_str).collect();
         assert!(
-            log.contains(&"You headbutt at the goblin.")
+            log.contains(&"You headbutt the goblin.")
                 && log.contains(&"The goblin starts reeling."),
             "{log:?}"
         );

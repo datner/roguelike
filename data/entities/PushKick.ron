@@ -8,6 +8,7 @@
         Technique(
             domain: Martial,
             verb: "kick",
+            at: true,
             reach: 1,
             recharge: 300,
             stamina: 0,

@@ -11,7 +11,8 @@ decided while building. When a plan and this document disagree, ask the owner wh
   creatures, floors and finds on top of the dungeon's shared content: entering the castle in the fire
   phase, you never see the floors and enemies of the other phases, and you meet ones only it has.
 - **No classes.** A character starts from an **origin** (what they are: abilities, a few starting skills,
-  maybe a style already in progress) and becomes what they do.
+  maybe a style already in progress) and becomes what they do. Origins need not be equally strong:
+  there is no difficulty setting, and choosing an origin is the difficulty choice.
 - **Permadeath, with legacy.** A dead character's camp is found in ruins by the next one, after an
   unknown amount of time. What they left helps (see below), but the new character does not start stronger.
 

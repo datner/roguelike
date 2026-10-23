@@ -6,6 +6,7 @@
         Technique(
             domain: Martial,
             verb: "chop",
+            at: true,
             reach: 1,
             recharge: 0,
             stamina: 0,

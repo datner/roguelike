@@ -6,6 +6,7 @@
         Technique(
             domain: Martial,
             verb: "stab",
+            at: true,
             reach: 1,
             recharge: 0,
             stamina: 0,

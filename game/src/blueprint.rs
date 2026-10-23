@@ -1396,6 +1396,7 @@ mod tests {
             ComponentDef::Technique(TechniqueDef {
                 domain: crate::skill::Domain::Martial,
                 verb: "strike".to_string(),
+                at: false,
                 reach: 1,
                 recharge: 0,
                 stamina: 0,

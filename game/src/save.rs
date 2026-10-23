@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 43;
+pub const SAVE_VERSION: u32 = 44;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -1285,6 +1285,7 @@ mod tests {
         let technique = Technique {
             domain: crate::skill::Domain::Martial,
             verb: "lunge".to_string(),
+            at: true,
             reach: 2,
             recharge: 500,
             stamina: 1,

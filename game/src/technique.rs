@@ -36,6 +36,9 @@ use crate::view::ItemRef;
 pub struct TechniqueDef {
     pub domain: Domain,
     pub verb: String,
+    /// "lunge at the goblin" rather than "trip the goblin".
+    #[serde(default)]
+    pub at: bool,
     #[serde(default = "one")]
     pub reach: i32,
     /// In ticks.
@@ -300,6 +303,7 @@ impl TechniqueDef {
         Ok(Technique {
             domain: self.domain,
             verb: self.verb.clone(),
+            at: self.at,
             reach: self.reach,
             recharge: self.recharge,
             stamina: self.stamina,
@@ -337,6 +341,7 @@ impl TechniqueDef {
         Ok(Self {
             domain: technique.domain,
             verb: technique.verb.clone(),
+            at: technique.at,
             reach: technique.reach,
             recharge: technique.recharge,
             stamina: technique.stamina,
@@ -398,6 +403,7 @@ pub(crate) struct Ready {
     pub stamina: u32,
     pub recharge: u64,
     pub verb: String,
+    pub at: bool,
     /// The styles (by skill) whose bonuses it has now.
     pub styled: Vec<SkillId>,
     /// What performing it now records, for a step of a form.
@@ -506,6 +512,7 @@ pub(crate) fn inspect(
             .unwrap_or(u32::MAX),
         recharge: scaled(data.recharge, sum(|bonus| bonus.recharge_pct)),
         verb: data.verb.clone(),
+        at: data.at,
         styled: bonuses.iter().map(|bonus| bonus.style).collect(),
         performed: data.combo.as_ref().map(|combo| Performed {
             group: combo.group.clone(),
@@ -877,7 +884,12 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
     }
     let aimed = match footprint.targets.as_slice() {
         [target] if ready.area.is_none() => {
-            format!("at {}", Subject::of(&state.world, *target).noun())
+            let target = Subject::of(&state.world, *target).noun().to_string();
+            if ready.at {
+                format!("at {target}")
+            } else {
+                target
+            }
         }
         _ => String::new(),
     };
@@ -1084,6 +1096,7 @@ mod tests {
         Technique {
             domain: Domain::Martial,
             verb: "lunge".to_string(),
+            at: true,
             reach: 2,
             recharge: 500,
             stamina,
