@@ -9,6 +9,7 @@ use game::Blueprints;
 use game::balance::{self, Build, Dive, DiveRun, End, FloorRun};
 use serde::Deserialize;
 
+use crate::targets::{self, Targets};
 use crate::{number, text};
 
 /// `bench/dives.ron`.
@@ -176,8 +177,9 @@ pub fn endings(runs: &[DiveRun]) -> Endings {
     endings
 }
 
-/// The report's Floors section, one table per dive.
-pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64) {
+/// The report's Floors section: what is off target, then one table per
+/// dive, how its runs ended and how fast they level.
+pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64, targets: &Targets) {
     if rows.is_empty() {
         return;
     }
@@ -187,8 +189,21 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64) {
         "The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through real floors, \
          {seeds} seeds per dive: it fights what it sees with its policy and explores the rest. \
          Keypresses count a run of explore steps as one. Per floor, over the runs that reached \
-         it: mean (10th–90th percentile)."
+         it: mean (10th–90th percentile). Targets are `bench/targets.ron`; minutes assume {} \
+         keypresses an hour.",
+        targets.actions_per_hour
     );
+    let misses = targets::misses(rows, targets);
+    if !misses.is_empty() {
+        let _ = writeln!(out, "\n### Off target\n");
+        for miss in &misses {
+            let _ = writeln!(
+                out,
+                "- {} in {}: {} {} (target {}–{})",
+                miss.build, miss.dive, miss.what, miss.value, miss.range.0, miss.range.1
+            );
+        }
+    }
     let mut dives: Vec<&Dive> = Vec::new();
     for row in rows {
         if !dives.contains(&&row.dive) {
@@ -249,6 +264,49 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64) {
                 row.build, ended.depth, dive.floors, ended.died, ended.stuck
             );
         }
+        progression(out, &mine, targets);
+    }
+}
+
+/// Per build: the most-trained skill, the floors it takes to reach each
+/// target level, and minutes per floor.
+fn progression(out: &mut String, rows: &[&DiveRow], targets: &Targets) {
+    if targets.levels.is_empty() {
+        return;
+    }
+    let levels: Vec<String> = targets
+        .levels
+        .iter()
+        .map(|target| format!("floors to {}", target.level))
+        .collect();
+    let _ = writeln!(
+        out,
+        "\n| build | most trained | {} | minutes per floor |",
+        levels.join(" | ")
+    );
+    let _ = writeln!(out, "|---|---|{}---|", "---|".repeat(levels.len()));
+    for row in rows {
+        let Some(skill) = targets::top_skill(&row.runs) else {
+            continue;
+        };
+        let reaches: Vec<String> = targets
+            .levels
+            .iter()
+            .map(|target| targets::reach(&row.runs, &skill, target.level).label())
+            .collect();
+        let summaries = floors(&row.runs);
+        let keypresses = summaries
+            .iter()
+            .map(|floor| floor.keypresses.mean)
+            .sum::<f64>()
+            / summaries.len().max(1) as f64;
+        let _ = writeln!(
+            out,
+            "| {} | {skill} | {} | {:.1} |",
+            row.build,
+            reaches.join(" | "),
+            keypresses * 60.0 / targets.actions_per_hour
+        );
     }
 }
 
@@ -259,8 +317,10 @@ fn spread(spread: &Spread, decimals: usize) -> String {
     )
 }
 
-/// The Floors section as JSON: every dive row with its floors and endings.
-pub fn json(rows: &[DiveRow]) -> String {
+/// The Floors section as JSON: every dive row with its floors, endings and
+/// progression, then the targets and what misses them.
+pub fn json(rows: &[DiveRow], targets: &Targets) -> String {
+    let misses = targets::misses(rows, targets);
     let spread = |s: &Spread| {
         format!(
             "{{\"mean\":{},\"low\":{},\"high\":{}}}",
@@ -298,9 +358,26 @@ pub fn json(rows: &[DiveRow]) -> String {
                 .iter()
                 .map(|(cause, count)| format!("[{},{count}]", text(cause)))
                 .collect();
+            let skill = targets::top_skill(&row.runs);
+            let reaches: Vec<String> = skill.as_deref().map_or_else(Vec::new, |skill| {
+                targets
+                    .levels
+                    .iter()
+                    .map(|target| {
+                        let reach = targets::reach(&row.runs, skill, target.level);
+                        format!(
+                            "{{\"level\":{},\"floors\":{},\"extrapolated\":{}}}",
+                            target.level,
+                            reach.floors().map_or_else(|| "null".to_string(), number),
+                            matches!(reach, targets::Reach::Extrapolated(_))
+                        )
+                    })
+                    .collect()
+            });
             format!(
                 "{{\"build\":{},\"dive\":{},\"dungeon\":{},\"phase\":{},\"floors_asked\":{},\
-                 \"runs\":{},\"floors\":[{}],\"depth\":{},\"died\":{},\"stuck\":{},\"causes\":[{}]}}",
+                 \"runs\":{},\"floors\":[{}],\"depth\":{},\"died\":{},\"stuck\":{},\"causes\":[{}],\
+                 \"top_skill\":{},\"reach\":[{}]}}",
                 text(&row.build),
                 text(&row.dive.name),
                 text(&row.dive.dungeon),
@@ -314,11 +391,51 @@ pub fn json(rows: &[DiveRow]) -> String {
                 ended.depth,
                 ended.died,
                 ended.stuck,
-                causes.join(",")
+                causes.join(","),
+                skill.as_deref().map_or_else(|| "null".to_string(), text),
+                reaches.join(",")
             )
         })
         .collect();
-    format!("[{}]", rows.join(","))
+    let levels: Vec<String> = targets
+        .levels
+        .iter()
+        .map(|target| {
+            format!(
+                "{{\"level\":{},\"floors\":[{},{}],\"stands_for\":{}}}",
+                target.level,
+                number(target.floors.0),
+                number(target.floors.1),
+                text(&target.stands_for)
+            )
+        })
+        .collect();
+    let misses: Vec<String> = misses
+        .iter()
+        .map(|miss| {
+            format!(
+                "{{\"build\":{},\"dive\":{},\"what\":{},\"value\":{},\"range\":[{},{}]}}",
+                text(&miss.build),
+                text(&miss.dive),
+                text(&miss.what),
+                text(&miss.value),
+                number(miss.range.0),
+                number(miss.range.1)
+            )
+        })
+        .collect();
+    format!(
+        "{{\"rows\":[{}],\"targets\":{{\"actions_per_hour\":{},\"fight\":[{},{}],\"floor\":[{},{}],\
+         \"levels\":[{}]}},\"off_target\":[{}]}}",
+        rows.join(","),
+        number(targets.actions_per_hour),
+        number(targets.fight.0),
+        number(targets.fight.1),
+        number(targets.floor.0),
+        number(targets.floor.1),
+        levels.join(","),
+        misses.join(",")
+    )
 }
 
 #[cfg(test)]
@@ -351,10 +468,12 @@ mod tests {
             },
             runs: vec![
                 DiveRun {
+                    start: BTreeMap::new(),
                     floors: vec![floor(30, vec![4, 8]), floor(40, vec![])],
                     ended: End::Depth,
                 },
                 DiveRun {
+                    start: BTreeMap::new(),
                     floors: vec![floor(50, vec![3]), died],
                     ended: End::Died,
                 },
@@ -366,7 +485,7 @@ mod tests {
     #[test]
     fn a_floors_table_shows_each_floor_and_how_dives_ended() {
         let mut out = String::new();
-        report(&mut out, &[row()], 2);
+        report(&mut out, &[row()], 2, &Targets::default());
         let lines: Vec<&str> = out.lines().collect();
         for expected in [
             "### Caves",
@@ -380,7 +499,7 @@ mod tests {
 
     #[test]
     fn floors_json_has_every_floor() {
-        let json = json(&[row()]);
+        let json = json(&[row()], &Targets::default());
         assert_eq!(json.matches("\"reached\":2").count(), 2);
         assert!(json.contains("\"causes\":[[\"goblin\",1]]"));
         assert_eq!(

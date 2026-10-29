@@ -3,11 +3,13 @@
 //! tool for changing content, not part of the game.
 
 mod floors;
+mod targets;
 
 use std::fmt::Write as _;
 use std::path::Path;
 
 pub use floors::{DiveRow, DiveSet, Dives};
+pub use targets::{LevelTarget, Reach, Targets};
 
 use game::Blueprints;
 use game::balance::{self, Build, Cost, Run, Scenario, Summary};
@@ -28,9 +30,11 @@ pub struct Bench {
     pub builds: Vec<Build>,
     pub scenarios: Vec<Scenario>,
     pub dives: Dives,
+    pub targets: Targets,
 }
 
-/// Reads `dir/builds/*.ron`, `dir/scenarios.ron` and `dir/dives.ron`.
+/// Reads `dir/builds/*.ron`, `dir/scenarios.ron`, `dir/dives.ron` and
+/// `dir/targets.ron`.
 pub fn load(dir: &Path) -> Result<Bench, String> {
     let read = |path: &Path| {
         std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", path.display()))
@@ -58,10 +62,15 @@ pub fn load(dir: &Path) -> Result<Bench, String> {
     let dives = ron
         .from_str(&read(&path)?)
         .map_err(|err| format!("{}: {err}", path.display()))?;
+    let path = dir.join("targets.ron");
+    let targets = ron
+        .from_str(&read(&path)?)
+        .map_err(|err| format!("{}: {err}", path.display()))?;
     Ok(Bench {
         builds,
         scenarios,
         dives,
+        targets,
     })
 }
 
@@ -160,7 +169,7 @@ pub fn report(
         spending(&mut out, rows, first);
         costing(&mut out, bench, &costs, rows, first);
     }
-    floors::report(&mut out, dives, dive_seeds);
+    floors::report(&mut out, dives, dive_seeds, &bench.targets);
     out
 }
 
@@ -376,7 +385,7 @@ pub fn json(
         builds.join(","),
         scenarios.join(","),
         rows.join(","),
-        floors::json(dives)
+        floors::json(dives, &bench.targets)
     )
 }
 
@@ -480,6 +489,7 @@ mod tests {
                 .collect(),
             scenarios: bench.scenarios.into_iter().take(1).collect(),
             dives: Dives::default(),
+            targets: Targets::default(),
         };
         let summary = |mean| Summary {
             mean,

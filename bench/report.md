@@ -213,7 +213,59 @@ XP to build: the XP its skills hold. Damage per turn is the sustained mean again
 
 ## Floors
 
-The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through real floors, 20 seeds per dive: it fights what it sees with its policy and explores the rest. Keypresses count a run of explore steps as one. Per floor, over the runs that reached it: mean (10th–90th percentile).
+The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through real floors, 20 seeds per dive: it fights what it sees with its policy and explores the rest. Keypresses count a run of explore steps as one. Per floor, over the runs that reached it: mean (10th–90th percentile). Targets are `bench/targets.ron`; minutes assume 1000 keypresses an hour.
+
+### Off target
+
+- pit fighter in Caves: fight length 9.6 (target 3–8)
+- pit fighter in Caves: keypresses per floor 37 (target 150–300)
+- pit fighter in Caves: floors to Blunt 15 ~91 (target 36–90)
+- duelist in Caves: keypresses per floor 18 (target 150–300)
+- duelist in Caves: floors to Empty offhand 10 ~53 (target 12–48)
+- duelist in Caves: floors to Empty offhand 15 ~121 (target 36–90)
+- hedge mage in Caves: fight length 2.5 (target 3–8)
+- hedge mage in Caves: keypresses per floor 32 (target 150–300)
+- hedge mage in Caves: floors to Magic 5 ~122 (target 3–12)
+- hedge mage in Caves: floors to Magic 10 ~636 (target 12–48)
+- hedge mage in Caves: floors to Magic 15 ~1492 (target 36–90)
+- wanderer in Caves: keypresses per floor 24 (target 150–300)
+- wanderer in Caves: floors to Bow 15 ~94 (target 36–90)
+- pit fighter in Caves in the Embers: fight length 8.4 (target 3–8)
+- pit fighter in Caves in the Embers: keypresses per floor 26 (target 150–300)
+- pit fighter in Caves in the Embers: floors to Blunt 5 ~17 (target 3–12)
+- pit fighter in Caves in the Embers: floors to Blunt 10 ~68 (target 12–48)
+- pit fighter in Caves in the Embers: floors to Blunt 15 ~153 (target 36–90)
+- duelist in Caves in the Embers: keypresses per floor 21 (target 150–300)
+- duelist in Caves in the Embers: floors to Empty offhand 5 ~17 (target 3–12)
+- duelist in Caves in the Embers: floors to Empty offhand 10 ~77 (target 12–48)
+- duelist in Caves in the Embers: floors to Empty offhand 15 ~177 (target 36–90)
+- hedge mage in Caves in the Embers: fight length 2.6 (target 3–8)
+- hedge mage in Caves in the Embers: keypresses per floor 37 (target 150–300)
+- hedge mage in Caves in the Embers: floors to Magic 5 ~52 (target 3–12)
+- hedge mage in Caves in the Embers: floors to Magic 10 ~286 (target 12–48)
+- hedge mage in Caves in the Embers: floors to Magic 15 ~677 (target 36–90)
+- wanderer in Caves in the Embers: keypresses per floor 35 (target 150–300)
+- pit fighter in Castle: keypresses per floor 25 (target 150–300)
+- pit fighter in Castle: floors to Blunt 15 ~103 (target 36–90)
+- duelist in Castle: keypresses per floor 23 (target 150–300)
+- duelist in Castle: floors to Empty offhand 5 ~14 (target 3–12)
+- duelist in Castle: floors to Empty offhand 10 ~65 (target 12–48)
+- duelist in Castle: floors to Empty offhand 15 ~149 (target 36–90)
+- hedge mage in Castle: fight length 2.6 (target 3–8)
+- hedge mage in Castle: keypresses per floor 30 (target 150–300)
+- hedge mage in Castle: floors to Magic 5 ~35 (target 3–12)
+- hedge mage in Castle: floors to Magic 10 ~172 (target 12–48)
+- hedge mage in Castle: floors to Magic 15 ~400 (target 36–90)
+- wanderer in Castle: keypresses per floor 31 (target 150–300)
+- wanderer in Castle: floors to Bow 15 ~102 (target 36–90)
+- sabre (10) in Caves: keypresses per floor 32 (target 150–300)
+- sabre (10) in Caves: floors to Melee 5 start (target 3–12)
+- sabre (10) in Caves: floors to Melee 10 start (target 12–48)
+- sabre (10) in Caves: floors to Melee 15 ~295 (target 36–90)
+- tri-sword (10) in Caves: keypresses per floor 34 (target 150–300)
+- tri-sword (10) in Caves: floors to Melee 5 start (target 3–12)
+- tri-sword (10) in Caves: floors to Melee 10 start (target 12–48)
+- tri-sword (10) in Caves: floors to Melee 15 ~297 (target 36–90)
 
 ### Caves
 
@@ -249,6 +301,15 @@ Caves, the starting phase, 6 floors.
 - **sabre (10)**: 0 reached floor 6, 20 died (goblin 14, unseen 6), 0 stuck.
 - **tri-sword (10)**: 0 reached floor 6, 20 died (goblin 18, unseen 2), 0 stuck.
 
+| build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
+|---|---|---|---|---|---|
+| pit fighter | Blunt | ~10 | ~40 | ~91 | 2.2 |
+| duelist | Empty offhand | ~11 | ~53 | ~121 | 1.1 |
+| hedge mage | Magic | ~122 | ~636 | ~1492 | 1.9 |
+| wanderer | Bow | ~10 | ~42 | ~94 | 1.4 |
+| sabre (10) | Melee | start | start | ~295 | 1.9 |
+| tri-sword (10) | Melee | start | start | ~297 | 2.1 |
+
 ### Caves in the Embers
 
 Caves, Embers, 6 floors.
@@ -269,6 +330,13 @@ Caves, Embers, 6 floors.
 - **duelist**: 0 reached floor 6, 20 died (goblin 10, goblin shaman 8, unseen 2), 0 stuck.
 - **hedge mage**: 9 reached floor 6, 11 died (goblin shaman 11), 0 stuck.
 - **wanderer**: 0 reached floor 6, 20 died (goblin 18, goblin shaman 2), 0 stuck.
+
+| build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
+|---|---|---|---|---|---|
+| pit fighter | Blunt | ~17 | ~68 | ~153 | 1.6 |
+| duelist | Empty offhand | ~17 | ~77 | ~177 | 1.3 |
+| hedge mage | Magic | ~52 | ~286 | ~677 | 2.2 |
+| wanderer | Bow | ~10 | ~38 | ~86 | 2.1 |
 
 ### Castle
 
@@ -291,3 +359,10 @@ Castle, the starting phase, 6 floors.
 - **duelist**: 0 reached floor 6, 20 died (goblin 9, goblin shaman 8, unseen 3), 0 stuck.
 - **hedge mage**: 6 reached floor 6, 14 died (goblin shaman 10, unseen 3, goblin 1), 0 stuck.
 - **wanderer**: 0 reached floor 6, 20 died (goblin 11, goblin shaman 8, unseen 1), 0 stuck.
+
+| build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
+|---|---|---|---|---|---|
+| pit fighter | Blunt | ~11 | ~46 | ~103 | 1.5 |
+| duelist | Empty offhand | ~14 | ~65 | ~149 | 1.4 |
+| hedge mage | Magic | ~35 | ~172 | ~400 | 1.8 |
+| wanderer | Bow | ~11 | ~45 | ~102 | 1.8 |

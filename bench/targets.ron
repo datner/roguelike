@@ -1,0 +1,18 @@
+// Pacing targets (docs/vision.md, Pacing), checked by the floor bot's report.
+// A moved target is a design change: commit it with the reason. Keypresses
+// count a run of explore steps as one.
+(
+    // Converts keypresses to time; to be calibrated from real play.
+    actions_per_hour: 1000.0,
+    // A normal fight; a dangerous one may run 10-20, but the mean should sit here.
+    fight: (3.0, 8.0),
+    // A floor, 10-20 minutes.
+    floor: (150.0, 300.0),
+    // Floors for the dive's most-trained skill to reach a level. A dive is
+    // three to six floors (way-landings every three).
+    levels: [
+        (level: 5, floors: (3.0, 12.0), stands_for: "the first style principle, within 1-2 dives"),
+        (level: 10, floors: (12.0, 48.0), stands_for: "an advanced style, by the middle of a life (4-8 dives)"),
+        (level: 15, floors: (36.0, 90.0), stands_for: "mastery, late in a full life (8-15 dives)"),
+    ],
+)

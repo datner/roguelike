@@ -48,6 +48,8 @@ fn default_floors() -> u32 {
 /// One dive, floor by floor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiveRun {
+    /// XP by skill name as the dive began, for the levels it reaches.
+    pub start: BTreeMap<String, u32>,
     pub floors: Vec<FloorRun>,
     pub ended: End,
 }
@@ -152,6 +154,7 @@ fn enter(state: &mut GameState, dungeon: &str) -> Result<(), String> {
 /// The bot's floors, from the one the player stands on.
 pub(super) fn play(state: &mut GameState, build: &Build, floors: u32) -> DiveRun {
     let mut run = DiveRun {
+        start: xp(state),
         floors: Vec::new(),
         ended: End::Depth,
     };

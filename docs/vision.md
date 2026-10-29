@@ -160,7 +160,8 @@ span two lives. Targets make that checkable instead of hoped for.
 - **Counted in actions, not hours.** The bench can count player actions, not time. One assumption,
   kept in data, converts them: about **1000 actions an hour**, where an auto-explore or practice run
   is one action.
-- **Targets** (first draft; a moved target is a design change, like a moved number in the bench):
+- **Targets** (first draft; a moved target is a design change, like a moved number in the bench; the
+  ones the bench checks live in `bench/targets.ron`):
 
   | Thing | Target | ≈ time |
   | --- | --- | --- |

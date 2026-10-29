@@ -90,7 +90,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   reading: with no HP regeneration every melee start dies by floor 2 and only the hedge mage reaches
   floor 6, which is what the rest plan answers.
 
-### 3. Targets and progression
+### 3. Targets and progression — done
 - `bench/targets.ron` (the Pacing table as ranges, `actions_per_hour`), loaded with the rest.
 - Floors to levels 5, 10 and 15 per scenario, extrapolation marked; keypresses converted to minutes.
 - The report marks every number outside its target range, and lists them in a short **Off target**
@@ -98,6 +98,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - `docs/vision.md` Pacing points at `bench/targets.ron` as the place the targets live.
 - Tests: the floors-to-level arithmetic (a fixed XP per floor gives the expected floors, beyond-played
   marked); a number outside its range is marked, one inside is not.
+- As built: `bench/src/targets.rs`. Floors count toward a level while at least half the runs reached
+  them; beyond, the last such floor's rate is repeated, so a floor one lucky run reached doesn't steer
+  it. Levels 10 and 15 stand for an advanced style and mastery (ranges in `targets.ron`). The JSON
+  gains `targets`, `off_target` and each row's `reach`. First reading: floors run 20–40 keypresses
+  against 150–300, and the hedge mage stalls (Magic decays with every goblin: one kind of foe).
 
 ### 4. On the page
 - `bench/page.html`: a survival curve per scenario (runs alive by floor), keypresses per floor against
