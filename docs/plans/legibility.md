@@ -51,12 +51,18 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `odds` is it without the reasons. `game::hit_chance(state, at)` gives frontends the player's chance
   on whatever stands there, in percent. `AttackOdds` stays a plain `Copy` event.
 
-### 2. The log's why
+### 2. The log's why — done
 - `Log` entries with an optional why; blows and damage write theirs; `Log::recent_with_why`.
 - `front`: `?` (`InputEvent::Why`) expands the bottom strip's lines with their whys for one screen;
   the gui binds `?` and draws the indented lines; README Controls.
 - Tests: a miss carries its odds; a `Session` toggles the expanded log on `?` and back on the next key;
   a shot of the expanded strip.
+- As built: `MessageLog::push_with` and `recent_with_why`; whys are never saved and logs compare by
+  their messages. Misses, grazes, perfect dodges and deflections carry "75% to hit: accuracy 2
+  against dodge 2 75, outnumbered by 1 +10" (`combat::explain`), melee and missiles alike; a hit says
+  nothing of its own (its damage line comes later), so it has no why yet. `front::text::log` builds
+  the rows, the why under its line. No shot of the expanded strip: a shot can't put a why in the log
+  from the window crate; the session test pins the rows.
 
 ### 3. Previews and hidden things
 - The look status on a creature shows "hit 70% (base 75, outnumbered −5)…" when you could attack it;

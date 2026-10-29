@@ -228,9 +228,9 @@ pub(crate) fn blow(
     mods: &BlowMods,
 ) -> Option<Outcome> {
     let (strike, used) = blow_strike(&state.world, state.blueprints.skills(), attacker, mods)?;
-    let odds = odds(state, &strike, attacker, target);
+    let (odds, reasons) = odds_explained(state, &strike, attacker, target);
     let outcome = resolve(&mut state.rngs.combat, &odds);
-    announce(state, attacker, target, outcome);
+    announce(state, attacker, target, outcome, &explain(&odds, &reasons));
     if let Outcome::Hit | Outcome::Graze = outcome {
         let hit = roll_strike(&mut state.rngs.combat, strike);
         let amount = mods.scale(hit.amount);
@@ -529,7 +529,33 @@ pub(crate) fn resolve(rng: &mut Pcg64, odds: &AttackOdds) -> Outcome {
 /// Logs how a blow from `attacker` at `target` resolved, and fires
 /// `PerfectDodge` or `Deflected` at the target. A hit says nothing here:
 /// the damage it deals is logged when dealt.
-pub(crate) fn announce(state: &mut GameState, attacker: Entity, target: Entity, outcome: Outcome) {
+/// The why of a blow's outcome line: "75% to hit: accuracy 2 against dodge
+/// 2 75, outnumbered by 1 +10".
+pub(crate) fn explain(odds: &AttackOdds, reasons: &[Reason]) -> String {
+    let parts: Vec<String> = reasons
+        .iter()
+        .enumerate()
+        .map(|(i, reason)| {
+            let points = reason.bp / 100;
+            if i == 0 {
+                format!("{} {points}", reason.what)
+            } else {
+                format!("{} {points:+}", reason.what)
+            }
+        })
+        .collect();
+    format!("{}% to hit: {}", odds.hit_bp / 100, parts.join(", "))
+}
+
+/// Logs a blow's outcome (a hit says nothing here; its damage line does),
+/// with `why` beside the line.
+pub(crate) fn announce(
+    state: &mut GameState,
+    attacker: Entity,
+    target: Entity,
+    outcome: Outcome,
+    why: &str,
+) {
     let shown = match outcome {
         Outcome::Hit => None,
         Outcome::Graze => Some(fx::Outcome::Graze),
@@ -544,10 +570,16 @@ pub(crate) fn announce(state: &mut GameState, attacker: Entity, target: Entity, 
     let struck = Subject::of(&state.world, target);
     match outcome {
         Outcome::Hit => {}
-        Outcome::Graze => state.log.push(striker.sentence("graze", struck.noun())),
-        Outcome::Miss => state.log.push(striker.sentence("miss", struck.noun())),
+        Outcome::Graze => state
+            .log
+            .push_with(striker.sentence("graze", struck.noun()), why),
+        Outcome::Miss => state
+            .log
+            .push_with(striker.sentence("miss", struck.noun()), why),
         Outcome::PerfectDodge => {
-            state.log.push(struck.sentence("dodge", "perfectly"));
+            state
+                .log
+                .push_with(struck.sentence("dodge", "perfectly"), why);
             let _ = dispatch(
                 state,
                 target,
@@ -559,12 +591,15 @@ pub(crate) fn announce(state: &mut GameState, attacker: Entity, target: Entity, 
         }
         Outcome::Deflected(by) => {
             let item = Subject::of(&state.world, by);
-            state.log.push(capitalize(&format!(
-                "{} {} turns {} blow.",
-                struck.possessive(),
-                item.noun().trim_start_matches("the "),
-                striker.possessive()
-            )));
+            state.log.push_with(
+                capitalize(&format!(
+                    "{} {} turns {} blow.",
+                    struck.possessive(),
+                    item.noun().trim_start_matches("the "),
+                    striker.possessive()
+                )),
+                why,
+            );
             let _ = dispatch(
                 state,
                 target,
@@ -946,14 +981,14 @@ mod tests {
             cause: BLOW,
         });
         let player = state.player;
-        announce(&mut state, player, dummy, Outcome::Miss);
+        announce(&mut state, player, dummy, Outcome::Miss, "");
         let outcome = |kind| Fx::Outcome { at: (5, 5), kind };
         assert_eq!(
             fx::take_fx(&mut state),
             [outcome(fx::Outcome::Absorbed), outcome(fx::Outcome::Miss)]
         );
         state.visible.set(5, 5, false);
-        announce(&mut state, player, dummy, Outcome::Graze);
+        announce(&mut state, player, dummy, Outcome::Graze, "");
         assert!(fx::take_fx(&mut state).is_empty(), "unseen");
     }
 
@@ -1366,6 +1401,23 @@ mod odds_tests {
         );
         let sum: i32 = reasons.iter().map(|r| r.bp).sum();
         assert_eq!(sum, i32::try_from(odds.hit_bp).unwrap());
+    }
+
+    #[test]
+    fn a_miss_says_why_beside_its_line() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let player = state.player;
+        let strike = strike_of(&state, player);
+        let (odds, reasons) = odds_explained(&state, &strike, player, dummy);
+        let why = explain(&odds, &reasons);
+        assert_eq!(why, "75% to hit: accuracy 0 against dodge 0 75");
+        announce(&mut state, player, dummy, Outcome::Miss, &why);
+        let (line, because) = state.log.recent_with_why(1).next().unwrap();
+        assert_eq!(line, "You miss the dummy.");
+        assert_eq!(because, Some(why.as_str()));
+        state.log.push("Something else.");
+        assert_eq!(state.log.recent_with_why(1).next().unwrap().1, None);
     }
 
     #[test]

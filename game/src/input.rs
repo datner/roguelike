@@ -61,6 +61,9 @@ pub enum InputEvent {
     /// Frontend only: practise until done or interrupted, repeating
     /// `training::practice_step`.
     Practice,
+    /// Frontend only: show why the latest log lines happened, until the next
+    /// key (docs/plans/legibility.md).
+    Why,
     /// Frontend only: rest until healed, the floor's budget is spent or an
     /// enemy comes into view, repeating `rest::rest_step`.
     Rest,

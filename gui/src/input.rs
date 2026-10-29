@@ -77,6 +77,7 @@ pub fn map_game(press: Press) -> Option<InputEvent> {
         Press::Char('R') => Some(InputEvent::Rest),
         Press::Char('C') => Some(InputEvent::Close),
         Press::Char('Z') => Some(InputEvent::Sprint),
+        Press::Char('?') => Some(InputEvent::Why),
         Press::Char(';') => Some(InputEvent::Look),
         Press::Char('X') => Some(InputEvent::CycleExploreItems),
         Press::Char('g' | ',') => Some(InputEvent::PickUp),

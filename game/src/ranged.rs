@@ -337,9 +337,15 @@ pub(crate) fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i3
     // The flight is RNG-free; only how it meets its target is rolled. A miss
     // or a dodge comes to rest at the target's feet, so the path the aim
     // preview drew stays true.
-    let odds = combat::odds(state, &ready.strike, actor, target);
+    let (odds, reasons) = combat::odds_explained(state, &ready.strike, actor, target);
     let outcome = combat::resolve(&mut state.rngs.combat, &odds);
-    combat::announce(state, actor, target, outcome);
+    combat::announce(
+        state,
+        actor,
+        target,
+        outcome,
+        &combat::explain(&odds, &reasons),
+    );
     let struck = !matches!(outcome, Outcome::Miss | Outcome::PerfectDodge);
     let hit = matches!(outcome, Outcome::Hit | Outcome::Graze)
         .then(|| roll_strike(&mut state.rngs.combat, ready.strike));

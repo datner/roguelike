@@ -33,16 +33,41 @@ const CREATURE_ARROWS: usize = 8;
 /// leaving the starting spot.
 pub const ITEM_MIN_DISTANCE: i32 = 4;
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MessageLog {
     messages: VecDeque<String>,
+    /// Why each of the newest messages happened, where it says
+    /// (docs/plans/legibility.md): aligned with the end of `messages`, and
+    /// never saved, so a loaded log has none.
+    #[serde(skip)]
+    whys: VecDeque<Option<String>>,
+}
+
+/// Logs are the same when their messages are: the whys are for now.
+impl PartialEq for MessageLog {
+    fn eq(&self, other: &Self) -> bool {
+        self.messages == other.messages
+    }
 }
 
 impl MessageLog {
     pub fn push(&mut self, message: impl Into<String>) {
+        self.push_why(message, None);
+    }
+
+    /// `push`, with why it happened.
+    pub fn push_with(&mut self, message: impl Into<String>, why: impl Into<String>) {
+        self.push_why(message, Some(why.into()));
+    }
+
+    fn push_why(&mut self, message: impl Into<String>, why: Option<String>) {
         self.messages.push_back(message.into());
+        self.whys.push_back(why);
         if self.messages.len() > 200 {
+            if self.whys.len() >= self.messages.len() {
+                self.whys.pop_front();
+            }
             self.messages.pop_front();
         }
     }
@@ -50,6 +75,17 @@ impl MessageLog {
     /// Most recent message first.
     pub fn recent(&self, n: usize) -> impl Iterator<Item = &String> {
         self.messages.iter().rev().take(n)
+    }
+
+    /// Most recent message first, each with its why, if it has one.
+    pub fn recent_with_why(&self, n: usize) -> impl Iterator<Item = (&String, Option<&str>)> {
+        let whys = self
+            .whys
+            .iter()
+            .rev()
+            .map(Option::as_deref)
+            .chain(std::iter::repeat(None));
+        self.messages.iter().rev().zip(whys).take(n)
     }
 }
 

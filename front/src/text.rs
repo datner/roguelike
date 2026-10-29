@@ -90,6 +90,25 @@ pub fn outnumbered(state: &GameState) -> String {
     }
 }
 
+/// The log's last `rows` rows, oldest first; with `why`, each line that says
+/// why it happened is followed by that, indented and quiet, and older lines
+/// make room for it.
+pub fn log(state: &GameState, rows: usize, why: bool) -> Vec<Row> {
+    let mut out: Vec<Row> = Vec::new();
+    for (line, because) in state.log.recent_with_why(rows) {
+        if why && let Some(because) = because {
+            out.push(vec![Seg::Quiet(format!("  {because}"))]);
+        }
+        out.push(vec![Seg::Plain(line.clone())]);
+        if out.len() >= rows {
+            break;
+        }
+    }
+    out.truncate(rows);
+    out.reverse();
+    out
+}
+
 /// The side panel's account of where you are and what comes next.
 pub fn whereabouts(state: &GameState) -> Vec<Row> {
     let plain = |text: String| Seg::Plain(text);

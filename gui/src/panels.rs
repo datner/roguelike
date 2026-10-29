@@ -54,18 +54,18 @@ pub fn side(ui: &mut egui::Ui, session: &Session) {
 }
 
 pub fn bottom(ui: &mut egui::Ui, session: &Session) {
-    let mut lines: Vec<&str> = session
-        .state()
-        .log
-        .recent(LOG_LINES)
-        .map(String::as_str)
-        .collect();
-    lines.reverse();
+    let mut lines = text::log(session.state(), LOG_LINES, session.showing_why());
     // Always five rows high, so the map doesn't jump.
-    lines.resize(LOG_LINES, "");
+    lines.resize(LOG_LINES, Vec::new());
     boxed(ui, title("Log"), None, |ui| {
         for line in lines {
-            ui.add(egui::Label::new(theme::line(line, FG)).truncate());
+            // An empty row still takes a line's height.
+            let line = if line.is_empty() {
+                theme::line("", FG)
+            } else {
+                job(line, FG)
+            };
+            ui.add(egui::Label::new(line).truncate());
         }
     });
     boxed(ui, title("Status"), None, |ui| {

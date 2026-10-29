@@ -63,6 +63,8 @@ pub struct Session {
     character: String,
     mode: Mode,
     auto: Option<Auto>,
+    /// The log shows its whys until the next key (`?`).
+    why: bool,
 }
 
 impl Session {
@@ -72,7 +74,13 @@ impl Session {
             character: character.into(),
             mode: Mode::Play,
             auto: None,
+            why: false,
         }
+    }
+
+    /// Whether the log shows why its lines happened (`?`, until the next key).
+    pub fn showing_why(&self) -> bool {
+        self.why
     }
 
     pub fn state(&self) -> &GameState {
@@ -135,6 +143,8 @@ impl Session {
 
     /// Any input during a run only stops it.
     pub fn handle(&mut self, input: Input) -> Outcome {
+        // `?` shows the whys; any other key puts them away again.
+        self.why = input == Input::Game(InputEvent::Why);
         if self.auto.take().is_some() {
             return Outcome::Continue;
         }
@@ -181,6 +191,7 @@ impl Session {
             InputEvent::Ascend => take_turn(state, PlayerAction::Ascend),
             InputEvent::Explore => self.auto = Some(Auto::Explore),
             InputEvent::Practice => self.auto = Some(Auto::Practice),
+            InputEvent::Why => {}
             InputEvent::Rest => self.auto = Some(Auto::Rest),
             InputEvent::Look => {
                 if let Some(looking) = Looking::new(state) {
@@ -653,6 +664,32 @@ mod tests {
                 .status()
                 .contains("  Rest: 25  Turn: 0")
         );
+    }
+
+    #[test]
+    fn question_mark_shows_the_whys_until_the_next_key() {
+        let mut state = state();
+        state.log.push_with(
+            "You miss the goblin.",
+            "40% to hit: accuracy 1 against dodge 4 40",
+        );
+        let mut session = Session::new(state, "hero");
+        session.handle(Input::Game(InputEvent::Why));
+        assert!(session.showing_why());
+        let rows: Vec<String> = crate::text::log(session.state(), 5, session.showing_why())
+            .iter()
+            .map(|row| crate::text::flat(row))
+            .collect();
+        assert_eq!(
+            rows[rows.len() - 2..],
+            [
+                "You miss the goblin.".to_string(),
+                "  40% to hit: accuracy 1 against dodge 4 40".to_string()
+            ],
+            "the why under its line"
+        );
+        session.handle(Input::Game(InputEvent::Wait));
+        assert!(!session.showing_why());
     }
 
     #[test]

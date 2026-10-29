@@ -220,6 +220,8 @@ In game:
 - `Z`: start or stop sprinting: a step costs half a turn and a point of
   stamina (ten to start, a point back every two turns), and you can't
   attack while sprinting. It ends when your breath runs out.
+- `?`: show why the latest log lines happened (a miss's odds and what made
+  them) under each, until the next key.
 - `R`: rest: wait a turn at a time while health comes back (a point every
   three turns), until healed, the floor's rest budget is spent (the status
   line's `Rest:`) or an enemy comes into view; any key interrupts it. Camp
