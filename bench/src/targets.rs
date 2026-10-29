@@ -19,6 +19,19 @@ pub struct Targets {
     pub floor: (f64, f64),
     /// Floors for the most-trained skill to reach each level.
     pub levels: Vec<LevelTarget>,
+    /// How many runs of some builds should reach a floor.
+    #[serde(default)]
+    pub survival: Vec<Survival>,
+}
+
+/// The share of runs of `builds` that should reach `floor`, for a tier of
+/// character (starting characters should usually make the first landing).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Survival {
+    pub builds: Vec<String>,
+    pub floor: u32,
+    /// Fractions of the runs, low to high.
+    pub share: (f64, f64),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -36,6 +49,7 @@ impl Default for Targets {
             fight: (0.0, f64::INFINITY),
             floor: (0.0, f64::INFINITY),
             levels: Vec::new(),
+            survival: Vec::new(),
         }
     }
 }
@@ -182,6 +196,26 @@ pub fn misses(rows: &[DiveRow], targets: &Targets) -> Vec<Miss> {
                 ));
             }
         }
+        for target in targets
+            .survival
+            .iter()
+            .filter(|target| target.builds.contains(&row.build))
+        {
+            let floor = usize::try_from(target.floor).unwrap_or(usize::MAX);
+            let reached = row
+                .runs
+                .iter()
+                .filter(|run| run.floors.len() >= floor)
+                .count();
+            let share = reached as f64 / row.runs.len().max(1) as f64;
+            if outside(share, target.share) {
+                misses.push(miss(
+                    &format!("runs reaching floor {}", target.floor),
+                    format!("{:.0}%", share * 100.0),
+                    target.share,
+                ));
+            }
+        }
         let Some(skill) = top_skill(&row.runs) else {
             continue;
         };
@@ -265,10 +299,23 @@ mod tests {
                     stands_for: String::new(),
                 },
             ],
+            survival: vec![Survival {
+                builds: vec!["bumper".into()],
+                floor: 3,
+                share: (0.6, 0.9),
+            }],
         };
         let misses = misses(&[row], &targets);
         let what: Vec<&str> = misses.iter().map(|miss| miss.what.as_str()).collect();
-        assert_eq!(what, ["keypresses per floor", "floors to Melee 10"]);
-        assert_eq!(misses[1].value, "~20");
+        assert_eq!(
+            what,
+            [
+                "keypresses per floor",
+                "runs reaching floor 3",
+                "floors to Melee 10"
+            ]
+        );
+        assert_eq!(misses[1].value, "100%", "every run reached it: too easy");
+        assert_eq!(misses[2].value, "~20");
     }
 }

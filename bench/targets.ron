@@ -10,6 +10,14 @@
     floor: (150.0, 300.0),
     // Floors for the dive's most-trained skill to reach a level. A dive is
     // three to six floors (way-landings every three).
+    // How often a tier of character reaches a floor in one straight dive.
+    // Starting characters should usually make the first landing (floor 3);
+    // a mage's range and firepower make it easier, which is fine: it only
+    // has a floor.
+    survival: [
+        (builds: ["pit fighter", "duelist", "wanderer"], floor: 3, share: (0.6, 0.9)),
+        (builds: ["hedge mage"], floor: 3, share: (0.6, 1.0)),
+    ],
     levels: [
         (level: 5, floors: (3.0, 12.0), stands_for: "the first style principle, within 1-2 dives"),
         (level: 10, floors: (12.0, 48.0), stands_for: "an advanced style, by the middle of a life (4-8 dives)"),
