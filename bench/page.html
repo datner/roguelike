@@ -1,6 +1,7 @@
 <title>Balance Bench</title>
 <!--
-  The balance bench's readable report (docs/plans/balance.md, slice 6).
+  The balance bench's readable report (docs/plans/balance.md, slice 6; the
+  Floors and Off target panels, docs/plans/floor-bot.md).
   `bench --page FILE` fills the REPORT and PREVIOUS constants with the bench's
   JSON; the /balance-report skill may replace the READING comment below
   with a short written reading before publishing. Nothing here works out a
@@ -94,6 +95,19 @@
     <div class="tabs" id="tabs" role="group" aria-label="Scenario"></div>
     <div class="chart" id="bars"></div>
     <div class="scroll"><table id="table"></table></div>
+  </section>
+
+  <section class="panel" id="floors-panel">
+    <h2>Floors</h2>
+    <p class="note" id="floors-note"></p>
+    <div class="tabs" id="dive-tabs" role="group" aria-label="Dive"></div>
+    <div class="chart" id="survival"></div>
+    <div class="scroll"><table id="floors-table"></table></div>
+  </section>
+
+  <section class="panel" id="off-panel">
+    <h2>Off target</h2>
+    <div id="off"></div>
   </section>
 
   <section class="panel">
@@ -296,6 +310,89 @@ function render() {
       : "<li><span>nothing beyond its skills</span></li>";
     return `<details><summary>${esc(b.name)} · ${b.xp} XP</summary><p class="note">${esc(b.note)}</p><ul>${items}</ul></details>`;
   }).join("");
+
+  renderFloors();
+}
+
+/** The floor bot's dives: who survives each floor, and the numbers against their targets. */
+function renderFloors() {
+  const dives = REPORT.dives;
+  if (!dives || !dives.rows.length) {
+    $("floors-panel").hidden = true;
+    $("off-panel").hidden = true;
+    return;
+  }
+  const t = dives.targets;
+  const inside = (v, [lo, hi]) => v == null || (v >= lo && v <= hi);
+  const names = [...new Set(dives.rows.map((r) => r.dive))];
+  $("floors-note").textContent =
+    `The floor bot plays each build from camp through real floors, fighting what it sees and exploring the rest. ` +
+    `Bars: the share of runs that reached each floor. Amber marks a number outside its target ` +
+    `(fight ${t.fight[0]}–${t.fight[1]} keypresses, floor ${t.floor[0]}–${t.floor[1]}).`;
+
+  let current = names[0];
+  try { const saved = localStorage.getItem("dive"); if (names.includes(saved)) current = saved; } catch {}
+  const tabs = $("dive-tabs");
+  names.forEach((name) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = name;
+    b.addEventListener("click", () => { current = name; try { localStorage.setItem("dive", name); } catch {} draw(); });
+    tabs.append(b);
+  });
+
+  function draw() {
+    [...tabs.children].forEach((b) => b.setAttribute("aria-pressed", String(b.textContent === current)));
+    const rows = dives.rows.filter((r) => r.dive === current);
+    const floors = Math.max(...rows.map((r) => r.floors_asked), 1);
+    const W = 720, rowH = 34, L = 130, R = 10, T = 18, gap = 4;
+    const H = T + rows.length * rowH + 6;
+    const cell = (W - L - R) / floors;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Runs reaching each floor, ${current}` });
+    for (let f = 0; f < floors; f++) {
+      svg.append(el("text", { x: L + f * cell + cell / 2, y: 12, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, `floor ${f + 1}`));
+    }
+    rows.forEach((r, i) => {
+      const y = T + i * rowH;
+      svg.append(el("text", { x: L - 10, y: y + rowH / 2 + 4, "text-anchor": "end", "font-size": 12, fill: "var(--fg)" }, r.build));
+      for (let f = 0; f < floors; f++) {
+        const share = (r.floors[f]?.reached ?? 0) / r.runs;
+        const h = (rowH - 8) * share;
+        svg.append(el("rect", { x: L + f * cell + gap, y: y + 2, width: cell - 2 * gap, height: rowH - 8, fill: "var(--rule)" }));
+        const bar = el("rect", { x: L + f * cell + gap, y: y + 2 + (rowH - 8 - h), width: cell - 2 * gap, height: h, fill: "var(--mark)" });
+        bar.append(el("title", {}, `${r.build}, floor ${f + 1}: ${Math.round(share * 100)}% of runs`));
+        svg.append(bar);
+      }
+    });
+    $("survival").replaceChildren(svg);
+
+    const levels = t.levels.map((l) => l.level);
+    const head = `<tr><th>build</th><th>keypresses / floor</th><th>fight length</th><th>most trained</th>` +
+      levels.map((l) => `<th>floors to ${l}</th>`).join("") + `<th>ended</th></tr>`;
+    const body = rows.map((r) => {
+      const keys = r.floors.reduce((s, f) => s + f.keypresses.mean, 0) / Math.max(r.floors.length, 1);
+      const fights = r.floors.reduce((s, f) => s + f.fights * f.reached, 0);
+      const fight = fights ? r.floors.reduce((s, f) => s + f.fight.mean * f.fights * f.reached, 0) / fights : null;
+      const flag = (ok, text) => `<td${ok ? "" : ' class="flag"'}>${text}</td>`;
+      const reach = t.levels.map((l) => {
+        const x = r.reach.find((q) => q.level === l.level);
+        const text = x?.floors == null ? "never" : (x.extrapolated ? "~" : "") + Math.round(x.floors);
+        return flag(x?.floors != null && inside(x.floors, l.floors), text);
+      }).join("");
+      const died = r.causes.map(([c, n]) => `${esc(c)} ${n}`).join(", ");
+      return `<tr><td>${esc(r.build)}</td>${flag(inside(keys, t.floor), fmt(keys, 0))}` +
+        `${flag(inside(fight, t.fight), fmt(fight, 1))}<td>${esc(r.top_skill ?? "—")}</td>${reach}` +
+        `<td class="spread">${r.depth} deep · ${r.died} died${died ? ` (${died})` : ""} · ${r.stuck} stuck</td></tr>`;
+    }).join("");
+    $("floors-table").innerHTML = head + body;
+  }
+  draw();
+
+  const off = dives.off_target;
+  $("off").innerHTML = off.length
+    ? `<div class="scroll"><table><tr><th>build</th><th>dive</th><th>what</th><th>measured</th><th>target</th></tr>` +
+      off.map((m) => `<tr><td>${esc(m.build)}</td><td>${esc(m.dive)}</td><td>${esc(m.what)}</td>` +
+        `<td class="flag">${esc(m.value)}</td><td>${m.range[0]}–${m.range[1]}</td></tr>`).join("") + `</table></div>`
+    : '<p class="empty">Every number is inside its target.</p>';
 }
 
 render();

@@ -104,11 +104,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   gains `targets`, `off_target` and each row's `reach`. First reading: floors run 20–40 keypresses
   against 150–300, and the hedge mage stalls (Magic decays with every goblin: one kind of foe).
 
-### 4. On the page
+### 4. On the page — done
 - `bench/page.html`: a survival curve per scenario (runs alive by floor), keypresses per floor against
   the target band, fight lengths against theirs, and the Off target block.
 - `/balance-report` skill: its reading covers the Floors section and the targets.
 - Tests: the page builds from a fixed report with a Floors section.
+- As built: survival is a strip of bars per build (share of runs reaching each floor), so no
+  categorical colours are needed; a table beside it flags off-target numbers in amber. The Rust test
+  pins the JSON keys the page reads; the page's script was run once against the real report on a DOM
+  stub, not in `check.sh`.
 
 ## Out of scope
 

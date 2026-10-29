@@ -17,8 +17,10 @@ never type one into the page yourself.
    - what stands out: a flagged outlier, a build that runs dry inside the burst, a build far behind its
      peers, a scenario that flips the order;
    - what moved since the committed report, and the commit that most likely moved it;
+   - the floors: which builds survive how deep, what kills them, and the Off target list against
+     `bench/targets.ron` (docs/plans/floor-bot.md); a "~" level is extrapolated, say so;
    - one sentence on what the bench cannot see (dolls never hit back; policies are simple priority
-     lists), when it bears on a conclusion.
+     lists; the floor bot never retreats, rests or equips), when it bears on a conclusion.
    Name builds and numbers exactly as the report has them. Say "likely" when tying a move to a commit
    you did not verify. Judging whether a number is a problem is the owner's call; say what it is.
 4. **Publish** the generated file with the Artifact tool (`icon: "chart"`). Publishing again later

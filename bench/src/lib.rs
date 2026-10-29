@@ -551,7 +551,14 @@ mod tests {
         let opens = numbers.matches(['{', '[']).count();
         let closes = numbers.matches(['}', ']']).count();
         assert_eq!(opens, closes);
-        for key in ["\"seeds\":1", "\"builds\":[", "\"rows\":[", "\"dry_at\":"] {
+        for key in [
+            "\"seeds\":1",
+            "\"builds\":[",
+            "\"rows\":[",
+            "\"dry_at\":",
+            "\"dives\":{\"rows\":[",
+            "\"off_target\":[",
+        ] {
             assert!(numbers.contains(key), "{key}");
         }
     }
