@@ -18,6 +18,9 @@ pub enum Tile {
     Door,
     /// An open door (`'`): like floor until closed again.
     DoorOpen,
+    /// A drop to the floor below (`:`): seen across, never walked. A
+    /// creature forced into one falls (docs/plans/fights.md).
+    Chasm,
 }
 
 impl Tile {
@@ -28,6 +31,11 @@ impl Tile {
             tile,
             Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp | Tile::DoorOpen)
         )
+    }
+
+    /// Seen through: open, or a chasm. What sight, missiles and areas cross.
+    pub fn is_transparent(tile: Option<&Tile>) -> bool {
+        Tile::is_open(tile) || tile == Some(&Tile::Chasm)
     }
 
     /// A way to go: open, or a closed door that walking into opens. For

@@ -58,6 +58,8 @@ pub(crate) enum DamageCause {
     Effect {
         effect: Entity,
     },
+    /// Falling into a chasm: of no kind, so armor doesn't help.
+    Fall,
 }
 
 impl DamageCause {
@@ -67,7 +69,7 @@ impl DamageCause {
             Self::Melee { types, .. } | Self::Ranged { types, .. } | Self::Spell { types, .. } => {
                 types
             }
-            Self::Effect { .. } => DamageTypes::default(),
+            Self::Effect { .. } | Self::Fall => DamageTypes::default(),
         }
     }
 }
@@ -157,6 +159,8 @@ pub(crate) enum Command {
     Practice(Entity),
     /// Close an open door beside the actor (`close_door`).
     Close(Entity),
+    /// Forced into a chasm (`fall`).
+    Fall(Entity),
     /// Take the stairs down to the next floor (`dive::descend`).
     Descend(Entity),
     /// Take the stairs up, back to camp (`dive::ascend`).
@@ -266,6 +270,7 @@ impl Command {
             Command::Study { actor, item } => [Some(actor), Some(item)],
             Command::Practice(actor)
             | Command::Close(actor)
+            | Command::Fall(actor)
             | Command::Descend(actor)
             | Command::Ascend(actor)
             | Command::WaitForPhase { actor, .. } => [Some(actor), None],
@@ -343,6 +348,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Study { actor, item } => crate::training::study(state, actor, item),
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Close(actor) => close_door(state, actor),
+            Command::Fall(entity) => fall(state, entity),
             Command::Descend(actor) => crate::dive::descend(state, actor),
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
             Command::WaitForPhase { actor, phase } => crate::phase::wait_for(state, actor, phase),
@@ -422,10 +428,10 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
     match *command {
         Command::TryMove(entity, dir) => {
-            if !destination(state, entity, dir).is_some_and(|to| is_wall(state, to)) {
+            let Some(to) = destination(state, entity, dir).filter(|&to| is_wall(state, to)) else {
                 return false;
-            }
-            log_wall_bump(state, entity);
+            };
+            log_wall_bump(state, entity, to);
         }
         Command::Close(entity) => {
             if closable(state, entity).is_some() {
@@ -569,9 +575,35 @@ pub(crate) fn closable(state: &GameState, actor: Entity) -> Option<(i32, i32)> {
         })
 }
 
-fn log_wall_bump(state: &mut GameState, entity: Entity) {
+fn log_wall_bump(state: &mut GameState, entity: Entity, (x, y): (i32, i32)) {
     let mover = Subject::of(&state.world, entity);
-    state.log.push(mover.sentence("bump", "into a wall"));
+    state
+        .log
+        .push(if state.map.get(x, y) == Some(&Tile::Chasm) {
+            mover.sentence("stop", "at the edge of the chasm")
+        } else {
+            mover.sentence("bump", "into a wall")
+        });
+}
+
+/// How much a fall into a chasm hurts the player, who lands a floor down.
+const FALL_DAMAGE: i32 = 4;
+
+/// `Command::Fall`: a creature forced into a chasm. The player drops to the
+/// next floor, hurt; anything else is gone.
+fn fall(state: &mut GameState, entity: Entity) {
+    let faller = Subject::of(&state.world, entity);
+    state.log.push(faller.sentence("fall", "into the chasm"));
+    if entity == state.player {
+        crate::dive::descend(state, entity);
+        state.commands.push_back(Command::DealDamage {
+            target: entity,
+            amount: FALL_DAMAGE,
+            cause: DamageCause::Fall,
+        });
+    } else {
+        state.commands.push_back(Command::Die { entity });
+    }
 }
 
 /// `a` and `b` trade tiles.
@@ -594,7 +626,7 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
     // AI moves still pay for a bump; the player's are screened out by
     // `reject_input` before they get here.
     if is_wall(state, target) {
-        log_wall_bump(state, entity);
+        log_wall_bump(state, entity, target);
         return;
     }
     if state.map.get(target.0, target.1) == Some(&Tile::Door) {

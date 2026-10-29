@@ -82,7 +82,7 @@ pub(crate) fn flight(
     let mut path = Vec::new();
     let mut landing = from;
     for tile in line(from, to).into_iter().take(range.max(0) as usize) {
-        if !Tile::is_open(state.map.get(tile.0, tile.1)) {
+        if !Tile::is_transparent(state.map.get(tile.0, tile.1)) {
             break;
         }
         path.push(tile);

@@ -934,8 +934,15 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
     };
     let step = ((start.0 - from.0).signum(), (start.1 - from.1).signum());
     let mut at = start;
+    let mut over_the_edge = false;
     for _ in 0..tiles {
         let next = (at.0 + step.0, at.1 + step.1);
+        if step != (0, 0) && state.map.get(next.0, next.1) == Some(&Tile::Chasm) {
+            // Shoved off the edge: a shove becomes a kill (docs/plans/fights.md).
+            at = next;
+            over_the_edge = true;
+            break;
+        }
         if step == (0, 0)
             || !Tile::is_open(state.map.get(next.0, next.1))
             || spell::occupied(&state.world, next)
@@ -943,6 +950,10 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
             break;
         }
         at = next;
+    }
+    if over_the_edge {
+        state.commands.push_back(Command::Fall(target));
+        return;
     }
     let shoved = Subject::of(&state.world, target);
     if at == start {
@@ -1167,6 +1178,30 @@ mod tests {
 
     fn health(state: &GameState, who: Entity) -> i32 {
         state.world.get::<&Health>(who).unwrap().current
+    }
+
+    #[test]
+    fn a_shove_over_the_edge_of_a_chasm_kills() {
+        let mut state = crate::state::tests::bare_state();
+        state.map.set(3, 1, Tile::Chasm);
+        let goblin = crate::testkit::thing("goblin")
+            .health(8)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        let player = state.player;
+        shove(&mut state, player, goblin, 2);
+        crate::command::apply_commands(&mut state);
+        assert!(
+            state.world.satisfies::<&crate::entity::Dead>(goblin) || !state.world.contains(goblin),
+            "gone over the edge"
+        );
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "The goblin falls into the chasm.")
+        );
     }
 
     #[test]

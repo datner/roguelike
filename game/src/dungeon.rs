@@ -28,6 +28,10 @@ pub struct Dungeon {
     /// Every this many floors, and on the bottom, a way-landing: stairs up
     /// to camp where you arrive. Between landings the only way is down.
     pub landing_every: u32,
+    /// Patches of chasm on each floor but the bottom: a shove next to one is
+    /// a kill (docs/plans/fights.md). None draws nothing.
+    #[serde(default)]
+    pub chasms: u32,
     /// Creatures on each floor, placed in this order.
     pub creatures: Vec<Inhabitant>,
     /// Items scattered on each floor, after the creatures, each drawn from
@@ -215,6 +219,7 @@ pub(crate) mod tests {
             // depth's own tests set theirs (docs/plans/depth.md).
             floors: 9,
             landing_every: 1,
+            chasms: 0,
             creatures: vec![Inhabitant {
                 blueprint: "Goblin".into(),
                 count: 6,

@@ -641,7 +641,7 @@ fn jump(
                     && ranged::distance(from, *at) <= chain.reach
                     && ranged::line(from, *at)
                         .into_iter()
-                        .all(|(x, y)| Tile::is_open(state.map.get(x, y)))
+                        .all(|(x, y)| Tile::is_transparent(state.map.get(x, y)))
             })
             .min_by_key(|(_, at, seq)| (ranged::distance(from, *at), *seq));
         let Some(&(next, at, _)) = next else {

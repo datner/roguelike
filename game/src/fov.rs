@@ -176,7 +176,7 @@ impl Scan<'_> {
         let mut prev_wall = None;
         for col in row.cols() {
             let (x, y) = self.quadrant.to_map(self.origin, row.depth, col);
-            let wall = !Tile::is_open(self.map.get(x, y));
+            let wall = !Tile::is_transparent(self.map.get(x, y));
             let in_range = row.depth * row.depth + col * col <= self.radius * self.radius;
             if in_range && (wall || row.is_symmetric(col)) {
                 self.visible.set(x, y, true);

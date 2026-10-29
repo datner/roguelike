@@ -105,13 +105,18 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   never land on one. Doors are drawn as glyphs; `tiles.ron` may name `door` and `door_open` sprites.
   Auto-explore stops once at each closed door (the step opened it instead of moving). Saves v49.
 
-### 5. Chasms
+### 5. Chasms — done
 - `Tile::Chasm`: open to sight, never to walking; forced movement (shove, push kick) into one makes the
   creature fall (`Command::Fall`): a creature dies, the player descends a floor and takes damage.
 - `zone.rs` caves: `chasms` patches from data, on the map stream after the layout, never on the
   arrival or the stairs, never cutting the stairs off (re-checked by the region walk).
-- Tests: a shoved goblin over a chasm dies; the player falls a floor and is hurt; walking into a chasm
-  is refused; the stairs stay reachable; a dungeon without chasms draws nothing new.
+- Tests: a shoved goblin over a chasm dies; the player falls a floor and is hurt (4); walking into a
+  chasm is refused; the stairs stay reachable; a dungeon without chasms draws nothing new.
+- As built: chasms are dug in `dive::build` (not the cave generator), so any layout can have them and
+  the bottom never does; `Dungeon.chasms` patches (Caves: 4), each a tile and the floor around it.
+  `Tile::is_transparent` (open or chasm) is what sight, missiles and areas cross. Walking into one is
+  refused with "You stop at the edge of the chasm." Goblins shove too, so the player can be shoved
+  in. Saves v50.
 
 ### 6. Tall grass
 - `Tile::Grass`: walkable, opaque past itself; what stands in grass is seen only from the next tile

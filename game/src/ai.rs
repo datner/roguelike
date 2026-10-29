@@ -349,7 +349,7 @@ fn perceives(state: &GameState, actor: Entity, me: Position, other: Entity, at: 
         && dx * dx + dy * dy <= fov::RADIUS * fov::RADIUS
         && line((me.x, me.y), (at.x, at.y))
             .into_iter()
-            .all(|(x, y)| Tile::is_open(state.map.get(x, y)))
+            .all(|(x, y)| Tile::is_transparent(state.map.get(x, y)))
 }
 
 /// Whether `actor` perceives the player.

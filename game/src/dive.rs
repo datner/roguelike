@@ -133,16 +133,22 @@ pub(crate) fn build(
     floor: u32,
 ) -> Floor {
     let seed = floor_seed(world_seed, dungeon, phase, dive, floor);
-    let (mut map, map_stream, suggested) = found.generator.generate(seed);
+    let (mut map, mut map_stream, suggested) = found.generator.generate(seed);
     let arrival = suggested
         .or_else(|| start_position(&map))
         .unwrap_or((map.width / 2, map.height / 2));
-    // Before the stairs change any tile: `region` walks plain floor.
-    let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
     // No RNG in either, so the depth never changes a layout.
-    if !found.is_bottom(floor) {
-        place_stairs_down(&mut map, arrival);
+    let stairs = if found.is_bottom(floor) {
+        None
+    } else {
+        place_stairs_down(&mut map, arrival)
+    };
+    // None on the bottom: there is nowhere to fall to.
+    if found.chasms > 0 && !found.is_bottom(floor) {
+        dig_chasms(&mut map, &mut map_stream, found.chasms, arrival, stairs);
     }
+    // After every tile is set: `region` walks plain floor.
+    let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
     if found.is_landing(floor) {
         map.set(arrival.0, arrival.1, Tile::StairsUp);
     }
@@ -153,6 +159,56 @@ pub(crate) fn build(
         arrival,
         near,
     }
+}
+
+/// Patches of chasm (docs/plans/fights.md), each a floor tile and the floor
+/// around it, drawn on the map stream after the layout. Never within two
+/// tiles of the arrival or the stairs, and a patch that would cut the stairs
+/// off from the arrival is filled back in.
+fn dig_chasms(
+    map: &mut Map,
+    rng: &mut Pcg64,
+    count: u32,
+    arrival: (i32, i32),
+    stairs: Option<(i32, i32)>,
+) {
+    use rand::RngExt;
+    let keep: Vec<(i32, i32)> = std::iter::once(arrival).chain(stairs).collect();
+    let near_kept = |(x, y): (i32, i32)| {
+        keep.iter()
+            .any(|&(kx, ky)| (kx - x).abs().max((ky - y).abs()) <= 2)
+    };
+    for _ in 0..count {
+        let floor: Vec<(i32, i32)> = (0..map.height)
+            .flat_map(|y| (0..map.width).map(move |x| (x, y)))
+            .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Floor))
+            .collect();
+        if floor.is_empty() {
+            return;
+        }
+        let (cx, cy) = floor[rng.random_range(0..floor.len())];
+        let patch: Vec<(i32, i32)> = (-1..=1)
+            .flat_map(|dy| (-1..=1).map(move |dx| (cx + dx, cy + dy)))
+            .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Floor) && !near_kept((x, y)))
+            .collect();
+        for &(x, y) in &patch {
+            map.set(x, y, Tile::Chasm);
+        }
+        if let Some(stairs) = stairs
+            && !reachable(map, arrival, stairs)
+        {
+            for &(x, y) in &patch {
+                map.set(x, y, Tile::Floor);
+            }
+        }
+    }
+}
+
+/// Whether `to` (the stairs) is beside floor reachable from `from`.
+fn reachable(map: &Map, from: (i32, i32), to: (i32, i32)) -> bool {
+    let mut seen = Grid::new(map.width, map.height, false);
+    region(map, from, &mut seen);
+    (-1..=1).any(|dy| (-1..=1).any(|dx| seen.get(to.0 + dx, to.1 + dy) == Some(&true)))
 }
 
 /// Who goes with the player between floors: the player and their summons.
@@ -534,6 +590,89 @@ mod tests {
             ..crate::dungeon::tests::test_dungeon()
         };
         assert!(crate::dungeon::check("Test", &dungeon, &test_blueprints()).is_err());
+    }
+
+    #[test]
+    fn chasms_leave_the_stairs_reachable_and_change_nothing_else() {
+        let plain = build(
+            9,
+            &crate::dungeon::tests::test_dungeon(),
+            "Test",
+            "Still",
+            1,
+            1,
+        );
+        let dungeon = Dungeon {
+            chasms: 6,
+            ..crate::dungeon::tests::test_dungeon()
+        };
+        let with = build(9, &dungeon, "Test", "Still", 1, 1);
+        assert!(has(&with.map, Tile::Chasm));
+        let mut filled = with.map.clone();
+        for y in 0..filled.height {
+            for x in 0..filled.width {
+                if filled.get(x, y) == Some(&Tile::Chasm) {
+                    filled.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        assert_eq!(filled, plain.map, "only chasms differ");
+        let stairs = (0..with.map.height)
+            .flat_map(|y| (0..with.map.width).map(move |x| (x, y)))
+            .find(|&(x, y)| with.map.get(x, y) == Some(&Tile::StairsDown))
+            .unwrap();
+        // The region walk starts from floor; the arrival is stairs up here.
+        let mut walked = with.map.clone();
+        walked.set(with.arrival.0, with.arrival.1, Tile::Floor);
+        assert!(reachable(&walked, with.arrival, stairs));
+        let bottom = build(
+            9,
+            &Dungeon {
+                floors: 1,
+                ..dungeon
+            },
+            "Test",
+            "Still",
+            1,
+            1,
+        );
+        assert!(
+            !has(&bottom.map, Tile::Chasm),
+            "nowhere to fall from the bottom"
+        );
+    }
+
+    #[test]
+    fn the_player_falls_a_floor_and_is_hurt() {
+        let mut state = at_the_stairs(9);
+        let player = state.player;
+        state.run(Command::Fall(player));
+        assert!(matches!(state.place, Place::Floor { floor: 2, .. }));
+        let health = state
+            .world
+            .get::<&crate::entity::Health>(player)
+            .unwrap()
+            .current;
+        assert_eq!(health, 20 - 4);
+        assert!(
+            state
+                .log
+                .recent(6)
+                .any(|line| line == "You fall into the chasm.")
+        );
+    }
+
+    #[test]
+    fn walking_into_a_chasm_is_refused_at_the_edge() {
+        let mut state = bare_state();
+        state.map.set(2, 1, Tile::Chasm);
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Move(crate::input::Dir::E));
+        assert_eq!(state.now, before);
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "You stop at the edge of the chasm."
+        );
     }
 
     fn at_camp() -> GameState {

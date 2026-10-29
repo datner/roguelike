@@ -18,6 +18,8 @@
     // and there (docs/plans/depth.md).
     floors: 9,
     landing_every: 3,
+    // Drops to the floor below: shove something in.
+    chasms: 4,
     creatures: [
         (blueprint: "Goblin", count: 6, per_floor: 1),
         // One patrols each floor: resting in the open can be found.
