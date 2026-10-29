@@ -15,7 +15,7 @@
         ),
         // Strong builds, to see the floors give way to strength.
         (
-            builds: ["sabre (10)", "tri-sword (10)"],
+            builds: ["sabre (10)", "tri-sword (10)", "sabre veteran", "tri-sword veteran"],
             dives: [(name: "Caves", dungeon: "Caves")],
         ),
     ],

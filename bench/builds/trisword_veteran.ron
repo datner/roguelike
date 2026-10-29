@@ -1,0 +1,18 @@
+// The tri-sword mastered as a veteran would be (docs/plans/sturdiness.md):
+// the sword skills at 10, Toughness and Recovery at 10.
+(
+    name: "tri-sword veteran",
+    note: "the tri-sword (10) build with Toughness and Recovery at 10",
+    skills: {
+        "Melee": 10,
+        "Sword": 10,
+        "Slash": 10,
+        "Pierce": 10,
+        "One-handed": 10,
+        "Toughness": 10,
+        "Recovery": 10,
+    },
+    equipment: ["Sabre", "Torch"],
+    techniques: ["HorizontalSlash", "VerticalSlash", "Stab"],
+    policy: [Perform("Stab"), Perform("VerticalSlash"), Perform("HorizontalSlash"), Bump],
+)

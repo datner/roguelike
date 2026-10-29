@@ -59,9 +59,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   repays a wound gives Recovery 2 XP. Wounds are forgotten on arriving somewhere new. Recovery
   divides the interval by 1 + level/10 and adds 10 points per level to the floor budget's percent.
 
-### 3. The bench
+### 3. The bench — done
 - Level-10 builds gain Toughness and Recovery at 10 (a veteran is tougher, not only sharper); the
   report regenerated; this plan's as-built note says what moved.
+- As built: two new builds, `sabre veteran` and `tri-sword veteran`, rather than changing the level-10
+  ones: the doll tables compare builds by the XP they took, and Toughness would skew that. In the
+  caves (20 runs each), reaching floor 6: sabre veteran 18, tri-sword veteran 19; the plain level-10
+  tri-sword 19 (from 5: it grows Toughness as it is hurt) and sabre 3 (from 0); the pit fighter, at 26
+  health, 6 (from 0). The hedge mage, now at 16, still 19.
 
 ## Out of scope
 
