@@ -16,6 +16,7 @@ use crate::entity::{Dead, Name, Position, Skills};
 use crate::explore::{ExploreItems, explore_step, travel_step};
 use crate::input::PlayerAction;
 use crate::map::Tile;
+use crate::rest::{rest_refusal, rest_step};
 use crate::state::GameState;
 use crate::time::{self, take_turn};
 
@@ -75,11 +76,15 @@ pub struct FloorRun {
     pub ticks: u64,
     /// XP gained, by skill name.
     pub xp: BTreeMap<String, u32>,
+    /// Health on arriving less health on leaving: what resting didn't make
+    /// up for.
     pub hp_lost: u32,
     /// Health on leaving the floor (0 on a death).
     pub hp_left: u32,
     /// What it died to: the nearest enemy in view at the end, or "unseen".
     pub died_to: Option<String>,
+    /// Turns spent resting.
+    pub rested: u32,
     /// Each fight's length in keypresses: from an enemy coming into view to
     /// none being in view.
     pub fights: Vec<u32>,
@@ -180,7 +185,7 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
     let xp_before = xp(state);
     let hp_before = health(state, player);
     let mut run = FloorRun::default();
-    let (mut exploring, mut waits, mut fight) = (false, 0, None::<u32>);
+    let (mut exploring, mut resting, mut waits, mut fight) = (false, false, 0, None::<u32>);
     let end = loop {
         if state.game_over {
             break Some(End::Died);
@@ -190,7 +195,7 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
         }
         let before = state.now;
         if let Some(target) = nearest_enemy(state) {
-            exploring = false;
+            (exploring, resting) = (false, false);
             run.keypresses += 1;
             *fight.get_or_insert(0) += 1;
             if act(state, build, target) {
@@ -204,6 +209,19 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
                 run.fights.push(length);
             }
             waits = 0;
+            // Below half health, a careful player rests to full before
+            // exploring on, while the floor's budget lasts.
+            if (resting || below_half(state)) && rest_refusal(state).is_none() {
+                if !resting {
+                    run.keypresses += 1;
+                    (exploring, resting) = (false, true);
+                }
+                rest_step(state);
+                run.rested += 1;
+                run.turns += 1;
+                continue;
+            }
+            resting = false;
             if !exploring {
                 run.keypresses += 1;
                 exploring = true;
@@ -269,6 +287,13 @@ fn nearest_enemy(state: &GameState) -> Option<Entity> {
         .collect();
     enemies.sort_by_key(|&(distance, seq, _)| (distance, seq));
     enemies.first().map(|&(_, _, entity)| entity)
+}
+
+fn below_half(state: &GameState) -> bool {
+    state
+        .world
+        .get::<&crate::entity::Health>(state.player)
+        .is_ok_and(|health| health.current * 2 < health.max)
 }
 
 fn on_stairs_down(state: &GameState) -> bool {
@@ -413,6 +438,34 @@ mod tests {
         assert_eq!(run.floors.len(), 1);
         assert_eq!(run.floors[0].hp_left, 0);
         assert!(run.floors[0].died_to.is_some());
+    }
+
+    #[test]
+    fn a_hurt_bot_rests_before_exploring_on() {
+        let build = bumper();
+        let mut state = on_the_first_floor(&build, 1);
+        despawn_enemies(&mut state);
+        let player = state.player;
+        state.world.get::<&mut Health>(player).unwrap().current = 5;
+        let run = play(&mut state, &build, 1);
+        assert!(run.floors[0].rested > 0);
+        assert_eq!(run.floors[0].hp_left, 20, "rested to full");
+    }
+
+    #[test]
+    fn a_bot_with_no_budget_left_explores_on() {
+        let build = bumper();
+        let mut state = on_the_first_floor(&build, 1);
+        despawn_enemies(&mut state);
+        let player = state.player;
+        state.world.get::<&mut Health>(player).unwrap().current = 5;
+        state
+            .world
+            .insert_one(player, crate::entity::RestBudget { left: 0 })
+            .unwrap();
+        let run = play(&mut state, &build, 1);
+        assert_eq!(run.floors[0].rested, 0);
+        assert_eq!(run.floors[0].hp_left, 5);
     }
 
     #[test]

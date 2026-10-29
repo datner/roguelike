@@ -63,10 +63,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   floor and leaves it out at camp. The session tests cover the refusal and the status line; the run
   to full health is tested in `game` (a session can't hurt its player).
 
-### 3. The bot rests
+### 3. The bot rests — done
 - `balance::floors`: rest when no enemy is in view and health is below half, counted as one keypress.
 - Bench report regenerated; this plan's as-built notes say what moved.
 - Tests: a hurt bot with no enemy in view rests before exploring; a bot with no budget left explores on.
+- As built: once it starts resting the bot rests to full (or until the budget or an enemy stops it);
+  `FloorRun.rested` counts the turns and the Floors table has a column for it. The bench now takes
+  about 105 s. Resting does not save the starting melee builds: they die in their first fights on
+  floor 1 (goblins come several at once), which is a question for the fights plan, not for rest.
 
 ## Out of scope
 
