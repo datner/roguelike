@@ -2,7 +2,11 @@
 //! through the real systems (`GameState`, commands, events), so what it reports is the game's, not a
 //! model's. The `bench` program drives it; nothing in play calls it.
 
+mod floors;
+
 use std::collections::BTreeMap;
+
+pub use floors::{Dive, DiveRun, End, FloorRun, dive};
 
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
@@ -198,6 +202,8 @@ fn simulate(
 ) -> Result<(GameState, Run), String> {
     let mut state = arena(blueprints, build, seed)?;
     dress(&mut state, build)?;
+    // The window measures one fixed build, not one that levels as it goes.
+    let _ = state.world.remove_one::<Learner>(state.player);
     let dolls = place(&mut state, scenario)?;
     state.run(Command::UpdateFov);
     fx::take_fx(&mut state);
@@ -292,11 +298,10 @@ fn arena(blueprints: &Blueprints, build: &Build, seed: u64) -> Result<GameState,
     .map_err(|err| format!("{}: {err}", build.name))
 }
 
-/// The origin's player made into `build`: its skills (and no learning),
-/// stats, gear, techniques and style.
+/// The origin's player made into `build`: its skills, stats, gear,
+/// techniques and style.
 fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
     let player = state.player;
-    let _ = state.world.remove_one::<Learner>(player);
     let mut skills = state
         .world
         .get::<&Skills>(player)

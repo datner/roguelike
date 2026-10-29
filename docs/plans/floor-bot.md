@@ -58,7 +58,7 @@ heals on purpose, so it reads as "what bumping gets you".
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. One bot, one dive
+### 1. One bot, one dive — done
 - `balance.rs`: `Dive { name, dungeon, phase: Option<String>, floors }`, `dive(blueprints, &Build,
   &Dive, seed) -> Result<DiveRun, String>`, `DiveRun { floors: Vec<FloorRun>, ended: End }` with `End`
   `Depth | Died | Stuck`. The policy's target becomes "the nearest enemy in view" (dolls are enemies,
@@ -70,6 +70,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   can't finish ends `Stuck`; the build gains XP (unlike `run`).
 - Measure how long a dive takes; set the default seeds so `scripts/balance.sh` stays under two minutes,
   and note the time here.
+- As built: in `game/src/balance/floors.rs`. The tests read `data/` like the doll bench's (the bot is
+  about the real dungeons), and set up odd floors by editing the state after `enter` (no enemies, no
+  stairs, 1 HP). The doll runs keep their own targeting; only the bot looks for enemies in view.
+  `died_to` is the nearest enemy in view at the death, or "unseen". Timing moved to slice 2, where
+  the bench runs dives.
 
 ### 2. Into the bench
 - `bench/dives.ron`; `bench` loads it and runs every listed build × dungeon × phase over the seeds.
