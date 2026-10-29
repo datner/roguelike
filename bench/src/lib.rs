@@ -2,8 +2,12 @@
 //! build against each scenario through `game::balance` over many seeds, and writes the report. A
 //! tool for changing content, not part of the game.
 
+mod floors;
+
 use std::fmt::Write as _;
 use std::path::Path;
+
+pub use floors::{DiveRow, DiveSet, Dives};
 
 use game::Blueprints;
 use game::balance::{self, Build, Cost, Run, Scenario, Summary};
@@ -23,9 +27,10 @@ pub struct Bench {
     /// In file-name order.
     pub builds: Vec<Build>,
     pub scenarios: Vec<Scenario>,
+    pub dives: Dives,
 }
 
-/// Reads `dir/builds/*.ron` and `dir/scenarios.ron`.
+/// Reads `dir/builds/*.ron`, `dir/scenarios.ron` and `dir/dives.ron`.
 pub fn load(dir: &Path) -> Result<Bench, String> {
     let read = |path: &Path| {
         std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", path.display()))
@@ -49,7 +54,15 @@ pub fn load(dir: &Path) -> Result<Bench, String> {
     let path = dir.join("scenarios.ron");
     let scenarios =
         ron::from_str(&read(&path)?).map_err(|err| format!("{}: {err}", path.display()))?;
-    Ok(Bench { builds, scenarios })
+    let path = dir.join("dives.ron");
+    let dives = ron
+        .from_str(&read(&path)?)
+        .map_err(|err| format!("{}: {err}", path.display()))?;
+    Ok(Bench {
+        builds,
+        scenarios,
+        dives,
+    })
 }
 
 /// One build against one scenario, both windows.
@@ -83,8 +96,24 @@ pub fn measure(blueprints: &Blueprints, bench: &Bench, seeds: u64) -> Result<Vec
     Ok(rows)
 }
 
-/// The report, as markdown: the builds, then one table per scenario.
-pub fn report(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) -> String {
+/// Every set's builds through its dives (`dives.ron`), over seeds `0..seeds`.
+pub fn measure_dives(
+    blueprints: &Blueprints,
+    bench: &Bench,
+    seeds: u64,
+) -> Result<Vec<DiveRow>, String> {
+    floors::measure(blueprints, &bench.builds, &bench.dives, seeds)
+}
+
+/// The report, as markdown: the builds, one table per scenario, then the
+/// floors (`dives`, played over `dive_seeds`).
+pub fn report(
+    blueprints: &Blueprints,
+    bench: &Bench,
+    rows: &[Row],
+    dives: &[DiveRow],
+    (seeds, dive_seeds): (u64, u64),
+) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "# Balance report\n");
     let _ = writeln!(
@@ -131,6 +160,7 @@ pub fn report(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) 
         spending(&mut out, rows, first);
         costing(&mut out, bench, &costs, rows, first);
     }
+    floors::report(&mut out, dives, dive_seeds);
     out
 }
 
@@ -283,7 +313,13 @@ fn spread(summary: &Summary) -> String {
 
 /// Every number the report has, as JSON, for anything that draws it (the
 /// page, `page.html`). Written by hand: the shape is small and fixed.
-pub fn json(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) -> String {
+pub fn json(
+    blueprints: &Blueprints,
+    bench: &Bench,
+    rows: &[Row],
+    dives: &[DiveRow],
+    seeds: u64,
+) -> String {
     let costs: Vec<Cost> = bench
         .builds
         .iter()
@@ -336,10 +372,11 @@ pub fn json(blueprints: &Blueprints, bench: &Bench, rows: &[Row], seeds: u64) ->
         .collect();
     format!(
         "{{\"seeds\":{seeds},\"burst\":{BURST},\"sustained\":{SUSTAINED},\"outlier\":{OUTLIER},\
-         \"builds\":[{}],\"scenarios\":[{}],\"rows\":[{}]}}\n",
+         \"builds\":[{}],\"scenarios\":[{}],\"rows\":[{}],\"dives\":{}}}\n",
         builds.join(","),
         scenarios.join(","),
-        rows.join(",")
+        rows.join(","),
+        floors::json(dives)
     )
 }
 
@@ -427,6 +464,8 @@ mod tests {
         assert!(!bench.builds.is_empty() && !bench.scenarios.is_empty());
         let rows = measure(&data(), &bench, 1).unwrap();
         assert_eq!(rows.len(), bench.builds.len() * bench.scenarios.len());
+        // No seeds: only that every dive names a build that exists.
+        assert!(!measure_dives(&data(), &bench, 0).unwrap().is_empty());
     }
 
     /// The report's shape, pinned without running the bench.
@@ -440,6 +479,7 @@ mod tests {
                 .filter(|build| ["sabre", "wanderer"].contains(&build.name.as_str()))
                 .collect(),
             scenarios: bench.scenarios.into_iter().take(1).collect(),
+            dives: Dives::default(),
         };
         let summary = |mean| Summary {
             mean,
@@ -458,7 +498,7 @@ mod tests {
                 sustained: summary(mean),
             })
             .collect();
-        let report = report(&data(), &bench, &rows, 3);
+        let report = report(&data(), &bench, &rows, &[], (3, 3));
         let lines: Vec<&str> = report.lines().collect();
         for expected in [
             "| sabre | 4.75 (3.75–5.75) | 4.50 (3.50–5.50) | 90% | 5% |",
@@ -494,7 +534,7 @@ mod tests {
         );
         let bench = load(&dir()).unwrap();
         let rows = measure(&data(), &bench, 1).unwrap();
-        let numbers = json(&data(), &bench, &rows, 1);
+        let numbers = json(&data(), &bench, &rows, &[], 1);
         let page = page(&template, &numbers, Some(&numbers));
         assert!(!page.contains("/*REPORT*/") && !page.contains("/*PREVIOUS*/"));
         assert_eq!(page.matches(numbers.trim()).count(), 2);

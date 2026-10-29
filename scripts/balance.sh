@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The balance bench (docs/plans/balance.md): every build in bench/builds
-# against every scenario in bench/scenarios.ron, through the real game.
+# against every scenario in bench/scenarios.ron, and the floor bot through
+# the dives in bench/dives.ron (docs/plans/floor-bot.md), through the real game.
 #   scripts/balance.sh             rewrites bench/report.md and bench/report.json
 #   scripts/balance.sh --check     regenerates to a scratch file and diffs it
 #                                  against bench/report.md (exit 1 if moved)

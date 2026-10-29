@@ -76,7 +76,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `died_to` is the nearest enemy in view at the death, or "unseen". Timing moved to slice 2, where
   the bench runs dives.
 
-### 2. Into the bench
+### 2. Into the bench — done
 - `bench/dives.ron`; `bench` loads it and runs every listed build × dungeon × phase over the seeds.
 - Report **Floors** section, one table per dive scenario: per floor, how many runs are still alive,
   keypresses and turns (mean, p10, p90), XP, HP lost, fight length; how runs ended (depth, died with the
@@ -85,6 +85,10 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - First scenarios: each origin as it starts (the naive bump build) in the caves and the castle, in the
   starting phase and the Embers; the level-10 builds in the caves.
 - Tests: `bench` formats a fixed `DiveRun` into the expected table, as `report` is pinned today.
+- As built: in `bench/src/floors.rs`. `dives.ron` holds sets (builds × dives) and its own seeds (20);
+  `--seeds` sets the doll and dive seeds alike. The whole bench takes about 50 s in release. First
+  reading: with no HP regeneration every melee start dies by floor 2 and only the hedge mage reaches
+  floor 6, which is what the rest plan answers.
 
 ### 3. Targets and progression
 - `bench/targets.ron` (the Pacing table as ranges, `actions_per_hour`), loaded with the rest.

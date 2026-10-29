@@ -210,3 +210,84 @@ XP to build: the XP its skills hold. Damage per turn is the sustained mean again
 | tri-sword | 6250 | 4.21 | 1.20× |  |
 | tri-sword (10) | 25000 | 6.73 | — |  |
 | wanderer | 0 | 1.95 | — |  |
+
+## Floors
+
+The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through real floors, 20 seeds per dive: it fights what it sees with its policy and explores the rest. Keypresses count a run of explore steps as one. Per floor, over the runs that reached it: mean (10th–90th percentile).
+
+### Caves
+
+Caves, the starting phase, 6 floors.
+
+| build | floor | reached | keypresses | turns | XP (most to) | HP lost | fights | fight length |
+|---|---|---|---|---|---|---|---|---|
+| pit fighter | 1 | 20/20 | 53 (36–68) | 846 | 633 (Blunt 124) | 18.3 | 4.9 | 9.8 (7.0–13.0) |
+| pit fighter | 2 | 5/20 | 21 (9–35) | 213 | 85 (Dodge 18) | 6.8 | 2.2 | 8.5 (5.0–15.0) |
+| duelist | 1 | 20/20 | 32 (21–40) | 629 | 734 (Empty offhand 91) | 19.9 | 4.3 | 6.3 (4.0–8.0) |
+| duelist | 2 | 1/20 | 5 (5–5) | 92 | 40 (Dodge 8) | 2.0 | 1.0 | 4.0 (4.0–4.0) |
+| hedge mage | 1 | 20/20 | 24 (21–28) | 1268 | 443 (Magic 80) | 0.1 | 6.0 | 2.6 (2.0–3.0) |
+| hedge mage | 2 | 20/20 | 27 (24–30) | 1228 | 238 (Magic 44) | 0.1 | 7.1 | 2.5 (2.0–3.0) |
+| hedge mage | 3 | 20/20 | 30 (28–34) | 1282 | 183 (Magic 31) | 0.1 | 8.2 | 2.5 (2.0–3.0) |
+| hedge mage | 4 | 20/20 | 34 (31–37) | 1251 | 146 (Bolt 22) | 0.9 | 9.2 | 2.4 (2.0–3.0) |
+| hedge mage | 5 | 20/20 | 37 (35–41) | 1311 | 129 (Magic 21) | 0.8 | 10.1 | 2.5 (2.0–3.0) |
+| hedge mage | 6 | 20/20 | 41 (37–45) | 1231 | 85 (Pyromancy 13) | 0.6 | 10.9 | 2.6 (2.0–4.0) |
+| wanderer | 1 | 20/20 | 40 (34–49) | 803 | 826 (Bow 120) | 19.6 | 5.2 | 6.7 (3.0–13.0) |
+| wanderer | 2 | 1/20 | 7 (7–7) | 55 | 100 (Blunt 16) | 8.0 | 1.0 | 6.0 (6.0–6.0) |
+| sabre (10) | 1 | 20/20 | 41 (35–48) | 1068 | 472 (Melee 77) | 15.4 | 5.3 | 6.5 (4.0–8.0) |
+| sabre (10) | 2 | 12/20 | 23 (11–41) | 460 | 128 (Dodge 22) | 7.1 | 3.5 | 5.4 (4.0–7.0) |
+| sabre (10) | 3 | 1/20 | 31 (31–31) | 671 | 106 (Dodge 19) | 6.0 | 5.0 | 5.2 (2.0–7.0) |
+| tri-sword (10) | 1 | 20/20 | 38 (32–44) | 1268 | 413 (Melee 74) | 7.8 | 5.6 | 5.5 (3.0–8.0) |
+| tri-sword (10) | 2 | 20/20 | 39 (28–47) | 1022 | 239 (Melee 44) | 6.8 | 6.0 | 5.2 (3.0–7.0) |
+| tri-sword (10) | 3 | 15/20 | 34 (6–54) | 714 | 123 (Melee 21) | 5.5 | 5.1 | 5.5 (4.0–7.0) |
+| tri-sword (10) | 4 | 5/20 | 28 (11–55) | 432 | 88 (Melee 15) | 4.0 | 4.6 | 5.0 (2.0–7.0) |
+| tri-sword (10) | 5 | 1/20 | 33 (33–33) | 418 | 72 (Dodge 14) | 6.0 | 6.0 | 4.5 (3.0–6.0) |
+
+- **pit fighter**: 0 reached floor 6, 20 died (goblin 18, unseen 2), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin 17, unseen 3), 0 stuck.
+- **hedge mage**: 20 reached floor 6, 0 died, 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 18, unseen 2), 0 stuck.
+- **sabre (10)**: 0 reached floor 6, 20 died (goblin 14, unseen 6), 0 stuck.
+- **tri-sword (10)**: 0 reached floor 6, 20 died (goblin 18, unseen 2), 0 stuck.
+
+### Caves in the Embers
+
+Caves, Embers, 6 floors.
+
+| build | floor | reached | keypresses | turns | XP (most to) | HP lost | fights | fight length |
+|---|---|---|---|---|---|---|---|---|
+| pit fighter | 1 | 20/20 | 26 (13–39) | 198 | 414 (Blunt 73) | 20.0 | 2.8 | 8.4 (4.0–14.0) |
+| duelist | 1 | 20/20 | 21 (11–31) | 291 | 537 (Empty offhand 63) | 20.0 | 2.9 | 6.2 (3.0–9.0) |
+| hedge mage | 1 | 20/20 | 31 (29–34) | 1239 | 625 (Magic 117) | 3.8 | 8.2 | 2.6 (2.0–4.0) |
+| hedge mage | 2 | 19/20 | 35 (32–39) | 1248 | 362 (Magic 71) | 3.2 | 9.4 | 2.5 (1.0–4.0) |
+| hedge mage | 3 | 19/20 | 37 (34–41) | 1266 | 269 (Magic 50) | 3.1 | 10.1 | 2.5 (2.0–4.0) |
+| hedge mage | 4 | 19/20 | 40 (39–45) | 1129 | 204 (Bolt 33) | 2.5 | 10.7 | 2.6 (2.0–4.0) |
+| hedge mage | 5 | 17/20 | 41 (30–49) | 1079 | 188 (Magic 31) | 3.8 | 10.6 | 2.7 (2.0–4.0) |
+| hedge mage | 6 | 13/20 | 41 (19–52) | 972 | 117 (Bolt 20) | 2.6 | 11.2 | 2.5 (2.0–4.0) |
+| wanderer | 1 | 20/20 | 35 (24–43) | 453 | 805 (Bow 130) | 20.0 | 5.2 | 5.8 (3.0–11.0) |
+
+- **pit fighter**: 0 reached floor 6, 20 died (goblin 10, goblin shaman 8, unseen 2), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin 10, goblin shaman 8, unseen 2), 0 stuck.
+- **hedge mage**: 9 reached floor 6, 11 died (goblin shaman 11), 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 18, goblin shaman 2), 0 stuck.
+
+### Castle
+
+Castle, the starting phase, 6 floors.
+
+| build | floor | reached | keypresses | turns | XP (most to) | HP lost | fights | fight length |
+|---|---|---|---|---|---|---|---|---|
+| pit fighter | 1 | 20/20 | 38 (25–55) | 514 | 575 (Blunt 109) | 19.8 | 4.1 | 8.1 (4.0–12.0) |
+| pit fighter | 2 | 2/20 | 12 (8–15) | 188 | 53 (Dodge 12) | 2.0 | 2.0 | 4.8 (1.0–7.0) |
+| duelist | 1 | 20/20 | 23 (10–34) | 434 | 618 (Empty offhand 74) | 20.0 | 3.4 | 6.0 (4.0–9.0) |
+| hedge mage | 1 | 20/20 | 24 (21–26) | 1102 | 522 (Magic 90) | 4.0 | 6.2 | 2.5 (2.0–4.0) |
+| hedge mage | 2 | 20/20 | 27 (23–30) | 1045 | 292 (Magic 58) | 4.9 | 6.8 | 2.7 (2.0–4.0) |
+| hedge mage | 3 | 19/20 | 28 (27–35) | 1025 | 223 (Magic 40) | 3.6 | 7.4 | 2.6 (2.0–4.0) |
+| hedge mage | 4 | 17/20 | 29 (18–37) | 880 | 165 (Magic 26) | 3.9 | 7.6 | 2.6 (2.0–4.0) |
+| hedge mage | 5 | 11/20 | 34 (32–40) | 994 | 186 (Magic 27) | 3.9 | 9.4 | 2.5 (2.0–4.0) |
+| hedge mage | 6 | 8/20 | 40 (33–46) | 933 | 142 (Magic 26) | 1.8 | 10.2 | 2.8 (2.0–4.0) |
+| wanderer | 1 | 20/20 | 31 (23–38) | 578 | 719 (Bow 110) | 20.0 | 4.7 | 5.5 (3.0–11.0) |
+
+- **pit fighter**: 0 reached floor 6, 20 died (goblin 12, goblin shaman 5, unseen 3), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin 9, goblin shaman 8, unseen 3), 0 stuck.
+- **hedge mage**: 6 reached floor 6, 14 died (goblin shaman 10, unseen 3, goblin 1), 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 11, goblin shaman 8, unseen 1), 0 stuck.

@@ -1,0 +1,22 @@
+// The floor bot's dives (docs/plans/floor-bot.md): each set's builds played
+// through each of its dives, from camp, over seeds 0..seeds.
+(
+    seeds: 20,
+    sets: [
+        // Each origin as it starts, bumping, shooting or casting with what it
+        // has: the naive player of the vision's Fights.
+        (
+            builds: ["pit fighter", "duelist", "hedge mage", "wanderer"],
+            dives: [
+                (name: "Caves", dungeon: "Caves"),
+                (name: "Caves in the Embers", dungeon: "Caves", phase: "Embers"),
+                (name: "Castle", dungeon: "Castle"),
+            ],
+        ),
+        // Strong builds, to see the floors give way to strength.
+        (
+            builds: ["sabre (10)", "tri-sword (10)"],
+            dives: [(name: "Caves", dungeon: "Caves")],
+        ),
+    ],
+)
