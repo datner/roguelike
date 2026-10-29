@@ -172,9 +172,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   creature does. Creatures' quivers are stocked with 8 arrows when placed (no RNG, placement
   unchanged). One in each dungeon. Saves v54.
 
-### 10. The swarm
+### 10. The swarm — done
 - `Rat.ron` (speed 150, 3 HP); a pack in the caves.
 - Tests: a rat outpaces the player; the pack spawns.
+- As built: `Rat` inherits `Creature` (a beast, no equipment), speed 150, 3 HP, and backs off at half
+  health (`Morale(50)`). Four on the caves' first floor, one more each floor down.
 
 ### 11. The bench and the vision
 - `bench/dives.ron` keeps its dives; the report now dies to brutes, slingers and rats as well; the

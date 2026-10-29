@@ -671,6 +671,48 @@ mod tests {
     }
 
     #[test]
+    fn a_rat_outpaces_you_and_comes_in_a_pack() {
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap()
+        .with_camp(None);
+        let state = GameState::new(3, data.clone()).unwrap();
+        let rats: Vec<Entity> = state
+            .world
+            .query::<(Entity, &crate::entity::Name)>()
+            .iter()
+            .filter(|(_, name)| name.0 == "rat")
+            .map(|(entity, _)| entity)
+            .collect();
+        let player_speed = state
+            .world
+            .get::<&crate::entity::Speed>(state.player)
+            .unwrap()
+            .0;
+        let castle = rats.is_empty();
+        // The first dungeon (no camp) is the castle; the pack is the caves'.
+        let caves = data.dungeon("Caves").unwrap();
+        let pack = caves
+            .creatures
+            .iter()
+            .find(|inhabitant| inhabitant.blueprint == "Rat")
+            .unwrap();
+        assert!(castle || rats.len() == pack.on_floor(1));
+        assert!(pack.on_floor(1) >= 4);
+        let rat = data.get("Rat").unwrap();
+        let speed = rat
+            .components
+            .iter()
+            .find_map(|c| match c {
+                crate::blueprint::ComponentDef::Speed(speed) => Some(speed.0),
+                _ => None,
+            })
+            .unwrap();
+        assert!(speed > player_speed);
+    }
+
+    #[test]
     fn an_adjacent_goblin_attacks() {
         let (mut state, goblin) = with_goblin(Position { x: 2, y: 2 });
         let player = state.player;

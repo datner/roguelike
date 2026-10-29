@@ -27,6 +27,8 @@
         // One patrols each floor: resting in the open can be found.
         (blueprint: "GoblinScout", count: 1),
         (blueprint: "GoblinArcher", count: 1),
+        // A rat pack: fast and many, for a corridor or an area to answer.
+        (blueprint: "Rat", count: 4, per_floor: 1),
         // In the Embers a brute prowls the caves.
         (blueprint: "GoblinBrute", count: 1, phases: ["Embers"]),
         (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),
