@@ -381,7 +381,7 @@ function renderFloors() {
       const died = r.causes.map(([c, n]) => `${esc(c)} ${n}`).join(", ");
       return `<tr><td>${esc(r.build)}</td>${flag(inside(keys, t.floor), fmt(keys, 0))}` +
         `${flag(inside(fight, t.fight), fmt(fight, 1))}<td>${esc(r.top_skill ?? "—")}</td>${reach}` +
-        `<td class="spread">${r.depth} deep · ${r.died} died${died ? ` (${died})` : ""} · ${r.stuck} stuck</td></tr>`;
+        `<td class="spread">${r.depth} deep${r.bottom ? ` · ${r.bottom} at the bottom` : ""} · ${r.died} died${died ? ` (${died})` : ""} · ${r.stuck} stuck</td></tr>`;
     }).join("");
     $("floors-table").innerHTML = head + body;
   }

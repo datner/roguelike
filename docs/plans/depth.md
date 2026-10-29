@@ -54,9 +54,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - As built: the side panel's last row names the keys that work there ("> deeper", "> deeper  < back
   to camp", "The bottom  < back to camp").
 
-### 3. The bot at the bottom
+### 3. The bot at the bottom — done
 - `balance::End::Bottom`; the bench reports it beside depth, died and stuck.
 - Tests: a bot dropped on the bottom floor with nothing left ends `Bottom`.
+- As built: the report says "n explored the bottom" only when some did; the JSON row gains `bottom`.
+  No dive asks for more floors than its dungeon has yet, so the report did not move but for that key.
 
 ## Out of scope
 

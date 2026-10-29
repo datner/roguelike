@@ -154,6 +154,8 @@ pub fn floors(runs: &[DiveRun]) -> Vec<FloorSummary> {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Endings {
     pub depth: usize,
+    /// Explored the dungeon's bottom before the floors asked for ran out.
+    pub bottom: usize,
     pub died: usize,
     pub stuck: usize,
     pub causes: Vec<(String, usize)>,
@@ -165,6 +167,7 @@ pub fn endings(runs: &[DiveRun]) -> Endings {
     for run in runs {
         match run.ended {
             End::Depth => endings.depth += 1,
+            End::Bottom => endings.bottom += 1,
             End::Stuck => endings.stuck += 1,
             End::Died => {
                 endings.died += 1;
@@ -262,9 +265,14 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64, targets: &Targets)
             } else {
                 format!(" ({})", causes.join(", "))
             };
+            let bottom = if ended.bottom > 0 {
+                format!(", {} explored the bottom", ended.bottom)
+            } else {
+                String::new()
+            };
             let _ = writeln!(
                 out,
-                "- **{}**: {} reached floor {}, {} died{causes}, {} stuck.",
+                "- **{}**: {} reached floor {}{bottom}, {} died{causes}, {} stuck.",
                 row.build, ended.depth, dive.floors, ended.died, ended.stuck
             );
         }
@@ -381,7 +389,7 @@ pub fn json(rows: &[DiveRow], targets: &Targets) -> String {
             });
             format!(
                 "{{\"build\":{},\"dive\":{},\"dungeon\":{},\"phase\":{},\"floors_asked\":{},\
-                 \"runs\":{},\"floors\":[{}],\"depth\":{},\"died\":{},\"stuck\":{},\"causes\":[{}],\
+                 \"runs\":{},\"floors\":[{}],\"depth\":{},\"bottom\":{},\"died\":{},\"stuck\":{},\"causes\":[{}],\
                  \"top_skill\":{},\"reach\":[{}]}}",
                 text(&row.build),
                 text(&row.dive.name),
@@ -394,6 +402,7 @@ pub fn json(rows: &[DiveRow], targets: &Targets) -> String {
                 row.runs.len(),
                 floors.join(","),
                 ended.depth,
+                ended.bottom,
                 ended.died,
                 ended.stuck,
                 causes.join(","),

@@ -64,6 +64,8 @@ pub enum End {
     Died,
     /// The last floor listed could not be finished.
     Stuck,
+    /// It explored the dungeon's bottom, where no stairs lead down.
+    Bottom,
 }
 
 /// What one floor cost and gave.
@@ -232,7 +234,11 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
                     run.keypresses += 1;
                     break None;
                 }
-                break Some(End::Stuck);
+                break Some(if at_the_bottom(state) {
+                    End::Bottom
+                } else {
+                    End::Stuck
+                });
             }
         }
         if state.now != before {
@@ -294,6 +300,16 @@ fn below_half(state: &GameState) -> bool {
         .world
         .get::<&crate::entity::Health>(state.player)
         .is_ok_and(|health| health.current * 2 < health.max)
+}
+
+fn at_the_bottom(state: &GameState) -> bool {
+    match &state.place {
+        Place::Floor { dungeon, floor, .. } => state
+            .blueprints
+            .dungeon(dungeon)
+            .is_some_and(|found| found.is_bottom(*floor)),
+        Place::Camp => false,
+    }
 }
 
 fn on_stairs_down(state: &GameState) -> bool {
@@ -466,6 +482,33 @@ mod tests {
         let run = play(&mut state, &build, 1);
         assert_eq!(run.floors[0].rested, 0);
         assert_eq!(run.floors[0].hp_left, 5);
+    }
+
+    #[test]
+    fn a_bot_that_explores_the_bottom_ends_there() {
+        let build = bumper();
+        let mut state = on_the_first_floor(&build, 1);
+        let Place::Floor { dungeon, phase, .. } = state.place.clone() else {
+            panic!("on a floor");
+        };
+        let bottom = state.blueprints.dungeon(&dungeon).unwrap().floors;
+        state.place = Place::Floor {
+            dungeon,
+            phase,
+            dive: 1,
+            floor: bottom,
+        };
+        despawn_enemies(&mut state);
+        for y in 0..state.map.height {
+            for x in 0..state.map.width {
+                if state.map.get(x, y) == Some(&Tile::StairsDown) {
+                    state.map.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        let run = play(&mut state, &build, 3);
+        assert_eq!(run.ended, End::Bottom);
+        assert_eq!(run.floors.len(), 1);
     }
 
     #[test]
