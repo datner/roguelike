@@ -32,7 +32,8 @@ decided while building. When a plan and this document disagree, ask the owner wh
    only comes from a use with something at risk, never from practice. What is at risk differs by
    domain: your life in a fight, a rare material in a craft.
 5. **Time is neutral.** No hunger, no clocks, no ratchets that punish slow players or reward fast ones.
-   Nothing changes during play; time passes only between lives (the gap), and that is where decay,
+   Nothing decays or ages during play; the world's phase is the one thing that turns, and only when
+   you choose to wait for it. Time passes only between lives (the gap), and that is where decay,
    ageing and succession happen.
 6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons, legacy contents,
    factions and their beliefs, situations, materials, recipes and endings are RON, composed from
@@ -188,7 +189,9 @@ what the creature is.
   cold, a bone one is light and brittle. One rule times many materials gives variety without a
   catalogue, the way runes compose spells (ADR 0016). Some are **unique, authored recipes** that make
   one specific product.
-- **Most crafting is done at camp**, in its places (forge, workbench, alchemy table, kitchen). Only
+- **Most crafting is done at camp**, in its places. The basics are yours to build from the first life
+  (a fire, a workbench, a cooking pot), so crafting never waits for a retirement; settlers bring the
+  specialist places (a forge, an alchemist's table, a library) and the recipes that need them. Only
   trivial or essential crafts can be done during a dive (a field dressing, fletching an arrow). Materials
   are part of what a dive banks by coming home.
 - **Growth.** Crafting passes the *consumption* test (it uses up something finite); novelty applies, so

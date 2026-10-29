@@ -40,8 +40,9 @@ on them; the decisions below say where each one will attach.
   the rest.
 - **One lineage per saves directory.** `<saves dir>/legacy.ron` holds the records, newest first,
   trimmed to `keep` (data) whenever one is added. Every new character in that directory finds the
-  ruins of the last `keep` lives. Living characters don't affect each other. If two are alive at once,
-  each found the ruins that existed when it was made.
+  ruins of the last `keep` lives. **One living character per lineage**: a new character can be made
+  only once the last one has died (later, retired), so ruins, gaps and mentors always follow one line.
+  Another lineage is another saves directory.
 - **Records are an input to a new game, like the seed and the origin.** `GameState::new_as` takes
   `&[Record]`. Ruins are built once, at creation, from a new `rng::stream::LEGACY` stream seeded from
   the world seed. After that they are ordinary entities in camp and are saved like anything else, and
@@ -141,7 +142,8 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
   (`legacy::summary`), built in `front/text.rs`, so the session and the menu say the same thing. This is
   what the *player* sees; within the world no one tells it yet.
 - Title menu: a **Fallen** list (newest first, read-only) with each record's summary, from
-  `title::lineage`.
+  `title::lineage`. **New game** is offered only when no character is alive; otherwise the menu offers
+  Continue.
 - gui: draws the death panel and the Fallen list; `death` and `fallen` shots, plus `ruins` (a camp
   with two records).
 - README Controls and Structure.
