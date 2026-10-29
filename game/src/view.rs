@@ -163,6 +163,27 @@ pub struct CharacterSheet {
     pub origin: Option<String>,
 }
 
+/// How the player died (docs/plans/legibility.md): the chain, not just the
+/// last blow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeathView {
+    /// "the goblin's blow", "the fall into the chasm", "bleeding".
+    pub killer: String,
+    /// The damage that killed.
+    pub amount: i32,
+    /// Enemies beside you beyond the first, as you fell.
+    pub outnumbered: u32,
+    /// The rest budget left on the floor; `None` at camp.
+    pub rest_left: Option<u32>,
+    /// "The caves, floor 3".
+    pub place: String,
+}
+
+/// How the player died, once they have.
+pub fn death(state: &GameState) -> Option<&DeathView> {
+    state.death.as_ref()
+}
+
 /// The player's chance to hit with a blow, and why (docs/plans/legibility.md).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HitChance {

@@ -109,6 +109,20 @@ pub fn log(state: &GameState, rows: usize, why: bool) -> Vec<Row> {
     out
 }
 
+/// A death's chain for the status line: ": killed by the goblin's blow (5);
+/// outnumbered by 2; 3 rest left; The caves, floor 3".
+pub fn death_chain(death: &game::DeathView) -> String {
+    let mut parts = vec![format!("killed by {} ({})", death.killer, death.amount)];
+    if death.outnumbered > 0 {
+        parts.push(format!("outnumbered by {}", death.outnumbered));
+    }
+    if let Some(left) = death.rest_left {
+        parts.push(format!("{left} rest left"));
+    }
+    parts.push(death.place.clone());
+    format!(": {}", parts.join("; "))
+}
+
 /// The side panel's account of where you are and what comes next.
 pub fn whereabouts(state: &GameState) -> Vec<Row> {
     let plain = |text: String| Seg::Plain(text);
@@ -279,6 +293,30 @@ pub fn equipment(state: &GameState) -> Vec<Row> {
 mod tests {
     use super::*;
     use crate::tests::state;
+
+    #[test]
+    fn a_death_chain_reads_in_order_and_leaves_out_what_did_not_matter() {
+        let death = game::DeathView {
+            killer: "the goblin's blow".into(),
+            amount: 5,
+            outnumbered: 2,
+            rest_left: Some(3),
+            place: "The caves, floor 3".into(),
+        };
+        assert_eq!(
+            death_chain(&death),
+            ": killed by the goblin's blow (5); outnumbered by 2; 3 rest left; The caves, floor 3"
+        );
+        let alone = game::DeathView {
+            outnumbered: 0,
+            rest_left: None,
+            ..death
+        };
+        assert_eq!(
+            death_chain(&alone),
+            ": killed by the goblin's blow (5); The caves, floor 3"
+        );
+    }
 
     #[test]
     fn the_place_is_named_by_its_content() {

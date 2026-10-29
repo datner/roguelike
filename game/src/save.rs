@@ -638,6 +638,8 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
             next_seq: save.timers.next_seq,
         },
         game_over: save.game_over,
+        last_hurt: None,
+        death: None,
         visible,
         seen,
         remembered_items,

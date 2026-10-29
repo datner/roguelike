@@ -331,8 +331,9 @@ impl Session {
             Mode::Aim(aiming) => targeting::status(state, aiming),
             Mode::Look(looking) => targeting::look_status(state, looking),
             _ if state.game_over => format!(
-                "You died on turn {}. Press any key to return to the title.",
-                state.now.turn()
+                "You died on turn {}{}. Press any key to return to the title.",
+                state.now.turn(),
+                game::death(state).map_or_else(String::new, crate::text::death_chain)
             ),
             _ => format!(
                 "{}{}{}{}  Turn: {}  Seed: {}",

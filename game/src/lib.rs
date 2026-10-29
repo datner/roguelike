@@ -105,7 +105,7 @@ pub use tiles::{Sprite, SpriteId, Tiles};
 pub use time::{Tick, Timers, advance, take_turn};
 pub use training::practice_step;
 pub use view::{
-    CastPreview, CharacterSheet, CostLine, HitChance, ItemRef, ItemView, PartView, SkillView,
-    SpellView, character_sheet, equipment_view, hit_chance, inventory_view, outnumbered, skills,
-    spells, throwables,
+    CastPreview, CharacterSheet, CostLine, DeathView, HitChance, ItemRef, ItemView, PartView,
+    SkillView, SpellView, character_sheet, death, equipment_view, hit_chance, inventory_view,
+    outnumbered, skills, spells, throwables,
 };

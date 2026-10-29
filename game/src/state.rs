@@ -105,6 +105,12 @@ pub struct GameState {
     pub timers: Timers,
     /// Set when the player dies; the scheduler stops and input is ignored.
     pub game_over: bool,
+    /// What last hurt the player, as it reads ("the goblin's blow"), and by
+    /// how much: what a death names (docs/plans/legibility.md). Not saved.
+    pub(crate) last_hurt: Option<(String, i32)>,
+    /// How the player died, once they have. Not saved: a dead character's
+    /// save is gone.
+    pub(crate) death: Option<crate::view::DeathView>,
     /// Tiles the player sees now: the visible set, as one flag per tile.
     /// Recomputed once per player turn (`Command::UpdateFov`), never per
     /// actor (ADR 0007).
@@ -360,6 +366,8 @@ impl GameState {
             now: Tick::default(),
             timers: Timers::default(),
             game_over: false,
+            last_hurt: None,
+            death: None,
             visible: unseen.clone(),
             seen: unseen,
             remembered_items: no_items,

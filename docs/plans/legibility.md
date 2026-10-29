@@ -75,10 +75,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   preview already says what it would do (ADR 0013), and its odds' reasons are the same function away.
   Grass-hidden creatures are left out of `look_targets`, `inspect` and `aim_targets`.
 
-### 4. A death that names its chain
+### 4. A death that names its chain — done
 - `DeathView` set when the player dies (`command::die`): the killer and the blow, outnumbered count,
   rest budget, place. `game::death(state)`; the death status line in `front` says it.
 - Tests: dying to a goblin while outnumbered names both; dying to a fall names the chasm.
+- As built: the damage applier keeps what last hurt the player as it reads ("the goblin's blow",
+  "the goblin archer's shot", "bleeding", "the fall into the chasm") with the amount; dying turns it
+  into a `DeathView` with how outnumbered you were, the rest budget left and the place. The death
+  status reads "You died on turn 812: killed by the goblin's blow (5); outnumbered by 2; 3 rest
+  left; The caves, floor 3. Press any key…". Neither is saved.
 
 ## Out of scope
 

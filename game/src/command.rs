@@ -827,6 +827,9 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
     };
     let blocked = amount - dealt;
     let to_player = target == state.player;
+    if to_player {
+        state.last_hurt = Some((hurt_by(state, cause), dealt));
+    }
     fx::at(state, target, |at| Fx::Damage {
         at,
         amount: dealt,
@@ -873,9 +876,46 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
 
 /// The player is marked `Dead` and kept, so the frontend can still show
 /// them; everything else is despawned with its attachments.
+/// What `cause` reads as in a death's chain: "the goblin's blow".
+fn hurt_by(state: &GameState, cause: DamageCause) -> String {
+    let of =
+        |who: Entity, what: &str| format!("{} {what}", Subject::of(&state.world, who).possessive());
+    match cause {
+        DamageCause::Melee { attacker, .. } => of(attacker, "blow"),
+        DamageCause::Ranged { attacker, .. } => of(attacker, "shot"),
+        DamageCause::Spell { caster, .. } => of(caster, "spell"),
+        DamageCause::Effect { effect } => state
+            .world
+            .get::<&crate::entity::Name>(effect)
+            .map_or_else(|_| "something".to_string(), |name| name.0.clone()),
+        DamageCause::Fall => "the fall into the chasm".to_string(),
+    }
+}
+
 fn die(state: &mut GameState, entity: Entity) {
     if !state.world.contains(entity) {
         return;
+    }
+    if entity == state.player {
+        let (killer, amount) = state
+            .last_hurt
+            .clone()
+            .unwrap_or_else(|| ("something unseen".to_string(), 0));
+        let place = match crate::dive::place_view(state) {
+            crate::dive::PlaceView::Camp { .. } => "camp".to_string(),
+            crate::dive::PlaceView::Floor { dungeon, floor, .. } => {
+                crate::grammar::capitalize(&format!("{dungeon}, floor {floor}"))
+            }
+        };
+        state.death = Some(crate::view::DeathView {
+            killer,
+            amount,
+            outnumbered: crate::combat::outnumbered(state, entity),
+            rest_left: matches!(state.place, crate::dive::Place::Floor { .. })
+                .then(|| crate::rest::budget(state))
+                .flatten(),
+            place,
+        });
     }
     let dying = Subject::of(&state.world, entity);
     state.log.push(dying.sentence("die", ""));
@@ -984,6 +1024,50 @@ pub(crate) mod tests {
 
     fn pick_up_here(state: &mut GameState) {
         state.run(Command::PickUp(state.player));
+    }
+
+    #[test]
+    fn a_death_names_its_chain() {
+        let mut state = bare_state();
+        let goblin = crate::testkit::thing("goblin")
+            .health(5)
+            .hostile()
+            .with(crate::entity::Melee { min: 3, max: 3 })
+            .at(2, 1)
+            .make(&mut state);
+        crate::testkit::thing("goblin")
+            .health(5)
+            .hostile()
+            .at(1, 2)
+            .make(&mut state);
+        crate::testkit::sure_hits(&mut state, goblin);
+        let player = state.player;
+        state.world.get::<&mut Health>(player).unwrap().current = 1;
+        state.run(Command::Attack {
+            attacker: goblin,
+            target: player,
+        });
+        assert!(state.game_over);
+        let death = crate::view::death(&state).unwrap();
+        assert_eq!(death.killer, "the goblin's blow");
+        assert_eq!(death.amount, 3);
+        assert_eq!(death.outnumbered, 1);
+    }
+
+    #[test]
+    fn a_fall_is_named_when_it_kills() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.world.get::<&mut Health>(player).unwrap().current = 1;
+        state.run(Command::DealDamage {
+            target: player,
+            amount: 4,
+            cause: DamageCause::Fall,
+        });
+        assert_eq!(
+            crate::view::death(&state).unwrap().killer,
+            "the fall into the chasm"
+        );
     }
 
     #[test]
