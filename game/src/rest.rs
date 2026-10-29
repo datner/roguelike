@@ -7,8 +7,11 @@ use hecs::Entity;
 
 use crate::dive::Place;
 use crate::entity::{Dead, Health, Regeneration, RestBudget};
+use crate::explore::visible_hostile;
+use crate::grammar::Subject;
+use crate::input::PlayerAction;
 use crate::state::GameState;
-use crate::time::Timer;
+use crate::time::{Timer, take_turn};
 
 /// A new holder's first tick, and a full budget for where it stands.
 pub(crate) fn start(state: &mut GameState, entity: Entity) {
@@ -90,6 +93,43 @@ pub(crate) fn arrive(state: &mut GameState, travellers: &[Entity]) {
             health.current = health.max;
         }
     }
+}
+
+/// Why resting now would do nothing, or `None` if it would heal.
+pub fn rest_refusal(state: &GameState) -> Option<String> {
+    let player = state.player;
+    if let Some(hostile) = visible_hostile(state) {
+        return Some(Subject::of(&state.world, hostile).sentence("be", "in view"));
+    }
+    let Some(left) = budget(state) else {
+        return Some("You can't rest.".into());
+    };
+    let hurt = state
+        .world
+        .get::<&Health>(player)
+        .is_ok_and(|health| health.current < health.max);
+    if !hurt {
+        return Some("You are rested.".into());
+    }
+    if left == 0 {
+        return Some("You can rest no more on this floor.".into());
+    }
+    None
+}
+
+/// Takes one turn of rest as the player's and returns whether to keep going,
+/// like `practice_step`. Stops without spending time when resting would do
+/// nothing (the log says why): rested, the budget spent, an enemy in view.
+pub fn rest_step(state: &mut GameState) -> bool {
+    if state.game_over {
+        return false;
+    }
+    if let Some(reason) = rest_refusal(state) {
+        state.log.push(reason);
+        return false;
+    }
+    take_turn(state, PlayerAction::Wait);
+    !state.game_over
 }
 
 /// Health still to regain on this floor, for the status line; `None` for a
@@ -213,6 +253,46 @@ mod tests {
             .filter(|&&timer| timer == Timer::Regenerate(player))
             .count();
         assert_eq!(ticks, 1, "only the tick scheduled at start");
+    }
+
+    #[test]
+    fn resting_waits_until_rested_and_then_says_so() {
+        let mut state = hurt(18);
+        let player = state.player;
+        state.world.insert_one(player, Energy(0)).unwrap();
+        while rest_step(&mut state) {}
+        assert_eq!(health(&state), 20);
+        assert_eq!(crate::testkit::last_log(&state), "You are rested.");
+    }
+
+    #[test]
+    fn resting_is_refused_with_no_budget_or_an_enemy_in_view() {
+        let mut state = hurt(10);
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, RestBudget { left: 0 })
+            .unwrap();
+        let before = state.now;
+        assert!(!rest_step(&mut state));
+        assert_eq!(state.now, before);
+        assert_eq!(
+            rest_refusal(&state).as_deref(),
+            Some("You can rest no more on this floor.")
+        );
+        state
+            .world
+            .insert_one(player, RestBudget { left: 5 })
+            .unwrap();
+        crate::testkit::thing("goblin")
+            .with(crate::entity::Hostile)
+            .at(2, 1)
+            .make(&mut state);
+        crate::testkit::see_everything(&mut state);
+        assert_eq!(
+            rest_refusal(&state).as_deref(),
+            Some("The goblin is in view.")
+        );
     }
 
     #[test]

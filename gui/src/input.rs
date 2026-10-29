@@ -74,6 +74,7 @@ pub fn map_game(press: Press) -> Option<InputEvent> {
         Press::Char('<') => Some(InputEvent::Ascend),
         Press::Char('W') => Some(InputEvent::WaitForPhase),
         Press::Char('p') => Some(InputEvent::Practice),
+        Press::Char('R') => Some(InputEvent::Rest),
         Press::Char(';') => Some(InputEvent::Look),
         Press::Char('X') => Some(InputEvent::CycleExploreItems),
         Press::Char('g' | ',') => Some(InputEvent::PickUp),

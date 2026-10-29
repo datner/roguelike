@@ -57,6 +57,9 @@ pub enum InputEvent {
     /// Frontend only: practise until done or interrupted, repeating
     /// `training::practice_step`.
     Practice,
+    /// Frontend only: rest until healed, the floor's budget is spent or an
+    /// enemy comes into view, repeating `rest::rest_step`.
+    Rest,
     /// Frontend only, like `Quit`: open the inventory, equipment or skills
     /// view. No game effect.
     Inventory,

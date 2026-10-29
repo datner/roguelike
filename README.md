@@ -209,6 +209,10 @@ In game:
 - `p`: practise: drill with what you wield, a turn at a time, until you
   can learn no more alone (half your best level in that domain) or an
   enemy comes into view; any key interrupts it.
+- `R`: rest: wait a turn at a time while health comes back (a point every
+  three turns), until healed, the floor's rest budget is spent (the status
+  line's `Rest:`) or an enemy comes into view; any key interrupts it. Camp
+  heals in full.
 - `i` / `e` / `s` / `S`: the inventory / equipment / skills / styles panel
   over the map. `Tab` cycles views, `j`/`k` or arrows select (long lists
   scroll), `Esc`/`q` closes (pressing the open view's key again also

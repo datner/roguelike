@@ -2,8 +2,8 @@
 
 use game::{
     FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items, explore_step,
-    fire_step, phases, practice_step, spells, take_fx, take_turn, techniques, throwables,
-    travel_step, wait_refusal,
+    fire_step, phases, practice_step, rest_step, spells, take_fx, take_turn, techniques,
+    throwables, travel_step, wait_refusal,
 };
 
 use crate::input::Input;
@@ -53,6 +53,7 @@ pub enum Outcome {
 pub enum Auto {
     Explore,
     Practice,
+    Rest,
     /// Walking to a known tile.
     Travel((i32, i32)),
 }
@@ -112,6 +113,7 @@ impl Session {
         let going = match self.auto {
             Some(Auto::Explore) => explore_step(&mut self.state),
             Some(Auto::Practice) => practice_step(&mut self.state),
+            Some(Auto::Rest) => rest_step(&mut self.state),
             Some(Auto::Travel(to)) => travel_step(&mut self.state, to),
             None => false,
         };
@@ -177,6 +179,7 @@ impl Session {
             InputEvent::Ascend => take_turn(state, PlayerAction::Ascend),
             InputEvent::Explore => self.auto = Some(Auto::Explore),
             InputEvent::Practice => self.auto = Some(Auto::Practice),
+            InputEvent::Rest => self.auto = Some(Auto::Rest),
             InputEvent::Look => {
                 if let Some(looking) = Looking::new(state) {
                     self.mode = Mode::Look(looking);
@@ -319,8 +322,9 @@ impl Session {
                 state.now.turn()
             ),
             _ => format!(
-                "{}  Turn: {}  Seed: {}",
+                "{}{}  Turn: {}  Seed: {}",
                 crate::text::place(state),
+                crate::text::rest(state),
                 state.now.turn(),
                 state.seed
             ),
@@ -616,6 +620,31 @@ mod tests {
         assert!(matches!(session.mode(), Mode::Overlay(_)));
         session.handle(Input::List(OverlayInput::Close));
         assert!(matches!(session.mode(), Mode::Play));
+    }
+
+    #[test]
+    fn resting_unhurt_says_so_and_spends_no_time() {
+        let mut session = session();
+        let before = session.state().now;
+        session.handle(Input::Game(InputEvent::Rest));
+        assert_eq!(session.auto(), Some(Auto::Rest));
+        assert!(!session.auto_step(), "nothing to heal");
+        assert_eq!(session.auto(), None);
+        assert_eq!(session.state().now, before);
+        assert_eq!(last_log(&session), "You are rested.");
+    }
+
+    #[test]
+    fn on_a_floor_the_status_shows_the_rest_budget() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
+        let state = GameState::new(3, blueprints).unwrap();
+        // 125% of the player's 20 health.
+        assert!(
+            Session::new(state, "hero")
+                .status()
+                .contains("  Rest: 25  Turn: 0")
+        );
     }
 
     #[test]

@@ -69,6 +69,15 @@ pub fn place(state: &GameState) -> String {
     }
 }
 
+/// The rest budget left on this floor ("  Rest: 18"), for the status line;
+/// empty at camp, where resting is not counted.
+pub fn rest(state: &GameState) -> String {
+    match (place_view(state), game::rest::budget(state)) {
+        (PlaceView::Floor { .. }, Some(left)) => format!("  Rest: {left}"),
+        _ => String::new(),
+    }
+}
+
 /// The side panel's account of where you are and what comes next.
 pub fn whereabouts(state: &GameState) -> Vec<Row> {
     let plain = |text: String| Seg::Plain(text);

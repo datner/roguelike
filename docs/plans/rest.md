@@ -52,12 +52,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   from `dive::enter`. Saves v46. Bench: with regeneration alone the level-10 builds now reach floor 6
   (15/20 and 19/20, from 0); the starting melee builds still die early, since the bot never rests.
 
-### 2. One key to rest
+### 2. One key to rest — done
 - `game::rest_step` and `rest_refusal`; `front` `Auto::Rest` on `InputEvent::Rest`; `gui` binds `R`.
 - The status line's rest budget (`view` exposes it; `Session::status` or the sheet shows it).
 - README Controls.
 - Tests: a `Session` rest runs until full and stops; refused when unhurt, when the budget is spent and
   when an enemy is in view, each with its message; the status line shows the budget.
+- As built: `rest_step` and `rest_refusal` live in `rest.rs` (re-exported); "You are rested." ends a
+  run as well as refusing one. The status line reads "… floor 1 (stillness)  Rest: 25  Turn: …" on a
+  floor and leaves it out at camp. The session tests cover the refusal and the status line; the run
+  to full health is tested in `game` (a session can't hurt its player).
 
 ### 3. The bot rests
 - `balance::floors`: rest when no enemy is in view and health is below half, counted as one keypress.

@@ -611,6 +611,7 @@ mod tests {
                 | InputEvent::Skills
                 | InputEvent::Styles
                 | InputEvent::Practice
+                | InputEvent::Rest
                 | InputEvent::Look
                 | InputEvent::Throw
                 | InputEvent::Fire

@@ -91,6 +91,7 @@ pub use lore::{Inspection, inspect, look_targets};
 pub use origin::{OriginDef, OriginView, origins};
 pub use phase::{Phase, PhaseView, phases, wait_refusal};
 pub use ranged::Trail;
+pub use rest::{rest_refusal, rest_step};
 pub use rng::Rngs;
 pub use rooms::RoomsParams;
 pub use save::{LoadError, SAVE_VERSION, SaveError};
