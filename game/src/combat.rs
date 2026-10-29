@@ -377,6 +377,26 @@ pub(crate) fn odds(
     attacker: Entity,
     defender: Entity,
 ) -> AttackOdds {
+    odds_explained(state, strike, attacker, defender).0
+}
+
+/// One named part of a hit chance (docs/plans/legibility.md): what added it
+/// and how much, in basis points. A chance's reasons add up to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reason {
+    pub what: String,
+    pub bp: i32,
+}
+
+/// `odds`, with the hit chance's reasons: the base (accuracy against
+/// dodge), being outnumbered, each part that moved it (by its name), and the
+/// limit when it clamps.
+pub(crate) fn odds_explained(
+    state: &GameState,
+    strike: &Strike,
+    attacker: Entity,
+    defender: Entity,
+) -> (AttackOdds, Vec<Reason>) {
     let world = &state.world;
     let core = state.blueprints.skills().core();
     let level =
@@ -386,9 +406,25 @@ pub(crate) fn odds(
             .get::<&Stats>(defender)
             .map_or(0, |stats| stats.modifier(Stat::Agility));
     let crowd = i32::try_from(outnumbered(state, defender)).unwrap_or(0);
-    let hit_bp =
-        (EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge) + OUTNUMBERED_BP * crowd)
-            .clamp(MIN_HIT_BP, MAX_HIT_BP);
+    let base = EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge);
+    let raw = base + OUTNUMBERED_BP * crowd;
+    let hit_bp = raw.clamp(MIN_HIT_BP, MAX_HIT_BP);
+    let mut reasons = vec![Reason {
+        what: format!("accuracy {} against dodge {dodge}", strike.accuracy),
+        bp: base,
+    }];
+    if crowd > 0 {
+        reasons.push(Reason {
+            what: format!("outnumbered by {crowd}"),
+            bp: OUTNUMBERED_BP * crowd,
+        });
+    }
+    if hit_bp != raw {
+        reasons.push(Reason {
+            what: "the limit".to_string(),
+            bp: hit_bp - raw,
+        });
+    }
     let graze_bp = strike
         .weapon
         .and_then(|weapon| world.get::<&Graze>(weapon).ok().map(|graze| graze.0))
@@ -424,11 +460,24 @@ pub(crate) fn odds(
         rng: &mut rng,
         out: &mut scratch,
     };
+    let mut moved: Vec<(Entity, i32)> = Vec::new();
     for asking in [attacker, defender] {
         ev.asking = asking;
-        ev = settle(state.events.fire(&mut ctx, asking, ev));
+        let mut trace = |holder: Entity, before: &AttackOdds, after: &AttackOdds| {
+            let change = i64::from(after.hit_bp) - i64::from(before.hit_bp);
+            if change != 0 {
+                moved.push((holder, i32::try_from(change).unwrap_or(0)));
+            }
+        };
+        ev = settle(state.events.fire_traced(&mut ctx, asking, ev, &mut trace));
     }
-    ev
+    for (holder, bp) in moved {
+        let what = world
+            .get::<&crate::entity::Name>(holder)
+            .map_or_else(|_| "something".to_string(), |name| name.0.clone());
+        reasons.push(Reason { what, bp });
+    }
+    (ev, reasons)
 }
 
 /// How many enemies stand beside `defender` beyond the first: each makes it
@@ -1252,6 +1301,71 @@ mod odds_tests {
             .at(3, 3)
             .make(&mut state);
         assert_eq!(outnumbered(&state, player), 2);
+    }
+
+    #[test]
+    fn the_odds_carry_their_reasons_and_they_add_up() {
+        let mut state = bare_state();
+        let dummy = duel(&mut state);
+        let player = state.player;
+        let strike = strike(&state.world, state.blueprints.skills(), player).unwrap();
+        let (odds, reasons) = odds_explained(&state, &strike, player, dummy);
+        assert_eq!(reasons.len(), 1, "an even blow: the base alone");
+        assert!(reasons[0].what.starts_with("accuracy"));
+        assert_eq!(reasons[0].bp, i32::try_from(odds.hit_bp).unwrap());
+
+        thing("goblin")
+            .health(10)
+            .hostile()
+            .at(1, 2)
+            .make(&mut state);
+        thing("goblin")
+            .health(10)
+            .hostile()
+            .at(3, 1)
+            .make(&mut state);
+        let goblin = thing("goblin")
+            .health(10)
+            .hostile()
+            .with(Melee { min: 1, max: 1 })
+            .at(2, 2)
+            .make(&mut state);
+        let strike = strike_of(&state, goblin);
+        let (odds, reasons) = odds_explained(&state, &strike, goblin, player);
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.what == "outnumbered by 2" && r.bp == 2_000)
+        );
+        let sum: i32 = reasons.iter().map(|r| r.bp).sum();
+        assert_eq!(sum, i32::try_from(odds.hit_bp).unwrap());
+    }
+
+    fn strike_of(state: &GameState, attacker: Entity) -> Strike {
+        strike(&state.world, state.blueprints.skills(), attacker).unwrap()
+    }
+
+    #[test]
+    fn a_part_that_moves_the_odds_is_named() {
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap();
+        let mut state = crate::state::tests::bare_state_with(data);
+        let goblin = state
+            .spawn(crate::spawn::Spawn::blueprint("Goblin").at(2, 1))
+            .unwrap();
+        let off_balance = state.blueprints.id("OffBalance").unwrap();
+        crate::effect::apply_effect(&mut state, goblin, off_balance);
+        let player = state.player;
+        let strike = strike_of(&state, player);
+        let (odds, reasons) = odds_explained(&state, &strike, player, goblin);
+        assert!(
+            reasons.iter().any(|r| r.what == "reeling" && r.bp > 0),
+            "{reasons:?}"
+        );
+        let sum: i32 = reasons.iter().map(|r| r.bp).sum();
+        assert_eq!(sum, i32::try_from(odds.hit_bp).unwrap());
     }
 
     #[test]

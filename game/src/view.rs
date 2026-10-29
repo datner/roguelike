@@ -163,6 +163,37 @@ pub struct CharacterSheet {
     pub origin: Option<String>,
 }
 
+/// The player's chance to hit with a blow, and why (docs/plans/legibility.md).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HitChance {
+    /// Out of 100.
+    pub percent: u32,
+    /// What made it, in percentage points; they add up to `percent`.
+    pub reasons: Vec<(String, i32)>,
+}
+
+/// The player's chance to land a blow on the creature at `at`, from the same
+/// odds the blow rolls; `None` if nothing there can be struck.
+pub fn hit_chance(state: &GameState, at: (i32, i32)) -> Option<HitChance> {
+    let player = state.player;
+    let target = state
+        .world
+        .query::<(Entity, &crate::entity::Position, &crate::entity::Health)>()
+        .without::<&crate::entity::Dead>()
+        .iter()
+        .find(|&(other, pos, _)| other != player && (pos.x, pos.y) == at)
+        .map(|(other, _, _)| other)?;
+    let strike = crate::combat::strike(&state.world, state.blueprints.skills(), player)?;
+    let (odds, reasons) = crate::combat::odds_explained(state, &strike, player, target);
+    Some(HitChance {
+        percent: odds.hit_bp / 100,
+        reasons: reasons
+            .into_iter()
+            .map(|reason| (reason.what, reason.bp / 100))
+            .collect(),
+    })
+}
+
 /// How many enemies stand beside the player beyond the first, each making
 /// the player easier to hit (`combat::outnumbered`).
 pub fn outnumbered(state: &GameState) -> u32 {

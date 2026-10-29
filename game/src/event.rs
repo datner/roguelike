@@ -133,6 +133,56 @@ impl EventRegistry {
     }
 }
 
+impl EventRegistry {
+    /// `fire`, telling `trace` after each handler which holder's part ran and
+    /// the event before and after it, so a caller can name what changed
+    /// (legibility: odds that carry their reasons). Same order, same result.
+    pub fn fire_traced<E: 'static + Clone>(
+        &self,
+        ctx: &mut Ctx<'_>,
+        target: Entity,
+        ev: E,
+        trace: &mut dyn FnMut(Entity, &E, &E),
+    ) -> ControlFlow<E, E> {
+        let Some(entries) = self
+            .handlers
+            .get(&TypeId::of::<E>())
+            .and_then(|list| list.downcast_ref::<Vec<Entry<E>>>())
+        else {
+            return ControlFlow::Continue(ev);
+        };
+        let mut holders = vec![target];
+        if let Ok(attachments) = ctx.world.get::<&Attachments>(target) {
+            holders.extend(attachments.0.iter().copied());
+        }
+        let world = ctx.world;
+        let calls: Vec<(&Entry<E>, Entity)> = entries
+            .iter()
+            .flat_map(|entry| {
+                holders
+                    .iter()
+                    .filter(move |&&holder| (entry.applies_to)(world, holder))
+                    .map(move |&holder| (entry, holder))
+            })
+            .collect();
+        let mut ev = ev;
+        for (entry, holder) in calls {
+            let before = ev.clone();
+            match (entry.call)(ctx, holder, ev) {
+                ControlFlow::Continue(after) => {
+                    trace(holder, &before, &after);
+                    ev = after;
+                }
+                ControlFlow::Break(after) => {
+                    trace(holder, &before, &after);
+                    return ControlFlow::Break(after);
+                }
+            }
+        }
+        ControlFlow::Continue(ev)
+    }
+}
+
 /// The event as it stands, whether or not propagation was stopped.
 pub fn settle<E>(flow: ControlFlow<E, E>) -> E {
     match flow {

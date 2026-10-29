@@ -39,12 +39,17 @@ starting where a player asks most: "why did I miss?", "why did that hit so hard?
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. Odds with reasons
+### 1. Odds with reasons — done
 - `Reason`, `AttackOdds.why`; base and outnumbered named in `odds`; each part's change named after the
   part (the event dispatch reports which handler ran; the change is the difference).
 - `game::hit_chance(state, attacker, defender) -> Option<(u32, Vec<Reason>)>` for previews.
 - Tests: an even blow's reasons are the base alone; outnumbered adds a named reason; an off-balance
   defender adds one named after the effect; the reasons add up to the chance (before the clamp).
+- As built: `EventRegistry::fire_traced` (the same dispatch, reporting each handler's holder and the
+  event before and after); `combat::odds_explained` names the base, being outnumbered, each part by
+  its `Name` ("reeling") and the clamp ("the limit"), so the reasons always add up to the chance;
+  `odds` is it without the reasons. `game::hit_chance(state, at)` gives frontends the player's chance
+  on whatever stands there, in percent. `AttackOdds` stays a plain `Copy` event.
 
 ### 2. The log's why
 - `Log` entries with an optional why; blows and damage write theirs; `Log::recent_with_why`.
