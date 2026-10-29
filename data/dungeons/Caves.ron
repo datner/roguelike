@@ -26,6 +26,7 @@
         (blueprint: "Goblin", count: 6, per_floor: 1),
         // One patrols each floor: resting in the open can be found.
         (blueprint: "GoblinScout", count: 1),
+        (blueprint: "GoblinArcher", count: 1),
         // In the Embers a brute prowls the caves.
         (blueprint: "GoblinBrute", count: 1, phases: ["Embers"]),
         (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),

@@ -1,0 +1,15 @@
+// The skirmisher (docs/plans/fights.md): it keeps its distance and shoots.
+// At your elbow it steps away, or steps back and shoots at once; corner it,
+// or use cover to close in.
+(
+    inherits: "Goblin",
+    components: [
+        Name("goblin archer"),
+        Appearance(glyph: 'g', fg: (200, 180, 80), bg: (0, 0, 0), sprite: "goblin"),
+        Health(current: 7, max: 7),
+        Skirmish,
+        Skills({"Archery": 2, "Bow": 2, "Melee": 1}),
+    ],
+    equipment: ["LeatherArmor", "ShortBow", "Quiver"],
+    techniques: ["PartingShot", "Snipe"],
+)

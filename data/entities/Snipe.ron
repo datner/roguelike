@@ -1,0 +1,15 @@
+// A technique (ADR 0024): a plain shot with the wielded launcher at a foe in
+// line, no recharge. What an archer does from afar (docs/plans/fights.md).
+(
+    components: [
+        Name("snipe"),
+        Verb(word: "shoot"),
+        Technique(
+            domain: Martial,
+            reach: 8,
+            recharge: 0,
+            stamina: 0,
+        ),
+        Loose(accuracy: 0),
+    ],
+)

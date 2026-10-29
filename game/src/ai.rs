@@ -45,7 +45,11 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
     }
 
     if let Some((foe, enemy)) = nearest_enemy(state, actor, me) {
-        if shaken(state, actor)
+        // Hurt past its morale, or a skirmisher with a foe at its elbow:
+        // it backs off while it can.
+        let pressed =
+            world.satisfies::<&crate::entity::Skirmish>(actor) && chebyshev(me, enemy) == 1;
+        if (shaken(state, actor) || pressed)
             && let Some(away) = step_away(state, me, enemy)
         {
             return Command::TryMove(actor, away);
@@ -590,6 +594,80 @@ mod tests {
         let player = state.player;
         *state.world.get::<&mut Position>(player).unwrap() = Position { x: to.0, y: to.1 };
         state.run(Command::UpdateFov);
+    }
+
+    fn archer_at(at: Position) -> (GameState, Entity) {
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap();
+        let mut state = crate::state::tests::bare_state_with(data);
+        let archer = state
+            .spawn(Spawn::blueprint("GoblinArcher").with(at))
+            .unwrap();
+        let quiver = crate::equipment::equipped(&state.world, archer)
+            .into_iter()
+            .map(|(item, _)| item)
+            .find(|&item| state.world.satisfies::<&crate::entity::Quiver>(item))
+            .unwrap();
+        for _ in 0..4 {
+            state
+                .spawn(Spawn::blueprint("Arrow").carried_by(quiver))
+                .unwrap();
+        }
+        see_everything(&mut state);
+        (state, archer)
+    }
+
+    #[test]
+    fn an_archer_steps_away_from_your_elbow_and_shoots_from_afar() {
+        let (state, archer) = archer_at(Position { x: 2, y: 1 });
+        let Command::TryMove(_, dir) = decide(&state, archer) else {
+            panic!("it moves");
+        };
+        assert_eq!(dir.delta().0, 1, "away from the player at (1, 1)");
+        let (state, archer) = archer_at(Position { x: 6, y: 1 });
+        assert!(
+            matches!(decide(&state, archer), Command::Perform { .. }),
+            "it shoots"
+        );
+    }
+
+    #[test]
+    fn a_cornered_archer_fights() {
+        let (mut state, archer) = archer_at(Position { x: 2, y: 1 });
+        for (x, y) in [(3, 0), (3, 1), (3, 2), (2, 0), (2, 2), (1, 0), (1, 2)] {
+            state.map.set(x, y, Tile::Wall);
+        }
+        assert!(!matches!(decide(&state, archer), Command::TryMove(_, dir) if dir.delta().0 > 0));
+    }
+
+    #[test]
+    fn a_placed_archer_has_arrows() {
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap()
+        .with_camp(None);
+        let state = GameState::new(3, data).unwrap();
+        let archer = state
+            .world
+            .query::<(Entity, &crate::entity::Name)>()
+            .iter()
+            .find(|(_, name)| name.0 == "goblin archer")
+            .map(|(entity, _)| entity)
+            .expect("an archer on the first floor");
+        let arrows = crate::equipment::equipped(&state.world, archer)
+            .into_iter()
+            .filter_map(|(item, _)| {
+                state
+                    .world
+                    .get::<&crate::entity::Inventory>(item)
+                    .ok()
+                    .map(|inv| inv.0.len())
+            })
+            .sum::<usize>();
+        assert_eq!(arrows, 8);
     }
 
     #[test]

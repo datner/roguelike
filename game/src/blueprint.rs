@@ -94,6 +94,7 @@ pub enum ComponentDef {
     Roams,
     SprintAi,
     WindUp(crate::entity::WindUp),
+    Skirmish,
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
     /// Fixed skill levels by name (ADR 0017); spawned as XP.
@@ -188,6 +189,7 @@ impl ComponentDef {
             ComponentDef::Roams => builder.add(crate::entity::Roams),
             ComponentDef::SprintAi => builder.add(crate::entity::SprintAi),
             ComponentDef::WindUp(c) => builder.add(c),
+            ComponentDef::Skirmish => builder.add(crate::entity::Skirmish),
             ComponentDef::Duration(c) => builder.add(c),
             ComponentDef::Learner => builder.add(Learner),
             ComponentDef::Graze(c) => builder.add(c),

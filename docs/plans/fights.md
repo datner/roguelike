@@ -162,9 +162,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `GoblinBrute` (18 HP) in the castle and the Embers caves. The AI already performs it only with an
   enemy in the area (`technique_at`). Saves v53.
 
-### 9. The skirmisher
+### 9. The skirmisher — done
 - `Skirmish`, `SlingStone.ron`, `GoblinSlinger.ron`; in both dungeons.
 - Tests: adjacent, it steps away; at range, it slings; cornered, it bumps.
+- As built: a bow, not a sling spell (a spell would read "casts" and need a school). The
+  `GoblinArcher` wears a short bow and a quiver and knows `PartingShot` (step back and shoot) and
+  `Snipe` (a plain shot, no recharge), so its shots are the player's: same flight, preview and
+  arrows, dropped where they land. `Skirmish` makes it step away from a foe at its elbow, as a shaken
+  creature does. Creatures' quivers are stocked with 8 arrows when placed (no RNG, placement
+  unchanged). One in each dungeon. Saves v54.
 
 ### 10. The swarm
 - `Rat.ron` (speed 150, 3 HP); a pack in the caves.

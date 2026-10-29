@@ -27,6 +27,8 @@ pub const CREATURE_MIN_DISTANCE: i32 = 12;
 
 /// Arrows the player starts with in their quiver.
 pub const STARTING_ARROWS: usize = 12;
+/// Arrows in a creature's quiver when it is placed on a floor.
+const CREATURE_ARROWS: usize = 8;
 /// Closest an item may start to the player, in steps, so finding one means
 /// leaving the starting spot.
 pub const ITEM_MIN_DISTANCE: i32 = 4;
@@ -167,13 +169,18 @@ impl GameState {
     /// Arrows in the player's quiver at the start: a bow is no use without,
     /// and no RNG is drawn, so seeded worlds are unchanged by it.
     pub(crate) fn stock_quivers(&mut self) -> Result<(), BlueprintError> {
-        let quivers: Vec<Entity> = crate::equipment::equipped(&self.world, self.player)
+        self.stock_quivers_of(self.player, STARTING_ARROWS)
+    }
+
+    /// `count` arrows in each quiver `holder` wears.
+    fn stock_quivers_of(&mut self, holder: Entity, count: usize) -> Result<(), BlueprintError> {
+        let quivers: Vec<Entity> = crate::equipment::equipped(&self.world, holder)
             .into_iter()
             .map(|(item, _)| item)
             .filter(|&item| self.world.satisfies::<&Quiver>(item))
             .collect();
         for quiver in quivers {
-            for _ in 0..STARTING_ARROWS {
+            for _ in 0..count {
                 self.spawn(Spawn::blueprint("Arrow").carried_by(quiver))?;
             }
         }
@@ -243,7 +250,10 @@ impl GameState {
             ) else {
                 break;
             };
-            self.spawn(Spawn::blueprint(blueprint).at(x, y))?;
+            let creature = self.spawn(Spawn::blueprint(blueprint).at(x, y))?;
+            // An archer's quiver comes with arrows; no RNG, so placement
+            // stays the same.
+            self.stock_quivers_of(creature, CREATURE_ARROWS)?;
         }
         Ok(())
     }

@@ -770,6 +770,11 @@ pub struct Telegraph {
     pub tiles: Vec<(i32, i32)>,
 }
 
+/// A creature that keeps its distance (docs/plans/fights.md): with an enemy
+/// beside it, it steps away when it can, and fights only when cornered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Skirmish;
+
 /// Sprinting (`sprint`): steps cost half the energy and a point of stamina,
 /// and attacking is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

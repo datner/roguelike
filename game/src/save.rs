@@ -26,7 +26,7 @@ use crate::entity::{
     Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Roams, Route, SprintAi, Sprinting, Telegraph, WindUp};
+use crate::entity::{Roams, Route, Skirmish, SprintAi, Sprinting, Telegraph, WindUp};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -38,7 +38,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 53;
+pub const SAVE_VERSION: u32 = 54;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -244,6 +244,7 @@ enum ComponentKind {
     SprintAi,
     WindUp,
     Telegraph,
+    Skirmish,
     OnHit,
     Skills,
     Trains,
@@ -275,7 +276,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 88] = [
+    const ALL: [ComponentKind; 89] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -336,6 +337,7 @@ impl ComponentKind {
         Self::SprintAi,
         Self::WindUp,
         Self::Telegraph,
+        Self::Skirmish,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -430,6 +432,7 @@ enum SavedComponent {
     Sprinting(Sprinting),
     SprintAi(SprintAi),
     WindUp(WindUp),
+    Skirmish(Skirmish),
     Telegraph {
         technique: u32,
         tiles: Vec<(i32, i32)>,
@@ -796,6 +799,7 @@ fn save_component(
         ComponentKind::Sprinting => copy(entity).map(S::Sprinting),
         ComponentKind::SprintAi => copy(entity).map(S::SprintAi),
         ComponentKind::WindUp => copy(entity).map(S::WindUp),
+        ComponentKind::Skirmish => copy(entity).map(S::Skirmish),
         ComponentKind::Telegraph => match entity.get::<&Telegraph>().map(|t| (*t).clone()) {
             Some(Telegraph { technique, tiles }) => Some(S::Telegraph {
                 technique: refer(technique)?,
@@ -1016,6 +1020,7 @@ fn load_component(
         S::Sprinting(c) => builder.add(c),
         S::SprintAi(c) => builder.add(c),
         S::WindUp(c) => builder.add(c),
+        S::Skirmish(c) => builder.add(c),
         S::Telegraph { technique, tiles } => builder.add(Telegraph {
             technique: entity(technique)?,
             tiles,
@@ -1280,6 +1285,8 @@ mod tests {
     #[test]
     fn the_rest_budget_and_the_pending_tick_survive_a_round_trip() {
         let mut state = new_game(4);
+        // Loading looks around; so must the game it is compared with.
+        state.run(crate::command::Command::UpdateFov);
         let player = state.player;
         state
             .world
