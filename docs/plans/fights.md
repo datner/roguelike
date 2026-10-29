@@ -147,12 +147,20 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   Agility deepens it); the spirit wolf has 6 and `SprintAi`, which charges toward its quarry from
   more than three tiles. A sprinting creature's walk into another is no attack. Saves v52.
 
-### 8. The brute's telegraph
+### 8. The brute's telegraph — done
 - `WindUp`, `Telegraph` (effect), the delayed blow on the tiles; stagger on damage; drawing the marked
   tiles; `HeavySwing.ron`, `GoblinBrute.ron`; the castle and the Embers caves get one.
 - Tests: the wind-up marks the tiles and strikes them when it ends; stepping out avoids it; a hit
   during the wind-up staggers it; the marks are in the view; AI performs it only with the enemy in
   the tiles.
+- As built: the telegraph is a timed effect like a rune (`data/entities/Telegraph.ron`, no name), its
+  blow landed from `effect::expire_effect` with the technique's numbers as they stand then
+  (`technique::inspect`). Any damage that gets through staggers it (`technique::stagger`, from the
+  damage applier). The marked tiles get a dark red background (`state::TELEGRAPH_BG`), tested in the
+  unlit layer rather than a gui shot (a shot would need a brute placed from the window crate, which
+  never touches hecs). `HeavySwing`: everything around, 1.5 turns of wind-up, +150% damage;
+  `GoblinBrute` (18 HP) in the castle and the Embers caves. The AI already performs it only with an
+  enemy in the area (`technique_at`). Saves v53.
 
 ### 9. The skirmisher
 - `Skirmish`, `SlingStone.ron`, `GoblinSlinger.ron`; in both dungeons.

@@ -754,6 +754,22 @@ pub struct Quarry {
     pub at: (i32, i32),
 }
 
+/// Technique part: performing it only winds up; the blow lands `ticks`
+/// later on the tiles it marked, and a hit before then staggers it
+/// (docs/plans/fights.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindUp {
+    pub ticks: u64,
+}
+
+/// Effect part: a wound-up `technique` that lands on `tiles` when the effect
+/// expires. Shown on the map, so stepping out of it is a choice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Telegraph {
+    pub technique: Entity,
+    pub tiles: Vec<(i32, i32)>,
+}
+
 /// Sprinting (`sprint`): steps cost half the energy and a point of stamina,
 /// and attacking is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

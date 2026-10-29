@@ -470,6 +470,15 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
         }
     }
 
+    // Tiles a wind-up will strike: marked, so stepping out is a choice
+    // (docs/plans/fights.md).
+    for (x, y) in crate::technique::telegraphed(state) {
+        let (screen_x, screen_y) = camera.world_to_screen((x, y));
+        if let Some(cell) = grid.get_mut(screen_x, screen_y) {
+            cell.bg = TELEGRAPH_BG;
+        }
+    }
+
     let mut shown: Vec<(Position, Cell, bool)> = state
         .world
         .query::<(&Position, &Appearance, Option<&Item>)>()
@@ -501,6 +510,9 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
 
     grid
 }
+
+/// The ground a wind-up will strike.
+pub const TELEGRAPH_BG: Rgb = Rgb(110, 20, 20);
 
 /// Remembered terrain: half brightness.
 fn dim(Rgb(r, g, b): Rgb) -> Rgb {

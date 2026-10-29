@@ -15,7 +15,7 @@ use crate::command::Command;
 use crate::cost::TICKS_PER_TURN;
 use crate::entity::{
     Area, Blow, Dash, Name, Need, OffBalance, Pool, PoolRates, Position, Recharging, Rider, Shape,
-    Stamina, Stats, StyleBonus, Technique,
+    Stamina, Stats, StyleBonus, Technique, Telegraph, WindUp,
 };
 use crate::entity::{Combo, ComboDisplay, Loose, PartKind, Performed};
 use crate::event::EventRegistry;
@@ -863,6 +863,19 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
     if actor == state.player && ranged::position(state, actor) != Some(at) {
         state.commands.push_back(Command::FindItems(actor));
     }
+    if let Ok(wind_up) = state.world.get::<&WindUp>(technique).map(|w| *w) {
+        let tiles = if footprint.area.is_empty() {
+            footprint
+                .targets
+                .iter()
+                .filter_map(|&target| ranged::position(state, target))
+                .collect()
+        } else {
+            footprint.area.clone()
+        };
+        wind(state, actor, technique, tiles, wind_up);
+        return;
+    }
     if ready.loose {
         // The shot logs, lands, breaks and trains as a plain shot does.
         if let Ok(shot) = fired(state, actor, &ready, footprint.stand) {
@@ -904,6 +917,109 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
             }
         }
     }
+}
+
+/// Winds `technique` up: a `Telegraph` effect on `actor` marking `tiles`,
+/// which lands when it expires (`land`).
+fn wind(
+    state: &mut GameState,
+    actor: Entity,
+    technique: Entity,
+    tiles: Vec<(i32, i32)>,
+    wind_up: WindUp,
+) {
+    let timed = crate::entity::Timed {
+        start: state.now,
+        duration: wind_up.ticks,
+    };
+    let spawn = crate::spawn::Spawn::blueprint("Telegraph")
+        .with(timed)
+        .with(crate::entity::EffectTarget(actor))
+        .with(Telegraph { technique, tiles })
+        .attached_to(actor);
+    match state.spawn(spawn) {
+        Ok(telegraph) => {
+            let what = name(&state.world, technique);
+            let message =
+                Subject::of(&state.world, actor).sentence("wind", &format!("up a {what}"));
+            state.log.push(message);
+            crate::effect::schedule_expiry(state, telegraph);
+        }
+        Err(err) => state.log.push(format!("Error: cannot wind up: {err}")),
+    }
+}
+
+/// A wind-up's blow, from `effect::expire_effect`: an ordinary blow (the
+/// technique's, as it stands now) on every enemy standing in the marked
+/// tiles. Whoever stepped out is spared.
+pub(crate) fn land(state: &mut GameState, actor: Entity, telegraph: &Telegraph) {
+    if state.world.satisfies::<&crate::entity::Dead>(actor) {
+        return;
+    }
+    let Ok((ready, _)) = inspect(state, actor, telegraph.technique) else {
+        return;
+    };
+    let verb = state
+        .world
+        .get::<&crate::entity::Verb>(telegraph.technique)
+        .map_or_else(
+            |_| name(&state.world, telegraph.technique),
+            |verb| verb.word.clone(),
+        );
+    let message = Subject::of(&state.world, actor).sentence(&verb, "");
+    state.log.push(message);
+    let mut struck: Vec<(crate::entity::SpawnSeq, Entity)> = state
+        .world
+        .query::<(Entity, &Position, &crate::entity::SpawnSeq)>()
+        .with::<&crate::entity::Health>()
+        .without::<&crate::entity::Dead>()
+        .iter()
+        .filter(|&(other, pos, _)| {
+            telegraph.tiles.contains(&(pos.x, pos.y)) && side::enemies(&state.world, actor, other)
+        })
+        .map(|(other, _, seq)| (*seq, other))
+        .collect();
+    struck.sort();
+    for (_, target) in struck {
+        if combat::blow(state, actor, target, &ready.mods) == Some(Outcome::Hit) {
+            for rider in &ready.riders {
+                state.commands.push_back(Command::Ride {
+                    actor,
+                    target,
+                    rider: *rider,
+                });
+            }
+        }
+    }
+}
+
+/// `actor`'s wind-up, if it has one under way.
+pub(crate) fn winding_up(world: &World, actor: Entity) -> Option<Entity> {
+    holding::attached(world, actor)
+        .into_iter()
+        .find(|&effect| world.satisfies::<&Telegraph>(effect))
+}
+
+/// A hit that hurt `target` while it winds up staggers it: the wind-up ends
+/// with no blow.
+pub(crate) fn stagger(state: &mut GameState, target: Entity) {
+    let Some(telegraph) = winding_up(&state.world, target) else {
+        return;
+    };
+    holding::detach(&mut state.world, target, telegraph);
+    let _ = state.world.despawn(telegraph);
+    let message = Subject::of(&state.world, target).sentence("stagger", "");
+    state.log.push(message);
+}
+
+/// Every tile a wind-up in view will strike, for drawing.
+pub(crate) fn telegraphed(state: &GameState) -> Vec<(i32, i32)> {
+    let mut query = state.world.query::<&Telegraph>();
+    query
+        .iter()
+        .flat_map(|telegraph| telegraph.tiles.iter().copied())
+        .filter(|&(x, y)| state.visible.get(x, y) == Some(&true))
+        .collect()
 }
 
 /// Applies `Command::Ride`: `rider` on `target`, unless the hit killed it (its
@@ -1178,6 +1294,112 @@ mod tests {
 
     fn health(state: &GameState, who: Entity) -> i32 {
         state.world.get::<&Health>(who).unwrap().current
+    }
+
+    /// The real brute and a player beside it, from the data.
+    fn brute_beside_player() -> (GameState, Entity) {
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap();
+        let mut state = crate::state::tests::bare_state_with(data);
+        let brute = state
+            .spawn(crate::spawn::Spawn::blueprint("GoblinBrute").at(2, 1))
+            .unwrap();
+        crate::testkit::see_everything(&mut state);
+        (state, brute)
+    }
+
+    fn swing(state: &mut GameState, brute: Entity) {
+        let swing = known(&state.world, brute)[0];
+        state.run(Command::Perform {
+            actor: brute,
+            technique: swing,
+            at: (1, 1),
+        });
+    }
+
+    fn player_health(state: &GameState) -> i32 {
+        state
+            .world
+            .get::<&crate::entity::Health>(state.player)
+            .unwrap()
+            .current
+    }
+
+    #[test]
+    fn a_wind_up_marks_its_tiles_and_lands_when_it_ends() {
+        let (mut state, brute) = brute_beside_player();
+        crate::testkit::sure_hits(&mut state, brute);
+        let before = player_health(&state);
+        swing(&mut state, brute);
+        assert!(telegraphed(&state).contains(&(1, 1)), "your tile is marked");
+        let (view, _) = crate::light::render_layers(&state, state.map.width, state.map.height);
+        let me = state
+            .world
+            .get::<&Position>(state.player)
+            .map(|p| *p)
+            .unwrap();
+        let camera = crate::camera::Camera::follow(
+            (me.x, me.y),
+            (state.map.width, state.map.height),
+            (state.map.width, state.map.height),
+        );
+        let (sx, sy) = camera.world_to_screen((1, 1));
+        assert_eq!(
+            view.get(sx, sy).unwrap().bg,
+            crate::state::TELEGRAPH_BG,
+            "drawn"
+        );
+        assert_eq!(player_health(&state), before, "nothing yet");
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "The goblin brute winds up a heavy swing."
+        );
+        let telegraph = winding_up(&state.world, brute).unwrap();
+        crate::effect::schedule_expiry(&mut state, telegraph);
+        state.now = state.now.after(150);
+        crate::effect::expire_effect(&mut state, telegraph);
+        crate::command::apply_commands(&mut state);
+        assert!(player_health(&state) < before, "it landed");
+        assert!(telegraphed(&state).is_empty());
+    }
+
+    #[test]
+    fn stepping_out_of_the_marked_tiles_avoids_the_blow() {
+        let (mut state, brute) = brute_beside_player();
+        crate::testkit::sure_hits(&mut state, brute);
+        let before = player_health(&state);
+        swing(&mut state, brute);
+        let telegraph = winding_up(&state.world, brute).unwrap();
+        let player = state.player;
+        *state.world.get::<&mut Position>(player).unwrap() = Position { x: 5, y: 1 };
+        state.now = state.now.after(150);
+        crate::effect::expire_effect(&mut state, telegraph);
+        crate::command::apply_commands(&mut state);
+        assert_eq!(player_health(&state), before);
+    }
+
+    #[test]
+    fn a_hit_during_the_wind_up_staggers_it() {
+        let (mut state, brute) = brute_beside_player();
+        swing(&mut state, brute);
+        state.run(Command::DealDamage {
+            target: brute,
+            amount: 2,
+            cause: crate::command::DamageCause::Fall,
+        });
+        assert!(winding_up(&state.world, brute).is_none());
+        assert!(
+            state
+                .log
+                .recent(3)
+                .any(|line| line == "The goblin brute staggers.")
+        );
+        assert!(
+            crate::ai::decide(&state, brute) != Command::Wait(brute),
+            "free to act again"
+        );
     }
 
     #[test]

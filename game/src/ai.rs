@@ -39,6 +39,10 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
     let Ok(me) = world.get::<&Position>(actor).map(|p| *p) else {
         return wait;
     };
+    // Winding up: it holds still until the blow lands.
+    if technique::winding_up(world, actor).is_some() {
+        return wait;
+    }
 
     if let Some((foe, enemy)) = nearest_enemy(state, actor, me) {
         if shaken(state, actor)

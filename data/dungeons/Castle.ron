@@ -19,6 +19,8 @@
         (blueprint: "Goblin", count: 5, per_floor: 1),
         // One patrols each floor: resting in the open can be found.
         (blueprint: "GoblinScout", count: 1),
+        // A brute guards the halls: its swing is shown before it lands.
+        (blueprint: "GoblinBrute", count: 1),
         (blueprint: "GoblinShaman", count: 1),
         (blueprint: "GoblinShaman", count: 1, phases: ["Embers"]),
     ],

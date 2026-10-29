@@ -26,7 +26,7 @@ use crate::entity::{
     Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Roams, Route, SprintAi, Sprinting};
+use crate::entity::{Roams, Route, SprintAi, Sprinting, Telegraph, WindUp};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -38,7 +38,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 52;
+pub const SAVE_VERSION: u32 = 53;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -242,6 +242,8 @@ enum ComponentKind {
     Route,
     Sprinting,
     SprintAi,
+    WindUp,
+    Telegraph,
     OnHit,
     Skills,
     Trains,
@@ -273,7 +275,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 86] = [
+    const ALL: [ComponentKind; 88] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -332,6 +334,8 @@ impl ComponentKind {
         Self::Route,
         Self::Sprinting,
         Self::SprintAi,
+        Self::WindUp,
+        Self::Telegraph,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -425,6 +429,11 @@ enum SavedComponent {
     Route(Route),
     Sprinting(Sprinting),
     SprintAi(SprintAi),
+    WindUp(WindUp),
+    Telegraph {
+        technique: u32,
+        tiles: Vec<(i32, i32)>,
+    },
     OnHit(Vec<OnHitDef>),
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
@@ -786,6 +795,14 @@ fn save_component(
         ComponentKind::Route => copy(entity).map(S::Route),
         ComponentKind::Sprinting => copy(entity).map(S::Sprinting),
         ComponentKind::SprintAi => copy(entity).map(S::SprintAi),
+        ComponentKind::WindUp => copy(entity).map(S::WindUp),
+        ComponentKind::Telegraph => match entity.get::<&Telegraph>().map(|t| (*t).clone()) {
+            Some(Telegraph { technique, tiles }) => Some(S::Telegraph {
+                technique: refer(technique)?,
+                tiles,
+            }),
+            None => None,
+        },
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
                 entries
@@ -998,6 +1015,11 @@ fn load_component(
         S::Route(c) => builder.add(c),
         S::Sprinting(c) => builder.add(c),
         S::SprintAi(c) => builder.add(c),
+        S::WindUp(c) => builder.add(c),
+        S::Telegraph { technique, tiles } => builder.add(Telegraph {
+            technique: entity(technique)?,
+            tiles,
+        }),
         S::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()

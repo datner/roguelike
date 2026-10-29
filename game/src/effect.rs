@@ -150,6 +150,11 @@ pub(crate) fn expire_effect(state: &mut GameState, effect: Entity) {
         state.log.push(subject.sentence("stop", &name));
     }
     let binding = state.world.satisfies::<&Binding>(effect);
+    let telegraph = state
+        .world
+        .get::<&crate::entity::Telegraph>(effect)
+        .ok()
+        .map(|t| (*t).clone());
     let blast = state.world.get::<&Blast>(effect).ok().map(|blast| *blast);
     let at = state
         .world
@@ -160,6 +165,9 @@ pub(crate) fn expire_effect(state: &mut GameState, effect: Entity) {
     let _ = state.world.despawn(effect);
     if binding {
         state.commands.push_back(Command::Dismiss(target));
+    }
+    if let Some(telegraph) = telegraph {
+        crate::technique::land(state, target, &telegraph);
     }
     if let (Some(blast), Some(at)) = (blast, at) {
         spell::detonate(state, target, at, blast);
