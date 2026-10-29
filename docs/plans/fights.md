@@ -66,8 +66,8 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   preview agrees with the odds; the status line.
 - As built: `game::outnumbered` (view) and "  Outnumbered: 2" after the rest budget on the status line.
   The preview reads `odds` itself, so it agrees by construction; the status text is not tested in
-  `front` (a session can't place goblins). Bench: the three-doll scenario rose (dolls stand together);
-  the floors barely moved.
+  `front` (a session can't place goblins). Bench: the doll tables did not move (dolls never attack); the
+  floors moved slightly (a goblin pack hits a little more often).
 
 ### 2. Memory and morale
 - `Quarry`, `Morale`; `Command::Notice` queued by the scheduler before `decide`; `decide` goes to the
