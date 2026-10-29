@@ -126,7 +126,8 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   committed JSON. Charts are inline SVG drawn by the page's own script, no library.
 
 - Enemies that fight back, survivability, and damage taken: dolls only measure offence. A "how long
-  does this build last against a goblin pack" bench is a later plan.
+  does this build last against a goblin pack" bench is a later plan (`docs/plans/floor-bot.md` plays
+  real floors).
 - Tuning anything: the bench reports, the owner decides.
 - Movement, kiting and positioning in policies; combos beyond listed steps.
 - Running in CI or `check.sh`.
