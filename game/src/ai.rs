@@ -155,7 +155,7 @@ fn reach(state: &GameState, from: Position) -> Reach {
         for dir in Dir::ALL {
             let (dx, dy) = dir.delta();
             let to = (x + dx, y + dy);
-            if seen.get(to.0, to.1) != Some(&false) || !Tile::is_open(map.get(to.0, to.1)) {
+            if seen.get(to.0, to.1) != Some(&false) || !Tile::is_way(map.get(to.0, to.1)) {
                 continue;
             }
             seen.set(to.0, to.1, true);
@@ -402,7 +402,7 @@ fn chebyshev(a: Position, b: Position) -> i32 {
 
 /// Open ground with nothing blocking or fightable on it.
 fn passable(state: &GameState, at: Position) -> bool {
-    if !Tile::is_open(state.map.get(at.x, at.y)) {
+    if !Tile::is_way(state.map.get(at.x, at.y)) {
         return false;
     }
     let occupied = |pos: &Position| *pos == at;

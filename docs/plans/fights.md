@@ -91,7 +91,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   A blocked way is waited out, not re-planned. Saves v48. Scouts now show up among the bench's
   causes of death.
 
-### 4. Doors
+### 4. Doors — done
 - `Tile::Door`, `Tile::DoorOpen`; walking into a closed door opens it (a turn); `Command::Close`
   with `InputEvent::Close(Dir)` (`C`, then a direction, in `front`); AI opens doors by walking into them.
 - `rooms.rs`: a door where a corridor meets a room, from `Rooms.doors` (a chance in data), on the map
@@ -99,6 +99,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Sprites and glyphs (`+`, `'`); README Controls.
 - Tests: a closed door blocks sight and walking; bumping opens it and costs a turn; closing it again;
   a goblin opens one; a castle floor has doors; a cave floor draws nothing new.
+- As built: `C` closes the first open door beside you (no direction prompt). `Tile::is_way` (open,
+  or a closed door) is what path planning walks (explore, AI); sight, missiles and areas keep
+  `is_open`. `zone::region` walks through doors without listing them, so the stairs and spawns
+  never land on one. Doors are drawn as glyphs; `tiles.ron` may name `door` and `door_open` sprites.
+  Auto-explore stops once at each closed door (the step opened it instead of moving). Saves v49.
 
 ### 5. Chasms
 - `Tile::Chasm`: open to sight, never to walking; forced movement (shove, push kick) into one makes the

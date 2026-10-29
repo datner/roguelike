@@ -7,6 +7,9 @@
         attempts: 60,
         min_size: 4,
         max_size: 10,
+        // A door in most doorways: shut, it breaks sight and makes a
+        // chokepoint (docs/plans/fights.md).
+        doors: 60,
     ),
     // Its bottom, and a way-landing (stairs up to camp) every third floor
     // and there (docs/plans/depth.md).

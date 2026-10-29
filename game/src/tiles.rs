@@ -44,6 +44,10 @@ struct TerrainDef {
     wall: Option<String>,
     down: Option<String>,
     up: Option<String>,
+    #[serde(default)]
+    door: Option<String>,
+    #[serde(default)]
+    door_open: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -69,6 +73,8 @@ pub struct Tiles {
     wall: Option<SpriteId>,
     down: Option<SpriteId>,
     up: Option<SpriteId>,
+    door: Option<SpriteId>,
+    door_open: Option<SpriteId>,
 }
 
 impl Tiles {
@@ -105,16 +111,20 @@ impl Tiles {
             })
             .transpose()
         };
-        let (floor, wall, down, up) = (
+        let (floor, wall, down, up, door, door_open) = (
             terrain(def.terrain.floor)?,
             terrain(def.terrain.wall)?,
             terrain(def.terrain.down)?,
             terrain(def.terrain.up)?,
+            terrain(def.terrain.door)?,
+            terrain(def.terrain.door_open)?,
         );
         tiles.floor = floor;
         tiles.wall = wall;
         tiles.down = down;
         tiles.up = up;
+        tiles.door = door;
+        tiles.door_open = door_open;
         Ok(tiles)
     }
 
@@ -132,6 +142,8 @@ impl Tiles {
             Tile::Wall => self.wall,
             Tile::StairsDown => self.down,
             Tile::StairsUp => self.up,
+            Tile::Door => self.door,
+            Tile::DoorOpen => self.door_open,
         }
     }
 }

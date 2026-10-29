@@ -176,6 +176,7 @@ impl Session {
             InputEvent::Wait => take_turn(state, PlayerAction::Wait),
             InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
             InputEvent::Descend => take_turn(state, PlayerAction::Descend),
+            InputEvent::Close => take_turn(state, PlayerAction::Close),
             InputEvent::Ascend => take_turn(state, PlayerAction::Ascend),
             InputEvent::Explore => self.auto = Some(Auto::Explore),
             InputEvent::Practice => self.auto = Some(Auto::Practice),

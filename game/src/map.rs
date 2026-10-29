@@ -13,13 +13,27 @@ pub enum Tile {
     StairsDown,
     /// Where you arrived on this floor (`<`).
     StairsUp,
+    /// A closed door (`+`): blocks walking and sight until someone walks into
+    /// it, which opens it (docs/plans/fights.md).
+    Door,
+    /// An open door (`'`): like floor until closed again.
+    DoorOpen,
 }
 
 impl Tile {
     /// Can be stood on and seen through. Off-map (`None` from `Grid::get`)
     /// counts as wall, so callers pass `map.get(..)` straight in.
     pub fn is_open(tile: Option<&Tile>) -> bool {
-        matches!(tile, Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp))
+        matches!(
+            tile,
+            Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp | Tile::DoorOpen)
+        )
+    }
+
+    /// A way to go: open, or a closed door that walking into opens. For
+    /// planning a path; sight and missiles keep to `is_open`.
+    pub fn is_way(tile: Option<&Tile>) -> bool {
+        Tile::is_open(tile) || tile == Some(&Tile::Door)
     }
 }
 

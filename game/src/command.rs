@@ -155,6 +155,8 @@ pub(crate) enum Command {
     },
     /// A turn of drills with what `actor` wields.
     Practice(Entity),
+    /// Close an open door beside the actor (`close_door`).
+    Close(Entity),
     /// Take the stairs down to the next floor (`dive::descend`).
     Descend(Entity),
     /// Take the stairs up, back to camp (`dive::ascend`).
@@ -263,6 +265,7 @@ impl Command {
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Study { actor, item } => [Some(actor), Some(item)],
             Command::Practice(actor)
+            | Command::Close(actor)
             | Command::Descend(actor)
             | Command::Ascend(actor)
             | Command::WaitForPhase { actor, .. } => [Some(actor), None],
@@ -339,6 +342,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::FollowStyle { actor, style } => crate::style::follow(state, actor, style),
             Command::Study { actor, item } => crate::training::study(state, actor, item),
             Command::Practice(actor) => crate::training::practice(state, actor),
+            Command::Close(actor) => close_door(state, actor),
             Command::Descend(actor) => crate::dive::descend(state, actor),
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
             Command::WaitForPhase { actor, phase } => crate::phase::wait_for(state, actor, phase),
@@ -422,6 +426,12 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
                 return false;
             }
             log_wall_bump(state, entity);
+        }
+        Command::Close(entity) => {
+            if closable(state, entity).is_some() {
+                return false;
+            }
+            state.log.push("There is no open door beside you to close.");
         }
         Command::PickUp(entity) => {
             if !floor_items_under(state, entity).is_empty() {
@@ -514,9 +524,49 @@ fn destination(state: &GameState, entity: Entity, dir: Dir) -> Option<(i32, i32)
     Some((current.x + dx, current.y + dy))
 }
 
-/// Off-map counts as wall.
+/// Off-map counts as wall; a closed door is not one (walking in opens it).
 fn is_wall(state: &GameState, (x, y): (i32, i32)) -> bool {
-    !Tile::is_open(state.map.get(x, y))
+    !Tile::is_way(state.map.get(x, y))
+}
+
+/// Walking into a closed door opens it, and that is the move.
+fn open_door(state: &mut GameState, entity: Entity, (x, y): (i32, i32)) {
+    state.map.set(x, y, Tile::DoorOpen);
+    if crate::ai::can_see_player(state, entity) || entity == state.player {
+        let opener = Subject::of(&state.world, entity);
+        state.log.push(opener.sentence("open", "the door"));
+    }
+}
+
+/// `Command::Close`: the first open door beside `actor` (in `Dir::ALL`
+/// order) with nothing standing in it; `reject_input` has checked there is
+/// one.
+fn close_door(state: &mut GameState, actor: Entity) {
+    let Some((x, y)) = closable(state, actor) else {
+        return;
+    };
+    state.map.set(x, y, Tile::Door);
+    let closer = Subject::of(&state.world, actor);
+    state.log.push(closer.sentence("close", "the door"));
+}
+
+/// An open door beside `actor` that nothing stands in.
+pub(crate) fn closable(state: &GameState, actor: Entity) -> Option<(i32, i32)> {
+    let at = *state.world.get::<&Position>(actor).ok()?;
+    Dir::ALL
+        .into_iter()
+        .map(|dir| {
+            let (dx, dy) = dir.delta();
+            (at.x + dx, at.y + dy)
+        })
+        .find(|&(x, y)| {
+            state.map.get(x, y) == Some(&Tile::DoorOpen)
+                && !state
+                    .world
+                    .query::<&Position>()
+                    .iter()
+                    .any(|pos| (pos.x, pos.y) == (x, y))
+        })
 }
 
 fn log_wall_bump(state: &mut GameState, entity: Entity) {
@@ -545,6 +595,10 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
     // `reject_input` before they get here.
     if is_wall(state, target) {
         log_wall_bump(state, entity);
+        return;
+    }
+    if state.map.get(target.0, target.1) == Some(&Tile::Door) {
+        open_door(state, entity, target);
         return;
     }
 
@@ -855,6 +909,54 @@ pub(crate) mod tests {
 
     fn pick_up_here(state: &mut GameState) {
         state.run(Command::PickUp(state.player));
+    }
+
+    #[test]
+    fn walking_into_a_closed_door_opens_it_and_takes_the_move() {
+        let mut state = bare_state();
+        state.map.set(2, 1, Tile::Door);
+        let before = state.now;
+        crate::time::take_turn(&mut state, crate::input::PlayerAction::Move(Dir::E));
+        assert!(state.now > before, "a turn");
+        assert_eq!(state.map.get(2, 1), Some(&Tile::DoorOpen));
+        assert_eq!(
+            *state.world.get::<&Position>(state.player).unwrap(),
+            Position { x: 1, y: 1 },
+            "it opens, you stay"
+        );
+        assert_eq!(crate::testkit::last_log(&state), "You open the door.");
+    }
+
+    #[test]
+    fn a_closed_door_blocks_sight_and_closing_one_needs_it_free() {
+        let mut state = bare_state();
+        state.map.set(2, 1, Tile::Door);
+        assert!(!Tile::is_open(state.map.get(2, 1)));
+        assert!(Tile::is_way(state.map.get(2, 1)));
+        let before = state.now;
+        crate::time::take_turn(&mut state, crate::input::PlayerAction::Close);
+        assert_eq!(state.now, before, "nothing open to close");
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "There is no open door beside you to close."
+        );
+        state.map.set(2, 1, Tile::DoorOpen);
+        crate::time::take_turn(&mut state, crate::input::PlayerAction::Close);
+        assert_eq!(state.map.get(2, 1), Some(&Tile::Door));
+        assert_eq!(crate::testkit::last_log(&state), "You close the door.");
+    }
+
+    #[test]
+    fn a_goblin_opens_a_door_on_its_way() {
+        let mut state = bare_state();
+        state.map.set(2, 1, Tile::Door);
+        let goblin = crate::testkit::thing("goblin")
+            .health(5)
+            .hostile()
+            .at(3, 1)
+            .make(&mut state);
+        state.run(Command::TryMove(goblin, Dir::W));
+        assert_eq!(state.map.get(2, 1), Some(&Tile::DoorOpen));
     }
 
     #[test]

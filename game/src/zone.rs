@@ -187,7 +187,8 @@ fn keep_largest_region(map: &mut Map) -> usize {
 }
 
 /// Every floor tile reachable from `start` in 8-way steps (how things
-/// move), marking each in `seen`.
+/// move), marking each in `seen`. Closed doors are walked through but never
+/// listed, so nothing is placed on one.
 pub(crate) fn region(map: &Map, start: (i32, i32), seen: &mut Grid<bool>) -> Vec<(i32, i32)> {
     let mut found = Vec::new();
     if map.get(start.0, start.1) != Some(&Tile::Floor) {
@@ -196,11 +197,13 @@ pub(crate) fn region(map: &Map, start: (i32, i32), seen: &mut Grid<bool>) -> Vec
     seen.set(start.0, start.1, true);
     let mut queue = VecDeque::from([start]);
     while let Some((x, y)) = queue.pop_front() {
-        found.push((x, y));
+        if map.get(x, y) == Some(&Tile::Floor) {
+            found.push((x, y));
+        }
         for dir in Dir::ALL {
             let (dx, dy) = dir.delta();
             let next = (x + dx, y + dy);
-            if map.get(next.0, next.1) == Some(&Tile::Floor)
+            if matches!(map.get(next.0, next.1), Some(Tile::Floor | Tile::Door))
                 && seen.get(next.0, next.1) == Some(&false)
             {
                 seen.set(next.0, next.1, true);

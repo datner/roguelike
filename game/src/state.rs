@@ -451,6 +451,8 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
                 Tile::Wall => ('#', Rgb(140, 140, 140)),
                 Tile::StairsDown => ('>', Rgb(240, 220, 80)),
                 Tile::StairsUp => ('<', Rgb(240, 220, 80)),
+                Tile::Door => ('+', Rgb(170, 120, 60)),
+                Tile::DoorOpen => ('\'', Rgb(170, 120, 60)),
             };
             let remembered = state
                 .remembered_items

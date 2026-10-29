@@ -206,6 +206,7 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
             }
         }
         PlayerAction::Practice => Command::Practice(player),
+        PlayerAction::Close => Command::Close(player),
         PlayerAction::Descend => Command::Descend(player),
         PlayerAction::Ascend => Command::Ascend(player),
         PlayerAction::WaitForPhase(phase) => Command::WaitForPhase {
@@ -611,6 +612,7 @@ mod tests {
                 InputEvent::Wait => PlayerAction::Wait,
                 InputEvent::PickUp => PlayerAction::PickUp,
                 InputEvent::Descend => PlayerAction::Descend,
+                InputEvent::Close => PlayerAction::Close,
                 InputEvent::Ascend => PlayerAction::Ascend,
                 InputEvent::Inventory
                 | InputEvent::Equipment

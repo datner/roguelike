@@ -214,6 +214,9 @@ In game:
 - `p`: practise: drill with what you wield, a turn at a time, until you
   can learn no more alone (half your best level in that domain) or an
   enemy comes into view; any key interrupts it.
+- `C`: close an open door beside you (walking into a closed door opens
+  it, a turn). A closed door blocks sight; the castle has them in most
+  doorways.
 - `R`: rest: wait a turn at a time while health comes back (a point every
   three turns), until healed, the floor's rest budget is spent (the status
   line's `Rest:`) or an enemy comes into view; any key interrupts it. Camp

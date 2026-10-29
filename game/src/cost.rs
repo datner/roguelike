@@ -30,6 +30,8 @@ pub const FOLLOW_STYLE: i64 = STANDARD;
 /// Studying a lesson takes a while.
 pub const STUDY: i64 = 5 * STANDARD;
 pub const PRACTICE: i64 = STANDARD;
+/// Closing a door; opening one is the move into it.
+pub const CLOSE: i64 = STANDARD;
 /// Taking the stairs, either way: a step.
 pub const STAIRS: i64 = MOVE;
 /// Waiting for a phase: one action, however long the wait (time is neutral).
@@ -57,6 +59,7 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::FollowStyle { actor, .. } => Some((actor, FOLLOW_STYLE)),
         Command::Study { actor, .. } => Some((actor, STUDY)),
         Command::Practice(actor) => Some((actor, PRACTICE)),
+        Command::Close(actor) => Some((actor, CLOSE)),
         Command::Descend(actor) | Command::Ascend(actor) => Some((actor, STAIRS)),
         Command::WaitForPhase { actor, .. } => Some((actor, WAIT_FOR_PHASE)),
         Command::Nock { actor, .. } => Some((actor, NOCK)),

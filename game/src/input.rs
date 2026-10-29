@@ -54,6 +54,8 @@ pub enum InputEvent {
     CycleExploreItems,
     /// Frontend only: a cursor to look at what is in view. No game effect.
     Look,
+    /// Close an open door beside you: `PlayerAction::Close`.
+    Close,
     /// Frontend only: practise until done or interrupted, repeating
     /// `training::practice_step`.
     Practice,
@@ -131,6 +133,8 @@ pub enum PlayerAction {
     Study(ItemRef),
     /// A turn of drills with what you wield; see `training::practice_step`.
     Practice,
+    /// Close an open door beside you.
+    Close,
     /// Take the stairs down (`dive`).
     Descend,
     /// Take the stairs up, back to camp (`dive`).

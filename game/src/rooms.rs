@@ -17,6 +17,11 @@ pub struct RoomsParams {
     /// A room's inside, in tiles, each way.
     pub min_size: i32,
     pub max_size: i32,
+    /// The chance, in percent, of a door in each doorway where a corridor
+    /// meets a room. 0 draws nothing, so a dungeon without doors keeps its
+    /// layouts.
+    #[serde(default)]
+    pub doors: u32,
 }
 
 impl RoomsParams {
@@ -107,6 +112,9 @@ pub fn generate_rooms(zone_seed: u64, params: &RoomsParams) -> (Map, Pcg64, (i32
         }
         rooms.push(room);
     }
+    if params.doors > 0 {
+        hang_doors(&mut map, &rooms, params.doors, &mut rng);
+    }
     let (cx, cy) = (ZONE_WIDTH / 2, ZONE_HEIGHT / 2);
     if rooms.is_empty() {
         // Only with no attempts at all, which `check` refuses.
@@ -124,6 +132,32 @@ pub fn generate_rooms(zone_seed: u64, params: &RoomsParams) -> (Map, Pcg64, (i32
     (map, rng, arrival)
 }
 
+/// A door, at `percent` chance each, in every doorway: a one-tile gap in a
+/// room's surrounding wall, with wall on both sides along it. Rooms in the
+/// order placed, each ring clockwise from its top-left corner.
+fn hang_doors(map: &mut Map, rooms: &[Room], percent: u32, rng: &mut Pcg64) {
+    let wall = |map: &Map, x, y| map.get(x, y) == Some(&Tile::Wall);
+    for room in rooms {
+        let (left, top, right, bottom) = (room.x - 1, room.y - 1, room.x + room.w, room.y + room.h);
+        let ring = (left + 1..right)
+            .map(|x| (x, top, true))
+            .chain((top + 1..bottom).map(|y| (right, y, false)))
+            .chain((left + 1..right).rev().map(|x| (x, bottom, true)))
+            .chain((top + 1..bottom).rev().map(|y| (left, y, false)));
+        for (x, y, across) in ring.collect::<Vec<_>>() {
+            let doorway = map.get(x, y) == Some(&Tile::Floor)
+                && if across {
+                    wall(map, x - 1, y) && wall(map, x + 1, y)
+                } else {
+                    wall(map, x, y - 1) && wall(map, x, y + 1)
+                };
+            if doorway && rng.random_range(0..100) < percent {
+                map.set(x, y, Tile::Door);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -134,7 +168,46 @@ pub(crate) mod tests {
             attempts: 60,
             min_size: 4,
             max_size: 10,
+            doors: 0,
         }
+    }
+
+    #[test]
+    fn doors_hang_only_in_doorways_and_only_when_asked() {
+        let plain = generate_rooms(7, &test_rooms());
+        let doors = |map: &Map| {
+            (0..map.height)
+                .flat_map(|y| (0..map.width).map(move |x| (x, y)))
+                .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Door))
+                .collect::<Vec<_>>()
+        };
+        assert!(doors(&plain.0).is_empty());
+        let with = generate_rooms(
+            7,
+            &RoomsParams {
+                doors: 100,
+                ..test_rooms()
+            },
+        );
+        let hung = doors(&with.0);
+        assert!(!hung.is_empty());
+        for (x, y) in hung {
+            let wall = |x, y| with.0.get(x, y) == Some(&Tile::Wall);
+            assert!(
+                (wall(x - 1, y) && wall(x + 1, y)) || (wall(x, y - 1) && wall(x, y + 1)),
+                "a door at ({x}, {y}) between two walls"
+            );
+        }
+        // Every tile but the doors is laid out the same.
+        let mut opened = with.0.clone();
+        for y in 0..opened.height {
+            for x in 0..opened.width {
+                if opened.get(x, y) == Some(&Tile::Door) {
+                    opened.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        assert_eq!(opened, plain.0);
     }
 
     #[test]

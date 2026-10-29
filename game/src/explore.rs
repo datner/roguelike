@@ -248,7 +248,7 @@ fn paths_from(state: &GameState, from: Position) -> Paths {
             let to = (x + dx, y + dy);
             if reached.get(to.0, to.1) != Some(&false)
                 || !flag(&state.seen, to.0, to.1)
-                || !Tile::is_open(state.map.get(to.0, to.1))
+                || !Tile::is_way(state.map.get(to.0, to.1))
                 || blocked.contains(&to)
             {
                 continue;
