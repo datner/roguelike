@@ -38,6 +38,10 @@ pub enum PlaceView {
         /// "the caves".
         dungeon: String,
         floor: u32,
+        /// The bottom: how many floors it has.
+        of: u32,
+        /// The nearest floor at or below this one with a way back to camp.
+        way_back: u32,
         /// "the embers".
         phase: String,
     },
@@ -62,14 +66,16 @@ pub fn place_view(state: &GameState) -> PlaceView {
             phase,
             floor,
             ..
-        } => PlaceView::Floor {
-            dungeon: state
-                .blueprints
-                .dungeon(dungeon)
-                .map_or_else(|| dungeon.clone(), |found| found.name.clone()),
-            floor: *floor,
-            phase: phase_name(phase),
-        },
+        } => {
+            let found = state.blueprints.dungeon(dungeon);
+            PlaceView::Floor {
+                dungeon: found.map_or_else(|| dungeon.clone(), |found| found.name.clone()),
+                floor: *floor,
+                of: found.map_or(*floor, |found| found.floors),
+                way_back: found.map_or(*floor, |found| found.way_back(*floor)),
+                phase: phase_name(phase),
+            }
+        }
     }
 }
 

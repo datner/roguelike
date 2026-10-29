@@ -40,8 +40,11 @@ This is a Cargo workspace with four crates:
     from a seed mixed from the world seed, the dungeon, the dive and the
     floor. Each dungeon is data (`data/dungeons/*.ron`): its cave tuning,
     what lives on its floors (more on each floor down) and how many items
-    lie about. You arrive on the stairs up (`<`) near the centre; the
-    stairs down (`>`) sit on the floor farthest from them; creatures start a
+    lie about, and how deep it goes (`docs/plans/depth.md`): every third
+    floor and the bottom are way-landings, where you arrive on stairs up
+    (`<`) back to camp; between them the only way is down, and the bottom
+    has no stairs down. You arrive near the centre; the stairs down (`>`)
+    sit on the floor farthest from there; creatures start a
     fair distance away, and items (any blueprint with an `Item` part) are
     found by stepping on them. Going down builds a new floor and forgets
     the old one; you bring what you hold and your summons.
@@ -192,7 +195,9 @@ In game:
 - `>`: take the stairs down: from camp, into the dungeon that entrance leads
   to; on a floor, to the next one. You bring what you hold and your
   summons; the floor you leave is gone.
-- `<`: climb the stairs up, back to camp. The dive ends there.
+- `<`: climb the stairs up, back to camp (only on a way-landing: every third
+  floor and the bottom; the side panel says where the next one is). The
+  dive ends there.
 - `W` (at camp, in the window): choose the phase to wait for; the next dive
   is in it.
 - In the window (`gui`), the mouse is a shortcut onto the same keys:

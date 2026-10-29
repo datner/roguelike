@@ -57,15 +57,18 @@ pub fn item(item: &ItemView) -> Row {
     row
 }
 
-/// The place in a few words: "Camp", or "The caves, floor 2 (the embers)".
+/// The place in a few words: "Camp", or "The caves, floor 2 of 9 (the
+/// embers)".
 pub fn place(state: &GameState) -> String {
     match place_view(state) {
         PlaceView::Camp { .. } => "Camp".to_string(),
         PlaceView::Floor {
             dungeon,
             floor,
+            of,
             phase,
-        } => format!("{}, floor {floor} ({phase})", capitalize(&dungeon)),
+            ..
+        } => format!("{}, floor {floor} of {of} ({phase})", capitalize(&dungeon)),
     }
 }
 
@@ -91,12 +94,30 @@ pub fn whereabouts(state: &GameState) -> Vec<Row> {
         PlaceView::Floor {
             dungeon,
             floor,
+            of,
+            way_back,
             phase,
-        } => vec![
-            vec![plain(format!("{}, floor {floor}", capitalize(&dungeon)))],
-            vec![quiet("Phase  "), plain(phase)],
-            vec![quiet("> deeper  < back to camp")],
-        ],
+        } => {
+            let back = if way_back == floor {
+                "here, on the stairs up".to_string()
+            } else {
+                format!("floor {way_back}")
+            };
+            let keys = match (floor == of, way_back == floor) {
+                (true, _) => "The bottom  < back to camp",
+                (false, true) => "> deeper  < back to camp",
+                (false, false) => "> deeper",
+            };
+            vec![
+                vec![plain(format!(
+                    "{}, floor {floor} of {of}",
+                    capitalize(&dungeon)
+                ))],
+                vec![quiet("Phase  "), plain(phase)],
+                vec![quiet("Way back  "), plain(back)],
+                vec![quiet(keys)],
+            ]
+        }
     }
 }
 
@@ -240,7 +261,25 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
         let floor = GameState::new(3, blueprints).unwrap();
-        assert_eq!(place(&floor), "The castle, floor 1 (the stillness)");
+        assert_eq!(place(&floor), "The castle, floor 1 of 12 (the stillness)");
+        let rows: Vec<String> = whereabouts(&floor).iter().map(|row| flat(row)).collect();
+        assert_eq!(rows[2], "Way back  floor 3");
+        assert_eq!(rows[3], "> deeper", "no way back between landings");
+
+        let mut landing = floor;
+        let at = |floor| game::dive::Place::Floor {
+            dungeon: "Castle".into(),
+            phase: "Stillness".into(),
+            dive: 1,
+            floor,
+        };
+        landing.place = at(3);
+        let rows: Vec<String> = whereabouts(&landing).iter().map(|row| flat(row)).collect();
+        assert_eq!(rows[2], "Way back  here, on the stairs up");
+        assert_eq!(rows[3], "> deeper  < back to camp");
+        landing.place = at(12);
+        let rows: Vec<String> = whereabouts(&landing).iter().map(|row| flat(row)).collect();
+        assert_eq!(rows[3], "The bottom  < back to camp");
     }
 
     #[test]

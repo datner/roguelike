@@ -45,12 +45,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   a landing so the older camp tests still climb back from floor 1; the depth tests use their own. The
   bench did not move.
 
-### 2. Seeing it
+### 2. Seeing it — done
 - `PlaceView::Floor` gains `of` (the bottom) and `way_back` (the next landing's floor, or this one);
   `front::text::place` and `whereabouts` say them.
 - Shots: `floor` and `castle` updated; README (Structure: dungeons have a bottom and landings;
   Controls: `<` only on a landing).
 - Tests: the status line and the side panel on a landing and between landings.
+- As built: the side panel's last row names the keys that work there ("> deeper", "> deeper  < back
+  to camp", "The bottom  < back to camp").
 
 ### 3. The bot at the bottom
 - `balance::End::Bottom`; the bench reports it beside depth, died and stuck.
