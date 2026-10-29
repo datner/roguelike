@@ -65,6 +65,8 @@ pub struct Session {
     auto: Option<Auto>,
     /// The log shows its whys until the next key (`?`).
     why: bool,
+    /// Inputs that took a turn or started a run (docs/plans/calibration.md).
+    keypresses: u64,
 }
 
 impl Session {
@@ -75,7 +77,15 @@ impl Session {
             mode: Mode::Play,
             auto: None,
             why: false,
+            keypresses: 0,
         }
+    }
+
+    /// What a person pressed that counted (docs/plans/calibration.md): an
+    /// input that took a turn or started a run is one; a run's own steps,
+    /// menus and panels are none. The pacing targets' unit.
+    pub fn keypresses(&self) -> u64 {
+        self.keypresses
     }
 
     /// Whether the log shows why its lines happened (`?`, until the next key).
@@ -148,6 +158,7 @@ impl Session {
         if self.auto.take().is_some() {
             return Outcome::Continue;
         }
+        let before = self.state.now;
         if self.state.game_over {
             return Outcome::Quit;
         }
@@ -169,6 +180,9 @@ impl Session {
             }
             Input::Any => Outcome::Continue,
         };
+        if self.state.now != before || self.auto.is_some() {
+            self.keypresses += 1;
+        }
         if self.state.game_over {
             self.mode = Mode::Play;
         }
@@ -691,6 +705,22 @@ mod tests {
         );
         session.handle(Input::Game(InputEvent::Wait));
         assert!(!session.showing_why());
+    }
+
+    #[test]
+    fn keypresses_count_turns_and_run_starts_but_not_steps_or_panels() {
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::Wait));
+        assert_eq!(session.keypresses(), 1);
+        session.handle(Input::Game(InputEvent::Inventory));
+        session.handle(Input::List(crate::input::OverlayInput::Close));
+        session.handle(Input::Game(InputEvent::Why));
+        assert_eq!(session.keypresses(), 1, "a panel and a look at the log");
+        session.handle(Input::Game(InputEvent::Explore));
+        assert_eq!(session.keypresses(), 2, "a run's start");
+        session.auto_step();
+        session.auto_step();
+        assert_eq!(session.keypresses(), 2, "its steps");
     }
 
     #[test]

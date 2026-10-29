@@ -78,6 +78,36 @@ pub fn save_on_quit(path: &Path, state: &GameState) -> Result<bool, String> {
 
 /// The characters with a save in `dir`, most recently saved first, so the
 /// head is the one "Continue" resumes. A missing directory has no saves.
+/// Appends a life's (or a sitting's) play to `<dir>/playtime.csv`
+/// (`character,keypresses,seconds`), what calibrates the pacing targets'
+/// keypresses an hour (docs/plans/calibration.md). Beside the saves, never
+/// inside one, so `game` never sees a clock and a death keeps the line.
+pub fn record_play(
+    dir: &Path,
+    character: &str,
+    keypresses: u64,
+    seconds: u64,
+) -> Result<(), String> {
+    use std::io::Write as _;
+    std::fs::create_dir_all(dir).map_err(|err| format!("{}: {err}", dir.display()))?;
+    let path = dir.join("playtime.csv");
+    let new = !path.exists();
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|err| format!("{}: {err}", path.display()))?;
+    let header = if new {
+        "character,keypresses,seconds\n"
+    } else {
+        ""
+    };
+    // Commas would split the line: a name keeps its letters.
+    let name = character.replace(',', " ");
+    writeln!(file, "{header}{name},{keypresses},{seconds}")
+        .map_err(|err| format!("{}: {err}", path.display()))
+}
+
 pub fn list(dir: &Path) -> Result<Vec<String>, String> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,

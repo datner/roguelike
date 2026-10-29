@@ -40,7 +40,15 @@ pub struct App {
     atlas: Option<Atlas>,
     /// The clock sprites animate on.
     started: Instant,
+    /// Time the game in progress has been played, and the last frame: what
+    /// calibrates the pacing targets (docs/plans/calibration.md). A gap
+    /// longer than `IDLE` between frames counts as `IDLE`: the window away.
+    played: Duration,
+    last_frame: Option<Instant>,
 }
+
+/// The most a gap between frames adds to the time played.
+const IDLE: Duration = Duration::from_secs(30);
 
 /// Whether the window should stay open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +74,8 @@ impl App {
             sprites: false,
             atlas: None,
             started: Instant::now(),
+            played: Duration::ZERO,
+            last_frame: None,
         };
         if let Some(character) = first {
             app.play(&character, None);
@@ -87,7 +97,10 @@ impl App {
 
     fn play(&mut self, character: &str, origin: Option<&str>) {
         match title::start(&self.setup, character, origin) {
-            Ok(game) => self.game = Some(game),
+            Ok(game) => {
+                self.game = Some(game);
+                (self.played, self.last_frame) = (Duration::ZERO, None);
+            }
             Err(err) => self.menu.show(err),
         }
     }
@@ -95,7 +108,7 @@ impl App {
     /// Saves and returns to the menu with what happened.
     fn leave_game(&mut self) {
         if let Some(game) = self.game.take() {
-            let (Ok(message) | Err(message)) = title::finish(&game);
+            let (Ok(message) | Err(message)) = title::finish(&game, self.played.as_secs());
             self.menu.show(message);
             title::refresh(&mut self.menu, &self.setup.saves_dir);
         }
@@ -117,6 +130,12 @@ impl App {
             if self.press(press) == Flow::Exit {
                 return Flow::Exit;
             }
+        }
+        if self.game.is_some() {
+            if let Some(last) = self.last_frame {
+                self.played += now.saturating_duration_since(last).min(IDLE);
+            }
+            self.last_frame = Some(now);
         }
         if let Some(game) = &mut self.game {
             let session = &mut game.session;

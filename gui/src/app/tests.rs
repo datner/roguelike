@@ -140,3 +140,22 @@ fn hovering_the_map_moves_the_aim_cursor_and_a_click_shoots() {
     assert!(now(harness.state()) > before, "the click fired");
     assert!(mode(&harness).starts_with("Play"));
 }
+
+#[test]
+fn time_played_adds_up_frames_and_caps_an_idle_gap() {
+    let setup = setup("plays");
+    let saves = setup.saves_dir.clone();
+    let mut app = App::new(setup, Some("hero".into()));
+    let start = Instant::now();
+    app.update(&[], start);
+    app.update(&[], start + std::time::Duration::from_secs(10));
+    // Away from the window for an hour: counts as `IDLE`.
+    app.update(&[], start + std::time::Duration::from_secs(3610));
+    assert_eq!(app.played, std::time::Duration::from_secs(10) + IDLE);
+    app.update(
+        &[Press::Char('q')],
+        start + std::time::Duration::from_secs(3610),
+    );
+    let text = std::fs::read_to_string(saves.join("playtime.csv")).unwrap();
+    assert!(text.ends_with("hero,0,40\n"), "{text}");
+}

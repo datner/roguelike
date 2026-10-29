@@ -29,11 +29,15 @@ shown as a score." This plan records it and lets the bench read it back.
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. Counting and recording
+### 1. Counting and recording — done
 - `Session::keypresses()`; `saves::record_play(dir, character, keypresses, seconds)`; `title::finish`
   takes the seconds and records; the gui measures focused time and passes it.
 - Tests: a session counts a move, a run start and a cast as one each, a run's steps and a panel as
   none; `record_play` appends lines; `finish` records on save and on death.
+- As built: a session counts an input when time passed or a run started. The gui adds up the gaps
+  between frames while a game is open, a gap counting at most 30 s (`IDLE`), rather than tracking
+  window focus. `record_play` creates the saves directory if needed (the first save of a new
+  character makes it only afterwards); a failure to record never costs the save.
 
 ### 2. The bench reads it
 - `bench --calibrate FILE`: keypresses, hours, keypresses per hour, overall and per character;

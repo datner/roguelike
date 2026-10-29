@@ -129,9 +129,13 @@ fn load_or_new(
 
 /// Saves the game on the way back to the menu (never after death) and
 /// returns the menu's message.
-pub fn finish(game: &Game) -> Result<String, String> {
+pub fn finish(game: &Game, seconds: u64) -> Result<String, String> {
     let state = game.session.state();
     let character = game.session.character();
+    if let Some(dir) = game.path.parent() {
+        // Calibration only: a failure here never costs the save.
+        let _ = saves::record_play(dir, character, game.session.keypresses(), seconds);
+    }
     saves::save_on_quit(&game.path, state).map(|saved| {
         if saved {
             format!("Saved {character}.")
@@ -144,6 +148,26 @@ pub fn finish(game: &Game) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn leaving_a_game_records_its_play_beside_the_saves() {
+        let dir = std::env::temp_dir().join(format!("roguelike-play-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let setup = Setup {
+            data_dir: std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+            saves_dir: dir.clone(),
+            seed: Some(3),
+        };
+        let mut game = start(&setup, "hero", None).unwrap();
+        game.session
+            .handle(crate::input::Input::Game(game::InputEvent::Wait));
+        finish(&game, 90).unwrap();
+        finish(&game, 30).unwrap();
+        let text = std::fs::read_to_string(dir.join("playtime.csv")).unwrap();
+        assert_eq!(text, "character,keypresses,seconds\nhero,1,90\nhero,1,30\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn replacing_deletes_the_old_save_and_plays_the_name() {
