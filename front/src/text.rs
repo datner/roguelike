@@ -81,6 +81,15 @@ pub fn rest(state: &GameState) -> String {
     }
 }
 
+/// "  Outnumbered: 2" when that many enemies beyond the first stand beside
+/// the player, for the status line; empty otherwise.
+pub fn outnumbered(state: &GameState) -> String {
+    match game::outnumbered(state) {
+        0 => String::new(),
+        extra => format!("  Outnumbered: {extra}"),
+    }
+}
+
 /// The side panel's account of where you are and what comes next.
 pub fn whereabouts(state: &GameState) -> Vec<Row> {
     let plain = |text: String| Seg::Plain(text);

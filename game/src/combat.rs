@@ -286,6 +286,9 @@ const EVEN_HIT_BP: i32 = 7_500;
 const HIT_BP_PER_POINT: i32 = 400;
 /// Hit chance never goes past these, so no blow is hopeless or sure.
 const MIN_HIT_BP: i32 = 500;
+/// Added to the hit chance against a defender for each enemy beside it
+/// beyond the first (docs/plans/fights.md): corridors and corners matter.
+const OUTNUMBERED_BP: i32 = 1_000;
 const MAX_HIT_BP: i32 = 9_500;
 /// How often a miss grazes, for a weapon without its own `Graze`.
 pub(crate) const DEFAULT_GRAZE_BP: u32 = 3_000;
@@ -382,8 +385,10 @@ pub(crate) fn odds(
         + world
             .get::<&Stats>(defender)
             .map_or(0, |stats| stats.modifier(Stat::Agility));
+    let crowd = i32::try_from(outnumbered(state, defender)).unwrap_or(0);
     let hit_bp =
-        (EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge)).clamp(MIN_HIT_BP, MAX_HIT_BP);
+        (EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge) + OUTNUMBERED_BP * crowd)
+            .clamp(MIN_HIT_BP, MAX_HIT_BP);
     let graze_bp = strike
         .weapon
         .and_then(|weapon| world.get::<&Graze>(weapon).ok().map(|graze| graze.0))
@@ -424,6 +429,28 @@ pub(crate) fn odds(
         ev = settle(state.events.fire(&mut ctx, asking, ev));
     }
     ev
+}
+
+/// How many enemies stand beside `defender` beyond the first: each makes it
+/// easier to hit. No facing, so this is the one positional rule.
+pub(crate) fn outnumbered(state: &GameState, defender: Entity) -> u32 {
+    use crate::entity::{Dead, Position};
+    let world = &state.world;
+    let Ok(at) = world.get::<&Position>(defender).map(|pos| *pos) else {
+        return 0;
+    };
+    let beside = world
+        .query::<(Entity, &Position)>()
+        .with::<&Health>()
+        .without::<&Dead>()
+        .iter()
+        .filter(|&(other, pos)| {
+            other != defender
+                && (pos.x - at.x).abs().max((pos.y - at.y).abs()) == 1
+                && side::enemies(world, defender, other)
+        })
+        .count();
+    u32::try_from(beside.saturating_sub(1)).unwrap_or(0)
 }
 
 /// Rolls `odds` on `rng`: hit, else perfect dodge, else graze or miss, and a
@@ -1192,6 +1219,39 @@ mod odds_tests {
             .make(&mut state);
         let odds = odds_of(&state, player, dummy);
         assert_eq!((odds.deflect_bp, odds.deflector), (1_400, Some(buckler)));
+    }
+
+    #[test]
+    fn each_enemy_beside_the_defender_beyond_the_first_makes_it_easier_to_hit() {
+        let mut state = bare_state();
+        let player = state.player;
+        let first = thing("goblin")
+            .health(10)
+            .hostile()
+            .with(Melee { min: 1, max: 1 })
+            .at(2, 1)
+            .make(&mut state);
+        let alone = odds_of(&state, first, player).hit_bp;
+        assert_eq!(outnumbered(&state, player), 0);
+        thing("goblin")
+            .health(10)
+            .hostile()
+            .at(1, 2)
+            .make(&mut state);
+        thing("goblin")
+            .health(10)
+            .hostile()
+            .at(2, 2)
+            .make(&mut state);
+        assert_eq!(outnumbered(&state, player), 2);
+        assert_eq!(odds_of(&state, first, player).hit_bp, alone + 2 * 1_000);
+        // A goblin two tiles off is not beside you.
+        thing("goblin")
+            .health(10)
+            .hostile()
+            .at(3, 3)
+            .make(&mut state);
+        assert_eq!(outnumbered(&state, player), 2);
     }
 
     #[test]

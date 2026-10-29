@@ -104,5 +104,5 @@ pub use time::{Tick, Timers, advance, take_turn};
 pub use training::practice_step;
 pub use view::{
     CastPreview, CharacterSheet, CostLine, ItemRef, ItemView, PartView, SkillView, SpellView,
-    character_sheet, equipment_view, inventory_view, skills, spells, throwables,
+    character_sheet, equipment_view, inventory_view, outnumbered, skills, spells, throwables,
 };

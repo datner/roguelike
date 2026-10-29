@@ -322,9 +322,10 @@ impl Session {
                 state.now.turn()
             ),
             _ => format!(
-                "{}{}  Turn: {}  Seed: {}",
+                "{}{}{}  Turn: {}  Seed: {}",
                 crate::text::place(state),
                 crate::text::rest(state),
+                crate::text::outnumbered(state),
                 state.now.turn(),
                 state.seed
             ),

@@ -163,6 +163,12 @@ pub struct CharacterSheet {
     pub origin: Option<String>,
 }
 
+/// How many enemies stand beside the player beyond the first, each making
+/// the player easier to hit (`combat::outnumbered`).
+pub fn outnumbered(state: &GameState) -> u32 {
+    crate::combat::outnumbered(state, state.player)
+}
+
 pub fn character_sheet(state: &GameState) -> CharacterSheet {
     let world = &state.world;
     let player = state.player;

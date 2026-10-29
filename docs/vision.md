@@ -92,7 +92,7 @@ own, paid for in HP.
   else), and it burns. Hiding is not stealth: it is only being out of sight, and a foe that loses
   sight of you goes to where it last saw you. That is a lure: show yourself, step into the grass, and
   meet it on your tile. **Darkness** makes a light a trade: you see, and you are seen.
-- **Outnumbered is one rule.** Each foe adjacent beyond the first lowers your deflection, so corridors
+- **Outnumbered is one rule.** Each foe adjacent beyond the first makes you easier to hit, so corridors
   and corners stop being neutral. There is no facing, so no flanking: being surrounded is the
   positional rule, and being off balance is the opening.
 - **Retreat works.** Fleeing a foe as fast as you never works under the energy model, so it never
