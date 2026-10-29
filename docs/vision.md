@@ -38,6 +38,9 @@ decided while building. When a plan and this document disagree, ask the owner wh
 6. **Content is data** (ADR 0004): skills, styles, proficiencies, phases, lessons, legacy contents,
    factions and their beliefs, situations, materials, recipes and endings are RON, composed from
    reusable parts.
+7. **Every "why?" has an answer on screen.** Each system has one place where it is shown, and a system
+   is not finished until it has one. Legible is not omniscient: what you don't know is shown as unknown,
+   never left out (see Legibility).
 
 ## Runs and endings
 
@@ -107,6 +110,47 @@ own, paid for in HP.
 - **Checked by the bench.** Each creature's question gets a scenario with a **naive build** (bump only)
   and an **answer build**. At par, the naive build should lose and the answer win; well above par, the
   naive build should win too. If naive wins at par, the creature asks nothing.
+
+## Legibility
+
+Perception, beliefs, attunement, discovery and judgement are each fine alone; together they risk the
+game feeling random. Pillar 7 holds them all to the standard discovery and judgement already meet.
+
+- **What you don't know is shown as unknown** ("?", "you can't tell"), never silently left out. Lore,
+  perception and hearsay hide things on purpose; that is allowed, hiding that something is hidden is
+  not.
+- **The game never lies; people do.** Numbers are true. Only people mislead, and their words are always
+  marked as theirs ("They say…", "The innkeeper claims…"): perception is hearsay.
+- **A surprise is fair once.** The first meeting with a kind of creature may surprise you; after that
+  lore records it and it is shown.
+- **Numbers explain themselves.** Bonuses add up in one place (Interconnection), and that place also
+  gives the breakdown: inspecting any number lists its sources ("Fire damage +35%: Embers +20, Pyre
+  attunement +10, meal +5 (cap 50)").
+- **The log answers "why?"** A key on a log line expands its cause ("You miss" → "deflection 42%: base
+  52, outnumbered −10"). Determinism means the cause is always known, so this is display, not a model.
+- **See it before you commit.** Aiming previews what a shot does (ADR 0013); the same goes for stepping
+  into a telegraphed tile (a warning), how outnumbered a step leaves you, and a phase's leans and your
+  attunement before you wait for it.
+- **A death names its chain**, not just the last blow: "Killed by the brute's swing; outnumbered by 3;
+  out of rest on this floor." It is the same cause data the why-key reads.
+- **Each system's place**, each with a shot in `scripts/shots.sh` so it can be checked:
+
+  | System | Where it is shown |
+  | --- | --- |
+  | Skills, attunement | Skills tab |
+  | Styles and principles | Styles tab |
+  | Discovery | Journal (half-formed ideas and their requirements) |
+  | Techniques, spells | Chooser, then the aim preview |
+  | Lore | Look cursor (`inspect`) |
+  | Bonuses and caps | Inspecting a number: its breakdown |
+  | Fights | Telegraphed tiles on the map; outnumbered count; the log's why-key |
+  | Rest budget | Status line |
+  | Phases | Camp's phase choice (leans, natives, attunement); the current phase in the status line |
+  | Crafting | Recipe list: what you can make now from what you carry |
+  | Judgement, renown | Camp: what is said of you and why |
+  | Beliefs, standing | Looking at a person: their beliefs and what they think you did |
+  | Legacy | "Since Ana's time…" summary; the Fallen list |
+  | Death | Death panel: the cause chain |
 
 ## Interconnection
 
