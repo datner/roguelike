@@ -147,6 +147,9 @@ pub(crate) fn build(
     if found.chasms > 0 && !found.is_bottom(floor) {
         dig_chasms(&mut map, &mut map_stream, found.chasms, arrival, stairs);
     }
+    if found.grass > 0 {
+        grow_grass(&mut map, &mut map_stream, found.grass);
+    }
     // After every tile is set: `region` walks plain floor.
     let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
     if found.is_landing(floor) {
@@ -199,6 +202,30 @@ fn dig_chasms(
         {
             for &(x, y) in &patch {
                 map.set(x, y, Tile::Floor);
+            }
+        }
+    }
+}
+
+/// Patches of tall grass, each the floor within two tiles of a floor tile,
+/// drawn on the map stream after the chasms. Grass is walked through, so it
+/// never cuts anything off; it grows only on plain floor.
+fn grow_grass(map: &mut Map, rng: &mut Pcg64, count: u32) {
+    use rand::RngExt;
+    for _ in 0..count {
+        let floor: Vec<(i32, i32)> = (0..map.height)
+            .flat_map(|y| (0..map.width).map(move |x| (x, y)))
+            .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Floor))
+            .collect();
+        if floor.is_empty() {
+            return;
+        }
+        let (cx, cy) = floor[rng.random_range(0..floor.len())];
+        for y in cy - 2..=cy + 2 {
+            for x in cx - 2..=cx + 2 {
+                if map.get(x, y) == Some(&Tile::Floor) {
+                    map.set(x, y, Tile::Grass);
+                }
             }
         }
     }
@@ -654,6 +681,12 @@ mod tests {
             .unwrap()
             .current;
         assert_eq!(health, 20 - 4);
+        let at = player_position(&state);
+        assert_eq!(
+            state.visible.get(at.x, at.y),
+            Some(&true),
+            "it looks around on landing"
+        );
         assert!(
             state
                 .log

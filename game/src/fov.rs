@@ -197,6 +197,22 @@ impl Scan<'_> {
     }
 }
 
+/// Whether whatever stands at `at` is hidden from the player in tall grass:
+/// seen only from the next tile (docs/plans/fights.md).
+pub(crate) fn hidden_in_grass(state: &GameState, at: Position) -> bool {
+    in_grass_beyond(
+        state,
+        at,
+        state.world.get::<&Position>(state.player).ok().map(|p| *p),
+    )
+}
+
+/// Whether `at` is grass and `from` (if any) more than a tile away.
+pub(crate) fn in_grass_beyond(state: &GameState, at: Position, from: Option<Position>) -> bool {
+    state.map.get(at.x, at.y) == Some(&Tile::Grass)
+        && from.is_some_and(|from| (from.x - at.x).abs().max((from.y - at.y).abs()) > 1)
+}
+
 #[cfg(test)]
 mod tests {
     use rand::RngExt;
@@ -221,6 +237,15 @@ mod tests {
             map.set(x, y, Tile::Wall);
         }
         map
+    }
+
+    #[test]
+    fn tall_grass_is_seen_but_hides_what_is_past_it() {
+        let mut state = crate::state::tests::bare_state();
+        state.map.set(3, 1, Tile::Grass);
+        state.run(crate::command::Command::UpdateFov);
+        assert_eq!(state.visible.get(3, 1), Some(&true));
+        assert_eq!(state.visible.get(5, 1), Some(&false));
     }
 
     #[test]

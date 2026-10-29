@@ -50,13 +50,20 @@ pub fn cycle_explore_items(state: &mut GameState) {
 /// (the log says why), after a step that didn't move, and, per
 /// `state.explore_items`, after a step that found items.
 pub fn explore_step(state: &mut GameState) -> bool {
+    explore_step_past(state, &[])
+}
+
+/// `explore_step`, not stopping for the enemies in `ignored`: the balance
+/// bench's bot, giving up on a foe it can't reach (across a chasm), explores
+/// on as a person would by walking.
+pub(crate) fn explore_step_past(state: &mut GameState, ignored: &[Entity]) -> bool {
     if state.game_over {
         return false;
     }
     let Some(before) = player_position(state) else {
         return false;
     };
-    match next_step(state, before) {
+    match next_step(state, before, ignored) {
         Ok(dir) => {
             let unfound = unfound_items(state);
             take_turn(state, PlayerAction::Move(dir));
@@ -135,8 +142,8 @@ fn player_position(state: &GameState) -> Option<Position> {
 
 /// The first step of a shortest known path to the best target, or why
 /// there is none.
-fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
-    if let Some(hostile) = visible_hostile(state) {
+fn next_step(state: &GameState, from: Position, ignored: &[Entity]) -> Result<Dir, String> {
+    if let Some(hostile) = visible_hostile_except(state, ignored) {
         return Err(Subject::of(&state.world, hostile).sentence("be", "in view"));
     }
     let paths = paths_from(state, from);
@@ -184,13 +191,19 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
 /// hostiles and their summons, never the player's own, and not one fleeing
 /// from further off.
 pub(crate) fn visible_hostile(state: &GameState) -> Option<Entity> {
+    visible_hostile_except(state, &[])
+}
+
+fn visible_hostile_except(state: &GameState, ignored: &[Entity]) -> Option<Entity> {
     state
         .world
         .query::<(Entity, &Position)>()
         .without::<&Dead>()
         .iter()
         .find(|&(entity, pos)| {
-            flag(&state.visible, pos.x, pos.y)
+            !ignored.contains(&entity)
+                && flag(&state.visible, pos.x, pos.y)
+                && !crate::fov::hidden_in_grass(state, *pos)
                 && side::enemies(&state.world, state.player, entity)
                 && player_position(state).is_some_and(|me| crate::ai::threatens(state, entity, me))
         })

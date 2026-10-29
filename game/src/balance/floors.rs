@@ -13,7 +13,8 @@ use crate::blueprint::Blueprints;
 use crate::command::Command;
 use crate::dive::Place;
 use crate::entity::{Dead, Name, Position, Skills};
-use crate::explore::{ExploreItems, explore_step, travel_step};
+use crate::explore::{ExploreItems, explore_step, explore_step_past, travel_step};
+use crate::fx::{self, Fx};
 use crate::input::PlayerAction;
 use crate::map::Tile;
 use crate::rest::{rest_refusal, rest_step};
@@ -22,9 +23,10 @@ use crate::time::{self, take_turn};
 
 /// Player turns after which a floor is given up as stuck.
 const TURNS_PER_FLOOR: u32 = 2000;
-/// Waits in a row (an enemy in view the policy can't reach) after which a
-/// floor is given up as stuck.
-const WAITS_IN_A_ROW: u32 = 50;
+/// Turns spent on one foe without a blow given (an enemy across a chasm,
+/// one kiting out of reach) after which the bot leaves it be and explores
+/// on, as a person would.
+const FRUITLESS: u32 = 30;
 /// Steps the bot may take in camp to reach the dungeon's entrance.
 const CAMP_STEPS: u32 = 500;
 
@@ -187,30 +189,47 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
     let xp_before = xp(state);
     let hp_before = health(state, player);
     let mut run = FloorRun::default();
-    let (mut exploring, mut resting, mut waits, mut fight) = (false, false, 0, None::<u32>);
+    let (mut exploring, mut resting, mut fight) = (false, false, None::<u32>);
+    // Foes given up on, and turns on the current one without a blow given.
+    let (mut ignored, mut fruitless): (Vec<Entity>, (Option<Entity>, u32)) =
+        (Vec::new(), (None, 0));
     let end = loop {
         if state.game_over {
             break Some(End::Died);
         }
-        if run.turns >= TURNS_PER_FLOOR || waits >= WAITS_IN_A_ROW {
+        if run.turns >= TURNS_PER_FLOOR {
             break Some(End::Stuck);
         }
         let before = state.now;
-        if let Some(target) = nearest_enemy(state) {
+        if let Some(target) = nearest_enemy(state, &ignored) {
             (exploring, resting) = (false, false);
             run.keypresses += 1;
             *fight.get_or_insert(0) += 1;
-            if act(state, build, target) {
-                waits = 0;
-            } else {
+            if !act(state, build, target) {
                 time::submit(state, Command::Wait(player));
-                waits += 1;
+            }
+            let engaged = fx::take_fx(state).iter().any(|effect| {
+                matches!(
+                    effect,
+                    Fx::Damage {
+                        to_player: false,
+                        ..
+                    } | Fx::Outcome { .. }
+                )
+            });
+            fruitless = match fruitless {
+                _ if engaged => (Some(target), 0),
+                (Some(on), turns) if on == target => (Some(target), turns + 1),
+                _ => (Some(target), 1),
+            };
+            if fruitless.1 >= FRUITLESS {
+                ignored.push(target);
+                fruitless = (None, 0);
             }
         } else {
             if let Some(length) = fight.take() {
                 run.fights.push(length);
             }
-            waits = 0;
             // Below half health, a careful player rests to full before
             // exploring on, while the floor's budget lasts.
             if (resting || below_half(state)) && rest_refusal(state).is_none() {
@@ -228,7 +247,8 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
                 run.keypresses += 1;
                 exploring = true;
             }
-            let going = explore_step(state);
+            let going = explore_step_past(state, &ignored);
+            fx::take_fx(state);
             if !going && state.now == before {
                 if on_stairs_down(state) {
                     run.keypresses += 1;
@@ -250,7 +270,7 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
     }
     if end == Some(End::Died) {
         run.died_to = Some(
-            nearest_enemy(state)
+            nearest_enemy(state, &[])
                 .and_then(|enemy| noun(state, enemy))
                 .unwrap_or_else(|| "unseen".to_string()),
         );
@@ -273,8 +293,9 @@ fn act(state: &mut GameState, build: &Build, target: Entity) -> bool {
     })
 }
 
-/// The nearest living enemy in the player's view; the first spawned on a tie.
-fn nearest_enemy(state: &GameState) -> Option<Entity> {
+/// The nearest living enemy in the player's view, but those `ignored`; the
+/// first spawned on a tie.
+fn nearest_enemy(state: &GameState, ignored: &[Entity]) -> Option<Entity> {
     let from = position(state, state.player)?;
     let mut query = state
         .world
@@ -283,7 +304,9 @@ fn nearest_enemy(state: &GameState) -> Option<Entity> {
     let mut enemies: Vec<(i32, crate::entity::SpawnSeq, Entity)> = query
         .iter()
         .filter(|&(entity, pos)| {
-            state.visible.get(pos.x, pos.y) == Some(&true)
+            !ignored.contains(&entity)
+                && state.visible.get(pos.x, pos.y) == Some(&true)
+                && !crate::fov::hidden_in_grass(state, *pos)
                 && crate::side::enemies(&state.world, state.player, entity)
                 && crate::ai::threatens(
                     state,

@@ -118,13 +118,23 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   refused with "You stop at the edge of the chasm." Goblins shove too, so the player can be shoved
   in. Saves v50.
 
-### 6. Tall grass
+### 6. Tall grass — done
 - `Tile::Grass`: walkable, opaque past itself; what stands in grass is seen only from the next tile
   (player and creatures alike); a fire spell's area burns grass to floor.
 - Caves: `grass` patches from data.
 - Tests: the player in grass is unseen by a goblin two tiles off and seen from one; a goblin in grass
   is not drawn beyond a tile; a goblin that loses the player in grass walks to the quarry; fire burns
   it.
+- As built: three tile tests now: `is_open` (walked: grass too), `is_clear` (missiles and areas: open
+  or a chasm's air), `is_transparent` (sight: clear but not grass). `fov::hidden_in_grass` hides a
+  creature or item in grass from drawing, auto-runs and the bot beyond a tile; `ai::perceives`
+  applies the same rule between creatures. Grass grows in `dive::build` after the chasms
+  (`Dungeon.grass`, Caves: 6). Any fire spell's area burns it ("The grass burns away."). The aim and
+  look lists still offer a hidden creature (left for the legibility plan). Also here, found while
+  the bench ran with chasms: a fall refreshes the player's view (falling on a goblin's turn left it
+  blank and auto-explore had nothing to go on); the bot paths around obstacles when chasing, and
+  gives up on a foe after 30 turns without a blow (one across a chasm), exploring past it
+  (`explore::explore_step_past`). Saves v51.
 
 ### 7. Sprinting
 - `Sprinting` (a marker), `Command::Sprint`, `InputEvent::Sprint` (`Z`); step cost halved while

@@ -32,6 +32,9 @@ pub struct Dungeon {
     /// a kill (docs/plans/fights.md). None draws nothing.
     #[serde(default)]
     pub chasms: u32,
+    /// Patches of tall grass on each floor: it hides what stands in it.
+    #[serde(default)]
+    pub grass: u32,
     /// Creatures on each floor, placed in this order.
     pub creatures: Vec<Inhabitant>,
     /// Items scattered on each floor, after the creatures, each drawn from
@@ -220,6 +223,7 @@ pub(crate) mod tests {
             floors: 9,
             landing_every: 1,
             chasms: 0,
+            grass: 0,
             creatures: vec![Inhabitant {
                 blueprint: "Goblin".into(),
                 count: 6,

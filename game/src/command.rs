@@ -596,6 +596,9 @@ fn fall(state: &mut GameState, entity: Entity) {
     state.log.push(faller.sentence("fall", "into the chasm"));
     if entity == state.player {
         crate::dive::descend(state, entity);
+        // Shoved in on someone else's turn: look around now, not after the
+        // player's next action.
+        state.commands.push_back(Command::UpdateFov);
         state.commands.push_back(Command::DealDamage {
             target: entity,
             amount: FALL_DAMAGE,

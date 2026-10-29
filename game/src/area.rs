@@ -58,7 +58,7 @@ fn seen_around(map: &Map, from: (i32, i32), radius: i32) -> Vec<(i32, i32)> {
         for x in from.0 - radius..=from.0 + radius {
             if within(from, (x, y), radius)
                 && seen.get(x, y).copied().unwrap_or(false)
-                && Tile::is_transparent(map.get(x, y))
+                && Tile::is_clear(map.get(x, y))
             {
                 tiles.push((x, y));
             }
@@ -105,7 +105,7 @@ fn beam(map: &Map, caster: (i32, i32), aim: (i32, i32), range: i32) -> Vec<(i32,
     line(caster, far)
         .into_iter()
         .take(range.max(0) as usize)
-        .take_while(|&(x, y)| Tile::is_transparent(map.get(x, y)))
+        .take_while(|&(x, y)| Tile::is_clear(map.get(x, y)))
         .collect()
 }
 

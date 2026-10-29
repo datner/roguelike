@@ -21,6 +21,9 @@ pub enum Tile {
     /// A drop to the floor below (`:`): seen across, never walked. A
     /// creature forced into one falls (docs/plans/fights.md).
     Chasm,
+    /// Tall grass (`"`): walked through, but it blocks sight past itself and
+    /// hides what stands in it beyond the next tile. Fire burns it to floor.
+    Grass,
 }
 
 impl Tile {
@@ -29,13 +32,19 @@ impl Tile {
     pub fn is_open(tile: Option<&Tile>) -> bool {
         matches!(
             tile,
-            Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp | Tile::DoorOpen)
+            Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp | Tile::DoorOpen | Tile::Grass)
         )
     }
 
-    /// Seen through: open, or a chasm. What sight, missiles and areas cross.
-    pub fn is_transparent(tile: Option<&Tile>) -> bool {
+    /// What a missile or a spreading area crosses: open ground, grass, or a
+    /// chasm's air.
+    pub fn is_clear(tile: Option<&Tile>) -> bool {
         Tile::is_open(tile) || tile == Some(&Tile::Chasm)
+    }
+
+    /// Seen through: clear ground but grass, which hides what is past it.
+    pub fn is_transparent(tile: Option<&Tile>) -> bool {
+        Tile::is_clear(tile) && tile != Some(&Tile::Grass)
     }
 
     /// A way to go: open, or a closed door that walking into opens. For

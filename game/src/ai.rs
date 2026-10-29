@@ -168,7 +168,7 @@ fn reach(state: &GameState, from: Position) -> Reach {
 
 /// A step toward `to`: straight when one gets closer (cheap, and right in
 /// the open), else the first step on a shortest way, if it is free now.
-fn path_step(state: &GameState, from: Position, to: (i32, i32)) -> Option<Dir> {
+pub(crate) fn path_step(state: &GameState, from: Position, to: (i32, i32)) -> Option<Dir> {
     if let Some(dir) = step_toward(state, from, Position { x: to.0, y: to.1 }) {
         return Some(dir);
     }
@@ -339,6 +339,9 @@ fn technique_at(state: &GameState, actor: Entity, enemy: Entity, at: Position) -
 /// no view per actor, so creatures out of the player's sight never fight
 /// each other (ADR 0015).
 fn perceives(state: &GameState, actor: Entity, me: Position, other: Entity, at: Position) -> bool {
+    if crate::fov::in_grass_beyond(state, at, Some(me)) {
+        return false;
+    }
     if other == state.player {
         return can_see_player(state, actor);
     }
@@ -546,6 +549,43 @@ mod tests {
         see_everything(&mut state);
         assert_eq!(route(&state, scout), None);
         assert_eq!(decide(&state, scout), Command::TryMove(scout, Dir::W));
+    }
+
+    #[test]
+    fn in_tall_grass_you_are_seen_only_from_the_next_tile() {
+        let (mut state, goblin) = with_goblin(Position { x: 3, y: 1 });
+        see_everything(&mut state);
+        state.map.set(1, 1, Tile::Grass);
+        assert_eq!(nearest_enemy(&state, goblin, Position { x: 3, y: 1 }), None);
+        *state.world.get::<&mut Position>(goblin).unwrap() = Position { x: 2, y: 1 };
+        assert!(nearest_enemy(&state, goblin, Position { x: 2, y: 1 }).is_some());
+    }
+
+    #[test]
+    fn a_goblin_in_grass_is_not_drawn_beyond_the_next_tile() {
+        let (mut state, _) = with_goblin(Position { x: 4, y: 1 });
+        state.map.set(4, 1, Tile::Grass);
+        state.run(Command::UpdateFov);
+        let glyph_at = |state: &GameState, x| {
+            let view = crate::state::render_view(state, state.map.width, state.map.height);
+            let me = *state.world.get::<&Position>(state.player).unwrap();
+            let camera = crate::camera::Camera::follow(
+                (me.x, me.y),
+                (state.map.width, state.map.height),
+                (state.map.width, state.map.height),
+            );
+            let (sx, sy) = camera.world_to_screen((x, 1));
+            view.get(sx, sy).map(|cell| cell.glyph)
+        };
+        assert_eq!(glyph_at(&state, 4), Some('"'));
+        thing_moves(&mut state, (3, 1));
+        assert_eq!(glyph_at(&state, 4), Some('g'));
+    }
+
+    fn thing_moves(state: &mut GameState, to: (i32, i32)) {
+        let player = state.player;
+        *state.world.get::<&mut Position>(player).unwrap() = Position { x: to.0, y: to.1 };
+        state.run(Command::UpdateFov);
     }
 
     #[test]

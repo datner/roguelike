@@ -454,6 +454,7 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
                 Tile::Door => ('+', Rgb(170, 120, 60)),
                 Tile::DoorOpen => ('\'', Rgb(170, 120, 60)),
                 Tile::Chasm => (':', Rgb(70, 70, 120)),
+                Tile::Grass => ('"', Rgb(70, 150, 60)),
             };
             let remembered = state
                 .remembered_items
@@ -473,7 +474,9 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
         .world
         .query::<(&Position, &Appearance, Option<&Item>)>()
         .iter()
-        .filter(|(pos, _, _)| flag(&state.visible, pos.x, pos.y))
+        .filter(|(pos, _, _)| {
+            flag(&state.visible, pos.x, pos.y) && !crate::fov::hidden_in_grass(state, **pos)
+        })
         .map(|(pos, look, item)| {
             let shows = Cell {
                 glyph: look.glyph,

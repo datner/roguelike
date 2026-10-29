@@ -442,8 +442,14 @@ fn command(state: &GameState, act: &Act, target: Entity) -> Option<Command> {
             let dir = if crate::ranged::distance(from, at) == 1 {
                 Dir::ALL.into_iter().find(|dir| dir.delta() == (dx, dy))?
             } else {
-                let pos = |(x, y)| Position { x, y };
-                ai::step_toward(state, pos(from), pos(at))?
+                ai::path_step(
+                    state,
+                    Position {
+                        x: from.0,
+                        y: from.1,
+                    },
+                    at,
+                )?
             };
             Some(Command::TryMove(player, dir))
         }

@@ -843,6 +843,11 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
             });
         }
     }
+    if let Some(strike) = ready.strike
+        && strike.types.contains(crate::entity::DamageType::Fire)
+    {
+        burn_grass(state, &footprint.area);
+    }
     if let Some(summon) = ready.summon {
         call(state, actor, summon, &footprint.placed);
     }
@@ -858,6 +863,21 @@ pub(crate) fn cast(state: &mut GameState, actor: Entity, spell: Entity, at: (i32
         trained.extend(ready.way.and_then(|way| discipline_skill(state, way)));
         trained.sort();
         skill::train(state, actor, &trained, enemy, skill::BASE_XP);
+    }
+}
+
+/// Fire spreading over `tiles` burns tall grass to floor
+/// (docs/plans/fights.md).
+fn burn_grass(state: &mut GameState, tiles: &[(i32, i32)]) {
+    let mut seen = false;
+    for &(x, y) in tiles {
+        if state.map.get(x, y) == Some(&Tile::Grass) {
+            state.map.set(x, y, Tile::Floor);
+            seen |= state.visible.get(x, y) == Some(&true);
+        }
+    }
+    if seen {
+        state.log.push("The grass burns away.");
     }
 }
 
@@ -1042,6 +1062,17 @@ mod tests {
             .into_iter()
             .map(|id| book.get(id).unwrap().name.clone())
             .collect()
+    }
+
+    #[test]
+    fn fire_burns_tall_grass_to_floor() {
+        let mut state = crate::state::tests::bare_state();
+        state.map.set(3, 1, Tile::Grass);
+        state.map.set(4, 1, Tile::Grass);
+        state.run(Command::UpdateFov);
+        burn_grass(&mut state, &[(3, 1), (5, 1)]);
+        assert_eq!(state.map.get(3, 1), Some(&Tile::Floor));
+        assert_eq!(state.map.get(4, 1), Some(&Tile::Grass), "outside the area");
     }
 
     #[test]

@@ -20,6 +20,8 @@
     landing_every: 3,
     // Drops to the floor below: shove something in.
     chasms: 4,
+    // Tall grass: hides what stands in it, and burns.
+    grass: 6,
     creatures: [
         (blueprint: "Goblin", count: 6, per_floor: 1),
         // One patrols each floor: resting in the open can be found.
