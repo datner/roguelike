@@ -24,6 +24,9 @@ on them; the decisions below say where each one will attach.
 - **Death is final.** On death the character's save file is deleted and a record is appended to the
   lineage. Today the last save stays and can be continued, which undoes permadeath. `saves.rs`'s rule
   "no save after death" becomes "no save after death, and the old one is removed".
+- **Deleting a living character counts as a death.** It writes a record (cause: abandoned) like any
+  death, so the ruins and gap rolled at its creation stand. Making and deleting characters can't
+  reroll the ruins.
 - **A record is plain data, not the save**: `legacy::Record { name, origin, turn, ending, place, skills,
   styles, techniques, discoveries, gear, stash }`. Everything is a name (skill, blueprint, style,
   dungeon, phase), never an id, so content changes don't break a record: a name that no longer exists
@@ -98,7 +101,8 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
   ending replaces it.
 - `front/saves.rs`: `bury(dir, character, record)` deletes the save and appends the record to
   `legacy.ron` (written atomically, trimmed to `keep`). `title::finish` calls it after a death and
-  returns "Ana died on turn 812." as it does today.
+  returns "Ana died on turn 812." as it does today. The menu's Delete on a living character buries it
+  too, with an abandoned record.
 - ADR 0026.
 - Tests: a death's record (cause, place, top skills, no abilities, gear); a record round-trips; bury
   removes the save and trims the lineage; an outdated lineage is left alone; a living quit saves as

@@ -58,14 +58,24 @@ decided while building. When a plan and this document disagree, ask the owner wh
 - **At an ending the character may retire or continue.** Retiring ends that character and forces a new
   one, and it should be very attractive anyway. It is never required: one character can go all the way
   to the true ending as the first of its line.
-- **Revelations persist across the lineage**, though maybe not all of them, or not fully. That is a
-  direction to decide per revelation, not one rule.
+- **A retirement is worth what the life was.** What it gives (the mentor's strength, renown, which
+  settlers come) is measured from the life itself: how deep it went, what it discovered, what it did.
+  Retiring a short life at the easy ending is allowed and gives little, so retiring early every life is
+  never the best line.
+- **Revelations belong to the lineage.** They persist across its lives, though maybe not all of them,
+  or not fully (decided per revelation). A new lineage starts from scratch, revelations included: a
+  fresh lineage is a fresh world, not a new chapter.
 
 ## Interconnection
 
 The experiment of this game is a system as interconnected as possible. A new system earns its place by
 reaching into the others (skills, styles, discovery, lore, phases, legacy), and the others read it
 back. A system that only adds content beside the rest is not finished.
+
+- **Bonuses add, in one place, under one cap.** The more systems reach into a number (a phase's lean,
+  attunement, a style thriving in its phase, a meal, a relic), the more ways they can multiply into one
+  that breaks it. So every bonus to a number is an additive percentage, summed in one place, and each
+  kind of number has a cap in data. The balance bench reports when a build reaches a cap.
 
 ## Phases
 
