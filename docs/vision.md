@@ -152,6 +152,42 @@ game feeling random. Pillar 7 holds them all to the standard discovery and judge
   | Legacy | "Since Ana's time…" summary; the Fallen list |
   | Death | Death panel: the cause chain |
 
+## Pacing
+
+Styles must be reachable within one life, the first ending within the first few lives, mentors must
+span two lives. Targets make that checkable instead of hoped for.
+
+- **Counted in actions, not hours.** The bench can count player actions, not time. One assumption,
+  kept in data, converts them: about **1000 actions an hour**, where an auto-explore or practice run
+  is one action.
+- **Targets** (first draft; a moved target is a design change, like a moved number in the bench):
+
+  | Thing | Target | ≈ time |
+  | --- | --- | --- |
+  | A normal fight | 3–8 actions; a dangerous one 10–20 | — |
+  | A floor | 150–300 actions | 10–20 min |
+  | Rest budget | about 1–1.5 full heals per floor | — |
+  | Way-landings | every 3 floors | ~45 min between chances to bank |
+  | A dungeon's bottom | 9–12 floors | — |
+  | First style principle (level 5) | within 1–2 dives of following the style | ~1 h |
+  | First discovery | within the first life's first 2 dives | ≤ 2 h |
+  | An advanced style | by the middle of a full life | — |
+  | A full life | 8–15 dives | 6–10 h |
+  | A typical early death | after 1–3 dives | 1–2 h |
+  | First ending | within the first 3 lives | 5–8 h in all |
+  | Mastery | one life masters one or two domains, never all | — |
+  | Mentors | useful for the next life, faded by the one after | — |
+
+  A life sits between Brogue's hour and Qud's tens: legacy needs many lives, so one can't be huge.
+- **The bench measures floors.** A **floor bot** (auto-explore and bump, the naive build from Fights)
+  plays real dungeon floors through the real game over many seeds, and reports actions, XP, HP and rest
+  budget spent, and deaths per floor. From XP per floor and the skill curve it derives how many floors
+  a build takes to reach levels 5, 10 and 15, which checks the style targets without simulating a life.
+  Lives, endings and mentors stay design-review targets until legacy exists.
+- **Real play calibrates the assumption.** `front` records wall-clock time and actions per life in the
+  save, outside `game`, so determinism holds. It only tunes the actions-per-hour figure and is never
+  shown as a score.
+
 ## Interconnection
 
 The experiment of this game is a system as interconnected as possible. A new system earns its place by
