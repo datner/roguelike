@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use rand_pcg::Pcg64;
 
 use crate::camp::Camp;
-use crate::dungeon::Generator;
+use crate::dungeon::Dungeon;
 use crate::entity::{Position, Summoned};
 use crate::map::{Grid, Map, Tile};
 use crate::rng::Rngs;
@@ -114,25 +114,32 @@ pub(crate) struct Floor {
     pub near: Vec<(i32, i32)>,
 }
 
-/// Generates `floor` of `dive` into `dungeon`: its layout, the stairs up near
-/// the centre where you arrive, the stairs down farthest from them.
+/// Generates `floor` of `dive` into `dungeon` (`found`, keyed `dungeon`): its
+/// layout, where you arrive near the centre (stairs up to camp on a
+/// way-landing), and the stairs down farthest from it, unless this is the
+/// bottom (docs/plans/depth.md).
 pub(crate) fn build(
     world_seed: u64,
-    generator: &Generator,
+    found: &Dungeon,
     dungeon: &str,
     phase: &str,
     dive: u32,
     floor: u32,
 ) -> Floor {
     let seed = floor_seed(world_seed, dungeon, phase, dive, floor);
-    let (mut map, map_stream, suggested) = generator.generate(seed);
+    let (mut map, map_stream, suggested) = found.generator.generate(seed);
     let arrival = suggested
         .or_else(|| start_position(&map))
         .unwrap_or((map.width / 2, map.height / 2));
     // Before the stairs change any tile: `region` walks plain floor.
     let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
-    place_stairs_down(&mut map, arrival);
-    map.set(arrival.0, arrival.1, Tile::StairsUp);
+    // No RNG in either, so the depth never changes a layout.
+    if !found.is_bottom(floor) {
+        place_stairs_down(&mut map, arrival);
+    }
+    if found.is_landing(floor) {
+        map.set(arrival.0, arrival.1, Tile::StairsUp);
+    }
     Floor {
         map,
         map_stream,
@@ -251,8 +258,9 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
         state.log.push("The stairs lead nowhere.");
         return;
     };
-    let (generator, name) = (found.generator.clone(), found.name.clone());
-    let next = build(state.seed, &generator, &dungeon, &phase, dive, floor);
+    let found = found.clone();
+    let next = build(state.seed, &found, &dungeon, &phase, dive, floor);
+    let name = found.name.clone();
     state.dives = dive;
     enter(
         state,
@@ -269,6 +277,11 @@ pub(crate) fn descend(state: &mut GameState, actor: Entity) {
     } else {
         format!("You descend to floor {floor}.")
     });
+    if found.is_bottom(floor) {
+        state.log.push(format!("This is the bottom of {name}."));
+    } else if found.is_landing(floor) {
+        state.log.push("Stairs lead back up to camp from here.");
+    }
     if let Err(err) = state.populate() {
         state.log.push(format!("The floor is empty: {err}."));
     }
@@ -460,6 +473,61 @@ mod tests {
         let first = goblins(&state);
         take_turn(&mut state, PlayerAction::Descend);
         assert_eq!(goblins(&state), first + 1, "one more goblin per floor");
+    }
+
+    /// The test dungeon, four floors deep with a landing every third.
+    fn deep() -> Dungeon {
+        Dungeon {
+            floors: 4,
+            landing_every: 3,
+            ..crate::dungeon::tests::test_dungeon()
+        }
+    }
+
+    fn has(map: &Map, tile: Tile) -> bool {
+        (0..map.height).any(|y| (0..map.width).any(|x| map.get(x, y) == Some(&tile)))
+    }
+
+    #[test]
+    fn only_landings_have_a_way_back_and_the_bottom_no_way_down() {
+        let dungeon = deep();
+        let floor = |n| build(9, &dungeon, "Test", "Still", 1, n);
+        for (n, up, down) in [
+            (1, false, true),
+            (2, false, true),
+            (3, true, true),
+            (4, true, false),
+        ] {
+            let map = floor(n).map;
+            assert_eq!(has(&map, Tile::StairsUp), up, "floor {n} up");
+            assert_eq!(has(&map, Tile::StairsDown), down, "floor {n} down");
+        }
+        let arrival = floor(3).arrival;
+        assert_eq!(
+            floor(3).map.get(arrival.0, arrival.1),
+            Some(&Tile::StairsUp)
+        );
+    }
+
+    #[test]
+    fn depth_changes_no_layout_but_the_stairs() {
+        let shallow = crate::dungeon::tests::test_dungeon();
+        let (a, b) = (
+            build(9, &deep(), "Test", "Still", 1, 1),
+            build(9, &shallow, "Test", "Still", 1, 1),
+        );
+        let mut expected = b.map.clone();
+        expected.set(b.arrival.0, b.arrival.1, Tile::Floor);
+        assert_eq!(a.map, expected);
+    }
+
+    #[test]
+    fn a_dungeon_without_depth_fails_to_load() {
+        let dungeon = Dungeon {
+            floors: 0,
+            ..crate::dungeon::tests::test_dungeon()
+        };
+        assert!(crate::dungeon::check("Test", &dungeon, &test_blueprints()).is_err());
     }
 
     fn at_camp() -> GameState {

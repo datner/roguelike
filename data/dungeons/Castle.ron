@@ -8,6 +8,10 @@
         min_size: 4,
         max_size: 10,
     ),
+    // Its bottom, and a way-landing (stairs up to camp) every third floor
+    // and there (docs/plans/depth.md).
+    floors: 12,
+    landing_every: 3,
     creatures: [
         (blueprint: "Goblin", count: 5, per_floor: 1),
         (blueprint: "GoblinShaman", count: 1),

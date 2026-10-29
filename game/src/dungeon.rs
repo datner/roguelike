@@ -22,12 +22,36 @@ pub struct Dungeon {
     pub arrival: String,
     /// How its floors are laid out.
     pub generator: Generator,
+    /// How deep it goes: the last floor, its bottom, has no stairs down
+    /// (docs/plans/depth.md).
+    pub floors: u32,
+    /// Every this many floors, and on the bottom, a way-landing: stairs up
+    /// to camp where you arrive. Between landings the only way is down.
+    pub landing_every: u32,
     /// Creatures on each floor, placed in this order.
     pub creatures: Vec<Inhabitant>,
     /// Items scattered on each floor, after the creatures, each drawn from
     /// every blueprint with an `Item`.
     #[serde(default)]
     pub items: Vec<Scatter>,
+}
+
+impl Dungeon {
+    /// Whether `floor` has a way back to camp.
+    pub fn is_landing(&self, floor: u32) -> bool {
+        self.is_bottom(floor) || floor.is_multiple_of(self.landing_every.max(1))
+    }
+
+    pub fn is_bottom(&self, floor: u32) -> bool {
+        floor >= self.floors
+    }
+
+    /// The first landing at or below `floor`.
+    pub fn way_back(&self, floor: u32) -> u32 {
+        (floor..self.floors)
+            .find(|&at| self.is_landing(at))
+            .unwrap_or(self.floors)
+    }
 }
 
 /// Items on a dungeon's floors.
@@ -155,6 +179,9 @@ pub(crate) fn check(
         dungeon: key.to_string(),
         why,
     };
+    if dungeon.floors == 0 || dungeon.landing_every == 0 {
+        return Err(bad("floors and landing_every must be at least 1".into()));
+    }
     for inhabitant in &dungeon.creatures {
         if blueprints.id(&inhabitant.blueprint).is_none() {
             return Err(bad(format!("unknown blueprint {:?}", inhabitant.blueprint)));
@@ -184,6 +211,10 @@ pub(crate) mod tests {
             name: "the test caves".into(),
             arrival: "Goblins prowl these caves.".into(),
             generator: Generator::Cave(test_cave()),
+            // Every floor a landing, so tests can climb back from any;
+            // depth's own tests set theirs (docs/plans/depth.md).
+            floors: 9,
+            landing_every: 1,
             creatures: vec![Inhabitant {
                 blueprint: "Goblin".into(),
                 count: 6,

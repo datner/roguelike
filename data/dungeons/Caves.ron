@@ -14,6 +14,10 @@
         wall_survival: 4,
         min_floor_fraction: 0.35,
     ),
+    // Its bottom, and a way-landing (stairs up to camp) every third floor
+    // and there (docs/plans/depth.md).
+    floors: 9,
+    landing_every: 3,
     creatures: [
         (blueprint: "Goblin", count: 6, per_floor: 1),
         (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),

@@ -139,17 +139,16 @@ impl GameState {
             .first_dungeon()
             .ok_or(BlueprintError::NoDungeon)?
             .to_string();
-        let generator = blueprints
+        let found = blueprints
             .dungeon(&dungeon)
             .ok_or(BlueprintError::NoDungeon)?
-            .generator
             .clone();
         let phase = blueprints
             .phases()
             .first()
             .map(|phase| phase.key.clone())
             .unwrap_or_default();
-        let floor = crate::dive::build(seed, &generator, &dungeon, &phase, 1, 1);
+        let floor = crate::dive::build(seed, &found, &dungeon, &phase, 1, 1);
         let mut rngs = Rngs::new(seed, 0);
         rngs.map = floor.map_stream;
         rngs.spawn = floor.spawn_stream;
