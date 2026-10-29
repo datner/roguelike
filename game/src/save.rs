@@ -22,9 +22,9 @@ use crate::entity::{
     BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Discovered, Duration,
     EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
     Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Light, Mana, ManaCasting, Melee,
-    Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging,
-    Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats,
-    Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
+    Morale, Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quarry, Quiver,
+    Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
+    SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 46;
+pub const SAVE_VERSION: u32 = 47;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -235,6 +235,8 @@ enum ComponentKind {
     Bleeding,
     Regeneration,
     RestBudget,
+    Quarry,
+    Morale,
     OnHit,
     Skills,
     Trains,
@@ -266,7 +268,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 80] = [
+    const ALL: [ComponentKind; 82] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -319,6 +321,8 @@ impl ComponentKind {
         Self::Bleeding,
         Self::Regeneration,
         Self::RestBudget,
+        Self::Quarry,
+        Self::Morale,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -406,6 +410,8 @@ enum SavedComponent {
     Bleeding(Bleeding),
     Regeneration(Regeneration),
     RestBudget(RestBudget),
+    Quarry(Quarry),
+    Morale(Morale),
     OnHit(Vec<OnHitDef>),
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
@@ -761,6 +767,8 @@ fn save_component(
         ComponentKind::Bleeding => copy(entity).map(S::Bleeding),
         ComponentKind::Regeneration => copy(entity).map(S::Regeneration),
         ComponentKind::RestBudget => copy(entity).map(S::RestBudget),
+        ComponentKind::Quarry => copy(entity).map(S::Quarry),
+        ComponentKind::Morale => copy(entity).map(S::Morale),
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
                 entries
@@ -967,6 +975,8 @@ fn load_component(
         S::Bleeding(c) => builder.add(c),
         S::Regeneration(c) => builder.add(c),
         S::RestBudget(c) => builder.add(c),
+        S::Quarry(c) => builder.add(c),
+        S::Morale(c) => builder.add(c),
         S::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()

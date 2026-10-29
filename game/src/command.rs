@@ -218,6 +218,12 @@ pub(crate) enum Command {
     BleedTick(Entity),
     /// A `Regeneration` holder's tick (`rest::regenerate`).
     Regenerate(Entity),
+    /// Scheduler only: `actor` remembers where it last saw an enemy, or
+    /// forgets (`None`). Queued before it decides (`ai::notice`).
+    Notice {
+        actor: Entity,
+        at: Option<(i32, i32)>,
+    },
     /// The player arrived on a tile: the floor items there become `Found`.
     FindItems(Entity),
     /// Scheduler only: move the clock forward and grant actors energy.
@@ -269,6 +275,7 @@ impl Command {
             | Command::ExpireEffect(effect)
             | Command::BleedTick(effect) => [Some(effect), None],
             Command::Regenerate(holder) => [Some(holder), None],
+            Command::Notice { actor, .. } => [Some(actor), None],
             Command::AdvanceClock { .. } | Command::UpdateFov => [None, None],
         }
     }
@@ -358,6 +365,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::ExpireEffect(effect) => effect::expire_effect(state, effect),
             Command::BleedTick(effect) => effect::bleed_tick(state, effect),
             Command::Regenerate(holder) => crate::rest::regenerate(state, holder),
+            Command::Notice { actor, at } => crate::ai::remember(state, actor, at),
             Command::AdvanceClock { ticks } => time::advance_clock(state, ticks),
             Command::UpdateFov => {
                 fov::update(state);

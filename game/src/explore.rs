@@ -180,8 +180,9 @@ fn next_step(state: &GameState, from: Position) -> Result<Dir, String> {
     )
 }
 
-/// An enemy of the player in view: hostiles and their summons, never
-/// the player's own.
+/// An enemy of the player in view that threatens them (`ai::threatens`):
+/// hostiles and their summons, never the player's own, and not one fleeing
+/// from further off.
 pub(crate) fn visible_hostile(state: &GameState) -> Option<Entity> {
     state
         .world
@@ -189,7 +190,9 @@ pub(crate) fn visible_hostile(state: &GameState) -> Option<Entity> {
         .without::<&Dead>()
         .iter()
         .find(|&(entity, pos)| {
-            flag(&state.visible, pos.x, pos.y) && side::enemies(&state.world, state.player, entity)
+            flag(&state.visible, pos.x, pos.y)
+                && side::enemies(&state.world, state.player, entity)
+                && player_position(state).is_some_and(|me| crate::ai::threatens(state, entity, me))
         })
         .map(|(entity, _)| entity)
 }
@@ -221,7 +224,14 @@ fn paths_from(state: &GameState, from: Position) -> Paths {
         .world
         .query::<(Entity, &Position, &BlocksMovement)>()
         .iter()
-        .filter(|&(entity, pos, _)| entity != state.player && flag(&state.visible, pos.x, pos.y))
+        // A foe running away is no wall: routing around it while it slips in
+        // and out of view would turn the path back and forth.
+        .filter(|&(entity, pos, _)| {
+            entity != state.player
+                && flag(&state.visible, pos.x, pos.y)
+                && !(side::enemies(&state.world, state.player, entity)
+                    && !crate::ai::threatens(state, entity, from))
+        })
         .map(|(_, pos, _)| (pos.x, pos.y))
         .collect();
     let mut first = Grid::new(state.map.width, state.map.height, None);

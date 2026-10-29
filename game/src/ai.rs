@@ -5,8 +5,8 @@ use hecs::Entity;
 
 use crate::command::Command;
 use crate::entity::{
-    BlocksMovement, Dead, Health, Hostile, Position, SpawnSeq, Spell, SpellAi, Summoned,
-    TechniqueAi,
+    BlocksMovement, Dead, Health, Hostile, Morale, Position, Quarry, SpawnSeq, Spell, SpellAi,
+    Summoned, TechniqueAi,
 };
 use crate::fov;
 use crate::holding;
@@ -40,6 +40,11 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
     };
 
     if let Some((foe, enemy)) = nearest_enemy(state, actor, me) {
+        if shaken(state, actor)
+            && let Some(away) = step_away(state, me, enemy)
+        {
+            return Command::TryMove(actor, away);
+        }
         if world.satisfies::<&SpellAi>(actor)
             && let Some(cast) = spell_at(state, actor, foe, enemy)
         {
@@ -61,6 +66,15 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
             .map(|dir| Command::TryMove(actor, dir))
             .unwrap_or(wait);
     }
+    if let Ok(quarry) = world.get::<&Quarry>(actor).map(|q| q.at) {
+        let at = Position {
+            x: quarry.0,
+            y: quarry.1,
+        };
+        if let Some(dir) = step_toward(state, me, at) {
+            return Command::TryMove(actor, dir);
+        }
+    }
     let leader = owner.and_then(|owner| world.get::<&Position>(owner).ok().map(|p| *p));
     match leader {
         Some(leader) if chebyshev(me, leader) > FOLLOW_DISTANCE => step_toward(state, me, leader)
@@ -68,6 +82,90 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
             .unwrap_or(wait),
         _ => wait,
     }
+}
+
+/// What `actor` remembers before deciding: where it sees its nearest enemy
+/// now, or nothing once it stands where it last saw one (or can get no
+/// closer) with none in sight. `None` when the memory is already right.
+pub(crate) fn notice(state: &GameState, actor: Entity) -> Option<Command> {
+    let world = &state.world;
+    if !world.satisfies::<&Hostile>(actor) && !world.satisfies::<&Summoned>(actor) {
+        return None;
+    }
+    let me = world.get::<&Position>(actor).ok().map(|p| *p)?;
+    let known = world.get::<&Quarry>(actor).ok().map(|q| q.at);
+    let at = match nearest_enemy(state, actor, me) {
+        Some((_, enemy)) => Some((enemy.x, enemy.y)),
+        None => known.filter(|&(x, y)| {
+            let goal = Position { x, y };
+            goal != me && step_toward(state, me, goal).is_some()
+        }),
+    };
+    (at != known).then_some(Command::Notice { actor, at })
+}
+
+/// `Command::Notice` applier.
+pub(crate) fn remember(state: &mut GameState, actor: Entity, at: Option<(i32, i32)>) {
+    match at {
+        Some(at) => {
+            let _ = state.world.insert_one(actor, Quarry { at });
+        }
+        None => {
+            let _ = state.world.remove_one::<Quarry>(actor);
+        }
+    }
+}
+
+/// Whether `actor` is a threat to whoever stands at `to`: anything but a
+/// creature fleeing from further off. Auto-runs stop for threats only, so a
+/// goblin backing off at the edge of sight never blocks exploring; walking
+/// up to one (explore paths through it) makes it a threat again.
+pub(crate) fn threatens(state: &GameState, actor: Entity, to: Position) -> bool {
+    !shaken(state, actor)
+        || state
+            .world
+            .get::<&Position>(actor)
+            .is_ok_and(|at| chebyshev(*at, to) <= 1)
+}
+
+/// Below its morale: hurt past the point where it would rather not fight.
+fn shaken(state: &GameState, actor: Entity) -> bool {
+    let world = &state.world;
+    let (Ok(morale), Ok(health)) = (world.get::<&Morale>(actor), world.get::<&Health>(actor))
+    else {
+        return false;
+    };
+    i64::from(health.current) * 100 < i64::from(health.max) * i64::from(morale.flee_below)
+}
+
+/// The passable step that ends farthest from `threat` (ties to the earlier
+/// entry in `Dir::ALL`); `None` if no step gets farther: cornered.
+fn step_away(state: &GameState, from: Position, threat: Position) -> Option<Dir> {
+    let current = chebyshev(from, threat);
+    Dir::ALL
+        .into_iter()
+        .enumerate()
+        .filter_map(|(order, dir)| {
+            let (dx, dy) = dir.delta();
+            let next = Position {
+                x: from.x + dx,
+                y: from.y + dy,
+            };
+            passable(state, next).then(|| {
+                let (ex, ey) = (threat.x - next.x, threat.y - next.y);
+                (
+                    (
+                        chebyshev(next, threat),
+                        ex * ex + ey * ey,
+                        std::cmp::Reverse(order),
+                    ),
+                    dir,
+                )
+            })
+        })
+        .max_by_key(|&(key, _)| key)
+        .filter(|&((distance, _, _), _)| distance > current)
+        .map(|(_, dir)| dir)
 }
 
 /// Where the nearest living enemy `actor` perceives stands.
@@ -264,6 +362,71 @@ mod tests {
 
     fn wait(state: &mut GameState) {
         take_turn(state, PlayerAction::Wait);
+    }
+
+    #[test]
+    fn a_goblin_that_loses_sight_goes_where_it_last_saw_you_then_forgets() {
+        let (mut state, goblin) = with_goblin(Position { x: 6, y: 1 });
+        see_everything(&mut state);
+        state.run(notice(&state, goblin).unwrap());
+        let quarry = state.world.get::<&Quarry>(goblin).unwrap().at;
+        assert_eq!(quarry, (1, 1));
+        // The player is gone from its sight: it walks to the spot.
+        state.visible = crate::map::Grid::new(state.map.width, state.map.height, false);
+        assert_eq!(notice(&state, goblin), None, "still worth chasing");
+        assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::W));
+        *state.world.get::<&mut Position>(goblin).unwrap() = Position { x: 1, y: 1 };
+        assert_eq!(
+            notice(&state, goblin),
+            Some(Command::Notice {
+                actor: goblin,
+                at: None
+            })
+        );
+    }
+
+    #[test]
+    fn a_hurt_goblin_backs_off_unless_cornered() {
+        let (mut state, goblin) = with_goblin(Position { x: 2, y: 1 });
+        see_everything(&mut state);
+        state
+            .world
+            .insert_one(goblin, Morale { flee_below: 25 })
+            .unwrap();
+        assert_ne!(
+            decide(&state, goblin),
+            Command::TryMove(goblin, Dir::E),
+            "unhurt, it fights"
+        );
+        state.world.get::<&mut Health>(goblin).unwrap().current = 1;
+        let Command::TryMove(_, dir) = decide(&state, goblin) else {
+            panic!("it moves");
+        };
+        let (dx, _) = dir.delta();
+        assert_eq!(dx, 1, "away from the player at (1, 1)");
+        // Walls on every side but the player's: cornered, it fights.
+        for (x, y) in [(3, 0), (3, 1), (3, 2), (2, 0), (2, 2), (1, 0), (1, 2)] {
+            state.map.set(x, y, Tile::Wall);
+        }
+        assert_eq!(decide(&state, goblin), Command::TryMove(goblin, Dir::W));
+    }
+
+    #[test]
+    fn a_fleeing_goblin_far_off_does_not_stop_a_run_but_an_adjacent_one_does() {
+        let (mut state, goblin) = with_goblin(Position { x: 5, y: 1 });
+        see_everything(&mut state);
+        state
+            .world
+            .insert_one(goblin, Morale { flee_below: 25 })
+            .unwrap();
+        state.world.get::<&mut Health>(goblin).unwrap().current = 1;
+        let me = Position { x: 1, y: 1 };
+        assert!(!threatens(&state, goblin, me));
+        assert_eq!(crate::explore::visible_hostile(&state), None);
+        assert!(
+            threatens(&state, goblin, Position { x: 4, y: 1 }),
+            "beside it"
+        );
     }
 
     #[test]

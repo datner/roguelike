@@ -300,6 +300,9 @@ fn energy(state: &GameState, actor: Entity) -> Option<i64> {
 
 fn act(state: &mut GameState, actor: Entity) {
     let before = energy(state, actor);
+    if let Some(notice) = ai::notice(state, actor) {
+        state.run(notice);
+    }
     let command = ai::decide(state, actor);
     state.run(command);
     // Every AI decision costs energy; if a bug ever breaks that, waiting

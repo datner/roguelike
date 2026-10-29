@@ -285,6 +285,14 @@ fn nearest_enemy(state: &GameState) -> Option<Entity> {
         .filter(|&(entity, pos)| {
             state.visible.get(pos.x, pos.y) == Some(&true)
                 && crate::side::enemies(&state.world, state.player, entity)
+                && crate::ai::threatens(
+                    state,
+                    entity,
+                    Position {
+                        x: from.0,
+                        y: from.1,
+                    },
+                )
         })
         .filter_map(|(entity, pos)| {
             let seq = *state.world.get::<&crate::entity::SpawnSeq>(entity).ok()?;

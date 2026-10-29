@@ -69,12 +69,17 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `front` (a session can't place goblins). Bench: the doll tables did not move (dolls never attack); the
   floors moved slightly (a goblin pack hits a little more often).
 
-### 2. Memory and morale
+### 2. Memory and morale — done
 - `Quarry`, `Morale`; `Command::Notice` queued by the scheduler before `decide`; `decide` goes to the
   quarry when it perceives no enemy, and flees below its morale; `Goblin.ron` gets `Morale(25)`.
 - Saves (both components), `SAVE_VERSION`.
 - Tests: a goblin that loses sight walks to where it last saw the player and forgets on arrival; a
   hurt goblin steps away; a cornered one still fights.
+- As built: a fleeing creature is a threat (`ai::threatens`) only when adjacent: auto-explore, practice,
+  rest and the floor bot ignore one backing off further away, and explore paths through it rather than
+  around (routing around one that slips in and out of view turned the path back and forth). Without
+  that the bot chased fleeing goblins until stuck. A quarry is forgotten when reached or when no step
+  gets closer (the step is greedy). Saves v47.
 
 ### 3. Roamers
 - `Roams`, `Route`; `Command::SetRoute`; the farthest reachable tile (BFS over open tiles);

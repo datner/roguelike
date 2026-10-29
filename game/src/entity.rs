@@ -747,6 +747,20 @@ pub struct Bleeding {
     pub interval: u64,
 }
 
+/// Where a creature last perceived an enemy (docs/plans/fights.md): it goes
+/// there when it loses sight, so hiding is a lure, and forgets on arrival.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Quarry {
+    pub at: (i32, i32),
+}
+
+/// Below `flee_below` percent of its max health a creature steps away from
+/// the nearest enemy, and fights only when cornered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Morale {
+    pub flee_below: u32,
+}
+
 /// Health regained over time (docs/plans/rest.md): a point every `interval`
 /// ticks while the floor's `RestBudget` lasts. Entering a floor sets the
 /// budget to `per_floor` percent of max health, so a floor heals only so much.
