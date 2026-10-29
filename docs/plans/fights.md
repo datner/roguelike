@@ -81,11 +81,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   that the bot chased fleeing goblins until stuck. A quarry is forgotten when reached or when no step
   gets closer (the step is greedy). Saves v47.
 
-### 3. Roamers
+### 3. Roamers — done
 - `Roams`, `Route`; `Command::SetRoute`; the farthest reachable tile (BFS over open tiles);
   `GoblinScout.ron` (inherits `Goblin`, `Roams`); one in the caves and the castle.
 - Tests: a roamer with nothing in view walks toward the far end and picks a new end on arrival; a
   roamer that sees the player hunts it instead; a route is the same from the same state.
+- As built: a roamer steps straight toward its end when that gets closer and searches the floor only
+  when it doesn't (searching every turn made the bench take three minutes; it takes about two now).
+  A blocked way is waited out, not re-planned. Saves v48. Scouts now show up among the bench's
+  causes of death.
 
 ### 4. Doors
 - `Tile::Door`, `Tile::DoorOpen`; walking into a closed door opens it (a turn); `Command::Close`

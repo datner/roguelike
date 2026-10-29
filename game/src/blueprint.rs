@@ -91,6 +91,7 @@ pub enum ComponentDef {
     Bleeding(Bleeding),
     Regeneration(Regeneration),
     Morale(Morale),
+    Roams,
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
     /// Fixed skill levels by name (ADR 0017); spawned as XP.
@@ -182,6 +183,7 @@ impl ComponentDef {
             ComponentDef::Bleeding(c) => builder.add(c),
             ComponentDef::Regeneration(c) => builder.add(c),
             ComponentDef::Morale(c) => builder.add(c),
+            ComponentDef::Roams => builder.add(crate::entity::Roams),
             ComponentDef::Duration(c) => builder.add(c),
             ComponentDef::Learner => builder.add(Learner),
             ComponentDef::Graze(c) => builder.add(c),

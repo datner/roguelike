@@ -754,6 +754,17 @@ pub struct Quarry {
     pub at: (i32, i32),
 }
 
+/// A creature that patrols the floor when it has no quarry: it walks to the
+/// farthest open ground it can reach, then picks the farthest from there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Roams;
+
+/// Where a roamer is walking to (`Roams`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Route {
+    pub to: (i32, i32),
+}
+
 /// Below `flee_below` percent of its max health a creature steps away from
 /// the nearest enemy, and fights only when cornered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

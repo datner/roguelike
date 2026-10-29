@@ -224,6 +224,11 @@ pub(crate) enum Command {
         actor: Entity,
         at: Option<(i32, i32)>,
     },
+    /// Scheduler only: a roamer sets off for `to` (`ai::route`).
+    SetRoute {
+        actor: Entity,
+        to: (i32, i32),
+    },
     /// The player arrived on a tile: the floor items there become `Found`.
     FindItems(Entity),
     /// Scheduler only: move the clock forward and grant actors energy.
@@ -275,7 +280,7 @@ impl Command {
             | Command::ExpireEffect(effect)
             | Command::BleedTick(effect) => [Some(effect), None],
             Command::Regenerate(holder) => [Some(holder), None],
-            Command::Notice { actor, .. } => [Some(actor), None],
+            Command::Notice { actor, .. } | Command::SetRoute { actor, .. } => [Some(actor), None],
             Command::AdvanceClock { .. } | Command::UpdateFov => [None, None],
         }
     }
@@ -366,6 +371,9 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::BleedTick(effect) => effect::bleed_tick(state, effect),
             Command::Regenerate(holder) => crate::rest::regenerate(state, holder),
             Command::Notice { actor, at } => crate::ai::remember(state, actor, at),
+            Command::SetRoute { actor, to } => {
+                let _ = state.world.insert_one(actor, crate::entity::Route { to });
+            }
             Command::AdvanceClock { ticks } => time::advance_clock(state, ticks),
             Command::UpdateFov => {
                 fov::update(state);

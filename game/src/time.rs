@@ -303,6 +303,9 @@ fn act(state: &mut GameState, actor: Entity) {
     if let Some(notice) = ai::notice(state, actor) {
         state.run(notice);
     }
+    if let Some(route) = ai::route(state, actor) {
+        state.run(route);
+    }
     let command = ai::decide(state, actor);
     state.run(command);
     // Every AI decision costs energy; if a bug ever breaks that, waiting

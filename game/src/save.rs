@@ -26,6 +26,7 @@ use crate::entity::{
     Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
+use crate::entity::{Roams, Route};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -37,7 +38,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 47;
+pub const SAVE_VERSION: u32 = 48;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -237,6 +238,8 @@ enum ComponentKind {
     RestBudget,
     Quarry,
     Morale,
+    Roams,
+    Route,
     OnHit,
     Skills,
     Trains,
@@ -268,7 +271,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 82] = [
+    const ALL: [ComponentKind; 84] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -323,6 +326,8 @@ impl ComponentKind {
         Self::RestBudget,
         Self::Quarry,
         Self::Morale,
+        Self::Roams,
+        Self::Route,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -412,6 +417,8 @@ enum SavedComponent {
     RestBudget(RestBudget),
     Quarry(Quarry),
     Morale(Morale),
+    Roams(Roams),
+    Route(Route),
     OnHit(Vec<OnHitDef>),
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
@@ -769,6 +776,8 @@ fn save_component(
         ComponentKind::RestBudget => copy(entity).map(S::RestBudget),
         ComponentKind::Quarry => copy(entity).map(S::Quarry),
         ComponentKind::Morale => copy(entity).map(S::Morale),
+        ComponentKind::Roams => copy(entity).map(S::Roams),
+        ComponentKind::Route => copy(entity).map(S::Route),
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
                 entries
@@ -977,6 +986,8 @@ fn load_component(
         S::RestBudget(c) => builder.add(c),
         S::Quarry(c) => builder.add(c),
         S::Morale(c) => builder.add(c),
+        S::Roams(c) => builder.add(c),
+        S::Route(c) => builder.add(c),
         S::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()

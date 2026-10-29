@@ -5,12 +5,13 @@ use hecs::Entity;
 
 use crate::command::Command;
 use crate::entity::{
-    BlocksMovement, Dead, Health, Hostile, Morale, Position, Quarry, SpawnSeq, Spell, SpellAi,
-    Summoned, TechniqueAi,
+    BlocksMovement, Dead, Health, Hostile, Morale, Position, Quarry, Roams, Route, SpawnSeq, Spell,
+    SpellAi, Summoned, TechniqueAi,
 };
 use crate::fov;
 use crate::holding;
 use crate::input::Dir;
+use crate::map::Grid;
 use crate::map::Tile;
 use crate::ranged::line;
 use crate::side;
@@ -75,6 +76,11 @@ pub(crate) fn decide(state: &GameState, actor: Entity) -> Command {
             return Command::TryMove(actor, dir);
         }
     }
+    if let Ok(to) = world.get::<&Route>(actor).map(|route| route.to)
+        && let Some(dir) = path_step(state, me, to)
+    {
+        return Command::TryMove(actor, dir);
+    }
     let leader = owner.and_then(|owner| world.get::<&Position>(owner).ok().map(|p| *p));
     match leader {
         Some(leader) if chebyshev(me, leader) > FOLLOW_DISTANCE => step_toward(state, me, leader)
@@ -102,6 +108,84 @@ pub(crate) fn notice(state: &GameState, actor: Entity) -> Option<Command> {
         }),
     };
     (at != known).then_some(Command::Notice { actor, at })
+}
+
+/// A roamer with no quarry and no enemy in sight that has arrived, or has no
+/// way on, sets off for the farthest open ground it can reach.
+pub(crate) fn route(state: &GameState, actor: Entity) -> Option<Command> {
+    let world = &state.world;
+    if !world.satisfies::<&Roams>(actor) || world.satisfies::<&Quarry>(actor) {
+        return None;
+    }
+    let me = world.get::<&Position>(actor).ok().map(|p| *p)?;
+    if nearest_enemy(state, actor, me).is_some() {
+        return None;
+    }
+    // On its way unless it has arrived; a way blocked for now (a creature in
+    // a corridor) is waited out, not re-planned.
+    let going = world
+        .get::<&Route>(actor)
+        .ok()
+        .is_some_and(|route| route.to != (me.x, me.y));
+    if going {
+        return None;
+    }
+    let to = reach(state, me).order.last().copied()?;
+    Some(Command::SetRoute { actor, to })
+}
+
+/// Open ground reachable from `from`, nearest first (ties in `Dir::ALL`
+/// order), each with the first step toward it. Creatures don't block: a
+/// patrol's way is the floor's, not today's crowd.
+struct Reach {
+    order: Vec<(i32, i32)>,
+    first: Grid<Option<Dir>>,
+}
+
+fn reach(state: &GameState, from: Position) -> Reach {
+    let map = &state.map;
+    let mut first = Grid::new(map.width, map.height, None);
+    let mut seen = Grid::new(map.width, map.height, false);
+    seen.set(from.x, from.y, true);
+    let mut order = vec![(from.x, from.y)];
+    let mut next = 0;
+    while let Some(&(x, y)) = order.get(next) {
+        next += 1;
+        let step = first.get(x, y).copied().flatten();
+        for dir in Dir::ALL {
+            let (dx, dy) = dir.delta();
+            let to = (x + dx, y + dy);
+            if seen.get(to.0, to.1) != Some(&false) || !Tile::is_open(map.get(to.0, to.1)) {
+                continue;
+            }
+            seen.set(to.0, to.1, true);
+            first.set(to.0, to.1, Some(step.unwrap_or(dir)));
+            order.push(to);
+        }
+    }
+    Reach { order, first }
+}
+
+/// A step toward `to`: straight when one gets closer (cheap, and right in
+/// the open), else the first step on a shortest way, if it is free now.
+fn path_step(state: &GameState, from: Position, to: (i32, i32)) -> Option<Dir> {
+    if let Some(dir) = step_toward(state, from, Position { x: to.0, y: to.1 }) {
+        return Some(dir);
+    }
+    let dir = reach(state, from)
+        .first
+        .get(to.0, to.1)
+        .copied()
+        .flatten()?;
+    let (dx, dy) = dir.delta();
+    passable(
+        state,
+        Position {
+            x: from.x + dx,
+            y: from.y + dy,
+        },
+    )
+    .then_some(dir)
 }
 
 /// `Command::Notice` applier.
@@ -427,6 +511,41 @@ mod tests {
             threatens(&state, goblin, Position { x: 4, y: 1 }),
             "beside it"
         );
+    }
+
+    #[test]
+    fn a_roamer_patrols_to_the_far_end_and_back() {
+        let (mut state, scout) = with_goblin(Position { x: 5, y: 5 });
+        state.world.insert_one(scout, Roams).unwrap();
+        // Out of the player's sight, so it has no one to hunt.
+        state.visible = Grid::new(state.map.width, state.map.height, false);
+        let Some(Command::SetRoute { to, .. }) = route(&state, scout) else {
+            panic!("it sets off");
+        };
+        let far = chebyshev(Position { x: 5, y: 5 }, Position { x: to.0, y: to.1 });
+        assert!(far > 20, "the far end of the room, not {to:?}");
+        assert_eq!(
+            route(&state, scout),
+            route(&state, scout),
+            "the same from the same state"
+        );
+        state.run(Command::SetRoute { actor: scout, to });
+        assert_eq!(route(&state, scout), None, "on its way");
+        assert!(matches!(decide(&state, scout), Command::TryMove(..)));
+        *state.world.get::<&mut Position>(scout).unwrap() = Position { x: to.0, y: to.1 };
+        let Some(Command::SetRoute { to: back, .. }) = route(&state, scout) else {
+            panic!("it turns around");
+        };
+        assert_ne!(back, to);
+    }
+
+    #[test]
+    fn a_roamer_that_sees_you_hunts_you() {
+        let (mut state, scout) = with_goblin(Position { x: 5, y: 1 });
+        state.world.insert_one(scout, Roams).unwrap();
+        see_everything(&mut state);
+        assert_eq!(route(&state, scout), None);
+        assert_eq!(decide(&state, scout), Command::TryMove(scout, Dir::W));
     }
 
     #[test]

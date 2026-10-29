@@ -1,0 +1,10 @@
+// A goblin that patrols the floor instead of waiting (docs/plans/fights.md):
+// it walks to the farthest ground it can reach, then back, so waiting in the
+// open is a risk and a dead end behind a door is safer.
+(
+    inherits: "Goblin",
+    components: [
+        Name("goblin scout"),
+        Roams,
+    ],
+)
