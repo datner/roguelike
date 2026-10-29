@@ -157,6 +157,7 @@ pub fn aim_targets(state: &GameState, shot: Shot) -> Vec<(i32, i32)> {
         .filter(|&at| {
             distance(origin, at) <= ready.range
                 && state.visible.get(at.0, at.1).copied().unwrap_or(false)
+                && !crate::fov::hidden_in_grass(state, Position { x: at.0, y: at.1 })
         })
         .filter(|&at| match shot {
             // Only what the technique could strike from here.

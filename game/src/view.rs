@@ -410,6 +410,20 @@ mod tests {
     }
 
     #[test]
+    fn the_hit_chance_on_a_creature_comes_with_its_reasons() {
+        let mut state = crate::state::tests::bare_state();
+        crate::testkit::thing("goblin")
+            .health(5)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        let chance = hit_chance(&state, (2, 1)).unwrap();
+        assert_eq!(chance.percent, 75);
+        assert_eq!(chance.reasons.iter().map(|(_, p)| p).sum::<i32>(), 75);
+        assert_eq!(hit_chance(&state, (5, 5)), None, "nothing there");
+    }
+
+    #[test]
     fn the_short_bow_tag_trains_but_counts_toward_no_level_and_is_not_listed() {
         let mut state = data_state();
         let book = state.blueprints.skills().clone();

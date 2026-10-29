@@ -137,7 +137,7 @@ pub fn inspect(state: &GameState, at: (i32, i32)) -> Option<Inspection> {
         .query::<(hecs::Entity, &Position, &Health)>()
         .without::<&Dead>()
         .iter()
-        .find(|(_, pos, _)| here(pos))
+        .find(|(_, pos, _)| here(pos) && !crate::fov::hidden_in_grass(state, **pos))
         .map(|(entity, _, health)| (entity, *health));
     if let Some((creature, health)) = creature {
         let level = state.blueprints.skills().core().map_or(0, |core| {
@@ -202,7 +202,9 @@ pub fn look_targets(state: &GameState) -> Vec<(i32, i32)> {
         .without::<&Dead>()
         .iter()
         .filter(|&(entity, pos, _)| {
-            entity != state.player && state.visible.get(pos.x, pos.y) == Some(&true)
+            entity != state.player
+                && state.visible.get(pos.x, pos.y) == Some(&true)
+                && !crate::fov::hidden_in_grass(state, *pos)
         })
         .map(|(_, pos, _)| (pos.x, pos.y))
         .collect();
@@ -228,6 +230,21 @@ mod tests {
     fn lore_xp(state: &GameState) -> u32 {
         let core = state.blueprints.skills().core().unwrap();
         skill::xp(&state.world, state.player, core.beast_lore)
+    }
+
+    #[test]
+    fn a_creature_hidden_in_grass_is_not_offered_to_look_at() {
+        let mut state = crate::state::tests::bare_state();
+        crate::testkit::thing("goblin")
+            .health(5)
+            .hostile()
+            .at(3, 1)
+            .make(&mut state);
+        crate::testkit::see_everything(&mut state);
+        assert!(look_targets(&state).contains(&(3, 1)));
+        state.map.set(3, 1, crate::map::Tile::Grass);
+        assert!(!look_targets(&state).contains(&(3, 1)));
+        assert!(inspect(&state, (3, 1)).is_none_or(|seen| seen.name != "goblin"));
     }
 
     #[test]

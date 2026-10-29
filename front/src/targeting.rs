@@ -298,15 +298,33 @@ impl Looking {
 /// The status line while looking: what is under the cursor.
 pub fn look_status(state: &GameState, looking: &Looking) -> String {
     let keys = "Tab: next  Enter: go there  Esc: done";
-    match inspect(state, looking.cursor) {
-        None => format!("You see nothing there.  {keys}"),
-        Some(seen) if seen.lines.is_empty() => format!("{}  {keys}", capitalize(&seen.name)),
-        Some(seen) => format!(
-            "{}: {}  {keys}",
-            capitalize(&seen.name),
-            seen.lines.join(", ")
-        ),
-    }
+    let seen = match inspect(state, looking.cursor) {
+        None => return format!("You see nothing there.  {keys}"),
+        Some(seen) if seen.lines.is_empty() => capitalize(&seen.name),
+        Some(seen) => format!("{}: {}", capitalize(&seen.name), seen.lines.join(", ")),
+    };
+    // What a blow would do, from the odds the blow rolls (pillar 7).
+    let odds = game::hit_chance(state, looking.cursor)
+        .map(|chance| format!("  {}", hit_line(&chance)))
+        .unwrap_or_default();
+    format!("{seen}{odds}  {keys}")
+}
+
+/// "a blow hits 85% (accuracy 2 against dodge 2 75, outnumbered by 1 +10)".
+pub fn hit_line(chance: &game::HitChance) -> String {
+    let reasons: Vec<String> = chance
+        .reasons
+        .iter()
+        .enumerate()
+        .map(|(i, (what, points))| {
+            if i == 0 {
+                format!("{what} {points}")
+            } else {
+                format!("{what} {points:+}")
+            }
+        })
+        .collect();
+    format!("a blow hits {}% ({})", chance.percent, reasons.join(", "))
 }
 
 #[cfg(test)]
@@ -316,6 +334,21 @@ mod tests {
 
     fn item(seq: u64) -> ItemRef {
         ItemRef(game::SpawnSeq(seq))
+    }
+
+    #[test]
+    fn the_hit_line_names_its_reasons() {
+        let chance = game::HitChance {
+            percent: 85,
+            reasons: vec![
+                ("accuracy 2 against dodge 2".into(), 75),
+                ("outnumbered by 1".into(), 10),
+            ],
+        };
+        assert_eq!(
+            hit_line(&chance),
+            "a blow hits 85% (accuracy 2 against dodge 2 75, outnumbered by 1 +10)"
+        );
     }
 
     #[test]

@@ -64,12 +64,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   the rows, the why under its line. No shot of the expanded strip: a shot can't put a why in the log
   from the window crate; the session test pins the rows.
 
-### 3. Previews and hidden things
+### 3. Previews and hidden things — done
 - The look status on a creature shows "hit 70% (base 75, outnumbered −5)…" when you could attack it;
   the aim status the same for a shot.
 - Hidden creatures (grass) are left out of look and aim cycling.
 - Tests: the look status names the chance and its reasons; a goblin in grass two tiles off is not
   offered.
+- As built: the look status on any creature adds "a blow hits 85% (accuracy 2 against dodge 2 75,
+  outnumbered by 1 +10)" (`front::targeting::hit_line`). The aim status was left as it is: a shot's
+  preview already says what it would do (ADR 0013), and its odds' reasons are the same function away.
+  Grass-hidden creatures are left out of `look_targets`, `inspect` and `aim_targets`.
 
 ### 4. A death that names its chain
 - `DeathView` set when the player dies (`command::die`): the killer and the blow, outnumbered count,
