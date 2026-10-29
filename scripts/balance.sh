@@ -9,6 +9,10 @@
 #   scripts/balance.sh --page FILE writes the readable page (bench/page.html
 #                                  filled in), with what moved since the
 #                                  committed bench/report.json
+#   scripts/balance.sh --calibrate [FILE]
+#                                  keypresses an hour from playtime.csv (the
+#                                  gui's saves directory by default), to set
+#                                  actions_per_hour in bench/targets.ron
 # Extra arguments go to the bench (e.g. --seeds 5 for a quick look).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -24,6 +28,16 @@ case ${1:-} in
   mode=${1#--}
   shift
   ;;
+--calibrate)
+  mode=calibrate
+  if [ "$(uname)" = Darwin ]; then
+    saves="$HOME/Library/Application Support/roguelike/saves"
+  else
+    saves="${XDG_DATA_HOME:-$HOME/.local/share}/roguelike/saves"
+  fi
+  calibrate=${2:-$saves/playtime.csv}
+  shift $(($# > 1 ? 2 : 1))
+  ;;
 --page)
   mode=page
   page=${2:?--page takes a file}
@@ -36,6 +50,7 @@ bench() { cargo run --quiet --release -p bench -- "$@"; }
 case $mode in
 write) bench --out bench/report.md --json bench/report.json "$@" ;;
 print) bench "$@" ;;
+calibrate) bench --calibrate "$calibrate" ;;
 page)
   previous=$(mktemp)
   trap 'rm -f "$previous"' EXIT

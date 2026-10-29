@@ -1,7 +1,8 @@
 //! Balance bench entry point (`--seeds` sets the doll and the dive seeds alike): `bench [--seeds N] [--out FILE] [--json FILE] [--page FILE
 //! [--previous FILE]]`. Prints the report, or writes it to `FILE`; `--json` also writes every
 //! number as JSON, `--page` the readable page (`bench/page.html` filled in, with what moved since
-//! `--previous`, a report's JSON). Run through `scripts/balance.sh`.
+//! `--previous`, a report's JSON). `--calibrate FILE` reads a `playtime.csv` instead and prints
+//! keypresses an hour. Run through `scripts/balance.sh`.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -34,6 +35,14 @@ fn run() -> Result<(), String> {
             "--json" => json = Some(file()?),
             "--page" => page = Some(file()?),
             "--previous" => previous = Some(file()?),
+            // Reads play time instead of running the bench.
+            "--calibrate" => {
+                let path = file()?;
+                let text =
+                    std::fs::read_to_string(&path).map_err(|err| format!("{path}: {err}"))?;
+                print!("{}", bench::calibrate::calibrate(&text));
+                return Ok(());
+            }
             other => return Err(format!("unknown argument {other:?}")),
         }
     }

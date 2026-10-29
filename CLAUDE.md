@@ -26,6 +26,8 @@ prefix commands with `nix develop --command`.
   look. Run it after changing numbers in content, combat, skills or techniques, and commit the
   report (`.md` and `.json`) with the change: a moved number is a balance change to mention, not an
   error. `--page FILE` writes the readable page; the `/balance-report` skill publishes it.
+  `--calibrate [FILE]` reads real play (`playtime.csv` beside the saves) as keypresses an hour, the
+  figure `bench/targets.ron` converts with.
 - Play (humans only): `cargo run -p gui -- --seed 42`
 
 `gui` opens a window. **Never run it**: it hangs your shell and you can't see

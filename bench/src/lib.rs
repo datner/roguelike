@@ -2,6 +2,7 @@
 //! build against each scenario through `game::balance` over many seeds, and writes the report. A
 //! tool for changing content, not part of the game.
 
+pub mod calibrate;
 mod floors;
 mod targets;
 

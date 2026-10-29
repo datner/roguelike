@@ -39,10 +39,12 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   window focus. `record_play` creates the saves directory if needed (the first save of a new
   character makes it only afterwards); a failure to record never costs the save.
 
-### 2. The bench reads it
+### 2. The bench reads it — done
 - `bench --calibrate FILE`: keypresses, hours, keypresses per hour, overall and per character;
   `scripts/balance.sh --calibrate [FILE]` defaults to the gui's saves directory.
 - Tests: a fixed file gives the expected rate; an empty one says so.
+- As built: `bench/src/calibrate.rs`; lines it can't read are counted and skipped. The script's
+  default path is the gui's saves directory per platform (`directories`' data dir).
 
 ## Out of scope
 
