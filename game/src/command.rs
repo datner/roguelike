@@ -161,6 +161,8 @@ pub(crate) enum Command {
     Close(Entity),
     /// Forced into a chasm (`fall`).
     Fall(Entity),
+    /// Start or stop sprinting (`sprint::toggle`). Free: the steps pay.
+    Sprint(Entity),
     /// Take the stairs down to the next floor (`dive::descend`).
     Descend(Entity),
     /// Take the stairs up, back to camp (`dive::ascend`).
@@ -271,6 +273,7 @@ impl Command {
             Command::Practice(actor)
             | Command::Close(actor)
             | Command::Fall(actor)
+            | Command::Sprint(actor)
             | Command::Descend(actor)
             | Command::Ascend(actor)
             | Command::WaitForPhase { actor, .. } => [Some(actor), None],
@@ -327,7 +330,9 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             continue;
         }
         if let Some((actor, cost)) = cost::of(&command) {
-            spend_energy(state, actor, cost);
+            let sprinting =
+                matches!(command, Command::TryMove(..)) && crate::sprint::pay_step(state, actor);
+            spend_energy(state, actor, if sprinting { cost / 2 } else { cost });
             ammo::gather(state, actor);
         }
         match command {
@@ -349,6 +354,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Close(actor) => close_door(state, actor),
             Command::Fall(entity) => fall(state, entity),
+            Command::Sprint(actor) => crate::sprint::toggle(state, actor),
             Command::Descend(actor) => crate::dive::descend(state, actor),
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
             Command::WaitForPhase { actor, phase } => crate::phase::wait_for(state, actor, phase),
@@ -428,10 +434,23 @@ fn spend_energy(state: &mut GameState, actor: Entity, cost: i64) {
 pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
     match *command {
         Command::TryMove(entity, dir) => {
-            let Some(to) = destination(state, entity, dir).filter(|&to| is_wall(state, to)) else {
+            let Some(to) = destination(state, entity, dir) else {
                 return false;
             };
-            log_wall_bump(state, entity, to);
+            if is_wall(state, to) {
+                log_wall_bump(state, entity, to);
+            } else if crate::sprint::is_sprinting(state, entity) && fightable_at(state, entity, to)
+            {
+                state.log.push("You can't attack while sprinting.");
+            } else {
+                return false;
+            }
+        }
+        Command::Sprint(entity) => {
+            let Some(why) = crate::sprint::refusal(state, entity) else {
+                return false;
+            };
+            state.log.push(why);
         }
         Command::Close(entity) => {
             if closable(state, entity).is_some() {
@@ -522,6 +541,23 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         _ => return false,
     }
     true
+}
+
+/// A creature other than one's own summon stands at `to`: walking there is
+/// an attack.
+fn fightable_at(state: &GameState, entity: Entity, to: (i32, i32)) -> bool {
+    state
+        .world
+        .query::<(Entity, &Position, &Health)>()
+        .iter()
+        .any(|(other, pos, _)| {
+            other != entity
+                && (pos.x, pos.y) == to
+                && !state
+                    .world
+                    .get::<&Summoned>(other)
+                    .is_ok_and(|summoned| summoned.owner == entity)
+        })
 }
 
 fn destination(state: &GameState, entity: Entity, dir: Dir) -> Option<(i32, i32)> {
@@ -653,10 +689,13 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
             swap_places(state, entity, victim);
             return;
         }
-        state.commands.push_back(Command::Attack {
-            attacker: entity,
-            target: victim,
-        });
+        // No attacking at a sprint: the step goes nowhere.
+        if !crate::sprint::is_sprinting(state, entity) {
+            state.commands.push_back(Command::Attack {
+                attacker: entity,
+                target: victim,
+            });
+        }
         return;
     }
 

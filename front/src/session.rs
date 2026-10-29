@@ -177,6 +177,7 @@ impl Session {
             InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
             InputEvent::Descend => take_turn(state, PlayerAction::Descend),
             InputEvent::Close => take_turn(state, PlayerAction::Close),
+            InputEvent::Sprint => take_turn(state, PlayerAction::Sprint),
             InputEvent::Ascend => take_turn(state, PlayerAction::Ascend),
             InputEvent::Explore => self.auto = Some(Auto::Explore),
             InputEvent::Practice => self.auto = Some(Auto::Practice),
@@ -323,10 +324,15 @@ impl Session {
                 state.now.turn()
             ),
             _ => format!(
-                "{}{}{}  Turn: {}  Seed: {}",
+                "{}{}{}{}  Turn: {}  Seed: {}",
                 crate::text::place(state),
                 crate::text::rest(state),
                 crate::text::outnumbered(state),
+                if game::sprinting(state) {
+                    "  Sprinting"
+                } else {
+                    ""
+                },
                 state.now.turn(),
                 state.seed
             ),

@@ -754,6 +754,15 @@ pub struct Quarry {
     pub at: (i32, i32),
 }
 
+/// Sprinting (`sprint`): steps cost half the energy and a point of stamina,
+/// and attacking is refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sprinting;
+
+/// A creature that sprints while chasing from afar (`sprint::decide`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SprintAi;
+
 /// A creature that patrols the floor when it has no quarry: it walks to the
 /// farthest open ground it can reach, then picks the farthest from there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

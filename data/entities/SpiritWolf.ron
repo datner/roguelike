@@ -10,6 +10,10 @@
         Melee(min: 2, max: 4),
         Speed(120),
         TechniqueAi,
+        // It charges: sprinting while its quarry is far, a few bounds' worth
+        // of breath (docs/plans/fights.md).
+        SprintAi,
+        Stamina(value: 6, max: 6, regen_ticks: 300),
     ],
     techniques: ["Trip"],
 )

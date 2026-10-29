@@ -136,12 +136,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   gives up on a foe after 30 turns without a blow (one across a chasm), exploring past it
   (`explore::explore_step_past`). Saves v51.
 
-### 7. Sprinting
+### 7. Sprinting — done
 - `Sprinting` (a marker), `Command::Sprint`, `InputEvent::Sprint` (`Z`); step cost halved while
   sprinting, a point of stamina per step, attacks refused; the status line shows "Sprinting".
 - `SprintAi` and the spirit wolf.
 - Tests: a sprinting step costs half and a point of stamina; out of stamina it ends; bumping a goblin
   is refused with the message; a wolf sprints when far.
+- As built: `game/src/sprint.rs`. Toggling is free (the steps pay). Nothing had a stamina pool before
+  (every technique costs 0 stamina), so `Player.ron` gains one (10, a point back every two turns,
+  Agility deepens it); the spirit wolf has 6 and `SprintAi`, which charges toward its quarry from
+  more than three tiles. A sprinting creature's walk into another is no attack. Saves v52.
 
 ### 8. The brute's telegraph
 - `WindUp`, `Telegraph` (effect), the delayed blow on the tiles; stagger on damage; drawing the marked

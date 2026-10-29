@@ -207,6 +207,7 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
         }
         PlayerAction::Practice => Command::Practice(player),
         PlayerAction::Close => Command::Close(player),
+        PlayerAction::Sprint => Command::Sprint(player),
         PlayerAction::Descend => Command::Descend(player),
         PlayerAction::Ascend => Command::Ascend(player),
         PlayerAction::WaitForPhase(phase) => Command::WaitForPhase {
@@ -306,6 +307,9 @@ fn act(state: &mut GameState, actor: Entity) {
     }
     if let Some(route) = ai::route(state, actor) {
         state.run(route);
+    }
+    if let Some(sprint) = crate::sprint::decide(state, actor) {
+        state.run(sprint);
     }
     let command = ai::decide(state, actor);
     state.run(command);
@@ -613,6 +617,7 @@ mod tests {
                 InputEvent::PickUp => PlayerAction::PickUp,
                 InputEvent::Descend => PlayerAction::Descend,
                 InputEvent::Close => PlayerAction::Close,
+                InputEvent::Sprint => PlayerAction::Sprint,
                 InputEvent::Ascend => PlayerAction::Ascend,
                 InputEvent::Inventory
                 | InputEvent::Equipment

@@ -56,6 +56,8 @@ pub enum InputEvent {
     Look,
     /// Close an open door beside you: `PlayerAction::Close`.
     Close,
+    /// Start or stop sprinting: `PlayerAction::Sprint`.
+    Sprint,
     /// Frontend only: practise until done or interrupted, repeating
     /// `training::practice_step`.
     Practice,
@@ -135,6 +137,8 @@ pub enum PlayerAction {
     Practice,
     /// Close an open door beside you.
     Close,
+    /// Start or stop sprinting (`sprint`).
+    Sprint,
     /// Take the stairs down (`dive`).
     Descend,
     /// Take the stairs up, back to camp (`dive`).

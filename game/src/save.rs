@@ -26,7 +26,7 @@ use crate::entity::{
     Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Roams, Route};
+use crate::entity::{Roams, Route, SprintAi, Sprinting};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -38,7 +38,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 51;
+pub const SAVE_VERSION: u32 = 52;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -240,6 +240,8 @@ enum ComponentKind {
     Morale,
     Roams,
     Route,
+    Sprinting,
+    SprintAi,
     OnHit,
     Skills,
     Trains,
@@ -271,7 +273,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 84] = [
+    const ALL: [ComponentKind; 86] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -328,6 +330,8 @@ impl ComponentKind {
         Self::Morale,
         Self::Roams,
         Self::Route,
+        Self::Sprinting,
+        Self::SprintAi,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -419,6 +423,8 @@ enum SavedComponent {
     Morale(Morale),
     Roams(Roams),
     Route(Route),
+    Sprinting(Sprinting),
+    SprintAi(SprintAi),
     OnHit(Vec<OnHitDef>),
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
@@ -778,6 +784,8 @@ fn save_component(
         ComponentKind::Morale => copy(entity).map(S::Morale),
         ComponentKind::Roams => copy(entity).map(S::Roams),
         ComponentKind::Route => copy(entity).map(S::Route),
+        ComponentKind::Sprinting => copy(entity).map(S::Sprinting),
+        ComponentKind::SprintAi => copy(entity).map(S::SprintAi),
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
                 entries
@@ -988,6 +996,8 @@ fn load_component(
         S::Morale(c) => builder.add(c),
         S::Roams(c) => builder.add(c),
         S::Route(c) => builder.add(c),
+        S::Sprinting(c) => builder.add(c),
+        S::SprintAi(c) => builder.add(c),
         S::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()
