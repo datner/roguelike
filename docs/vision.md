@@ -66,6 +66,48 @@ decided while building. When a plan and this document disagree, ask the owner wh
   or not fully (decided per revelation). A new lineage starts from scratch, revelations included: a
   fresh lineage is a fresh world, not a new chapter.
 
+## Fights
+
+Everything else stands on dives being fun in themselves. A fight is a decision when the obvious move
+(bump the nearest thing) is sometimes wrong and you can see why before you act. Sometimes, not always:
+bumping can overpower an encounter, and steamrolling or facetanking one is a tactical choice of its
+own, paid for in HP.
+
+- **Each creature asks one question.** A new kind of creature earns its place by needing a different
+  answer, not by having more HP: the shaman asks who dies first, the wolf says you can't outrun it. Next
+  are the **brute** (a heavy blow it winds up), the **skirmisher** (backs off and shoots: corner it or
+  use cover) and the **swarm** (find a chokepoint or use an area). Strength is always one answer: a
+  stronger character can ignore the question.
+- **Telegraphs, never Simon says.** A heavy blow is announced a turn ahead and its tiles are shown.
+  Stepping back must not be the free answer, so a telegraph matters because of what else is true: the
+  blow covers more than one step, the step back gives the skirmisher a free shot or lets the swarm
+  around you, there is a wall behind you. Answers trade against each other: step away (lose tempo),
+  interrupt it (a hit during the wind-up staggers it, a miss eats the blow), or take it on armor.
+- **Terrain does one thing each**, and gives existing techniques a target. **Doors** break sight and
+  make chokepoints. **Chasms** and **deep water** turn a shove, push kick or trip into a kill.
+  **Rubble** slows. **Tall grass** hides: in it you are unseen beyond the next tile (and so is anyone
+  else), and it burns. Hiding is not stealth: it is only being out of sight, and a foe that loses
+  sight of you goes to where it last saw you. That is a lure: show yourself, step into the grass, and
+  meet it on your tile. **Darkness** makes a light a trade: you see, and you are seen.
+- **Outnumbered is one rule.** Each foe adjacent beyond the first lowers your deflection, so corridors
+  and corners stop being neutral. There is no facing, so no flanking: being surrounded is the
+  positional rule, and being off balance is the opening.
+- **Retreat works.** Fleeing a foe as fast as you never works under the energy model, so it never
+  happens. **Sprinting** makes it a choice: moves cost less energy and drain stamina, and you can't
+  attack while sprinting. Creatures sprint too (a wolf's charge). Doors you can close, a parting shot,
+  way-landings and foes with **morale**, who break and flee in turn, make retreat a plan, not a hope.
+- **Attrition makes a fight worth asking about.** HP regenerates slowly, from a **rest budget per
+  floor**: waiting is one keystroke (pillar 3) and careful play can heal between fights, but only so
+  much per floor, so a floor is a budget and an avoided fight is HP kept. Careful play has its own
+  risk: **roamers** wander the floor, so waiting in the open can be found and a dead end behind a door
+  is safer. Roamers wander from the start and never arrive because time passed (pillar 5: no clock
+  that punishes the slow).
+- **Not every fight is mandatory.** Going around, hiding and talking skip a fight. Fighting gives loot
+  and martial XP; skipping keeps HP and the rest budget.
+- **Checked by the bench.** Each creature's question gets a scenario with a **naive build** (bump only)
+  and an **answer build**. At par, the naive build should lose and the answer win; well above par, the
+  naive build should win too. If naive wins at par, the creature asks nothing.
+
 ## Interconnection
 
 The experiment of this game is a system as interconnected as possible. A new system earns its place by
