@@ -71,6 +71,11 @@ decided while building. When a plan and this document disagree, ask the owner wh
 
 ## Fights
 
+Built so far (`docs/plans/fights.md`): the outnumbered rule, memory and morale, roamers, doors,
+chasms, tall grass, sprinting, the brute's telegraph, the archer (the skirmisher) and the rat swarm.
+Still to come: deep water, rubble, darkness as a trade, warnings before stepping into a telegraphed
+tile, and a smarter floor bot for the bench's answer builds.
+
 Everything else stands on dives being fun in themselves. A fight is a decision when the obvious move
 (bump the nearest thing) is sometimes wrong and you can see why before you act. Sometimes, not always:
 bumping can overpower an encounter, and steamrolling or facetanking one is a tactical choice of its

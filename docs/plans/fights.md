@@ -178,10 +178,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - As built: `Rat` inherits `Creature` (a beast, no equipment), speed 150, 3 HP, and backs off at half
   health (`Morale(50)`). Four on the caves' first floor, one more each floor down.
 
-### 11. The bench and the vision
+### 11. The bench and the vision — done
 - `bench/dives.ron` keeps its dives; the report now dies to brutes, slingers and rats as well; the
   as-built note records what the floors look like with all of it.
 - `docs/vision.md` Fights: mark what exists and what is still to come.
+- As built, what the bench shows with all of it: the goblin archer is now the commonest killer, and
+  the level-10 builds that reached floor 6 in 15–20 runs of 20 now reach it in none (archers in the
+  caves); the brute kills starting characters in the castle and the Embers; the hedge mage still
+  reaches floor 6 in 16–18 runs. Floors take longer (60–100 keypresses for a melee start, from
+  20–40) and give more XP (1100–1300 on the first floor, from 600–900), since the foes are varied.
+  The archer looks strong for its depth; tuning is the owner's call.
 
 ## Out of scope
 
