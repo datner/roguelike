@@ -16,7 +16,7 @@
         // A point every three turns, from a budget of 125% of max health per
         // floor (docs/plans/rest.md): too slow to matter in a fight, enough
         // for a rest between fights, never more than a floor allows.
-        Regeneration(interval: 300, per_floor: 125),
+        Regeneration(interval: 300, per_floor: 125, share: 5),
         // Breath for sprinting (docs/plans/fights.md): ten steps, a point back
         // every two turns, Agility deepening it.
         Stamina(

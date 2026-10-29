@@ -848,6 +848,14 @@ pub struct Wounds {
 pub struct Regeneration {
     pub interval: u64,
     pub per_floor: u32,
+    /// Percent of max health each tick heals (at least a point), so a rest
+    /// takes as long whatever max health has grown to.
+    #[serde(default = "default_share")]
+    pub share: u32,
+}
+
+fn default_share() -> u32 {
+    5
 }
 
 /// Health still to regain on this floor. A count, not a clock: only

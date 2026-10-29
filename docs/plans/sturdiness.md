@@ -50,11 +50,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - As built: `game/src/health.rs`. Max health is the only number: no separate Toughness figure on
   the sheet (the owner's call). Wounds are counted here already (slice 2 repays them). Saves v56.
 
-### 2. Regeneration by share, and Recovery
+### 2. Regeneration by share, and Recovery — done
 - `Regeneration.share`; `Wounds` (owed, per floor); Recovery in `data/skills.ron`, trained per point
   repaid; its interval and budget effects in `rest`.
 - Tests: a tick heals 5% of max; with nothing owed healing trains nothing; repaying wounds trains
   Recovery; a higher Recovery heals sooner and has a deeper budget.
+- As built: a tick heals 5% of max (at least a point) as far as the budget allows; each point that
+  repays a wound gives Recovery 2 XP. Wounds are forgotten on arriving somewhere new. Recovery
+  divides the interval by 1 + level/10 and adds 10 points per level to the floor budget's percent.
 
 ### 3. The bench
 - Level-10 builds gain Toughness and Recovery at 10 (a veteran is tougher, not only sharper); the

@@ -1,12 +1,13 @@
-//! Rest (docs/plans/rest.md): health comes back a point at a time, from a budget per floor, so
+//! Rest (docs/plans/rest.md): health comes back a share at a time, from a budget per floor, so
 //! careful play can heal between fights but a floor is still a budget. A `Regeneration` holder's
 //! tick is a timer like bleeding's: it re-checks everything when it fires (ADR 0006). Camp heals in
-//! full.
+//! full. Recovery (docs/plans/sturdiness.md), trained by healing wounds taken in a fight, quickens
+//! the ticks and deepens the budget.
 
 use hecs::Entity;
 
 use crate::dive::Place;
-use crate::entity::{Dead, Health, Regeneration, RestBudget};
+use crate::entity::{Dead, Health, Regeneration, RestBudget, Wounds};
 use crate::explore::visible_hostile;
 use crate::grammar::Subject;
 use crate::input::PlayerAction;
@@ -21,6 +22,18 @@ pub(crate) fn start(state: &mut GameState, entity: Entity) {
     }
 }
 
+/// XP to Recovery for each point of a fight's wound healed back.
+const RECOVERY_XP: u32 = 2;
+/// What each level of Recovery does: ticks 10% sooner (of the base, by
+/// division) and a budget deeper by this many percentage points.
+const RECOVERY_BUDGET_PER_LEVEL: u32 = 10;
+
+fn recovery(state: &GameState, entity: Entity) -> u32 {
+    state.blueprints.skills().core().map_or(0, |core| {
+        crate::skill::level(crate::skill::xp(&state.world, entity, core.recovery))
+    })
+}
+
 fn schedule(state: &mut GameState, entity: Entity) {
     let Ok(interval) = state
         .world
@@ -29,44 +42,75 @@ fn schedule(state: &mut GameState, entity: Entity) {
     else {
         return;
     };
+    let quickened = interval * 10 / (10 + u64::from(recovery(state, entity)));
     // A zero interval would fire forever within one tick.
-    let at = state.now.after(interval.max(1));
+    let at = state.now.after(quickened.max(1));
     state.timers.schedule(at, Timer::Regenerate(entity));
 }
 
-/// `Command::Regenerate` applier: a point of health if the holder is hurt
-/// and its budget has any left, then the next tick. A holder that is gone
-/// or dead gets no next tick.
+/// `Command::Regenerate` applier: a share of max health if the holder is
+/// hurt, as much as its budget has left, then the next tick. Healing back a
+/// wound taken in a fight trains Recovery. A holder that is gone or dead gets
+/// no next tick.
 pub(crate) fn regenerate(state: &mut GameState, entity: Entity) {
-    if !state.world.satisfies::<&Regeneration>(entity) || state.world.satisfies::<&Dead>(entity) {
+    let Ok(share) = state.world.get::<&Regeneration>(entity).map(|r| r.share) else {
+        return;
+    };
+    if state.world.satisfies::<&Dead>(entity) {
         return;
     }
     let left = state
         .world
         .get::<&RestBudget>(entity)
         .map_or(0, |budget| budget.left);
-    let healed = left > 0
-        && state
-            .world
-            .get::<&mut Health>(entity)
-            .is_ok_and(|mut health| {
-                let hurt = health.current < health.max;
-                if hurt {
-                    health.current += 1;
-                }
-                hurt
-            });
-    if healed {
-        let _ = state
-            .world
-            .insert_one(entity, RestBudget { left: left - 1 });
+    let healed = state
+        .world
+        .get::<&mut Health>(entity)
+        .map_or(0, |mut health| {
+            let step = (u32::try_from(health.max).unwrap_or(0) * share / 100).max(1);
+            let missing = u32::try_from(health.max - health.current).unwrap_or(0);
+            let healed = step.min(missing).min(left);
+            health.current += i32::try_from(healed).unwrap_or(0);
+            healed
+        });
+    if healed > 0 {
+        let _ = state.world.insert_one(
+            entity,
+            RestBudget {
+                left: left - healed,
+            },
+        );
+        repay(state, entity, healed);
     }
     schedule(state, entity);
 }
 
-/// The budget a holder gets on a floor: `per_floor` percent of max health.
+/// `healed` points paid back against the wounds owed: each trains Recovery.
+/// Healing with nothing owed teaches nothing, so resting can't be farmed.
+fn repay(state: &mut GameState, entity: Entity, healed: u32) {
+    let Ok(owed) = state.world.get::<&Wounds>(entity).map(|w| w.owed) else {
+        return;
+    };
+    let repaid = healed.min(owed);
+    if repaid == 0 {
+        return;
+    }
+    let _ = state.world.insert_one(
+        entity,
+        Wounds {
+            owed: owed - repaid,
+        },
+    );
+    if let Some(core) = state.blueprints.skills().core() {
+        crate::skill::gain(state, entity, &[(core.recovery, repaid * RECOVERY_XP)]);
+    }
+}
+
+/// The budget a holder gets on a floor: `per_floor` percent of max health,
+/// deepened by Recovery.
 fn full_budget(state: &GameState, entity: Entity) -> Option<RestBudget> {
-    let per_floor = state.world.get::<&Regeneration>(entity).ok()?.per_floor;
+    let per_floor = state.world.get::<&Regeneration>(entity).ok()?.per_floor
+        + RECOVERY_BUDGET_PER_LEVEL * recovery(state, entity);
     let max = state.world.get::<&Health>(entity).ok()?.max;
     let max = u32::try_from(max).unwrap_or(0);
     Some(RestBudget {
@@ -89,6 +133,8 @@ pub(crate) fn arrive(state: &mut GameState, travellers: &[Entity]) {
             continue;
         }
         refill(state, traveller);
+        // Wounds are owed per floor: what a new place doesn't heal is forgotten.
+        let _ = state.world.remove_one::<Wounds>(traveller);
         if at_camp && let Ok(mut health) = state.world.get::<&mut Health>(traveller) {
             health.current = health.max;
         }
@@ -170,6 +216,7 @@ mod tests {
                 Regeneration {
                     interval: INTERVAL,
                     per_floor: 125,
+                    share: 5,
                 },
             )
             .unwrap();
@@ -292,6 +339,63 @@ mod tests {
         assert_eq!(
             rest_refusal(&state).as_deref(),
             Some("The goblin is in view.")
+        );
+    }
+
+    fn recovery_xp(state: &GameState) -> u32 {
+        let core = state.blueprints.skills().core().unwrap();
+        crate::skill::xp(&state.world, state.player, core.recovery)
+    }
+
+    #[test]
+    fn a_tick_heals_a_share_of_max_health() {
+        let mut state = hurt(10);
+        let player = state.player;
+        state.world.get::<&mut Health>(player).unwrap().max = 40;
+        refill(&mut state, player);
+        regenerate(&mut state, player);
+        assert_eq!(health(&state), 12, "5% of 40");
+    }
+
+    #[test]
+    fn healing_back_a_fights_wound_trains_recovery_and_idle_healing_does_not() {
+        let mut state = hurt(15);
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, crate::entity::Learner)
+            .unwrap();
+        regenerate(&mut state, player);
+        assert_eq!(recovery_xp(&state), 0, "nothing owed");
+        state.world.insert_one(player, Wounds { owed: 2 }).unwrap();
+        regenerate(&mut state, player);
+        regenerate(&mut state, player);
+        regenerate(&mut state, player);
+        assert_eq!(
+            recovery_xp(&state),
+            2 * RECOVERY_XP,
+            "two points owed, two repaid"
+        );
+        assert_eq!(state.world.get::<&Wounds>(player).unwrap().owed, 0);
+    }
+
+    #[test]
+    fn recovery_quickens_the_ticks_and_deepens_the_budget() {
+        let mut state = hurt(10);
+        let player = state.player;
+        let core = state.blueprints.skills().core().unwrap();
+        let mut skills = crate::entity::Skills::default();
+        skills.set(core.recovery, crate::skill::xp_for(5));
+        state.world.insert_one(player, skills).unwrap();
+        refill(&mut state, player);
+        assert_eq!(budget(&state), Some(20 * (125 + 50) / 100));
+        state.timers.queue.clear();
+        schedule(&mut state, player);
+        let due = state.timers.queue.keys().map(|&(at, _)| at).next().unwrap();
+        assert_eq!(
+            due,
+            state.now.after(INTERVAL * 10 / 15),
+            "a third sooner at level 5"
         );
     }
 
