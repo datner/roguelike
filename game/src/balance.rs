@@ -316,6 +316,8 @@ fn dress(state: &mut GameState, build: &Build) -> Result<(), String> {
         skills.set(id, skill::xp_for(level));
     }
     let _ = state.world.insert_one(player, skills);
+    // Toughness set by hand raises max health as if earned.
+    crate::health::refresh(state, player);
     if let Some(stats) = build.stats {
         let _ = state.world.insert_one(player, stats);
     }

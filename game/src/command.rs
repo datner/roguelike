@@ -855,6 +855,7 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
         },
     );
     crate::technique::stagger(state, target);
+    crate::health::hurt(state, target, cause, dealt);
     // Death is queued before anything the hit triggers, so a kill shot's
     // effects on the victim fizzle instead of being announced first.
     // `AfterHit` still fires, keeping combat-stream draws the same.

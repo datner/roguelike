@@ -30,6 +30,10 @@
     (name: "Dodge", domain: Defence, weight: 1),
     (name: "Poise", domain: Defence, weight: 1),
     (name: "Deflection", domain: Defence, weight: 1),
+    // Lasting: grown by being hurt in a fight, and by healing real wounds
+    // (docs/plans/sturdiness.md).
+    (name: "Toughness", domain: Defence, weight: 1),
+    (name: "Recovery", domain: Defence, weight: 1),
 
     // Magic: the act, the school, then the form it takes.
     (name: "Magic", domain: Magic, weight: 1),

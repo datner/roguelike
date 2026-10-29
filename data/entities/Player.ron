@@ -10,6 +10,9 @@
         Learner,
         Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
         Health(current: 20, max: 20),
+        // Two more max health per level of Toughness, grown by being hurt in
+        // a fight (docs/plans/sturdiness.md). Origins set their own base.
+        Hardiness(per_level: 2),
         // A point every three turns, from a budget of 125% of max health per
         // floor (docs/plans/rest.md): too slow to matter in a fight, enough
         // for a rest between fights, never more than a floor allows.

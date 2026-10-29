@@ -27,7 +27,8 @@ use crate::entity::{
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::entity::{
-    Loosed, Roams, Route, Skirmish, SprintAi, Sprinting, Strode, Telegraph, WindUp,
+    BaseHealth, Hardiness, Loosed, Roams, Route, Skirmish, SprintAi, Sprinting, Strode, Telegraph,
+    WindUp, Wounds,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -40,7 +41,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 55;
+pub const SAVE_VERSION: u32 = 56;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -249,6 +250,9 @@ enum ComponentKind {
     Skirmish,
     Strode,
     Loosed,
+    Hardiness,
+    BaseHealth,
+    Wounds,
     OnHit,
     Skills,
     Trains,
@@ -280,7 +284,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 91] = [
+    const ALL: [ComponentKind; 94] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -344,6 +348,9 @@ impl ComponentKind {
         Self::Skirmish,
         Self::Strode,
         Self::Loosed,
+        Self::Hardiness,
+        Self::BaseHealth,
+        Self::Wounds,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -441,6 +448,9 @@ enum SavedComponent {
     Skirmish(Skirmish),
     Strode(Strode),
     Loosed(Loosed),
+    Hardiness(Hardiness),
+    BaseHealth(BaseHealth),
+    Wounds(Wounds),
     Telegraph {
         technique: u32,
         tiles: Vec<(i32, i32)>,
@@ -812,6 +822,9 @@ fn save_component(
         ComponentKind::Skirmish => copy(entity).map(S::Skirmish),
         ComponentKind::Strode => copy(entity).map(S::Strode),
         ComponentKind::Loosed => copy(entity).map(S::Loosed),
+        ComponentKind::Hardiness => copy(entity).map(S::Hardiness),
+        ComponentKind::BaseHealth => copy(entity).map(S::BaseHealth),
+        ComponentKind::Wounds => copy(entity).map(S::Wounds),
         ComponentKind::Telegraph => match entity.get::<&Telegraph>().map(|t| (*t).clone()) {
             Some(Telegraph { technique, tiles }) => Some(S::Telegraph {
                 technique: refer(technique)?,
@@ -1035,6 +1048,9 @@ fn load_component(
         S::Skirmish(c) => builder.add(c),
         S::Strode(c) => builder.add(c),
         S::Loosed(c) => builder.add(c),
+        S::Hardiness(c) => builder.add(c),
+        S::BaseHealth(c) => builder.add(c),
+        S::Wounds(c) => builder.add(c),
         S::Telegraph { technique, tiles } => builder.add(Telegraph {
             technique: entity(technique)?,
             tiles,

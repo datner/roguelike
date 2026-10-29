@@ -43,6 +43,7 @@ pub mod explore;
 pub mod fov;
 pub mod fx;
 pub mod grammar;
+pub mod health;
 pub mod holding;
 pub mod light;
 pub mod lore;

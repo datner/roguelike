@@ -3,6 +3,8 @@
 (
     inherits: "Player",
     components: [
+        // Starting health (docs/plans/sturdiness.md).
+        Health(current: 16, max: 16),
         Skills({"Magic": 2, "Pyromancy": 1, "Arcane": 1}),
     ],
     equipment: ["Torch"],

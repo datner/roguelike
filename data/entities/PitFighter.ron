@@ -3,6 +3,8 @@
 (
     inherits: "Player",
     components: [
+        // Starting health (docs/plans/sturdiness.md).
+        Health(current: 26, max: 26),
         Skills({"Melee": 2, "Unarmed": 2, "Dodge": 1}),
     ],
     equipment: ["LeatherArmor", "Torch"],

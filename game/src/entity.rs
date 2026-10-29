@@ -823,6 +823,24 @@ pub struct Morale {
     pub flee_below: u32,
 }
 
+/// Max health grows with Toughness (docs/plans/sturdiness.md): the base
+/// (`BaseHealth`) plus `per_level` for each level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Hardiness {
+    pub per_level: i32,
+}
+
+/// Max health before Toughness: what the blueprint gave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseHealth(pub i32);
+
+/// Health lost to enemies on this floor and not yet healed back: what
+/// regeneration repays, training Recovery (docs/plans/sturdiness.md).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Wounds {
+    pub owed: u32,
+}
+
 /// Health regained over time (docs/plans/rest.md): a point every `interval`
 /// ticks while the floor's `RestBudget` lasts. Entering a floor sets the
 /// budget to `per_floor` percent of max health, so a floor heals only so much.

@@ -413,6 +413,7 @@ impl GameState {
         self.register(entity);
         #[cfg(test)]
         let _ = self.world.insert(entity, spawn.overrides.build());
+        crate::health::start(self, entity);
         crate::rest::start(self, entity);
 
         let world = &mut self.world;

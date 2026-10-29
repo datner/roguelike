@@ -496,7 +496,12 @@ mod tests {
         state.world.get::<&mut Health>(player).unwrap().current = 5;
         let run = play(&mut state, &build, 1);
         assert!(run.floors[0].rested > 0);
-        assert_eq!(run.floors[0].hp_left, 20, "rested to full");
+        let max = state.world.get::<&Health>(state.player).unwrap().max;
+        assert_eq!(
+            run.floors[0].hp_left,
+            u32::try_from(max).unwrap(),
+            "rested to full"
+        );
     }
 
     #[test]
