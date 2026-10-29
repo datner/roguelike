@@ -747,6 +747,22 @@ pub struct Bleeding {
     pub interval: u64,
 }
 
+/// Health regained over time (docs/plans/rest.md): a point every `interval`
+/// ticks while the floor's `RestBudget` lasts. Entering a floor sets the
+/// budget to `per_floor` percent of max health, so a floor heals only so much.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Regeneration {
+    pub interval: u64,
+    pub per_floor: u32,
+}
+
+/// Health still to regain on this floor. A count, not a clock: only
+/// healing spends it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RestBudget {
+    pub left: u32,
+}
+
 /// Effects applied to the victim when the holder, or the creature it is
 /// attached to, lands a melee hit that deals damage. Built from
 /// `ComponentDef::OnHit` at load; not serializable, since it holds ids.

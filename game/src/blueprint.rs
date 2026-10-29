@@ -31,8 +31,8 @@ use crate::entity::{
     Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
     Focus, Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Loose, Mana,
     ManaCasting, Melee, Name, OnHit, OnHitEntry, PartKind, Player, Proficiency, Projectile, Quiver,
-    School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats, Style, Summon,
-    SummonLimit, Technique, Throwable, Trains, Weapon,
+    Regeneration, School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina, Stats,
+    Style, Summon, SummonLimit, Technique, Throwable, Trains, Weapon,
 };
 use crate::entity::{OffBalance, Teaches, TechniqueAi};
 use crate::equipment::free_part;
@@ -89,6 +89,7 @@ pub enum ComponentDef {
     ManaCasting(ManaCasting),
     Mana(Mana),
     Bleeding(Bleeding),
+    Regeneration(Regeneration),
     Duration(Duration),
     OnHit(Vec<OnHitDef>),
     /// Fixed skill levels by name (ADR 0017); spawned as XP.
@@ -178,6 +179,7 @@ impl ComponentDef {
             ComponentDef::Mana(c) => builder.add(c),
             ComponentDef::Quiver(c) => builder.add(c),
             ComponentDef::Bleeding(c) => builder.add(c),
+            ComponentDef::Regeneration(c) => builder.add(c),
             ComponentDef::Duration(c) => builder.add(c),
             ComponentDef::Learner => builder.add(Learner),
             ComponentDef::Graze(c) => builder.add(c),

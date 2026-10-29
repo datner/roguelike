@@ -50,6 +50,7 @@ pub mod origin;
 pub mod phase;
 pub mod prio;
 pub mod ranged;
+pub mod rest;
 pub mod rng;
 pub mod rooms;
 pub mod save;

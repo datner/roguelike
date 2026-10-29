@@ -202,7 +202,7 @@ fn enter(state: &mut GameState, next: Floor, place: Place) {
     let arrival = next.arrival;
     let mut spots =
         std::iter::once(arrival).chain(next.near.into_iter().filter(|&at| at != arrival));
-    for traveller in travellers {
+    for &traveller in &travellers {
         let Some((x, y)) = spots.next() else {
             break;
         };
@@ -210,6 +210,7 @@ fn enter(state: &mut GameState, next: Floor, place: Place) {
             *position = Position { x, y };
         }
     }
+    crate::rest::arrive(state, &travellers);
 }
 
 /// `Command::Descend` applier: from camp, the first floor of a new dive

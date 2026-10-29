@@ -10,6 +10,10 @@
         Learner,
         Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
         Health(current: 20, max: 20),
+        // A point every three turns, from a budget of 125% of max health per
+        // floor (docs/plans/rest.md): too slow to matter in a fight, enough
+        // for a rest between fights, never more than a floor allows.
+        Regeneration(interval: 300, per_floor: 125),
         Melee(min: 2, max: 4),
         // Sharper of mind and will than the average creature: spells scale
         // with the stat of the discipline casting them (ADR 0014).

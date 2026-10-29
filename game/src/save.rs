@@ -22,9 +22,9 @@ use crate::entity::{
     BloodCasting, Body, Chain, CooldownCasting, Dead, Deflect, Delay, Discovered, Duration,
     EffectTarget, Energy, Equippable, EquippedOn, Familiarity, Fizzle, Focus, Footwork, Found,
     Graze, Health, Hostile, Inventory, Item, Launcher, Learner, Light, Mana, ManaCasting, Melee,
-    Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging, Scroll,
-    Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats, Style, Summon, SummonLimit,
-    Summoned, Throwable, Timed, Trains, Weapon,
+    Name, OnHit, OnHitEntry, Player, Position, Proficiency, Projectile, Quiver, Recharging,
+    Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi, SpellDamage, Stats,
+    Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
 use crate::explore::ExploreItems;
 use crate::fov;
@@ -37,7 +37,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 45;
+pub const SAVE_VERSION: u32 = 46;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -176,6 +176,7 @@ struct SavedTimer {
 enum SavedTimerKind {
     ExpireEffect(Option<u32>),
     BleedTick(Option<u32>),
+    Regenerate(Option<u32>),
 }
 
 /// Every component type. Saving walks `ALL`; an entity with a component not
@@ -232,6 +233,8 @@ enum ComponentKind {
     Blast,
     SpellAi,
     Bleeding,
+    Regeneration,
+    RestBudget,
     OnHit,
     Skills,
     Trains,
@@ -263,7 +266,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 78] = [
+    const ALL: [ComponentKind; 80] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -314,6 +317,8 @@ impl ComponentKind {
         Self::Blast,
         Self::SpellAi,
         Self::Bleeding,
+        Self::Regeneration,
+        Self::RestBudget,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -399,6 +404,8 @@ enum SavedComponent {
     Blast(Blast),
     SpellAi,
     Bleeding(Bleeding),
+    Regeneration(Regeneration),
+    RestBudget(RestBudget),
     OnHit(Vec<OnHitDef>),
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
@@ -475,6 +482,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
             timer: match timer {
                 Timer::ExpireEffect(e) => SavedTimerKind::ExpireEffect(refer(e)),
                 Timer::BleedTick(e) => SavedTimerKind::BleedTick(refer(e)),
+                Timer::Regenerate(e) => SavedTimerKind::Regenerate(refer(e)),
             },
         })
         .collect();
@@ -567,6 +575,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         let timer = match timer {
             SavedTimerKind::ExpireEffect(e) => Timer::ExpireEffect(timer_entity(e)?),
             SavedTimerKind::BleedTick(e) => Timer::BleedTick(timer_entity(e)?),
+            SavedTimerKind::Regenerate(e) => Timer::Regenerate(timer_entity(e)?),
         };
         queue.insert((at, seq), timer);
     }
@@ -750,6 +759,8 @@ fn save_component(
         ComponentKind::Blast => copy(entity).map(S::Blast),
         ComponentKind::SpellAi => copy::<SpellAi>(entity).map(|_| S::SpellAi),
         ComponentKind::Bleeding => copy(entity).map(S::Bleeding),
+        ComponentKind::Regeneration => copy(entity).map(S::Regeneration),
+        ComponentKind::RestBudget => copy(entity).map(S::RestBudget),
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
             Some(OnHit(entries)) => Some(S::OnHit(
                 entries
@@ -954,6 +965,8 @@ fn load_component(
         S::Blast(c) => builder.add(c),
         S::SpellAi => builder.add(SpellAi),
         S::Bleeding(c) => builder.add(c),
+        S::Regeneration(c) => builder.add(c),
+        S::RestBudget(c) => builder.add(c),
         S::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()
@@ -1209,6 +1222,27 @@ mod tests {
             }
         }
         state.now
+    }
+
+    #[test]
+    fn the_rest_budget_and_the_pending_tick_survive_a_round_trip() {
+        let mut state = new_game(4);
+        let player = state.player;
+        state
+            .world
+            .insert_one(player, RestBudget { left: 7 })
+            .unwrap();
+        let loaded = reload(&state, data_blueprints().with_camp(None));
+        let budget = *loaded.world.get::<&RestBudget>(loaded.player).unwrap();
+        assert_eq!(budget, RestBudget { left: 7 });
+        assert!(
+            loaded
+                .timers
+                .queue
+                .values()
+                .any(|&timer| timer == Timer::Regenerate(loaded.player))
+        );
+        assert_eq!(to_ron(&loaded).unwrap(), to_ron(&state).unwrap());
     }
 
     #[test]

@@ -49,6 +49,7 @@ impl Tick {
 pub(crate) enum Timer {
     ExpireEffect(Entity),
     BleedTick(Entity),
+    Regenerate(Entity),
 }
 
 impl Timer {
@@ -56,6 +57,7 @@ impl Timer {
         match self {
             Timer::ExpireEffect(effect) => Command::ExpireEffect(effect),
             Timer::BleedTick(effect) => Command::BleedTick(effect),
+            Timer::Regenerate(holder) => Command::Regenerate(holder),
         }
     }
 }
