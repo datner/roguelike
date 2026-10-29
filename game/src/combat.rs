@@ -122,6 +122,13 @@ pub(crate) struct Strike {
     pub level: u32,
     /// What its hit chance is reckoned from: `level` plus the stat modifier.
     pub accuracy: i32,
+    /// A shot's launcher holds steady this many tiles; each tile beyond takes
+    /// `FALLOFF_BP` off the hit chance. `None` for blows, throws and spells.
+    pub steady: Option<i32>,
+    /// Shot with an enemy beside the shooter: a bow wants room to draw.
+    pub point_blank: bool,
+    /// Drawn on the move: shot soon after another, with a step between.
+    pub snap: bool,
 }
 
 impl Strike {
@@ -186,6 +193,9 @@ pub(crate) fn blow_strike(
         weapon,
         level: 0,
         accuracy: 0,
+        steady: None,
+        point_blank: false,
+        snap: false,
     };
     let used = match mods.uses.as_deref() {
         Some(uses) => uses.to_vec(),
@@ -289,6 +299,11 @@ const MIN_HIT_BP: i32 = 500;
 /// Added to the hit chance against a defender for each enemy beside it
 /// beyond the first (docs/plans/fights.md): corridors and corners matter.
 const OUTNUMBERED_BP: i32 = 1_000;
+/// Taken off a shot's hit chance for each tile beyond its launcher's
+/// `steady` range (docs/plans/fights.md).
+const FALLOFF_BP: i32 = 500;
+/// Taken off a snap shot: an arrow drawn and set on the move.
+const SNAP_BP: i32 = 2_000;
 const MAX_HIT_BP: i32 = 9_500;
 /// How often a miss grazes, for a weapon without its own `Graze`.
 pub(crate) const DEFAULT_GRAZE_BP: u32 = 3_000;
@@ -407,7 +422,24 @@ pub(crate) fn odds_explained(
             .map_or(0, |stats| stats.modifier(Stat::Agility));
     let crowd = i32::try_from(outnumbered(state, defender)).unwrap_or(0);
     let base = EVEN_HIT_BP + HIT_BP_PER_POINT * (strike.accuracy - dodge);
-    let raw = base + OUTNUMBERED_BP * crowd;
+    let beyond = strike.steady.map_or(0, |steady| {
+        let at = |who: Entity| {
+            world
+                .get::<&crate::entity::Position>(who)
+                .ok()
+                .map(|p| (p.x, p.y))
+        };
+        at(attacker)
+            .zip(at(defender))
+            .map_or(0, |(a, d)| (crate::ranged::distance(a, d) - steady).max(0))
+    });
+    let point_blank = if strike.point_blank {
+        -HIT_BP_PER_POINT * crate::ranged::POINT_BLANK
+    } else {
+        0
+    };
+    let snap = if strike.snap { -SNAP_BP } else { 0 };
+    let raw = base + OUTNUMBERED_BP * crowd - FALLOFF_BP * beyond + point_blank + snap;
     let hit_bp = raw.clamp(MIN_HIT_BP, MAX_HIT_BP);
     let mut reasons = vec![Reason {
         what: format!("accuracy {} against dodge {dodge}", strike.accuracy),
@@ -417,6 +449,24 @@ pub(crate) fn odds_explained(
         reasons.push(Reason {
             what: format!("outnumbered by {crowd}"),
             bp: OUTNUMBERED_BP * crowd,
+        });
+    }
+    if point_blank != 0 {
+        reasons.push(Reason {
+            what: "point blank".to_string(),
+            bp: point_blank,
+        });
+    }
+    if snap != 0 {
+        reasons.push(Reason {
+            what: "drawn on the move".to_string(),
+            bp: snap,
+        });
+    }
+    if beyond > 0 {
+        reasons.push(Reason {
+            what: format!("range, {beyond} past steady"),
+            bp: -FALLOFF_BP * beyond,
         });
     }
     if hit_bp != raw {
@@ -637,6 +687,9 @@ pub(crate) fn fire_strike(
         weapon: Some(arrow),
         level: 0,
         accuracy: 0,
+        steady: Some(spec.steady),
+        point_blank: false,
+        snap: false,
     };
     let used = skill::missile(world, skills, Launch::Fired(launcher), &strike);
     Some((
@@ -666,6 +719,9 @@ pub(crate) fn throw_strike(
         weapon: Some(missile),
         level: 0,
         accuracy: 0,
+        steady: None,
+        point_blank: false,
+        snap: false,
     };
     let used = skill::missile(world, skills, Launch::Thrown, &strike);
     Some(skilled(world, skills, thrower, strike, &used))
@@ -1401,6 +1457,36 @@ mod odds_tests {
         );
         let sum: i32 = reasons.iter().map(|r| r.bp).sum();
         assert_eq!(sum, i32::try_from(odds.hit_bp).unwrap());
+    }
+
+    #[test]
+    fn a_shot_past_its_steady_range_loses_accuracy_per_tile() {
+        let mut state = bare_state();
+        let player = state.player;
+        let dummy = thing("dummy")
+            .health(1000)
+            .hostile()
+            .at(6, 1)
+            .make(&mut state);
+        let mut strike = strike_of(&state, player);
+        let (even, _) = odds_explained(&state, &strike, player, dummy);
+        strike.steady = Some(2);
+        let (odds, reasons) = odds_explained(&state, &strike, player, dummy);
+        assert_eq!(
+            odds.hit_bp,
+            even.hit_bp - 3 * 500,
+            "five tiles off, steady for two"
+        );
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.what == "range, 3 past steady" && r.bp == -1_500)
+        );
+        strike.steady = Some(5);
+        assert_eq!(
+            odds_explained(&state, &strike, player, dummy).0.hit_bp,
+            even.hit_bp
+        );
     }
 
     #[test]

@@ -634,6 +634,30 @@ mod tests {
     }
 
     #[test]
+    fn a_kiting_archer_draws_its_arrows_on_the_move() {
+        let (mut state, archer) = archer_at(Position { x: 6, y: 1 });
+        let snap = |state: &GameState| {
+            let Command::Perform { technique, .. } = decide(state, archer) else {
+                panic!("it shoots");
+            };
+            technique::inspect(state, archer, technique)
+                .unwrap()
+                .0
+                .strike
+                .snap
+        };
+        assert!(!snap(&state), "the first shot: it came in ready");
+        let shot = decide(&state, archer);
+        state.run(shot);
+        assert!(!snap(&state), "it stood to shoot again");
+        state.now = state.now.after(100);
+        state.run(Command::TryMove(archer, Dir::E));
+        assert!(snap(&state), "a step after a shot: drawn on the move");
+        state.now = state.now.after(crate::ranged::SETTLE + 1);
+        assert!(!snap(&state), "settled again");
+    }
+
+    #[test]
     fn a_cornered_archer_fights() {
         let (mut state, archer) = archer_at(Position { x: 2, y: 1 });
         for (x, y) in [(3, 0), (3, 1), (3, 2), (2, 0), (2, 2), (1, 0), (1, 2)] {
@@ -667,7 +691,7 @@ mod tests {
                     .map(|inv| inv.0.len())
             })
             .sum::<usize>();
-        assert_eq!(arrows, 8);
+        assert!((3..=8).contains(&arrows), "{arrows}");
     }
 
     #[test]

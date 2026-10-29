@@ -1,6 +1,7 @@
-// The skirmisher (docs/plans/fights.md): it keeps its distance and shoots.
-// At your elbow it steps away, or steps back and shoots at once; corner it,
-// or use cover to close in.
+// The skirmisher (docs/plans/fights.md): it keeps its distance and shoots,
+// with a crude bow that loses accuracy past two tiles and 3–8 arrows.
+// At your elbow it steps away rather than shoot; corner it, or use cover to
+// close in. Kiting, its arrows are drawn on the move (snap shots).
 (
     inherits: "Goblin",
     components: [
@@ -10,6 +11,6 @@
         Skirmish,
         Skills({"Archery": 2, "Bow": 2, "Melee": 1}),
     ],
-    equipment: ["LeatherArmor", "ShortBow", "Quiver"],
-    techniques: ["PartingShot", "Snipe"],
+    equipment: ["LeatherArmor", "CrudeBow", "Quiver"],
+    techniques: ["Snipe"],
 )

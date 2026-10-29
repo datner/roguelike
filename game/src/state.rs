@@ -27,8 +27,8 @@ pub const CREATURE_MIN_DISTANCE: i32 = 12;
 
 /// Arrows the player starts with in their quiver.
 pub const STARTING_ARROWS: usize = 12;
-/// Arrows in a creature's quiver when it is placed on a floor.
-const CREATURE_ARROWS: usize = 8;
+/// Arrows in a creature's quiver when it is placed on a floor, drawn.
+const CREATURE_ARROWS: std::ops::RangeInclusive<usize> = 3..=8;
 /// Closest an item may start to the player, in steps, so finding one means
 /// leaving the starting spot.
 pub const ITEM_MIN_DISTANCE: i32 = 4;
@@ -214,14 +214,17 @@ impl GameState {
         self.stock_quivers_of(self.player, STARTING_ARROWS)
     }
 
-    /// `count` arrows in each quiver `holder` wears.
-    fn stock_quivers_of(&mut self, holder: Entity, count: usize) -> Result<(), BlueprintError> {
-        let quivers: Vec<Entity> = crate::equipment::equipped(&self.world, holder)
+    fn quivers_of(&self, holder: Entity) -> Vec<Entity> {
+        crate::equipment::equipped(&self.world, holder)
             .into_iter()
             .map(|(item, _)| item)
             .filter(|&item| self.world.satisfies::<&Quiver>(item))
-            .collect();
-        for quiver in quivers {
+            .collect()
+    }
+
+    /// `count` arrows in each quiver `holder` wears.
+    fn stock_quivers_of(&mut self, holder: Entity, count: usize) -> Result<(), BlueprintError> {
+        for quiver in self.quivers_of(holder) {
             for _ in 0..count {
                 self.spawn(Spawn::blueprint("Arrow").carried_by(quiver))?;
             }
@@ -293,9 +296,12 @@ impl GameState {
                 break;
             };
             let creature = self.spawn(Spawn::blueprint(blueprint).at(x, y))?;
-            // An archer's quiver comes with arrows; no RNG, so placement
-            // stays the same.
-            self.stock_quivers_of(creature, CREATURE_ARROWS)?;
+            // An archer's quiver comes with a few arrows, drawn after its
+            // placement, so creatures placed before it stay put.
+            if !self.quivers_of(creature).is_empty() {
+                let arrows = self.rngs.spawn.random_range(CREATURE_ARROWS);
+                self.stock_quivers_of(creature, arrows)?;
+            }
         }
         Ok(())
     }

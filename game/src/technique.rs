@@ -2595,24 +2595,16 @@ mod tests {
 
     #[test]
     fn bow_dancing_steadies_a_shot_up_close_from_its_level_2() {
-        let accuracy = |level| {
+        let pressed = |level| {
             let (state, _) = bow_dancer(level);
             ranged::ready_fire(&state, state.player)
                 .unwrap()
                 .strike
-                .accuracy
+                .point_blank
         };
-        let (state, goblin) = bow_dancer(1);
-        let mut calm = state;
-        let _ = calm.world.despawn(goblin);
-        let open = ranged::ready_fire(&calm, calm.player)
-            .unwrap()
-            .strike
-            .accuracy;
-        assert_eq!(accuracy(1), open - ranged::POINT_BLANK);
-        // Level 2 adds its own skill nowhere (styles never count toward a
-        // use's level), so the shot is exactly as sure as with room.
-        assert_eq!(accuracy(2), open);
+        assert!(pressed(1), "a goblin at its elbow");
+        // From level 2 the style steadies it: the shot is as sure as with room.
+        assert!(!pressed(2));
     }
 
     #[test]

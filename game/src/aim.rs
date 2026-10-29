@@ -514,10 +514,13 @@ mod tests {
         let ready = crate::ranged::ready_fire(&state, state.player).unwrap();
         let _ = state.world.despawn(close);
         let calm = crate::ranged::ready_fire(&state, state.player).unwrap();
-        assert_eq!(
-            ready.strike.accuracy,
-            calm.strike.accuracy - crate::ranged::POINT_BLANK,
+        assert!(
+            ready.strike.point_blank && !calm.strike.point_blank,
             "the shot rolls the odds the preview shows"
+        );
+        assert_eq!(
+            ready.strike.accuracy, calm.strike.accuracy,
+            "named, not folded in"
         );
     }
 

@@ -716,6 +716,10 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
         pos.x = target.0;
         pos.y = target.1;
     }
+    // When it last stepped: a shot drawn on the move is a snap shot.
+    let _ = state
+        .world
+        .insert_one(entity, crate::entity::Strode { at: state.now });
     if entity == state.player {
         state.commands.push_back(Command::FindItems(entity));
     }

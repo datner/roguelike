@@ -599,6 +599,14 @@ pub struct Launcher {
     pub range: i32,
     pub ammo: AmmoKind,
     pub stat: Stat,
+    /// Tiles it holds steady; past them each tile costs accuracy
+    /// (docs/plans/fights.md). A crude bow holds less.
+    #[serde(default = "default_steady")]
+    pub steady: i32,
+}
+
+fn default_steady() -> i32 {
+    4
 }
 
 /// Item part: while equipped, a quiver supplies a launcher's shots. Its
@@ -768,6 +776,19 @@ pub struct WindUp {
 pub struct Telegraph {
     pub technique: Entity,
     pub tiles: Vec<(i32, i32)>,
+}
+
+/// When a creature last stepped (docs/plans/fights.md): with `Loosed`, what
+/// tells a steady shot from a snap shot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Strode {
+    pub at: Tick,
+}
+
+/// When a creature last shot a launcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Loosed {
+    pub at: Tick,
 }
 
 /// A creature that keeps its distance (docs/plans/fights.md): with an enemy

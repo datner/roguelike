@@ -106,7 +106,13 @@ impl Spawn {
     }
 
     pub(crate) fn launcher(self, range: i32, ammo: AmmoKind, stat: Stat) -> Self {
-        self.with(Launcher { range, ammo, stat })
+        self.with(Launcher {
+            range,
+            ammo,
+            stat,
+            // Steady all the way: tests of range falloff set their own.
+            steady: range,
+        })
     }
 
     pub(crate) fn quiver(self, ammo: AmmoKind, capacity: u32) -> Self {

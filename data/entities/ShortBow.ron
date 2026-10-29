@@ -6,7 +6,8 @@
         Appearance(glyph: '}', fg: (160, 110, 60), bg: (0, 0, 0)),
         Item,
         Equippable(part: Hand),
-        Launcher(range: 9, ammo: Arrow, stat: Agility),
+        // Steady to four tiles; each beyond costs 5% to hit.
+        Launcher(range: 9, ammo: Arrow, stat: Agility, steady: 4),
         Weapon(min: 2, max: 3, stat: Strength, types: [Blunt]),
         Trains(["Bow", "Short bow"]),
     ],

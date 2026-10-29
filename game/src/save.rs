@@ -26,7 +26,9 @@ use crate::entity::{
     Recharging, Regeneration, RestBudget, Scroll, Skills, SpawnSeq, Speed, Spell, SpellAi,
     SpellDamage, Stats, Style, Summon, SummonLimit, Summoned, Throwable, Timed, Trains, Weapon,
 };
-use crate::entity::{Roams, Route, Skirmish, SprintAi, Sprinting, Telegraph, WindUp};
+use crate::entity::{
+    Loosed, Roams, Route, Skirmish, SprintAi, Sprinting, Strode, Telegraph, WindUp,
+};
 use crate::explore::ExploreItems;
 use crate::fov;
 use crate::map::Grid;
@@ -38,7 +40,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 54;
+pub const SAVE_VERSION: u32 = 55;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -245,6 +247,8 @@ enum ComponentKind {
     WindUp,
     Telegraph,
     Skirmish,
+    Strode,
+    Loosed,
     OnHit,
     Skills,
     Trains,
@@ -276,7 +280,7 @@ enum ComponentKind {
 }
 
 impl ComponentKind {
-    const ALL: [ComponentKind; 89] = [
+    const ALL: [ComponentKind; 91] = [
         Self::Position,
         Self::Appearance,
         Self::BlocksMovement,
@@ -338,6 +342,8 @@ impl ComponentKind {
         Self::WindUp,
         Self::Telegraph,
         Self::Skirmish,
+        Self::Strode,
+        Self::Loosed,
         Self::OnHit,
         Self::Skills,
         Self::Trains,
@@ -433,6 +439,8 @@ enum SavedComponent {
     SprintAi(SprintAi),
     WindUp(WindUp),
     Skirmish(Skirmish),
+    Strode(Strode),
+    Loosed(Loosed),
     Telegraph {
         technique: u32,
         tiles: Vec<(i32, i32)>,
@@ -802,6 +810,8 @@ fn save_component(
         ComponentKind::SprintAi => copy(entity).map(S::SprintAi),
         ComponentKind::WindUp => copy(entity).map(S::WindUp),
         ComponentKind::Skirmish => copy(entity).map(S::Skirmish),
+        ComponentKind::Strode => copy(entity).map(S::Strode),
+        ComponentKind::Loosed => copy(entity).map(S::Loosed),
         ComponentKind::Telegraph => match entity.get::<&Telegraph>().map(|t| (*t).clone()) {
             Some(Telegraph { technique, tiles }) => Some(S::Telegraph {
                 technique: refer(technique)?,
@@ -1023,6 +1033,8 @@ fn load_component(
         S::SprintAi(c) => builder.add(c),
         S::WindUp(c) => builder.add(c),
         S::Skirmish(c) => builder.add(c),
+        S::Strode(c) => builder.add(c),
+        S::Loosed(c) => builder.add(c),
         S::Telegraph { technique, tiles } => builder.add(Telegraph {
             technique: entity(technique)?,
             tiles,

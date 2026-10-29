@@ -187,9 +187,9 @@ pub(crate) fn ready_fire_from(
         return Err("You can't fire that.".to_string());
     };
     let steady = crate::style::principle(world, actor, crate::entity::Does::SteadyClose);
-    if !steady && stand.is_some_and(|stand| point_blank_at(state, actor, stand)) {
-        strike.accuracy -= POINT_BLANK;
-    }
+    strike.point_blank = !steady && stand.is_some_and(|stand| point_blank_at(state, actor, stand));
+    // A hand-nocked arrow was set before any step, so it is always steady.
+    strike.snap = container != launcher && drawn_on_the_move(state, actor, stand);
     Ok(Ready {
         missile: arrow,
         strike,
@@ -199,6 +199,28 @@ pub(crate) fn ready_fire_from(
         verb: "shoot",
         break_bp: Some(break_bp),
     })
+}
+
+/// Within this long of its last shot a shooter is still reloading; a step in
+/// that time means the next arrow was drawn on the move.
+pub(crate) const SETTLE: u64 = 200;
+
+/// Whether `actor`'s next arrow, shot from `stand`, was drawn on the move:
+/// it shot within `SETTLE` and has stepped since (or steps to `stand` first,
+/// as a technique's dash does). The first shot of an encounter never is: the
+/// shooter came in ready (docs/plans/fights.md).
+fn drawn_on_the_move(state: &GameState, actor: Entity, stand: Option<(i32, i32)>) -> bool {
+    let world = &state.world;
+    let Ok(loosed) = world.get::<&crate::entity::Loosed>(actor).map(|l| l.at) else {
+        return false;
+    };
+    if state.now.since(loosed) > SETTLE {
+        return false;
+    }
+    let stepped = world
+        .get::<&crate::entity::Strode>(actor)
+        .is_ok_and(|strode| strode.at > loosed);
+    stepped || stand.is_some_and(|stand| Some(stand) != position(state, actor))
 }
 
 /// Accuracy lost firing a launcher with an enemy next to the shooter: a
@@ -300,6 +322,11 @@ pub(crate) fn launch(state: &mut GameState, actor: Entity, ready: Ready, at: (i3
     let Some(from) = position(state, actor) else {
         return;
     };
+    if matches!(ready.launch, Launch::Fired(_)) {
+        let _ = state
+            .world
+            .insert_one(actor, crate::entity::Loosed { at: state.now });
+    }
     let item = ready.missile;
     let flight = flight(state, actor, from, at, ready.range);
     if !flight.path.is_empty() {

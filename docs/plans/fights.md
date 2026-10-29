@@ -189,6 +189,21 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   20–40) and give more XP (1100–1300 on the first floor, from 600–900), since the foes are varied.
   The archer looks strong for its depth; tuning is the owner's call.
 
+### Afterwards: archers that can be closed on
+The owner's tuning after the bench reading above (the archer at equal speed was untouchable):
+- **Range costs accuracy.** A launcher holds steady `steady` tiles (a short bow 4; the goblins'
+  crude bow 2, range 7); each tile beyond takes 5% off. Named in the reasons ("range, 3 past steady").
+- **Snap shots.** A shot drawn on the move loses 20%: one fired within two turns of the last shot with
+  a step between (or a technique's step before it). The first shot of an encounter never is (the
+  shooter came in ready), nor is one from a hand-nocked arrow (set before any step). `Strode` and
+  `Loosed` timestamps; named "drawn on the move". Shots cost a standard turn.
+- **Point blank is named** in the reasons instead of folded into accuracy.
+- **The goblin archer** carries 3–8 arrows (drawn on the spawn stream after its placement) and knows
+  only `Snipe`: no parting shot, so sticking to it stops its shooting in the open.
+- Bench: archer kills fell to 4–7 per build in the caves (from 9–14); the level-10 builds still fail
+  to clear (tri-sword 5/20, sabre 0/20), now mostly to plain goblins and rats: health never grows
+  past 20, which is the open question.
+
 ## Out of scope
 
 - Deep water, rubble, darkness as a trade (FOV assumes uniform light, ADR 0007), noise, stealth.
