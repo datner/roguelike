@@ -29,6 +29,8 @@ pub struct Targets {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Survival {
     pub builds: Vec<String>,
+    /// The dives (by name) it applies to: where such a character would go.
+    pub dives: Vec<String>,
     pub floor: u32,
     /// Fractions of the runs, low to high.
     pub share: (f64, f64),
@@ -196,11 +198,9 @@ pub fn misses(rows: &[DiveRow], targets: &Targets) -> Vec<Miss> {
                 ));
             }
         }
-        for target in targets
-            .survival
-            .iter()
-            .filter(|target| target.builds.contains(&row.build))
-        {
+        for target in targets.survival.iter().filter(|target| {
+            target.builds.contains(&row.build) && target.dives.contains(&row.dive.name)
+        }) {
             let floor = usize::try_from(target.floor).unwrap_or(usize::MAX);
             let reached = row
                 .runs
@@ -301,6 +301,7 @@ mod tests {
             ],
             survival: vec![Survival {
                 builds: vec!["bumper".into()],
+                dives: vec!["Caves".into()],
                 floor: 3,
                 share: (0.6, 0.9),
             }],
