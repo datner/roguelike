@@ -42,7 +42,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 62;
+pub const SAVE_VERSION: u32 = 63;
 
 #[derive(Debug)]
 pub enum SaveError {

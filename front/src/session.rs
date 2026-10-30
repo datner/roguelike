@@ -323,8 +323,18 @@ impl Session {
                 match chooser.handle(input, &indices) {
                     Some(ChooserAction::Cancel) => self.mode = Mode::Play,
                     Some(ChooserAction::Pick(phase)) => {
-                        take_turn(state, PlayerAction::WaitForPhase(phase));
-                        self.mode = Mode::Play;
+                        let refused = usize::try_from(phase)
+                            .ok()
+                            .and_then(|i| phases(state).into_iter().nth(i))
+                            .and_then(|view| view.refused);
+                        // A refused phase keeps the list up, its reason logged.
+                        match refused {
+                            Some(why) => state.log.push(why),
+                            None => {
+                                take_turn(state, PlayerAction::WaitForPhase(phase));
+                                self.mode = Mode::Play;
+                            }
+                        }
                     }
                     None => {}
                 }

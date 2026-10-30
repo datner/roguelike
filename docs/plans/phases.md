@@ -78,7 +78,13 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_VERSION` bump. Run
 `scripts/balance.sh` after any slice that changes numbers.
 
-### 1. The seam and the lean
+### 1. The seam and the lean — done
+- As built: `rules` is not added until slice 3 needs it. The lean is applied in
+  `BeforeTakeDamage::new`, the constructor both `deal_damage` and `preview_damage` use. The choosing
+  seam is `phase::refusal(state, index)` (read by `WaitForPhase`'s input check and by
+  `phases()`, whose `PhaseView` gains `refused`), not a separate `choices`: `phases()` already is
+  the list every frontend reads. A refused pick keeps the chooser up with its reason logged
+  (untestable from `front` today, since nothing refuses at camp). Save version 63.
 - `Phase` gains `element: Option<DamageType>`, `lean: u32` (%), `rules: Vec<Rule>` (empty until slice
   3) and `opposite: Option<String>`, checked at load (an opposite exists and names it back).
 - `phase::current`, `phase::choices`; the camp phase chooser (`front`) lists `choices`, and a refused

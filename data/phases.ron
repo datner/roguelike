@@ -1,7 +1,10 @@
-// Phases (game::phase): the world turns through these, and at camp you
-// choose which to wait for; a dive keeps the phase it began in. The first is
-// where a new world starts. A dungeon's spawn entries may name the phases
-// they belong to (none means every phase).
+// Phases (game::phase, docs/plans/phases.md): the world turns through these,
+// and at camp you choose which to wait for; a dive keeps the phase it began
+// in. The first is where a new world starts. A dungeon's spawn entries may
+// name the phases they belong to (none means every phase).
+// `element` and `lean`: damage of that element is `lean`% stronger, for
+// everyone. `opposite` names the opposed phase, which names this one back.
+// The stillness leans nowhere, on purpose.
 [
     (
         key: "Stillness",
@@ -12,5 +15,32 @@
         key: "Embers",
         name: "the embers",
         wait: "You wait until heat rises from below and the shamans stir.",
+        element: Fire,
+        lean: 50,
+        opposite: "Rime",
+    ),
+    (
+        key: "Rime",
+        name: "the rime",
+        wait: "You wait until frost creeps up the stairs and your breath hangs.",
+        element: Cold,
+        lean: 50,
+        opposite: "Embers",
+    ),
+    (
+        key: "Tempest",
+        name: "the tempest",
+        wait: "You wait until the air hums and the hair on your arms rises.",
+        element: Shock,
+        lean: 50,
+        opposite: "Mire",
+    ),
+    (
+        key: "Mire",
+        name: "the mire",
+        wait: "You wait until the ground softens and everything smells of rot.",
+        element: Acid,
+        lean: 50,
+        opposite: "Tempest",
     ),
 ]

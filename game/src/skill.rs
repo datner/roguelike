@@ -86,7 +86,7 @@ impl Core {
             DamageType::Piercing => Some(self.pierce),
             DamageType::Slashing => Some(self.slash),
             DamageType::Blunt => Some(self.blunt),
-            DamageType::Fire | DamageType::Cold | DamageType::Shock => None,
+            DamageType::Fire | DamageType::Cold | DamageType::Shock | DamageType::Acid => None,
         }
     }
 }

@@ -256,10 +256,10 @@ The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through rea
 - pit fighter in Caves in the Embers: fight length 8.7 (target 3–8)
 - pit fighter in Caves in the Embers: keypresses per floor 97 (target 150–300)
 - duelist in Caves in the Embers: keypresses per floor 55 (target 150–300)
-- hedge mage in Caves in the Embers: fight length 2.1 (target 3–8)
-- hedge mage in Caves in the Embers: keypresses per floor 65 (target 150–300)
-- hedge mage in Caves in the Embers: floors to Magic 10 ~63 (target 12–48)
-- hedge mage in Caves in the Embers: floors to Magic 15 ~151 (target 36–90)
+- hedge mage in Caves in the Embers: fight length 1.9 (target 3–8)
+- hedge mage in Caves in the Embers: keypresses per floor 60 (target 150–300)
+- hedge mage in Caves in the Embers: floors to Magic 10 ~62 (target 12–48)
+- hedge mage in Caves in the Embers: floors to Magic 15 ~147 (target 36–90)
 - wanderer in Caves in the Embers: keypresses per floor 67 (target 150–300)
 - pit fighter in Castle: fight length 9.6 (target 3–8)
 - pit fighter in Castle: keypresses per floor 102 (target 150–300)
@@ -365,12 +365,12 @@ Caves, Embers, 6 floors.
 | pit fighter | 1 | 20/20 | 117 (87–145) | 962 | 1950 (Dodge 291) | 24.9 | 13 | 11.7 | 8.9 (3.0–15.0) |
 | pit fighter | 2 | 5/20 | 77 (56–107) | 588 | 640 (Toughness 131) | 4.6 | 69 | 8.8 | 7.6 (1.0–13.0) |
 | duelist | 1 | 20/20 | 55 (40–80) | 534 | 1686 (Toughness 209) | 20.0 | 22 | 7.9 | 5.9 (2.0–9.0) |
-| hedge mage | 1 | 20/20 | 50 (47–55) | 1304 | 1165 (Magic 209) | 0.0 | 1 | 15.3 | 2.1 (1.0–3.0) |
-| hedge mage | 2 | 20/20 | 56 (52–60) | 1329 | 703 (Magic 148) | 0.1 | 5 | 17.2 | 2.2 (1.0–3.0) |
-| hedge mage | 3 | 20/20 | 62 (57–68) | 1327 | 582 (Magic 116) | 0.0 | 0 | 19.4 | 2.1 (1.0–3.0) |
-| hedge mage | 4 | 20/20 | 67 (63–70) | 1323 | 563 (Magic 92) | 0.0 | 3 | 21.1 | 2.1 (1.0–4.0) |
-| hedge mage | 5 | 20/20 | 73 (67–76) | 1353 | 487 (Magic 80) | 0.0 | 1 | 23.0 | 2.1 (1.0–3.0) |
-| hedge mage | 6 | 20/20 | 80 (73–86) | 1364 | 436 (Magic 71) | 0.0 | 1 | 25.1 | 2.1 (1.0–4.0) |
+| hedge mage | 1 | 20/20 | 47 (43–50) | 1299 | 1043 (Magic 192) | 0.0 | 3 | 15.3 | 1.9 (1.0–3.0) |
+| hedge mage | 2 | 20/20 | 52 (50–55) | 1330 | 631 (Magic 139) | 0.0 | 4 | 16.9 | 1.9 (1.0–3.0) |
+| hedge mage | 3 | 20/20 | 57 (53–63) | 1323 | 520 (Magic 109) | 0.0 | 0 | 19.0 | 1.9 (1.0–3.0) |
+| hedge mage | 4 | 20/20 | 62 (58–65) | 1318 | 506 (Magic 91) | 0.1 | 1 | 20.8 | 1.9 (1.0–3.0) |
+| hedge mage | 5 | 20/20 | 68 (62–73) | 1345 | 432 (Magic 75) | 0.0 | 1 | 22.9 | 1.9 (1.0–3.0) |
+| hedge mage | 6 | 20/20 | 74 (69–78) | 1365 | 421 (Magic 73) | 0.0 | 3 | 24.6 | 1.9 (1.0–3.0) |
 | wanderer | 1 | 20/20 | 67 (39–92) | 485 | 1700 (Bow 212) | 20.0 | 21 | 9.4 | 6.1 (1.0–13.0) |
 
 - **pit fighter**: 0 reached floor 6, 20 died (goblin 6, goblin brute 5, goblin shaman 5, goblin archer 3, unseen 1), 0 stuck.
@@ -382,7 +382,7 @@ Caves, Embers, 6 floors.
 |---|---|---|---|---|---|
 | pit fighter | Dodge | ~4 | ~17 | ~38 | 5.8 |
 | duelist | Toughness | ~6 | ~24 | ~54 | 3.3 |
-| hedge mage | Magic | ~11 | ~63 | ~151 | 3.9 |
+| hedge mage | Magic | ~11 | ~62 | ~147 | 3.6 |
 | wanderer | Bow | ~6 | ~24 | ~53 | 4.0 |
 
 ### Castle

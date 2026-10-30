@@ -60,16 +60,19 @@ pub enum DamageType {
     Fire,
     Cold,
     Shock,
+    /// The Mire's element (docs/plans/phases.md): it corrodes.
+    Acid,
 }
 
 impl DamageType {
-    pub const ALL: [DamageType; 6] = [
+    pub const ALL: [DamageType; 7] = [
         Self::Slashing,
         Self::Blunt,
         Self::Piercing,
         Self::Fire,
         Self::Cold,
         Self::Shock,
+        Self::Acid,
     ];
 
     pub fn noun(self) -> &'static str {
@@ -80,6 +83,7 @@ impl DamageType {
             Self::Fire => "fire",
             Self::Cold => "cold",
             Self::Shock => "shock",
+            Self::Acid => "acid",
         }
     }
 
@@ -143,6 +147,7 @@ pub struct Armor {
     pub fire: i32,
     pub cold: i32,
     pub shock: i32,
+    pub acid: i32,
 }
 
 impl Armor {
@@ -170,6 +175,7 @@ impl Armor {
             DamageType::Fire => self.fire,
             DamageType::Cold => self.cold,
             DamageType::Shock => self.shock,
+            DamageType::Acid => self.acid,
         }
     }
 
@@ -188,6 +194,7 @@ impl Armor {
             fire: self.fire + other.fire,
             cold: self.cold + other.cold,
             shock: self.shock + other.shock,
+            acid: self.acid + other.acid,
         }
     }
 }

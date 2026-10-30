@@ -36,11 +36,14 @@ pub fn flat(row: &[Seg]) -> String {
 }
 
 /// A phase in the camp's list: its name, and a quiet note on the one the
-/// next dive will be in.
+/// next dive will be in, or on why it can't be chosen.
 pub fn phase(phase: &PhaseView) -> Row {
     let mut row = vec![Seg::Plain(capitalize(&phase.name))];
     if phase.chosen {
         row.push(Seg::Quiet("  (the next dive)".into()));
+    }
+    if let Some(why) = &phase.refused {
+        row.push(Seg::Quiet(format!("  ({why})")));
     }
     row
 }

@@ -10,8 +10,8 @@ use crate::combat::{self, AfterHit, BeforeTakeDamage, Damaged};
 use crate::cost;
 use crate::effect::{self, DurationChange};
 use crate::entity::{
-    Armor, BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, Rider,
-    SpawnSeq, Summoned,
+    BlocksMovement, DamageTypes, Dead, Energy, Found, Health, Item, Position, Rider, SpawnSeq,
+    Summoned,
 };
 use crate::equipment;
 use crate::event::{Ctx, settle};
@@ -473,14 +473,10 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
             }
             state.log.push("There is nothing here to pick up.");
         }
-        Command::WaitForPhase { phase, .. } => {
-            let known = usize::try_from(phase).is_ok_and(|i| i < state.blueprints.phases().len());
-            match crate::phase::wait_refusal(state) {
-                None if known => return false,
-                None => state.log.push("There is no such phase."),
-                Some(why) => state.log.push(why),
-            }
-        }
+        Command::WaitForPhase { phase, .. } => match crate::phase::refusal(state, phase) {
+            None => return false,
+            Some(why) => state.log.push(why),
+        },
         Command::Descend(entity) | Command::Ascend(entity) => {
             let (stairs, refusal) = match *command {
                 Command::Descend(_) => (Tile::StairsDown, "There are no stairs down here."),
@@ -814,17 +810,11 @@ fn deal_damage(state: &mut GameState, target: Entity, amount: i32, cause: Damage
         return;
     }
 
-    let dealt = settle(dispatch(
-        state,
-        target,
-        BeforeTakeDamage {
-            target,
-            amount,
-            armor: Armor::default(),
-            cause,
-        },
-    ))
-    .dealt();
+    let before = BeforeTakeDamage::new(state, target, amount, cause);
+    // What the blow carries once the phase has leaned it: "blocked" is
+    // measured from here.
+    let amount = before.amount;
+    let dealt = settle(dispatch(state, target, before)).dealt();
     let victim = Subject::of(&state.world, target);
     if dealt == 0 {
         if amount > 0 {

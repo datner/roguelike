@@ -34,6 +34,7 @@ Point at code by module path (`game/src/combat.rs`), component, type or `Command
 | [0024](0024-techniques.md) | Techniques: attached like spells, paid in turns, recharge and (dormant) stamina; their blows are ordinary blows | Accepted |
 | [0025](0025-origins.md) | Origins: `data/origins.ron` names a blueprint inheriting the bare `Player`, its styles; `Origin(key)` saved | Accepted |
 | [0026](0026-legacy.md) | Legacy: a life ends in a `Record` of names in `<saves>/legacy.ron`; spawns carry `Made(name)` | Accepted |
+| [0027](0027-phases.md) | Phases: data with element, symmetric lean and opposite; `phase::current` and `phase::refusal` the seams | Accepted |
 
 ## Template
 

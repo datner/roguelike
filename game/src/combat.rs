@@ -33,6 +33,18 @@ pub(crate) struct BeforeTakeDamage {
 }
 
 impl BeforeTakeDamage {
+    /// The event for `amount` of `cause` at `target`, leaned by the current
+    /// phase first (docs/plans/phases.md). The one place damage enters, so
+    /// real hits and `preview_damage` lean alike.
+    pub fn new(state: &GameState, target: Entity, amount: i32, cause: DamageCause) -> Self {
+        Self {
+            target,
+            amount: crate::phase::leaned(state, amount, cause.types()),
+            armor: Armor::default(),
+            cause,
+        }
+    }
+
     /// What gets through: `amount` less the gathered armor against this
     /// blow's kinds, never negative. The one place that sum is made, so real
     /// hits and `preview_damage` agree.
@@ -767,20 +779,13 @@ pub(crate) fn preview_damage(state: &GameState, attacker: Entity, target: Entity
         rng: &mut rng,
         out: &mut scratch,
     };
-    let ev = settle(state.events.fire(
-        &mut ctx,
-        target,
-        BeforeTakeDamage {
-            target,
-            amount: hit.amount,
-            armor: Armor::default(),
-            cause: DamageCause::Melee {
-                attacker,
-                types: hit.types,
-                graze: false,
-            },
-        },
-    ));
+    let cause = DamageCause::Melee {
+        attacker,
+        types: hit.types,
+        graze: false,
+    };
+    let before = BeforeTakeDamage::new(state, target, hit.amount, cause);
+    let ev = settle(state.events.fire(&mut ctx, target, before));
     Some(ev.dealt())
 }
 
@@ -1096,6 +1101,7 @@ mod tests {
         fire: 0,
         cold: 0,
         shock: 0,
+        acid: 0,
     };
 
     #[test]
@@ -1228,6 +1234,55 @@ mod tests {
                 target: dummy,
             });
             assert_eq!(health_before - health(&state, dummy), preview);
+        }
+    }
+
+    #[test]
+    fn a_leaning_phase_strengthens_its_element_for_anyone_and_the_preview_agrees() {
+        let mut state = bare_state();
+        state.place = crate::dive::Place::Floor {
+            dungeon: "Test".into(),
+            phase: "Embers".into(),
+            dive: 1,
+            floor: 1,
+        };
+        let player = state.player;
+        let goblin = thing("goblin").health(1000).at(2, 1).make(&mut state);
+        state.world.get::<&mut Health>(player).unwrap().current = 1000;
+        for (from, to) in [(goblin, player), (player, goblin)] {
+            for (types, taken) in [(&[DamageType::Fire][..], 15), (&[DamageType::Cold], 10)] {
+                let before = health(&state, to);
+                state.run(Command::DealDamage {
+                    target: to,
+                    amount: 10,
+                    cause: DamageCause::Melee {
+                        attacker: from,
+                        types: DamageTypes::of(types),
+                        graze: false,
+                    },
+                });
+                assert_eq!(before - health(&state, to), taken, "{types:?}");
+            }
+        }
+
+        sure_hits(&mut state, player);
+        thing("brand")
+            .with(Weapon {
+                min: 1,
+                max: 20,
+                stat: Stat::Strength,
+                types: DamageTypes::single(DamageType::Fire),
+            })
+            .equipped_on(player, 0)
+            .make(&mut state);
+        for _ in 0..10 {
+            let before = health(&state, goblin);
+            let preview = preview_damage(&state, player, goblin).unwrap();
+            state.run(Command::Attack {
+                attacker: player,
+                target: goblin,
+            });
+            assert_eq!(before - health(&state, goblin), preview);
         }
     }
 
