@@ -1,9 +1,9 @@
 //! A game in progress as a frontend drives it: the state, which mode takes the keys (play, a list, a cursor), auto-explore and practice runs, and the status line. The rules of the keyboard flows live here once, so every frontend behaves the same; frontends only map keys and draw.
 
 use game::{
-    FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items, explore_step,
-    fire_step, phases, practice_step, rest_step, spells, take_fx, take_turn, techniques,
-    throwables, travel_step, wait_refusal,
+    Dir, FireStep, Fx, GameState, InputEvent, PlayerAction, Shot, cycle_explore_items,
+    explore_step, fire_step, phases, practice_step, rest_step, spells, step_warning, take_fx,
+    take_turn, techniques, throwables, travel_step, wait_refusal,
 };
 
 use crate::input::Input;
@@ -67,6 +67,9 @@ pub struct Session {
     why: bool,
     /// Inputs that took a turn or started a run (docs/plans/calibration.md).
     keypresses: u64,
+    /// The step just refused with a warning (`game::step_warning`): pressed
+    /// again next, it goes.
+    warned: Option<Dir>,
 }
 
 impl Session {
@@ -78,6 +81,7 @@ impl Session {
             auto: None,
             why: false,
             keypresses: 0,
+            warned: None,
         }
     }
 
@@ -155,6 +159,8 @@ impl Session {
     pub fn handle(&mut self, input: Input) -> Outcome {
         // `?` shows the whys; any other key puts them away again.
         self.why = input == Input::Game(InputEvent::Why);
+        // A warning holds for the very next key only.
+        let warned = self.warned.take();
         if self.auto.take().is_some() {
             return Outcome::Continue;
         }
@@ -163,7 +169,7 @@ impl Session {
             return Outcome::Quit;
         }
         let outcome = match input {
-            Input::Game(event) => self.handle_game(event),
+            Input::Game(event) => self.handle_game(event, warned),
             Input::List(input) => {
                 self.handle_list(input);
                 Outcome::Continue
@@ -189,14 +195,22 @@ impl Session {
         outcome
     }
 
-    fn handle_game(&mut self, event: InputEvent) -> Outcome {
+    /// `warned`: the step refused by the previous key, if it was one.
+    fn handle_game(&mut self, event: InputEvent, warned: Option<Dir>) -> Outcome {
         if !matches!(self.mode, Mode::Play) {
             return Outcome::Continue;
         }
         let state = &mut self.state;
         match event {
             InputEvent::Quit => return Outcome::Quit,
-            InputEvent::Move(dir) => take_turn(state, PlayerAction::Move(dir)),
+            // A step into a coming blow is refused once, with the warning.
+            InputEvent::Move(dir) => match step_warning(state, dir) {
+                Some(warning) if warned != Some(dir) => {
+                    state.log.push(warning);
+                    self.warned = Some(dir);
+                }
+                _ => take_turn(state, PlayerAction::Move(dir)),
+            },
             InputEvent::Wait => take_turn(state, PlayerAction::Wait),
             InputEvent::PickUp => take_turn(state, PlayerAction::PickUp),
             InputEvent::Descend => take_turn(state, PlayerAction::Descend),

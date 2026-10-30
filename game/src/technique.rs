@@ -1022,6 +1022,23 @@ pub(crate) fn telegraphed(state: &GameState) -> Vec<(i32, i32)> {
         .collect()
 }
 
+/// Why the player's step in `dir` deserves a second thought: it ends on a
+/// tile a wind-up in view will strike (docs/plans/fights-2.md). A bump at a
+/// creature is no step, so it is never warned. The frontend's flow decides
+/// what a warning does.
+pub fn step_warning(state: &GameState, dir: crate::input::Dir) -> Option<&'static str> {
+    let at = *state.world.get::<&Position>(state.player).ok()?;
+    let (dx, dy) = dir.delta();
+    let to = (at.x + dx, at.y + dy);
+    let creature_there = state
+        .world
+        .query::<(&Position, &crate::entity::Health)>()
+        .iter()
+        .any(|(pos, _)| (pos.x, pos.y) == to);
+    (!creature_there && telegraphed(state).contains(&to))
+        .then_some("A blow is about to land there. Step again to go anyway.")
+}
+
 /// Applies `Command::Ride`: `rider` on `target`, unless the hit killed it (its
 /// `Die` is queued after the rider, so health is what tells).
 pub(crate) fn ride(state: &mut GameState, actor: Entity, target: Entity, rider: Rider) {
@@ -1209,7 +1226,7 @@ fn shown(state: &GameState, combo: &Combo, known: &[Option<Combo>]) -> bool {
 mod tests {
     use super::*;
     use crate::entity::{DamageType, DamageTypes, Health, Learner, Stat, Weapon};
-    use crate::input::PlayerAction;
+    use crate::input::{Dir, PlayerAction};
     use crate::state::tests::bare_state;
     use crate::testkit::{last_log, see_everything, sure_hits, thing};
     use crate::time::take_turn;
@@ -1378,6 +1395,27 @@ mod tests {
         crate::effect::expire_effect(&mut state, telegraph);
         crate::command::apply_commands(&mut state);
         assert_eq!(player_health(&state), before);
+    }
+
+    #[test]
+    fn a_step_onto_a_marked_tile_is_warned_and_others_are_not() {
+        let (mut state, brute) = brute_beside_player();
+        swing(&mut state, brute);
+        let player = state.player;
+        *state.world.get::<&mut Position>(player).unwrap() = Position { x: 4, y: 1 };
+        assert!(step_warning(&state, Dir::W).is_some(), "into the swing");
+        assert_eq!(step_warning(&state, Dir::E), None, "away from it");
+        state.visible.set(3, 1, false);
+        assert_eq!(step_warning(&state, Dir::W), None, "not in view");
+    }
+
+    #[test]
+    fn a_bump_at_a_creature_on_a_marked_tile_is_not_warned() {
+        let (mut state, brute) = brute_beside_player();
+        swing(&mut state, brute);
+        thing("rat").health(3).at(1, 2).make(&mut state);
+        assert_eq!(step_warning(&state, Dir::S), None);
+        assert!(step_warning(&state, Dir::SE).is_some());
     }
 
     #[test]

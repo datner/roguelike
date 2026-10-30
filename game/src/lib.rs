@@ -101,7 +101,7 @@ pub use skill::{Domain, SkillBook, SkillDef};
 pub use sprint::sprinting;
 pub use state::{GameState, MessageLog, render_view};
 pub use style::{StyleDef, StyleView, styles};
-pub use technique::{NeedDef, TechniqueDef, TechniqueView, techniques};
+pub use technique::{NeedDef, TechniqueDef, TechniqueView, step_warning, techniques};
 pub use tiles::{Sprite, SpriteId, Tiles};
 pub use time::{Tick, Timers, advance, take_turn};
 pub use training::practice_step;
