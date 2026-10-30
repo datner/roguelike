@@ -342,7 +342,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
                 // The phase's MoveCost, the one place it is read.
                 Command::TryMove(..) => crate::phase::grown(
                     cost,
-                    crate::phase::rule(state, |rule| match rule {
+                    crate::phase::rule(state, actor, |rule| match rule {
                         crate::phase::Rule::MoveCost(pct) => Some(pct),
                         _ => None,
                     }),

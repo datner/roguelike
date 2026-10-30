@@ -27,7 +27,7 @@ pub(crate) fn lit_by(state: &GameState) -> impl Fn(i32, i32) -> Option<Lit> + '_
             .map(|pos| *pos),
     );
     // The phase's LightReach, the one place it is read.
-    let farther = crate::phase::rule(state, |rule| match rule {
+    let farther = crate::phase::rule(state, state.player, |rule| match rule {
         crate::phase::Rule::LightReach(pct) => Some(pct),
         _ => None,
     });

@@ -907,7 +907,7 @@ pub(crate) mod tests {
         )
         .and_then(|blueprints| {
             blueprints
-                .with_phases(crate::phase::tests::test_phases())
+                .with_phases(crate::phase::tests::test_phases())?
                 .with_dungeons(BTreeMap::from([(
                     "Test".to_string(),
                     crate::dungeon::tests::test_dungeon(),

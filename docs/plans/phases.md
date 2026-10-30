@@ -125,7 +125,13 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: each rule changes its one number in its phase and not elsewhere; the aim preview shows the
   falloff.
 
-### 4. Attunement
+### 4. Attunement — done
+- As built: `Phase.attunement` names its skill (checked at load by `with_phases`), not a naming
+  convention. `skill::train` adds `phase::attuning(state)`: the dive's phase only, so camp trains none.
+  `phase::rule` takes the holder (no separate `rule_strength`): each attunement level takes 5% off the
+  phase's *hardships* for them, at most 75%; `LightReach` is a boon and is left whole. The lean is
+  untouched. Attunement takes a quarter of a use's XP (`ATTUNE_SHARE`), outside familiarity: at full
+  XP it rode along with every use and outgrew the skills that earned it on the bench.
 - `attunement` domain and one skill per elemental phase in `skills.ron`; `skill::train` adds the current
   phase's attunement to every use with stakes.
 - Attunement level softens each rule for its holder (in the same one reader, through

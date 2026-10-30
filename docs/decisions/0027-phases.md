@@ -27,6 +27,9 @@ lean the whole world one way, for everyone, and the character systems to read it
 - **A rule is data, read where its system already decides**: `Rule` variants with a strength in
   percent, each read in exactly one place through `phase::rule` (light, stamina rate, missile odds,
   step cost), so a new rule is a variant and one reader.
+- **Attunement softens hardships for the attuned, never the lean**: a phase names its attunement skill,
+  trained by every use with stakes on a dive in it; `phase::rule(state, who, …)` takes its level off
+  the rule's strength for `who`. A boon (light reaching farther) is not softened.
 - `DamageType::Acid`, the Mire's element; armor resists it like any kind. Save version 63.
 
 ## Consequences

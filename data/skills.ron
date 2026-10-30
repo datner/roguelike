@@ -56,4 +56,12 @@
     // Lore: what you know of the world, grown by meeting new things.
     (name: "Beast lore", domain: Lore, weight: 1),
     (name: "Arcana", domain: Lore, weight: 1),
+
+    // Attunement: at home in a phase (docs/plans/phases.md). Any use with
+    // stakes on a dive trains its phase's; each level softens that phase's
+    // hardships for you, never its lean.
+    (name: "Embers attunement", domain: Attunement, weight: 1),
+    (name: "Rime attunement", domain: Attunement, weight: 1),
+    (name: "Tempest attunement", domain: Attunement, weight: 1),
+    (name: "Mire attunement", domain: Attunement, weight: 1),
 ]

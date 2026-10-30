@@ -31,6 +31,8 @@ pub enum Domain {
     Defence,
     Magic,
     Lore,
+    /// Being at home in a phase (docs/plans/phases.md).
+    Attunement,
 }
 
 /// One entry of `data/skills.ron`. `weight` is how much the skill counts in
@@ -190,6 +192,8 @@ impl SkillBook {
 pub const MAX_LEVEL: u32 = 20;
 /// XP for one counted use, before repetition decays it.
 pub(crate) const BASE_XP: u32 = 10;
+/// A use's XP divided by this is what it attunes to the dive's phase.
+const ATTUNE_SHARE: u32 = 4;
 /// How fast repetition decays XP: the `n`th use against the same kind of
 /// thing is worth `DECAY / (DECAY + n)` of a first one.
 const DECAY: u32 = 10;
@@ -436,6 +440,12 @@ pub(crate) fn train(
             familiarity.count(skill, &kind);
         }
         let _ = state.world.insert_one(learner, familiarity);
+    }
+    // The dive's phase attunes every use (docs/plans/phases.md), a share of
+    // it: it rides along with everything, so at full XP it would outgrow
+    // the skills that earned it.
+    if let Some(attunement) = crate::phase::attuning(state) {
+        gains.push((attunement, base / ATTUNE_SHARE));
     }
     gain(state, learner, &gains);
     // Only uses with stakes reach here, so only they can invent or inspire.

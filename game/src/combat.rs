@@ -453,7 +453,7 @@ pub(crate) fn odds_explained(
     let phase_falloff = match strike.steady {
         None => 0,
         Some(_) => {
-            let pct = crate::phase::rule(state, |rule| match rule {
+            let pct = crate::phase::rule(state, attacker, |rule| match rule {
                 crate::phase::Rule::RangedFalloff(pct) => Some(pct),
                 _ => None,
             });

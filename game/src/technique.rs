@@ -411,7 +411,7 @@ pub(crate) fn stamina(state: &GameState, actor: Entity) -> Option<(Pool, PoolRat
     let mut rates = pool.rates(stats);
     // The phase's StaminaRecovery, the one place it is read. A pool spans a
     // change of phase only across stairs, so reading today's rate is enough.
-    let slower = crate::phase::rule(state, |rule| match rule {
+    let slower = crate::phase::rule(state, actor, |rule| match rule {
         crate::phase::Rule::StaminaRecovery(pct) => Some(pct),
         _ => None,
     });

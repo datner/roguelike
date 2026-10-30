@@ -445,7 +445,7 @@ impl Blueprints {
             .with_discoveries(discovery::read(&data.join("discoveries.ron"))?)?
             .with_tiles(Tiles::load(data)?)?
             .with_origins(crate::origin::read(data)?)?
-            .with_phases(phase::read(data)?)
+            .with_phases(phase::read(data)?)?
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)?
             .with_legacy(crate::legacy::read(data)?)
             .and_then(|blueprints| {
@@ -731,9 +731,20 @@ impl Blueprints {
     }
 
     /// Set before the dungeons, which name phases.
-    pub fn with_phases(mut self, phases: Vec<Phase>) -> Self {
+    /// A phase's attunement must be a skill there is.
+    pub fn with_phases(mut self, phases: Vec<Phase>) -> Result<Self, BlueprintError> {
+        for phase in &phases {
+            if let Some(skill) = &phase.attunement
+                && self.skills.id(skill).is_none()
+            {
+                return Err(BlueprintError::BadPhases(format!(
+                    "{:?}'s attunement {skill:?} is no skill",
+                    phase.key
+                )));
+            }
+        }
         self.phases = phases;
-        self
+        Ok(self)
     }
 
     pub fn phases(&self) -> &[Phase] {

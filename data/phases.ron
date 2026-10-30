@@ -7,6 +7,8 @@
 // `rules` each bend one rule for everyone, in percent: LightReach (held
 // light reaches farther), StaminaRecovery (slower), RangedFalloff (per tile
 // a missile flies), MoveCost (a step costs more).
+// `attunement` names the skill a use with stakes in it trains, which
+// softens its hardships for the attuned.
 // The stillness leans nowhere, on purpose.
 [
     (
@@ -22,6 +24,7 @@
         lean: 50,
         opposite: "Rime",
         rules: [LightReach(50)],
+        attunement: "Embers attunement",
     ),
     (
         key: "Rime",
@@ -31,6 +34,7 @@
         lean: 50,
         opposite: "Embers",
         rules: [StaminaRecovery(50)],
+        attunement: "Rime attunement",
     ),
     (
         key: "Tempest",
@@ -40,6 +44,7 @@
         lean: 50,
         opposite: "Mire",
         rules: [RangedFalloff(4)],
+        attunement: "Tempest attunement",
     ),
     (
         key: "Mire",
@@ -49,5 +54,6 @@
         lean: 50,
         opposite: "Tempest",
         rules: [MoveCost(25)],
+        attunement: "Mire attunement",
     ),
 ]
