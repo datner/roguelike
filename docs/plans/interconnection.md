@@ -60,7 +60,10 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   and ignores *(vision)* entries (a small shell test beside the other script tests, or a fixture run
   in `check.sh` itself).
 
-### 2. Unbuilt plans: legacy and phases
+### 2. Unbuilt plans: legacy and phases — done
+- As built: both meet the bar from what they already plan; no gap slices were needed. Phases' "read by
+  light, stamina and movement rules" are rules on every creature, not other systems, so they are not
+  listed.
 - Write their `## Connections` sections from what they already plan. First pass, to verify:
   - **phases** reads combat (the lean in damage), skills (attunement in `skill::train`), styles
     (`Style.thrives`), discovery (`Requirement::Phase`), dives (`Place::Floor` keeps the phase); read by

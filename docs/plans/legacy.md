@@ -167,4 +167,19 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- origins: `Record.origin` names the origin the life began as *(planned: slice 1)*.
+- skills: `Record.skills` holds each skill's level, the memoir's cap *(planned: slice 1)*.
+- techniques: `Record.techniques`, abilities left out *(planned: slice 1)*.
+- discovery: `Record.discoveries` from `Discovered`, a journal's contents *(planned: slice 1)*.
+- dives: the camp store becomes `Record.stash`; `Record.place` names the dungeon, floor and phase
+  *(planned: slices 1, 2)*.
+- combat: `Command::Die`'s `cause` becomes the record's ending *(planned: slice 1)*.
+
+**Read by**
+- dives: `GameState::new_as` builds ruins at camp's ruin spots from the records *(planned: slice 3)*.
+- training: a memoir is a `Study` lesson raising skills to a cap through `skill::gain`
+  *(planned: slice 4)*.
+- techniques: a memoir teaches its recorded techniques through `learn` *(planned: slice 4)*.
+- discovery: `Revealed` makes `discovery::ideas` list a journal's discoveries with their requirements
+  *(planned: slice 4)*.

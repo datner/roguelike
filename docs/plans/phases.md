@@ -138,4 +138,19 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- dives: a floor keeps the phase it was entered in (`Place::Floor`); camp reads the one waited for
+  through `WaitForPhase`, and `phase::current` reads both.
+- skills: a holder's attunement level softens a rule for them, in `phase::rule_strength`
+  *(planned: slice 4)*.
+
+**Read by**
+- combat: the element lean where typed damage is finished, and `RangedFalloff` in `combat::odds`
+  *(planned: slices 1, 3)*.
+- skills: `skill::train` trains the current phase's attunement on every use with stakes
+  *(planned: slice 4)*.
+- styles: `Style.thrives` multiplies style XP in its phases, in `style.rs`'s training
+  *(planned: slice 5)*.
+- discovery: `Requirement::Phase` is met only in that phase *(planned: slice 5)*.
+- dives: spawn entries with `phases:` decide a floor's natives and finds.
+- legacy: a record's `place` names the phase of the ending *(planned: legacy.md, slice 1)*.
