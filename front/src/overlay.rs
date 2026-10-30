@@ -589,13 +589,24 @@ fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<us
                 .iter()
                 .map(|(skill, level)| format!("{skill} {level}"))
                 .collect();
-            let more = match idea.unmet {
-                0 => String::new(),
-                n => format!(" + {n} more"),
+            let text = if idea.missing.is_empty() {
+                let more = match idea.unmet {
+                    0 => String::new(),
+                    n => format!(" + {n} more"),
+                };
+                format!("{}{more}", met.join(", "))
+            } else {
+                // Read of in a journal: named, with what is still needed.
+                let needs: Vec<String> = idea
+                    .missing
+                    .iter()
+                    .map(|(skill, level)| format!("{skill} {level}"))
+                    .collect();
+                format!("{}: needs {}", idea.name, needs.join(", "))
             };
             lines.push(PanelLine::plain(vec![
                 Seg::Plain("  ? ".to_string()),
-                quiet(format!("{}{more}", met.join(", "))),
+                quiet(text),
             ]));
         }
     }

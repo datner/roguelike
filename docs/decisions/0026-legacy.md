@@ -36,6 +36,11 @@ last ones left (docs/plans/legacy.md), so a life needs a form that outlives its 
   first). An older record's gap is its newer neighbour's plus a roll, so older ruins are never better
   kept and nothing ages during play. Camp marks a ruin spot (`x`) per kept life.
 
+- **Writings pass on knowledge, never strength.** A memoir is a lesson (`Study`, no stakes, ADR
+  0017): it raises each recorded skill to at most `lesson`% of the predecessor's level and never
+  lowers one, and teaches their techniques. A journal reveals their discoveries (`Revealed`), listed
+  with every requirement; the inspiration itself still needs a use with stakes (ADR 0018).
+
 ## Consequences
 
 - Death is final: there is no save to continue after it.

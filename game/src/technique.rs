@@ -2629,6 +2629,7 @@ mod tests {
             name: "lunge".to_string(),
             met: vec![("Fencing".to_string(), 1)],
             unmet: 1,
+            missing: Vec::new(),
         };
         assert!(crate::discovery::ideas(&state).contains(&idea));
         let (state, _, _) = fencer(0);

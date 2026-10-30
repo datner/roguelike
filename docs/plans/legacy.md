@@ -151,7 +151,14 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
   never keeps more than a shorter one; unknown names are skipped; gear is not spawned unless the death
   was in camp; two records stack with the older one more decayed.
 
-### 4. Memoirs and journals
+### 4. Memoirs and journals — done
+- As built: `Memoir(Vec<(String, u32)>)` holds caps by skill *name* (plain saved, like the record;
+  an unknown name is skipped at study), and techniques reuse `Teaches`. The story is the memoir's
+  `Note`, logged by `study` after "You study…" (any studied thing's note is). Named "memoir of Ana"
+  and "journal of Ana" so `Subject` reads "the memoir of Ana". `IdeaView.missing` names the unmet
+  requirements of a revealed discovery (the panel shows "Footwork: needs Dodge 4, Poise 2"). The
+  memoir and the journal (or a `RuinedPage`) lie first around the ruin spot, before the stash; they
+  draw nothing. Save version 61.
 - `Memoir { skills: Vec<(SkillId, u32 cap)>, teaches, story }` (saved by name; `story` in its own
   language part per "one concern per part"). `Study` of a memoir raises each skill to its cap through
   `skill::gain` (`skill::xp_for(cap)` minus what is already there, never negative), teaches its

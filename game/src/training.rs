@@ -6,7 +6,7 @@ use hecs::Entity;
 
 use crate::blueprint::{BlueprintId, ResolvedBlueprint};
 use crate::combat::strike;
-use crate::entity::{Learner, Lesson, Name, Studied, Teaches};
+use crate::entity::{Learner, Lesson, Memoir, Name, Note, Revealed, Reveals, Studied, Teaches};
 use crate::explore::visible_hostile;
 use crate::grammar::Subject;
 use crate::input::PlayerAction;
@@ -27,7 +27,9 @@ pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     let what = Subject::of(&state.world, item);
     let lesson = state.world.get::<&Lesson>(item).ok().map(|l| l.0.clone());
     let teaches = state.world.get::<&Teaches>(item).ok().map(|t| t.0.clone());
-    if lesson.is_none() && teaches.is_none() {
+    let memoir = state.world.get::<&Memoir>(item).ok().map(|m| m.0.clone());
+    let reveals = state.world.get::<&Reveals>(item).ok().map(|r| r.0.clone());
+    if lesson.is_none() && teaches.is_none() && memoir.is_none() && reveals.is_none() {
         state
             .log
             .push(who.sentence("find", &format!("nothing to learn in {}", what.noun())));
@@ -56,12 +58,53 @@ pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     studied.0.sort();
     let _ = state.world.insert_one(actor, studied);
     state.log.push(who.sentence("study", what.noun()));
+    if let Ok(note) = state.world.get::<&Note>(item).map(|note| note.0.clone()) {
+        state.log.push(note);
+    }
     if let Some(lesson) = lesson {
         skill::gain(state, actor, &lesson);
+    }
+    if let Some(caps) = memoir {
+        let gains = up_to(state, actor, &caps);
+        skill::gain(state, actor, &gains);
     }
     for technique in teaches.into_iter().flatten() {
         learn(state, actor, technique);
     }
+    for discovery in reveals.into_iter().flatten() {
+        reveal(state, actor, discovery);
+    }
+}
+
+/// The XP that raises each skill named in `caps` to its level, for skills
+/// below it; one at or above it is left alone (docs/plans/legacy.md).
+fn up_to(state: &GameState, learner: Entity, caps: &[(String, u32)]) -> Vec<(SkillId, u32)> {
+    let book = state.blueprints.skills();
+    caps.iter()
+        .filter_map(|(name, cap)| {
+            let id = book.id(name)?;
+            let short = skill::xp_for(*cap).checked_sub(skill::xp(&state.world, learner, id))?;
+            (short > 0).then_some((id, short))
+        })
+        .collect()
+}
+
+/// `learner` reads of `discovery`: `discovery::ideas` lists it with all its
+/// requirements from now on. Inspiration still needs a use with stakes.
+fn reveal(state: &mut GameState, learner: Entity, discovery: String) {
+    let mut revealed = state
+        .world
+        .get::<&Revealed>(learner)
+        .map(|r| (*r).clone())
+        .unwrap_or_default();
+    if revealed.0.contains(&discovery) {
+        return;
+    }
+    let message = Subject::of(&state.world, learner).sentence("read", &format!("of {discovery}"));
+    state.log.push(message);
+    revealed.0.push(discovery);
+    revealed.0.sort();
+    let _ = state.world.insert_one(learner, revealed);
 }
 
 /// `learner` comes to know the technique `blueprint` (ADR 0024), unless it

@@ -968,6 +968,22 @@ pub struct Made(pub String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note(pub String);
 
+/// Item part (docs/plans/legacy.md): studying it raises each skill to at
+/// most this level, never lowering one. By skill name, like the record it
+/// is written from; a name the content no longer has is skipped.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Memoir(pub Vec<(String, u32)>);
+
+/// Item part (docs/plans/legacy.md): studying it reveals these discoveries,
+/// by name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Reveals(pub Vec<String>);
+
+/// The discoveries a learner has read of (`Reveals`), by name, sorted:
+/// `discovery::ideas` lists each with all its requirements, met or not.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Revealed(pub Vec<String>);
+
 /// An item left on the camp floor while the player is away
 /// (docs/plans/legacy.md): its spot, in place of a `Position`, so leaving
 /// camp doesn't forget it and nothing on a floor sees it.

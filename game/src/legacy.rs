@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintError, ron_options};
 use crate::dive::Place;
-use crate::entity::{Ability, Discovered, Item, Made, Note, Origin, Position, Skills, Stashed};
+use crate::entity::{
+    Ability, Discovered, Item, Made, Memoir, Name, Note, Origin, Position, Reveals, Skills,
+    Stashed, Teaches,
+};
 use crate::spawn::Spawn;
 use crate::state::GameState;
 
@@ -232,6 +235,17 @@ pub(crate) fn build_ruins(state: &mut GameState, records: &[Record]) -> Result<(
             left.extend(record.gear.iter().cloned());
         }
         let mut around = around(&camp.map, spot).into_iter().cycle();
+        let (x, y) = around.next().unwrap_or(spot);
+        state.spawn(memoir(state, record, this).at(x, y))?;
+        let (x, y) = around.next().unwrap_or(spot);
+        state.spawn(if this.journal {
+            Spawn::blueprint("Journal")
+                .with(Name(format!("journal of {}", record.name)))
+                .with(Reveals(record.discoveries.clone()))
+                .at(x, y)
+        } else {
+            Spawn::blueprint("RuinedPage").at(x, y)
+        })?;
         for name in left {
             let lasts = rng.random_range(0..100) < this.survives;
             if !lasts || state.blueprints.id(&name).is_none() {
@@ -242,6 +256,47 @@ pub(crate) fn build_ruins(state: &mut GameState, records: &[Record]) -> Result<(
         }
     }
     Ok(())
+}
+
+/// `record`'s memoir: who they were and how it ended, skills it can raise to
+/// `gap.lesson`% of theirs, and the techniques they knew. Names the content
+/// no longer has are left out.
+fn memoir(state: &GameState, record: &Record, gap: &Gap) -> Spawn {
+    let caps: Vec<(String, u32)> = record
+        .skills
+        .iter()
+        .map(|(skill, level)| (skill.clone(), level * gap.lesson / 100))
+        .filter(|&(_, cap)| cap > 0)
+        .collect();
+    let teaches: Vec<_> = record
+        .techniques
+        .iter()
+        .filter_map(|name| state.blueprints.id(name))
+        .collect();
+    let origin = record
+        .origin
+        .as_ref()
+        .and_then(|key| state.blueprints.origins().iter().find(|o| &o.key == key))
+        .map_or_else(String::new, |origin| {
+            format!(", {}", origin.name.to_lowercase())
+        });
+    let how = match &record.ending {
+        Ending::Died { by } => format!("killed by {by}"),
+        Ending::Abandoned => "they walked away".to_string(),
+    };
+    let story = format!(
+        "The memoir of {}{origin}. It ends on turn {}: {how}.",
+        record.name, record.turn
+    );
+    let spawn = Spawn::blueprint("Memoir")
+        .with(Name(format!("memoir of {}", record.name)))
+        .with(Note(story))
+        .with(Memoir(caps));
+    if teaches.is_empty() {
+        spawn
+    } else {
+        spawn.with(Teaches(teaches))
+    }
 }
 
 /// An index into `gaps`, by weight.
@@ -359,6 +414,105 @@ mod tests {
         assert!(record.skills.is_sorted_by(|a, b| a.1 >= b.1));
     }
 
+    fn level(state: &GameState, skill: &str) -> u32 {
+        let id = state.blueprints.skills().id(skill).unwrap();
+        crate::skill::level(crate::skill::xp(&state.world, state.player, id))
+    }
+
+    #[test]
+    fn a_memoir_raises_skills_to_a_share_of_theirs_once_and_never_lowers_one() {
+        let mut state = pit_fighter();
+        let player = state.player;
+        let dodge = state.blueprints.skills().id("Dodge").unwrap();
+        state
+            .world
+            .get::<&mut Skills>(player)
+            .unwrap()
+            .set(dodge, crate::skill::xp_for(3));
+        let gap = Gap {
+            name: "years".into(),
+            weight: 1,
+            survives: 0,
+            lesson: 50,
+            journal: true,
+        };
+        let record = Record {
+            skills: vec![("Bow".into(), 8), ("Dodge".into(), 2), ("Gone".into(), 9)],
+            techniques: vec!["PushKick".into(), "NoSuchKick".into()],
+            ..life("Ana", &[], &[])
+        };
+        let book = memoir(&state, &record, &gap).carried_by(player);
+        let book = state.spawn(book).unwrap();
+        let discovered = state
+            .world
+            .get::<&Discovered>(player)
+            .ok()
+            .map(|d| d.0.clone());
+        state.run(Command::Study {
+            actor: player,
+            item: book,
+        });
+        assert_eq!(level(&state, "Bow"), 4, "half of 8");
+        assert_eq!(level(&state, "Dodge"), 3, "above its cap of 1, untouched");
+        let known: Vec<String> = crate::technique::known(&state.world, player)
+            .into_iter()
+            .filter_map(|t| state.world.get::<&Made>(t).ok().map(|m| m.0.clone()))
+            .collect();
+        assert!(known.contains(&"PushKick".to_string()), "{known:?}");
+        assert!(state.log.recent(6).any(|line| line.starts_with(
+            "The memoir of Ana, pit fighter. It ends on turn 0: killed by the goblin's blow."
+        )));
+        assert_eq!(
+            state
+                .world
+                .get::<&Discovered>(player)
+                .ok()
+                .map(|d| d.0.clone()),
+            discovered,
+            "a lesson has no stakes, so no inspiration"
+        );
+        state.run(Command::Study {
+            actor: player,
+            item: book,
+        });
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "You have nothing more to learn from the memoir of Ana."
+        );
+    }
+
+    #[test]
+    fn a_journal_reveals_what_they_discovered_and_a_ruined_page_teaches_nothing() {
+        let mut state = pit_fighter();
+        let player = state.player;
+        let journal = Spawn::blueprint("Journal")
+            .with(Name("journal of Ana".into()))
+            .with(Reveals(vec!["Footwork".into()]))
+            .carried_by(player);
+        let journal = state.spawn(journal).unwrap();
+        state.run(Command::Study {
+            actor: player,
+            item: journal,
+        });
+        assert_eq!(crate::testkit::last_log(&state), "You read of Footwork.");
+        let footwork = crate::discovery::ideas(&state)
+            .into_iter()
+            .find(|idea| idea.name == "Footwork")
+            .unwrap();
+        assert_eq!(footwork.unmet, footwork.missing.len());
+        let page = state
+            .spawn(Spawn::blueprint("RuinedPage").carried_by(player))
+            .unwrap();
+        state.run(Command::Study {
+            actor: player,
+            item: page,
+        });
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "You find nothing to learn in the ruined page."
+        );
+    }
+
     #[test]
     fn the_stash_is_what_camp_keeps() {
         let mut state = pit_fighter();
@@ -416,13 +570,18 @@ mod tests {
         }
     }
 
-    /// What lies at camp besides the player: (blueprint, x, y), sorted.
+    const WRITINGS: [&str; 3] = ["Memoir", "Journal", "RuinedPage"];
+
+    /// What lies at camp besides the player and the writings every ruin
+    /// has: (blueprint, x, y), sorted.
     fn ruins(state: &GameState) -> Vec<(String, i32, i32)> {
         let mut found: Vec<(String, i32, i32)> = state
             .world
             .query::<(hecs::Entity, &Made, &Position)>()
             .iter()
-            .filter(|&(entity, ..)| entity != state.player)
+            .filter(|&(entity, made, _)| {
+                entity != state.player && !WRITINGS.contains(&made.0.as_str())
+            })
             .map(|(_, made, at)| (made.0.clone(), at.x, at.y))
             .collect();
         found.sort();
@@ -454,10 +613,10 @@ mod tests {
         );
         let note = state
             .world
-            .query::<&Note>()
+            .query::<(&Note, &Made)>()
             .iter()
-            .next()
-            .map(|note| note.0.clone())
+            .find(|(_, made)| made.0 == "AbandonedCamp")
+            .map(|(note, _)| note.0.clone())
             .unwrap();
         let gaps: Vec<String> = state
             .blueprints

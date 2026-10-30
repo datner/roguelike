@@ -8,7 +8,7 @@ use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintError, BlueprintId, Blueprints, ComponentDef};
-use crate::entity::{Discovered, Proficiency};
+use crate::entity::{Discovered, Proficiency, Revealed};
 use crate::grammar::Subject;
 use crate::holding;
 use crate::skill::{self, SkillId};
@@ -162,14 +162,18 @@ pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
 }
 
 /// A half-formed idea, for the journal: a discovery not yet made with at
-/// least half its requirements met. Only the met ones are named.
+/// least half its requirements met, or one read of in a predecessor's
+/// journal (docs/plans/legacy.md). Only the met requirements are named,
+/// unless it was read of.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdeaView {
     pub name: String,
     /// Skill and level, for each requirement already met.
     pub met: Vec<(String, u32)>,
-    /// How many requirements are still unmet (and unnamed).
+    /// How many requirements are still unmet.
     pub unmet: usize,
+    /// The unmet ones by skill and level, when it was read of; else empty.
+    pub missing: Vec<(String, u32)>,
 }
 
 /// The player's half-formed ideas, in file order, then what their followed
@@ -177,24 +181,32 @@ pub struct IdeaView {
 pub fn ideas(state: &GameState) -> Vec<IdeaView> {
     let player = state.player;
     let discovered = made(state, player);
+    let revealed = state
+        .world
+        .get::<&Revealed>(player)
+        .map(|r| r.0.clone())
+        .unwrap_or_default();
     let book = state.blueprints.skills();
+    let named = |reqs: Vec<&(SkillId, u32)>| -> Vec<(String, u32)> {
+        reqs.into_iter()
+            .filter_map(|&(id, level)| Some((book.get(id)?.name.clone(), level)))
+            .collect()
+    };
     state
         .blueprints
         .discoveries()
         .iter()
         .filter(|d| !discovered.contains(&d.name))
         .filter_map(|d| {
-            let met: Vec<(String, u32)> = d
-                .requires
-                .iter()
-                .filter(|&&req| met(state, player, req))
-                .filter_map(|&(id, level)| Some((book.get(id)?.name.clone(), level)))
-                .collect();
-            let unmet = d.requires.len() - met.len();
-            (!met.is_empty() && met.len() >= unmet).then(|| IdeaView {
+            let (met, missing): (Vec<_>, Vec<_>) =
+                d.requires.iter().partition(|&&req| met(state, player, req));
+            let (met, unmet) = (named(met), missing.len());
+            let read_of = revealed.contains(&d.name);
+            (read_of || (!met.is_empty() && met.len() >= unmet)).then(|| IdeaView {
                 name: d.name.clone(),
                 met,
                 unmet,
+                missing: if read_of { named(missing) } else { Vec::new() },
             })
         })
         // A followed style close to inventing something (ADR 0024).
@@ -206,6 +218,7 @@ pub fn ideas(state: &GameState) -> Vec<IdeaView> {
                         name: noun,
                         met: vec![(book.get(style)?.name.clone(), level)],
                         unmet: 1,
+                        missing: Vec::new(),
                     })
                 }),
         )
@@ -324,10 +337,30 @@ mod tests {
                 name: "Footwork".into(),
                 met: vec![("Poise".into(), 2)],
                 unmet: 1,
+                missing: Vec::new(),
             }]
         );
         // In no discovery at all.
         assert!(ideas(&learner(&[("Thrown", 9)])).is_empty());
+    }
+
+    #[test]
+    fn a_discovery_read_of_is_listed_with_all_it_needs_before_any_is_met() {
+        let mut state = learner(&[]);
+        let player = state.player;
+        let _ = state
+            .world
+            .insert_one(player, Revealed(vec!["Footwork".into()]));
+        let idea = ideas(&state)
+            .into_iter()
+            .find(|i| i.name == "Footwork")
+            .unwrap();
+        assert!(idea.met.is_empty());
+        assert_eq!(idea.unmet, idea.missing.len());
+        assert_eq!(
+            idea.missing,
+            [("Dodge".to_string(), 4), ("Poise".to_string(), 2)]
+        );
     }
 
     #[test]
