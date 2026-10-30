@@ -284,9 +284,9 @@ The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through rea
 - sabre veteran in Caves: floors to Toughness 10 start (target 12–48)
 - sabre veteran in Caves: floors to Toughness 15 ~98 (target 36–90)
 - tri-sword veteran in Caves: keypresses per floor 101 (target 150–300)
-- tri-sword veteran in Caves: floors to Toughness 5 start (target 3–12)
-- tri-sword veteran in Caves: floors to Toughness 10 start (target 12–48)
-- tri-sword veteran in Caves: floors to Toughness 15 ~97 (target 36–90)
+- tri-sword veteran in Caves: floors to Melee 5 start (target 3–12)
+- tri-sword veteran in Caves: floors to Melee 10 start (target 12–48)
+- tri-sword veteran in Caves: floors to Melee 15 ~105 (target 36–90)
 
 ### Caves
 
@@ -309,7 +309,7 @@ Caves, the starting phase, 6 floors.
 | hedge mage | 4 | 20/20 | 57 (51–58) | 1258 | 398 (Magic 59) | 1.6 | 0 | 19.1 | 1.9 (1.0–3.0) |
 | hedge mage | 5 | 18/20 | 58 (55–61) | 1326 | 321 (Magic 55) | 0.0 | 4 | 19.7 | 1.8 (1.0–3.0) |
 | hedge mage | 6 | 18/20 | 66 (62–69) | 1342 | 317 (Magic 51) | 0.0 | 2 | 22.2 | 1.9 (1.0–3.0) |
-| wanderer | 1 | 20/20 | 79 (54–102) | 872 | 1787 (Bow 212) | 19.7 | 18 | 9.7 | 7.0 (1.0–14.0) |
+| wanderer | 1 | 20/20 | 79 (54–102) | 872 | 1797 (Bow 213) | 19.7 | 18 | 9.7 | 7.1 (1.0–14.0) |
 | wanderer | 2 | 3/20 | 55 (41–79) | 455 | 508 (Toughness 115) | 2.7 | 59 | 5.7 | 8.5 (4.0–15.0) |
 | sabre (10) | 1 | 20/20 | 82 (68–95) | 1258 | 1216 (Dodge 158) | 5.9 | 2 | 10.2 | 6.8 (3.0–11.0) |
 | sabre (10) | 2 | 17/20 | 90 (76–113) | 1223 | 743 (Toughness 120) | 5.1 | 9 | 12.7 | 5.9 (1.0–9.0) |
@@ -321,8 +321,8 @@ Caves, the starting phase, 6 floors.
 | tri-sword (10) | 2 | 20/20 | 87 (74–100) | 1318 | 760 (Toughness 104) | 2.1 | 5 | 13.1 | 5.5 (2.0–8.0) |
 | tri-sword (10) | 3 | 20/20 | 96 (79–110) | 1300 | 666 (Toughness 93) | 3.5 | 10 | 14.6 | 5.4 (2.0–8.0) |
 | tri-sword (10) | 4 | 19/20 | 106 (90–121) | 1238 | 538 (Toughness 73) | 3.2 | 14 | 18.7 | 4.5 (1.0–8.0) |
-| tri-sword (10) | 5 | 16/20 | 111 (100–124) | 1378 | 488 (Melee 64) | 1.0 | 6 | 16.8 | 5.5 (2.0–8.0) |
-| tri-sword (10) | 6 | 16/20 | 123 (112–136) | 1299 | 438 (Toughness 58) | 4.4 | 6 | 17.9 | 5.8 (2.0–9.0) |
+| tri-sword (10) | 5 | 16/20 | 111 (100–124) | 1378 | 485 (Melee 63) | 1.0 | 6 | 16.8 | 5.5 (2.0–8.0) |
+| tri-sword (10) | 6 | 16/20 | 123 (110–136) | 1294 | 433 (Melee 56) | 3.4 | 6 | 17.9 | 5.8 (2.0–9.0) |
 | sabre veteran | 1 | 20/20 | 84 (72–96) | 1358 | 1266 (Dodge 162) | 0.0 | 0 | 10.7 | 6.7 (3.0–9.0) |
 | sabre veteran | 2 | 20/20 | 97 (81–114) | 1336 | 805 (Toughness 121) | 0.0 | 0 | 13.4 | 6.0 (1.0–9.0) |
 | sabre veteran | 3 | 20/20 | 105 (94–115) | 1313 | 672 (Toughness 100) | 2.0 | 0 | 14.8 | 6.0 (2.0–10.0) |
@@ -333,8 +333,8 @@ Caves, the starting phase, 6 floors.
 | tri-sword veteran | 2 | 20/20 | 87 (74–100) | 1315 | 771 (Toughness 104) | 0.0 | 0 | 13.1 | 5.5 (2.0–8.0) |
 | tri-sword veteran | 3 | 20/20 | 96 (83–110) | 1293 | 693 (Toughness 94) | 2.0 | 0 | 14.7 | 5.4 (2.0–9.0) |
 | tri-sword veteran | 4 | 19/20 | 109 (93–135) | 1309 | 577 (Toughness 79) | 2.1 | 0 | 19.3 | 4.5 (1.0–8.0) |
-| tri-sword veteran | 5 | 18/20 | 114 (100–124) | 1351 | 503 (Toughness 65) | 0.0 | 0 | 18.4 | 5.1 (1.0–8.0) |
-| tri-sword veteran | 6 | 18/20 | 125 (113–136) | 1312 | 474 (Recovery 76) | 2.2 | 0 | 18.3 | 5.7 (2.0–8.0) |
+| tri-sword veteran | 5 | 18/20 | 114 (100–124) | 1351 | 500 (Toughness 65) | 0.0 | 0 | 18.4 | 5.1 (1.0–8.0) |
+| tri-sword veteran | 6 | 18/20 | 125 (113–136) | 1307 | 467 (Recovery 72) | 2.2 | 0 | 18.3 | 5.7 (2.0–8.0) |
 
 - **pit fighter**: 5 reached floor 6, 12 died (goblin 7, rat 3, unseen 2), 3 stuck.
 - **duelist**: 0 reached floor 6, 20 died (goblin 9, goblin archer 8, rat 2, unseen 1), 0 stuck.
@@ -350,11 +350,11 @@ Caves, the starting phase, 6 floors.
 | pit fighter | Dodge | ~16 | ~83 | ~196 | 8.9 |
 | duelist | Toughness | ~6 | ~24 | ~53 | 4.7 |
 | hedge mage | Magic | ~17 | ~91 | ~214 | 3.1 |
-| wanderer | Toughness | ~6 | ~25 | ~56 | 4.0 |
+| wanderer | Bow | ~6 | ~23 | ~53 | 4.0 |
 | sabre (10) | Toughness | ~14 | ~63 | ~144 | 6.1 |
 | tri-sword (10) | Melee | start | start | ~108 | 6.0 |
 | sabre veteran | Toughness | start | start | ~98 | 6.7 |
-| tri-sword veteran | Toughness | start | start | ~97 | 6.0 |
+| tri-sword veteran | Melee | start | start | ~105 | 6.0 |
 
 ### Caves in the Embers
 
