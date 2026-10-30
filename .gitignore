@@ -1,5 +1,2 @@
 /target
 .direnv/
-.graphify-venv/
-graphify-out/
-.graphify_*.json
