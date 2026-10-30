@@ -7,7 +7,7 @@ use rand_pcg::Pcg64;
 
 use crate::camp::Camp;
 use crate::dungeon::Dungeon;
-use crate::entity::{Position, Summoned};
+use crate::entity::{Item, Position, Stashed, Summoned};
 use crate::map::{Grid, Map, Tile};
 use crate::rng::Rngs;
 use crate::state::GameState;
@@ -297,6 +297,9 @@ fn camp_floor(world_seed: u64, camp: &Camp) -> Floor {
 /// forgetting everything else about the place they leave.
 fn enter(state: &mut GameState, next: Floor, place: Place) {
     let travellers = travellers(state);
+    if state.place == Place::Camp {
+        stash(state);
+    }
     let left_behind: Vec<Entity> = state
         .world
         .query::<(Entity, &Position)>()
@@ -329,6 +332,38 @@ fn enter(state: &mut GameState, next: Floor, place: Place) {
         }
     }
     crate::rest::arrive(state, &travellers);
+    if state.place == Place::Camp {
+        unstash(state);
+    }
+}
+
+/// Camp keeps what's left in it (docs/plans/legacy.md): its floor items
+/// trade their `Position` for `Stashed`, so `enter` keeps them.
+fn stash(state: &mut GameState) {
+    let left: Vec<(Entity, Position)> = state
+        .world
+        .query::<(Entity, &Position, &Item)>()
+        .iter()
+        .map(|(item, &at, _)| (item, at))
+        .collect();
+    for (item, at) in left {
+        let _ = state.world.remove_one::<Position>(item);
+        let _ = state.world.insert_one(item, Stashed(at));
+    }
+}
+
+/// Back at camp: stashed items lie where they were left.
+fn unstash(state: &mut GameState) {
+    let stashed: Vec<(Entity, Stashed)> = state
+        .world
+        .query::<(Entity, &Stashed)>()
+        .iter()
+        .map(|(item, &stashed)| (item, stashed))
+        .collect();
+    for (item, Stashed(at)) in stashed {
+        let _ = state.world.remove_one::<Stashed>(item);
+        let _ = state.world.insert_one(item, at);
+    }
 }
 
 /// `Command::Descend` applier: from camp, the first floor of a new dive
@@ -851,6 +886,30 @@ mod tests {
         take_turn(&mut state, PlayerAction::Descend);
         assert_eq!(state.dives, 2);
         assert_ne!(state.map, first_dive, "every dive rerolls its floors");
+    }
+
+    #[test]
+    fn camp_keeps_what_is_left_there_across_a_dive_and_a_save() {
+        let mut state = at_camp();
+        let knife = thing("knife").item().at(3, 1).make(&mut state);
+        walk_to_the_entrance(&mut state);
+        take_turn(&mut state, PlayerAction::Descend);
+        assert!(state.world.contains(knife));
+        assert!(
+            state.world.get::<&Position>(knife).is_err(),
+            "nothing on a floor sees it"
+        );
+        let text = crate::save::to_ron(&state).unwrap();
+        let blueprints = test_blueprints().with_camp(Some(crate::camp::tests::test_camp()));
+        let mut state = crate::save::from_ron(&text, blueprints).unwrap();
+        take_turn(&mut state, PlayerAction::Ascend);
+        let left: Vec<(String, Position)> = state
+            .world
+            .query::<(&crate::entity::Name, &Position, &Item)>()
+            .iter()
+            .map(|(name, &at, _)| (name.0.clone(), at))
+            .collect();
+        assert_eq!(left, [("knife".to_string(), Position { x: 3, y: 1 })]);
     }
 
     #[test]

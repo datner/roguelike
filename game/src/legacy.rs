@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::dive::Place;
-use crate::entity::{Ability, Discovered, Item, Made, Origin, Skills};
+use crate::entity::{Ability, Discovered, Item, Made, Origin, Position, Skills, Stashed};
 use crate::state::GameState;
 
 /// Bumped on any change to the lineage file's format; a file of another version is ignored.
@@ -89,6 +89,20 @@ pub fn record(state: &GameState, name: &str) -> Record {
     let mut gear = crate::holding::attached(world, player);
     gear.extend(crate::holding::carried(world, player));
     gear.retain(|&thing| world.satisfies::<&Item>(thing));
+    // What camp keeps: stashed while away, on its floor if the life ended there.
+    let mut stash: Vec<hecs::Entity> = world
+        .query::<(hecs::Entity, &Stashed)>()
+        .iter()
+        .map(|(item, _)| item)
+        .collect();
+    if state.place == Place::Camp {
+        stash.extend(
+            world
+                .query::<(hecs::Entity, &Position, &Item)>()
+                .iter()
+                .map(|(item, _, _)| item),
+        );
+    }
     let mut techniques = crate::technique::known(world, player);
     techniques.retain(|&technique| !world.satisfies::<&Ability>(technique));
     Record {
@@ -113,7 +127,7 @@ pub fn record(state: &GameState, name: &str) -> Record {
             .map(|discovered| discovered.0.clone())
             .unwrap_or_default(),
         gear: made(gear),
-        stash: Vec::new(),
+        stash: made(stash),
     }
 }
 
@@ -204,6 +218,41 @@ mod tests {
         assert!(!record.skills.is_empty());
         assert!(record.skills.iter().all(|&(_, level)| level > 0));
         assert!(record.skills.is_sorted_by(|a, b| a.1 >= b.1));
+    }
+
+    #[test]
+    fn the_stash_is_what_camp_keeps() {
+        let mut state = pit_fighter();
+        assert_eq!(state.place, Place::Camp);
+        let spot = crate::spawn::Spawn::blueprint("RustyKnife");
+        let at = state
+            .world
+            .get::<&Position>(state.player)
+            .map(|p| *p)
+            .unwrap();
+        state.spawn(spot.at(at.x, at.y)).unwrap();
+        let stashed = state
+            .spawn(crate::spawn::Spawn::blueprint("Torch"))
+            .unwrap();
+        let _ = state.world.insert_one(stashed, Stashed(at));
+        let mut stash = record(&state, "Ana").stash;
+        stash.sort();
+        assert_eq!(
+            stash,
+            ["RustyKnife", "Torch"],
+            "the camp floor counts at camp"
+        );
+        state.place = Place::Floor {
+            dungeon: "Caves".into(),
+            phase: "Stillness".into(),
+            dive: 1,
+            floor: 1,
+        };
+        assert_eq!(
+            record(&state, "Ana").stash,
+            ["Torch"],
+            "a floor's items are not camp's"
+        );
     }
 
     #[test]

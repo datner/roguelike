@@ -29,7 +29,10 @@ This is a Cargo workspace with four crates:
   - Camp (`data/camp.ron`, drawn as rows of characters): a new game starts
     there, nothing hostile comes there, and each entrance is stairs down
     into a dungeon. Taking one starts a dive; climbing any floor's stairs
-    up comes back to camp and ends it.
+    up comes back to camp and ends it. What you leave on camp's floor is
+    still there when you come back.
+  - Death is final: the save is removed and the life joins the lineage
+    (`legacy.ron` beside the saves); deleting a living character counts too.
   - Phases (`data/phases.ron`): the world turns through phases. At camp you
     wait for one (a single action); the next dive is in it all the way
     down. A dungeon's spawn entries may belong to some phases only (the

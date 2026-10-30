@@ -963,6 +963,12 @@ pub struct Verb {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Made(pub String);
 
+/// An item left on the camp floor while the player is away
+/// (docs/plans/legacy.md): its spot, in place of a `Position`, so leaving
+/// camp doesn't forget it and nothing on a floor sees it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stashed(pub Position);
+
 /// Where a character started (docs/plans/origins.md): the key of its origin
 /// in `data/origins.ron`. Saved by key; legacy will read it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

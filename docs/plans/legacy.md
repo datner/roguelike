@@ -116,7 +116,11 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
   removes the save and trims the lineage; an outdated lineage is left alone; a living quit saves as
   before.
 
-### 2. The camp keeps what's left in it
+### 2. The camp keeps what's left in it — done
+- As built: no holder entity. Leaving camp swaps each floor item's `Position` for `Stashed(Position)`;
+  `dive::enter` only forgets what has a `Position`, and nothing on a floor queries an item without
+  one, so stashed items are inert and saved as they are. Arriving at camp swaps them back. Save
+  version 59.
 - Leaving camp moves its floor items, with their positions, into a camp store. This is an inert holder
   that crosses floors the way the player's things do, so it is saved with the game. Coming back puts
   them where they were. Nothing hostile is ever stored.
