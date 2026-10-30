@@ -73,3 +73,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Health from stats (stats don't grow and are the same for every origin today).
 - Field dressings, meals and healers (crafting and camp).
 - Hardiness discoveries (a proficiency from Toughness with another skill): a later layer.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

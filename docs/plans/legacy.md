@@ -164,3 +164,7 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 - Recipes and recipe notes: there are no recipes yet. The record leaves room for them by name.
 - Tuning a legacy's worth beyond the first numbers (vision's open question).
 - A legacy bench scenario.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

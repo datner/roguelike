@@ -124,3 +124,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Nocking taking longer up close, or provoking attacks.
 - A kick that nocks an arrow, or other reactions beyond what principles do today.
 - Balancing numbers beyond the first pass above.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

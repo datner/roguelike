@@ -71,5 +71,7 @@ map() {
 run fmt      cargo fmt --all --check -- -l
 run map      map
 run boundary boundary
+# docs/plans/README.md: every game-system plan says what it reads and what reads it.
+run connections bash -c 'scripts/connections.sh --test && scripts/connections.sh'
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
 run test     cargo test --workspace --quiet

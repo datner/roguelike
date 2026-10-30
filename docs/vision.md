@@ -199,7 +199,8 @@ span two lives. Targets make that checkable instead of hoped for.
 
 The experiment of this game is a system as interconnected as possible. A new system earns its place by
 reaching into the others (skills, styles, discovery, lore, phases, legacy), and the others read it
-back. A system that only adds content beside the rest is not finished.
+back. A system that only adds content beside the rest is not finished. Every plan says how, in its
+`## Connections` section; the rule and its check are in `docs/plans/README.md`.
 
 - **Bonuses add, in one place, under one cap.** The more systems reach into a number (a phase's lean,
   attunement, a style thriving in its phase, a meal, a relic), the more ways they can multiply into one

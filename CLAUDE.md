@@ -80,7 +80,8 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 - `bench/` — binary: the balance bench, a tool (not the game); builds and scenarios as RON.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,
-  legacy). Read before designing a new system; `docs/plans/` hold build plans.
+  legacy). Read before designing a new system; `docs/plans/` hold build plans,
+  each with a `## Connections` section under the rule in `docs/plans/README.md`.
 - `docs/decisions/` — short ADRs explaining _why_ things are the way they are.
   Read the relevant one before changing an invariant below.
 

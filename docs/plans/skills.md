@@ -258,3 +258,7 @@ listing what changed, what was left out, and follow-ups.
   easing mana and HP prices, Scroll lore steadying scrolls; paying trains the discipline on a cast that
   counts. Arcana (`lore::first_cast`, `Attuned`) reads a creature's spells when looking.
   `SAVE_VERSION` 25.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

@@ -205,3 +205,7 @@ report listing what changed, what was left out, and follow-ups.
 - Heat/overload, wands with charges, reagents from `Inventory`.
 - Cone widths other than 90°.
 - AI casting area spells is allowed but untested beyond "spares its own side"; shamans only know bolts.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

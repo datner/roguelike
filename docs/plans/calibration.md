@@ -49,3 +49,5 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 ## Out of scope
 
 - Moving `actions_per_hour` automatically; showing time played to the player.
+
+Exempt: measures real play for the bench; builds no game system.

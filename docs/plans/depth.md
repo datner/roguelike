@@ -65,3 +65,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - What lies at the bottom, bosses, endings, and the bottom differing by phase (the endings' plan).
 - Recall items (crafting, traders).
 - The floor bot banking at landings (it plays one dive down).
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

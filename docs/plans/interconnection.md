@@ -45,7 +45,11 @@ honest.
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. The rule and the check
+### 1. The rule and the check — done
+- As built: `scripts/connections.sh` (run by `check.sh`, `--test` runs it on
+  `scripts/fixtures/connections/`). The systems list gains `health` (rest, sturdiness) and `ai`,
+  which built plans connect through. A section whose body is `*TODO*` passes until slice 4. `ripgrep`
+  joins the devShell for the script.
 - `docs/plans/README.md`: the systems list, the definition of a connection, the template stub, the
   exempt list, one line per plan.
 - `scripts/check.sh`: the connections step. Until slices 2–3 land it would fail, so this slice also
@@ -101,3 +105,5 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Connections for systems that exist only in the vision (factions, crafting, endings, judgement,
   settlers): their plans carry the section from the start, under the check.
 - Measuring connectedness beyond the count (a graph, a score).
+
+Exempt: docs and a check; builds no game system.

@@ -40,3 +40,5 @@ directly instead of through a tuple built for it.
 
 Module docs no longer name `term` (`gui` input, fx, panels, theme; `game` tiles); the ADR index
 lists 0017–0025 above its template. `docs/MAP.md` regenerated.
+
+Exempt: a refactor; builds no game system.

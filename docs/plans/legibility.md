@@ -90,3 +90,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - The one-place bonus sum with caps (needs bonus sources that don't exist yet).
 - Why-lines for spells' fizzles and costs beyond what the cast preview already shows.
 - Judgement, renown and beliefs on screen (their systems don't exist yet).
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

@@ -193,3 +193,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Ranged techniques (aimed shot, volley) and magic styles inventing spells (ADR 0016).
 - Reactions other than the existing riposte.
 - Mouse-only paths: the chooser and cursor take clicks the way spells do, nothing more.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

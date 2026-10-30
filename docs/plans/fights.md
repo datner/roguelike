@@ -211,3 +211,7 @@ The owner's tuning after the bench reading above (the archer at equal speed was 
   the bot stays naive; a smarter one is its own plan.
 - Factions and situations (who fights whom beyond two sides).
 - Tuning: the bench reports, the owner decides.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

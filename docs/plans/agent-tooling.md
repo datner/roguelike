@@ -29,3 +29,5 @@ Python only for one-offs; diagnostics before rebuilds; read little: locate
 first (`rg -n -C3`, `map.sh --sigs`), then a bounded `Read` (the hooks enforce
 this whatever the harness default says); test output through `grep`/`tail`;
 read only the shots a change touches, cropped.
+
+Exempt: tooling for agents working on the gui; builds no game system.

@@ -97,3 +97,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   rubble or boiling water.
 - A warning for the AI: creatures step where they like.
 - Tuning: the bench reports, the owner decides.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

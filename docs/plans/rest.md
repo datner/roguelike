@@ -77,3 +77,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Healing items, potions, a healer at camp, regeneration for creatures other than the player.
 - Way-landings and the bottom (their own plan); roamers that make resting risky (the fights plan).
 - Tuning beyond the first numbers: the bench reports, the owner decides.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

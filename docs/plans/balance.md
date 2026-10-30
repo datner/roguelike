@@ -142,3 +142,5 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   the steep XP curve skewed and which rewarded leaning on fewer skills. Flagged at 1.25×.
 - The sabre's top roll went from 6 to 5: both builds wielding it were flagged.
 
+
+Exempt: the balance bench, a tool; builds no game system.

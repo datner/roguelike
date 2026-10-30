@@ -83,6 +83,7 @@
             rustToolchain
             pkgs.jq # .claude/hooks/block-bash-file-reads.sh
             pkgs.fd # scripts/map.sh
+            pkgs.ripgrep # scripts/connections.sh
           ];
         };
       }

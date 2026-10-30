@@ -104,3 +104,5 @@ cell backgrounds. An ignored `screenshots` test renders each screen to PNGs for 
 ## Out of scope
 
 - Retiring or freezing `term`; sound; a web (wasm) build; sprite art.
+
+Exempt: a frontend; draws and maps keys, builds no game system.

@@ -135,3 +135,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Phases changing the dungeon's shape (lava seams, lakes): generator settings per phase come later.
 - Terrain overlays and element interactions (ADR 0016: wet, oil, burning ground).
 - Phase lore (inspecting a phase), legacy weathering that depends on the phase.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

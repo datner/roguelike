@@ -124,3 +124,5 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Recording real play time in `front` (the calibration in Pacing): its own small plan.
 - Tuning: the bench reports, the owner decides.
 - Running in CI or `check.sh`.
+
+Exempt: the bench's floor bot, a tool; builds no game system.

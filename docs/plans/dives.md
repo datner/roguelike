@@ -86,3 +86,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Origins: starting kit and skills chosen at character creation instead of the fixed player blueprint.
 - Phase-only creatures and finds (new content per phase).
 - Deleting `term` after this plan, if it hasn't been played (ask).
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)

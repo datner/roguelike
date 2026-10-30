@@ -110,3 +110,7 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Legacy (the record, ruins, capped lessons): its own plan, reading `Origin`.
 - Marking monsters' natural techniques as abilities.
 - Balancing origins against each other beyond the bench's first report.
+
+## Connections
+
+*TODO* (interconnection.md, slices 2–3)
