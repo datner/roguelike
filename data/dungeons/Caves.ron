@@ -20,6 +20,8 @@
     landing_every: 3,
     // Drops to the floor below: shove something in.
     chasms: 4,
+    // Deep water: shove something in to drown it (docs/plans/fights-2.md).
+    water: 3,
     // Tall grass: hides what stands in it, and burns.
     grass: 6,
     // Rubble: a step onto it costs double (docs/plans/fights-2.md).

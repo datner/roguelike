@@ -145,7 +145,12 @@ pub(crate) fn build(
     };
     // None on the bottom: there is nowhere to fall to.
     if found.chasms > 0 && !found.is_bottom(floor) {
-        dig_chasms(&mut map, &mut map_stream, found.chasms, arrival, stairs);
+        let (count, ends) = (found.chasms, (arrival, stairs));
+        dig(&mut map, &mut map_stream, count, ends, Tile::Chasm);
+    }
+    if found.water > 0 {
+        let (count, ends) = (found.water, (arrival, stairs));
+        dig(&mut map, &mut map_stream, count, ends, Tile::DeepWater);
     }
     if found.grass > 0 {
         cover(&mut map, &mut map_stream, found.grass, Tile::Grass, 2);
@@ -167,16 +172,17 @@ pub(crate) fn build(
     }
 }
 
-/// Patches of chasm (docs/plans/fights.md), each a floor tile and the floor
-/// around it, drawn on the map stream after the layout. Never within two
-/// tiles of the arrival or the stairs, and a patch that would cut the stairs
-/// off from the arrival is filled back in.
-fn dig_chasms(
+/// `count` patches of `tile`, never walked (chasms, docs/plans/fights.md;
+/// deep water, fights-2.md), each a floor tile and the floor around it, drawn
+/// on the map stream after the layout. Never within two tiles of the arrival
+/// or the stairs, and a patch that would cut the stairs off from the arrival
+/// is filled back in.
+fn dig(
     map: &mut Map,
     rng: &mut Pcg64,
     count: u32,
-    arrival: (i32, i32),
-    stairs: Option<(i32, i32)>,
+    (arrival, stairs): ((i32, i32), Option<(i32, i32)>),
+    tile: Tile,
 ) {
     use rand::RngExt;
     let keep: Vec<(i32, i32)> = std::iter::once(arrival).chain(stairs).collect();
@@ -198,7 +204,7 @@ fn dig_chasms(
             .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Floor) && !near_kept((x, y)))
             .collect();
         for &(x, y) in &patch {
-            map.set(x, y, Tile::Chasm);
+            map.set(x, y, tile);
         }
         if let Some(stairs) = stairs
             && !reachable(map, arrival, stairs)
@@ -670,6 +676,46 @@ mod tests {
             !has(&bottom.map, Tile::Chasm),
             "nowhere to fall from the bottom"
         );
+    }
+
+    #[test]
+    fn walking_into_deep_water_is_refused_at_the_edge() {
+        let mut state = bare_state();
+        state.map.set(2, 1, Tile::DeepWater);
+        let before = state.now;
+        take_turn(&mut state, PlayerAction::Move(crate::input::Dir::E));
+        assert_eq!(state.now, before);
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "You stop at the water's edge."
+        );
+        assert!(Tile::is_transparent(Some(&Tile::DeepWater)), "seen across");
+        assert!(Tile::is_clear(Some(&Tile::DeepWater)), "shot across");
+    }
+
+    #[test]
+    fn water_leaves_the_stairs_reachable_and_changes_nothing_else() {
+        let test = crate::dungeon::tests::test_dungeon;
+        let plain = build(9, &test(), "Test", "Still", 1, 1);
+        let dungeon = Dungeon { water: 6, ..test() };
+        let with = build(9, &dungeon, "Test", "Still", 1, 1);
+        assert!(has(&with.map, Tile::DeepWater));
+        let mut drained = with.map.clone();
+        for y in 0..drained.height {
+            for x in 0..drained.width {
+                if drained.get(x, y) == Some(&Tile::DeepWater) {
+                    drained.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        assert_eq!(drained, plain.map, "only water differs");
+        let stairs = (0..with.map.height)
+            .flat_map(|y| (0..with.map.width).map(move |x| (x, y)))
+            .find(|&(x, y)| with.map.get(x, y) == Some(&Tile::StairsDown))
+            .unwrap();
+        let mut walked = with.map.clone();
+        walked.set(with.arrival.0, with.arrival.1, Tile::Floor);
+        assert!(reachable(&walked, with.arrival, stairs));
     }
 
     #[test]

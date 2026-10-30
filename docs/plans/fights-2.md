@@ -69,7 +69,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   ±10, the castle pit fighter's fights 9.9 → 9.6 actions); the duelist's runs reaching floor 3 in the
   caves went 10% → 5%, still far under its target. The `floor` and `castle` shots didn't change.
 
-### 3. Deep water
+### 3. Deep water — done
 - `Tile::DeepWater`, `is_clear`, `Tile::is_drop`; `shove` ends in `Fall` or `Sink` by the tile;
   `Command::Sink`; the edge message; glyph, sprite name; `Dungeon.water` and the generalised digging;
   caves 3.
@@ -77,6 +77,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   walking in is refused with the message; water is seen and shot across; the stairs stay reachable;
   a dungeon without it draws nothing new.
 - Bench rerun.
+- As built: `dive::dig` digs chasms and pools alike (pools on the bottom too). The player hauls out
+  with "You plunge into the deep water and haul yourself out." and pays `cost::FLOUNDER` (a turn),
+  with no damage. Bench, caves: rats now kill the veterans (sabre 20 → 18 of 20 reaching floor 6,
+  tri-sword 20 → 17) and the level-10 tri-sword (19 → 14); the pit fighter is stuck in 3 of 20
+  runs, from none. Two of those are the bot stopping beside a goblin archer it had given up on
+  (`explore_step_past` won't step on with it in view), one a big floor that ran past the bot's
+  2000-turn cap; none is a water bug. The caves draw differently from here on (the map stream
+  draws the pools before the grass).
 
 ### 4. The vision
 - `docs/vision.md` Fights: mark the three as built; README Structure/Controls if they changed.

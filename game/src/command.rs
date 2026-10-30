@@ -161,6 +161,8 @@ pub(crate) enum Command {
     Close(Entity),
     /// Forced into a chasm (`fall`).
     Fall(Entity),
+    /// Forced into deep water (`sink`).
+    Sink(Entity),
     /// Start or stop sprinting (`sprint::toggle`). Free: the steps pay.
     Sprint(Entity),
     /// Take the stairs down to the next floor (`dive::descend`).
@@ -273,6 +275,7 @@ impl Command {
             Command::Practice(actor)
             | Command::Close(actor)
             | Command::Fall(actor)
+            | Command::Sink(actor)
             | Command::Sprint(actor)
             | Command::Descend(actor)
             | Command::Ascend(actor)
@@ -358,6 +361,7 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Close(actor) => close_door(state, actor),
             Command::Fall(entity) => fall(state, entity),
+            Command::Sink(entity) => sink(state, entity),
             Command::Sprint(actor) => crate::sprint::toggle(state, actor),
             Command::Descend(actor) => crate::dive::descend(state, actor),
             Command::Ascend(actor) => crate::dive::ascend(state, actor),
@@ -625,13 +629,11 @@ pub(crate) fn closable(state: &GameState, actor: Entity) -> Option<(i32, i32)> {
 
 fn log_wall_bump(state: &mut GameState, entity: Entity, (x, y): (i32, i32)) {
     let mover = Subject::of(&state.world, entity);
-    state
-        .log
-        .push(if state.map.get(x, y) == Some(&Tile::Chasm) {
-            mover.sentence("stop", "at the edge of the chasm")
-        } else {
-            mover.sentence("bump", "into a wall")
-        });
+    state.log.push(match state.map.get(x, y) {
+        Some(Tile::Chasm) => mover.sentence("stop", "at the edge of the chasm"),
+        Some(Tile::DeepWater) => mover.sentence("stop", "at the water's edge"),
+        _ => mover.sentence("bump", "into a wall"),
+    });
 }
 
 /// How much a fall into a chasm hurts the player, who lands a floor down.
@@ -653,6 +655,24 @@ fn fall(state: &mut GameState, entity: Entity) {
             cause: DamageCause::Fall,
         });
     } else {
+        state.commands.push_back(Command::Die { entity });
+    }
+}
+
+/// `Command::Sink`: a creature forced into deep water (docs/plans/fights-2.md).
+/// Anything else drowns; the player hauls out where they went in and loses a
+/// turn floundering, so water costs tempo where a chasm costs a floor.
+fn sink(state: &mut GameState, entity: Entity) {
+    if entity == state.player {
+        state
+            .log
+            .push("You plunge into the deep water and haul yourself out.");
+        spend_energy(state, entity, cost::FLOUNDER);
+    } else {
+        let sinker = Subject::of(&state.world, entity);
+        state
+            .log
+            .push(sinker.sentence("sink", "into the deep water"));
         state.commands.push_back(Command::Die { entity });
     }
 }

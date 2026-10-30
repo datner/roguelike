@@ -1067,13 +1067,14 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
     };
     let step = ((start.0 - from.0).signum(), (start.1 - from.1).signum());
     let mut at = start;
-    let mut over_the_edge = false;
+    let mut over_the_edge = None;
     for _ in 0..tiles {
         let next = (at.0 + step.0, at.1 + step.1);
-        if step != (0, 0) && state.map.get(next.0, next.1) == Some(&Tile::Chasm) {
-            // Shoved off the edge: a shove becomes a kill (docs/plans/fights.md).
-            at = next;
-            over_the_edge = true;
+        let tile = state.map.get(next.0, next.1);
+        if step != (0, 0) && Tile::is_drop(tile) {
+            // Shoved off the edge or into the water: a shove becomes a kill
+            // (docs/plans/fights.md, fights-2.md).
+            over_the_edge = tile.copied();
             break;
         }
         if step == (0, 0)
@@ -1084,9 +1085,10 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
         }
         at = next;
     }
-    if over_the_edge {
-        state.commands.push_back(Command::Fall(target));
-        return;
+    match over_the_edge {
+        Some(Tile::DeepWater) => return state.commands.push_back(Command::Sink(target)),
+        Some(_) => return state.commands.push_back(Command::Fall(target)),
+        None => {}
     }
     let shoved = Subject::of(&state.world, target);
     if at == start {
@@ -1461,6 +1463,59 @@ mod tests {
                 .log
                 .recent(5)
                 .any(|line| line == "The goblin falls into the chasm.")
+        );
+    }
+
+    #[test]
+    fn a_shove_into_deep_water_drowns() {
+        let mut state = crate::state::tests::bare_state();
+        state.map.set(3, 1, Tile::DeepWater);
+        let goblin = crate::testkit::thing("goblin")
+            .health(8)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        let player = state.player;
+        shove(&mut state, player, goblin, 2);
+        crate::command::apply_commands(&mut state);
+        assert!(
+            state.world.satisfies::<&crate::entity::Dead>(goblin) || !state.world.contains(goblin),
+            "drowned"
+        );
+        assert!(
+            state
+                .log
+                .recent(5)
+                .any(|line| line == "The goblin sinks into the deep water.")
+        );
+    }
+
+    #[test]
+    fn the_player_shoved_into_deep_water_hauls_out_a_turn_down() {
+        let mut state = crate::state::tests::bare_state();
+        state.map.set(3, 1, Tile::DeepWater);
+        let goblin = crate::testkit::thing("goblin")
+            .health(8)
+            .hostile()
+            .at(1, 1)
+            .make(&mut state);
+        let player = state.player;
+        *state.world.get::<&mut Position>(player).unwrap() = Position { x: 2, y: 1 };
+        state
+            .world
+            .insert_one(player, crate::entity::Energy(0))
+            .unwrap();
+        shove(&mut state, goblin, player, 2);
+        crate::command::apply_commands(&mut state);
+        assert_eq!(at(&state, player), (2, 1), "back on the bank");
+        assert!(!state.game_over);
+        assert_eq!(
+            state.world.get::<&crate::entity::Energy>(player).unwrap().0,
+            -crate::cost::FLOUNDER
+        );
+        assert_eq!(
+            last_log(&state),
+            "You plunge into the deep water and haul yourself out."
         );
     }
 

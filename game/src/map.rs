@@ -27,6 +27,10 @@ pub enum Tile {
     /// Rubble (`,`): walked, seen and shot across, but a step onto it costs
     /// double (docs/plans/fights-2.md).
     Rubble,
+    /// Deep water (`~`): seen and shot across, never walked. A creature
+    /// forced into it drowns; the player hauls out, a turn lost
+    /// (docs/plans/fights-2.md).
+    DeepWater,
 }
 
 impl Tile {
@@ -46,10 +50,16 @@ impl Tile {
         )
     }
 
-    /// What a missile or a spreading area crosses: open ground, grass, or a
-    /// chasm's air.
+    /// What a missile or a spreading area crosses: open ground, grass, or the
+    /// air over a chasm or deep water.
     pub fn is_clear(tile: Option<&Tile>) -> bool {
-        Tile::is_open(tile) || tile == Some(&Tile::Chasm)
+        Tile::is_open(tile) || Tile::is_drop(tile)
+    }
+
+    /// Never walked, but a shove can force a creature in: a chasm or deep
+    /// water.
+    pub fn is_drop(tile: Option<&Tile>) -> bool {
+        matches!(tile, Some(Tile::Chasm | Tile::DeepWater))
     }
 
     /// Seen through: clear ground but grass, which hides what is past it.

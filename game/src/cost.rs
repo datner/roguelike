@@ -18,6 +18,8 @@ pub const STANDARD: i64 = NORMAL_SPEED as i64 * TICKS_PER_TURN as i64;
 pub const MOVE: i64 = STANDARD;
 /// A step onto rubble (docs/plans/fights-2.md): it slows, both ways.
 pub const RUBBLE_STEP: i64 = 2 * MOVE;
+/// Hauling out after being shoved into deep water (docs/plans/fights-2.md).
+pub const FLOUNDER: i64 = STANDARD;
 pub const WAIT: i64 = STANDARD;
 pub const PICK_UP: i64 = STANDARD;
 pub const DROP: i64 = STANDARD;

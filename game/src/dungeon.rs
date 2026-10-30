@@ -35,6 +35,10 @@ pub struct Dungeon {
     /// Patches of tall grass on each floor: it hides what stands in it.
     #[serde(default)]
     pub grass: u32,
+    /// Pools of deep water on each floor: a shove into one drowns a creature
+    /// and costs the player a turn (docs/plans/fights-2.md).
+    #[serde(default)]
+    pub water: u32,
     /// Patches of rubble on each floor: a step onto it costs double
     /// (docs/plans/fights-2.md).
     #[serde(default)]
@@ -228,6 +232,7 @@ pub(crate) mod tests {
             landing_every: 1,
             chasms: 0,
             grass: 0,
+            water: 0,
             rubble: 0,
             creatures: vec![Inhabitant {
                 blueprint: "Goblin".into(),
