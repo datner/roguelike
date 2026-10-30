@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ability, Hardiness, Made, Note, OffBalance, Roams, Skirmish, SprintAi, Teaches, TechniqueAi,
-    Verb, WindUp,
+    Ability, Hardiness, Keepsake, Made, Note, OffBalance, Roams, Skirmish, SprintAi, Teaches,
+    TechniqueAi, Verb, WindUp,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -104,6 +104,8 @@ component_defs! {
         SprintAi, Skirmish, Learner, Proficiency,
         /// From what the holder is, never learned (ADR 0025).
         Ability,
+        /// Made for one place, never found lying about.
+        Keepsake,
     ],
     resolved: [
         /// The creature by blueprint name; spawned from `ResolvedBlueprint::summon`.
@@ -802,12 +804,16 @@ impl Blueprints {
         self.by_id(self.id(name)?)
     }
 
-    /// Every blueprint with an `Item` component, in id (name) order so
-    /// picking from it by index is deterministic.
+    /// Every item that can be found lying about (an `Item`, not a
+    /// `Keepsake`), in id (name) order so picking from it by index is
+    /// deterministic.
     pub fn items(&self) -> Vec<BlueprintId> {
         (0..)
             .zip(&self.resolved)
-            .filter(|(_, blueprint)| blueprint.components.contains(&ComponentDef::Item))
+            .filter(|(_, blueprint)| {
+                blueprint.components.contains(&ComponentDef::Item)
+                    && !blueprint.components.contains(&ComponentDef::Keepsake)
+            })
             .map(|(id, _)| BlueprintId(id))
             .collect()
     }

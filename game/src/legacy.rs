@@ -690,6 +690,20 @@ mod tests {
     }
 
     #[test]
+    fn writings_are_never_found_lying_about() {
+        let data = data();
+        let pool: Vec<&str> = data
+            .items()
+            .into_iter()
+            .filter_map(|id| data.by_id(id).map(|bp| bp.name.as_str()))
+            .collect();
+        for writing in WRITINGS {
+            assert!(!pool.contains(&writing), "{writing}");
+        }
+        assert!(pool.contains(&"Torch"));
+    }
+
+    #[test]
     fn kept_lives_need_a_gap() {
         let legacy = Legacy {
             keep: 1,

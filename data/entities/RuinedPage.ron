@@ -4,6 +4,7 @@
         Name("ruined page"),
         Appearance(glyph: '"', fg: (110, 100, 90), bg: (0, 0, 0)),
         Item,
+        Keepsake,
         Note("Too far gone to read."),
     ],
 )

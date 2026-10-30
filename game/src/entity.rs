@@ -968,6 +968,12 @@ pub struct Made(pub String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note(pub String);
 
+/// Marker: an item made for one place, such as a predecessor's writings in
+/// their ruins (docs/plans/legacy.md), so it is never found lying about on
+/// a floor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Keepsake;
+
 /// Item part (docs/plans/legacy.md): studying it raises each skill to at
 /// most this level, never lowering one. By skill name, like the record it
 /// is written from; a name the content no longer has is skipped.
