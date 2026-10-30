@@ -1,4 +1,4 @@
-//! Effects on the map (ADR 0022), on the frame clock: a missile glides from tile to tile, damage and what a blow did rise from the struck tile, a struck tile flashes in reverse video and a dying one red, and the map shakes when the player is hurt. Glyphs and text on the cell grid, so they keep `term`'s look. Any input finishes them all, as it cuts `term`'s flights short.
+//! Effects on the map (ADR 0022), on the frame clock: a missile glides from tile to tile, damage and what a blow did rise from the struck tile, a struck tile flashes in reverse video and a dying one red, and the map shakes when the player is hurt. Glyphs and text on the cell grid, so they keep the terminal look. Any input finishes them all.
 
 use std::time::{Duration, Instant};
 

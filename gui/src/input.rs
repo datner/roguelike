@@ -1,4 +1,4 @@
-//! Key bindings: the only place an egui key event becomes a `game::InputEvent` or a `front::input` value. Printable keys come from text events, so shifted symbols work on any layout, like `term`'s `KeyCode::Char`; bindings match `term/src/input.rs`.
+//! Key bindings: the only place an egui key event becomes a `game::InputEvent` or a `front::input` value. Printable keys come from text events, so shifted symbols work on any layout.
 
 use eframe::egui::{Event, Key};
 use front::input::{AimInput, MenuInput, OverlayInput};

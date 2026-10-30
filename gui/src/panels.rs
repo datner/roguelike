@@ -1,4 +1,4 @@
-//! The panels around the map: the side column (character sheet, equipment) and the bottom strip (log and status), drawn from `front::text` and `Session::status` in `term`'s boxes.
+//! The panels around the map: the side column (character sheet, equipment) and the bottom strip (log and status), drawn from `front::text` and `Session::status` in the theme's titled boxes.
 
 use eframe::egui::{self, Color32, text::LayoutJob};
 use front::session::{Mode, Session};

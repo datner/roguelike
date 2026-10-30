@@ -36,7 +36,7 @@ Left out: a `Session` test of the refuse-once flow. Planting a wind-up from `fro
 One test helper replaces a tile across a map (the chasm, water and rubble tests' loops); `dig` takes its arguments
 directly instead of through a tuple built for it.
 
-### 4. Stale pointers
+### 4. Stale pointers — done
 
 Module docs no longer name `term` (`gui` input, fx, panels, theme; `game` tiles); the ADR index
 lists 0017–0025 above its template. `docs/MAP.md` regenerated.

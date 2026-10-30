@@ -1,4 +1,4 @@
-//! The terminal look: one monospace font on a grid of text cells (`CELL`), black background, titled boxes with thin borders, the selected row in reverse video. Everything `gui` draws goes through these, so the window reads like `term`.
+//! The terminal look: one monospace font on a grid of text cells (`CELL`), black background, titled boxes with thin borders, the selected row in reverse video. Everything `gui` draws goes through these, so the window reads like a terminal.
 
 use eframe::egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
 use eframe::egui::{

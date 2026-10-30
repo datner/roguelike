@@ -1,4 +1,4 @@
-//! Sprites (ADR 0023): `data/tiles.ron` names cells of an atlas image, one or more frames each, and which sprite each terrain uses; an `Appearance` names its sprite. Loaded and checked with the blueprints, so a missing name fails at load, never in play. Drawing them, and the clock that turns frames, is a frontend's; `term` shows glyphs only.
+//! Sprites (ADR 0023): `data/tiles.ron` names cells of an atlas image, one or more frames each, and which sprite each terrain uses; an `Appearance` names its sprite. Loaded and checked with the blueprints, so a missing name fails at load, never in play. Drawing them, and the clock that turns frames, is a frontend's.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

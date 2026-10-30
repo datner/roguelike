@@ -24,6 +24,15 @@ Point at code by module path (`game/src/combat.rs`), component, type or `Command
 | [0014](0014-spells-and-disciplines.md) | Spells say what they do; the caster's disciplines say what casting costs | Accepted |
 | [0015](0015-sides-and-summons.md) | Two derived sides; summons are spawns held by a timed `Binding`; one shared view | Accepted |
 | [0016](0016-terrain-elements-and-runes.md) | Timed map overlay, statuses as effects with damage handlers, runes as a discipline (not built) | Proposed |
+| [0017](0017-skills.md) | Flat data-defined skills, weighted-average level, XP-only storage, use-based training that decays with repetition | Accepted |
+| [0018](0018-discovery.md) | Data-defined discoveries checked after uses with stakes; proficiencies are attached blueprints; a legible journal | Accepted |
+| [0019](0019-styles.md) | Styles: carried when known, attached when followed, own skill, principles by level | Accepted |
+| [0020](0020-windowed-frontend-egui.md) | Windowed `gui` frontend on eframe/egui, keyboard first; triggers for moving to `bevy_egui` | Accepted |
+| [0021](0021-shared-front-crate.md) | Frontends share flows, menu and saves through a drawing-free `front` crate | Accepted |
+| [0022](0022-effects-stream.md) | `game::fx`: an animation-only stream of flights, damage, outcomes and deaths the player sees | Accepted |
+| [0023](0023-sprites.md) | Sprites named in `data/tiles.ron` and `Appearance`, drawn by `gui` (F2), glyphs in `term` and for memory | Accepted |
+| [0024](0024-techniques.md) | Techniques: attached like spells, paid in turns, recharge and (dormant) stamina; their blows are ordinary blows | Accepted |
+| [0025](0025-origins.md) | Origins: `data/origins.ron` names a blueprint inheriting the bare `Player`, its styles; `Origin(key)` saved | Accepted |
 
 ## Template
 
@@ -42,12 +51,3 @@ What we're doing.
 ## Consequences
 What this makes easier, what it makes harder, what we'd revisit and when.
 ```
-| [0017](0017-skills.md) | Flat data-defined skills, weighted-average level, XP-only storage, use-based training that decays with repetition | Accepted |
-| [0018](0018-discovery.md) | Data-defined discoveries checked after uses with stakes; proficiencies are attached blueprints; a legible journal | Accepted |
-| [0019](0019-styles.md) | Styles: carried when known, attached when followed, own skill, principles by level | Accepted |
-| [0020](0020-windowed-frontend-egui.md) | Windowed `gui` frontend on eframe/egui, keyboard first; triggers for moving to `bevy_egui` | Accepted |
-| [0021](0021-shared-front-crate.md) | Frontends share flows, menu and saves through a drawing-free `front` crate | Accepted |
-| [0022](0022-effects-stream.md) | `game::fx`: an animation-only stream of flights, damage, outcomes and deaths the player sees | Accepted |
-| [0023](0023-sprites.md) | Sprites named in `data/tiles.ron` and `Appearance`, drawn by `gui` (F2), glyphs in `term` and for memory | Accepted |
-| [0024](0024-techniques.md) | Techniques: attached like spells, paid in turns, recharge and (dormant) stamina; their blows are ordinary blows | Accepted |
-| [0025](0025-origins.md) | Origins: `data/origins.ron` names a blueprint inheriting the bare `Player`, its styles; `Origin(key)` saved | Accepted |
