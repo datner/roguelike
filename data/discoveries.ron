@@ -2,7 +2,8 @@
 // each use with stakes; a discovery is made once, and grants a proficiency
 // (a blueprint with `Proficiency`, attached to the learner), a style (a
 // blueprint with `Style`, known until followed; ADR 0019) or a technique
-// (a blueprint with `Technique`, attached; ADR 0024).
+// (a blueprint with `Technique`, attached; ADR 0024). `Phase(key)` means the
+// use must happen on a dive in that phase (docs/plans/phases.md).
 [
     (
         name: "Footwork",
@@ -33,5 +34,10 @@
         name: "the cleave",
         requires: [Skill("Melee", 3), Skill("Slash", 3)],
         grants: Technique("Cleave"),
+    ),
+    (
+        name: "Ember-hardened",
+        requires: [Skill("Toughness", 3), Skill("Embers attunement", 2), Phase("Embers")],
+        grants: Proficiency("EmberHardened"),
     ),
 ]

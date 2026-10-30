@@ -37,6 +37,9 @@ pub struct StyleDef {
     /// Technique blueprints by name, each at a level of its skill.
     #[serde(default)]
     pub invents: Vec<(u32, String)>,
+    /// Phases by key, each with % more style XP on a dive there.
+    #[serde(default)]
+    pub thrives: Vec<(String, u32)>,
 }
 
 impl StyleDef {
@@ -78,6 +81,7 @@ impl StyleDef {
                     Ok((*level, id))
                 })
                 .collect::<Result<_, Missing>>()?,
+            thrives: self.thrives.clone(),
         })
     }
 
@@ -112,8 +116,25 @@ impl StyleDef {
                     Ok((level, name))
                 })
                 .collect::<Result<_, Missing>>()?,
+            thrives: style.thrives.clone(),
         })
     }
+}
+
+/// How much more style XP `skill` (a style's own) gains now, in percent: what
+/// the followed style it belongs to thrives on in the dive's phase.
+pub(crate) fn thriving(state: &GameState, creature: Entity, skill: SkillId) -> u32 {
+    let Some(phase) = crate::phase::on_dive(state) else {
+        return 0;
+    };
+    followed(&state.world, creature)
+        .into_iter()
+        .filter_map(|style| state.world.get::<&Style>(style).ok().map(|s| (*s).clone()))
+        .filter(|style| style.skill == skill)
+        .flat_map(|style| style.thrives)
+        .filter(|(key, _)| *key == phase.key)
+        .map(|(_, pct)| pct)
+        .sum()
 }
 
 pub(crate) fn register(registry: &mut EventRegistry) {

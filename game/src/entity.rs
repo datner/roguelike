@@ -1030,6 +1030,9 @@ pub struct Style {
     pub principles: Vec<Principle>,
     /// Techniques it invents at levels of its skill (ADR 0024).
     pub invents: Vec<(u32, crate::blueprint::BlueprintId)>,
+    /// Phases it thrives in, by key, each with how much more style XP a use
+    /// following it gains on a dive there, in percent (docs/plans/phases.md).
+    pub thrives: Vec<(String, u32)>,
 }
 
 /// What a style does once its skill reaches `from_level`; nothing before.

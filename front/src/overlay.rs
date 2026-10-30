@@ -604,6 +604,12 @@ fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<us
                     .collect();
                 format!("{}: needs {}", idea.name, needs.join(", "))
             };
+            // Where it must happen, and whether you are there.
+            let text = match &idea.phase {
+                Some((phase, true)) => format!("{text}; in {phase}, as now"),
+                Some((phase, false)) => format!("{text}; only in {phase}"),
+                None => text,
+            };
             lines.push(PanelLine::plain(vec![
                 Seg::Plain("  ? ".to_string()),
                 quiet(text),

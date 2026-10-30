@@ -139,7 +139,14 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: a use with stakes in the Rime trains Rime attunement, one at camp or in practice doesn't; a high
   attunement softens the rule for the player and not for a monster; it never touches the lean.
 
-### 5. Styles and discovery
+### 5. Styles and discovery — done
+- As built: `Style.thrives: Vec<(phase key, pct)>` (the multiplier is per style, in data), read by
+  `style::thriving` in `skill::train`; Brawling thrives in the Embers (+50%). `Requirement::Phase(key)`
+  becomes `Discovery.phase` (discoveries resolve before phases load; `with_phases` checks every style's
+  and discovery's phase key), checked in `inspire`; `IdeaView.phase` names where it must happen and
+  whether you're there, and the panel says "only in the embers". New discovery: Ember-hardened
+  (Toughness 3, Embers attunement 2, in the Embers) grants a proficiency with fire resistance 2. The
+  character systems read the dive's phase through `phase::on_dive` (none at camp).
 - `Style.thrives` and its XP multiplier; `Requirement::Phase` and its check in `discovery::inspire`.
   `discovery::ideas` shows a phase requirement as met or not (and where to go).
 - Content: one thriving style, one discovery that needs a phase.

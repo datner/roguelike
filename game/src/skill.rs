@@ -436,7 +436,9 @@ pub(crate) fn train(
             .unwrap_or_default();
         for &skill in &skills {
             let uses = familiarity.uses(skill, &kind);
-            gains.push((skill, base * DECAY / (DECAY + uses)));
+            // A followed style thriving in the dive's phase grows faster.
+            let more = crate::style::thriving(state, learner, skill);
+            gains.push((skill, base * DECAY / (DECAY + uses) * (100 + more) / 100));
             familiarity.count(skill, &kind);
         }
         let _ = state.world.insert_one(learner, familiarity);

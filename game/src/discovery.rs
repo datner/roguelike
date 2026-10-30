@@ -20,6 +20,9 @@ use crate::state::GameState;
 pub enum Requirement {
     /// A skill, by name, at least at this level.
     Skill(String, u32),
+    /// Being on a dive in this phase, by key (docs/plans/phases.md): the
+    /// moment of inspiration must happen there.
+    Phase(String),
 }
 
 /// What a discovery gives, as written in RON.
@@ -46,6 +49,8 @@ pub struct DiscoveryDef {
 pub(crate) struct Discovery {
     pub name: String,
     pub requires: Vec<(SkillId, u32)>,
+    /// The phase it must happen in, by key, if any.
+    pub phase: Option<String>,
     pub grants: BlueprintId,
     /// A style, carried until followed; else a proficiency or a technique,
     /// attached.
@@ -74,14 +79,23 @@ pub(crate) fn resolve(
             let requires = def
                 .requires
                 .iter()
-                .map(|Requirement::Skill(name, level)| {
+                .filter_map(|req| match req {
+                    Requirement::Skill(name, level) => Some((name, *level)),
+                    Requirement::Phase(_) => None,
+                })
+                .map(|(name, level)| {
                     let id = blueprints
                         .skills()
                         .id(name)
                         .ok_or_else(|| unknown(name.clone()))?;
-                    Ok((id, *level))
+                    Ok((id, level))
                 })
                 .collect::<Result<_, BlueprintError>>()?;
+            // Phases load after discoveries; `Blueprints::with_phases` checks it.
+            let phase = def.requires.iter().find_map(|req| match req {
+                Requirement::Phase(key) => Some(key.clone()),
+                Requirement::Skill(..) => None,
+            });
             let (granted, carried) = match &def.grants {
                 Grant::Proficiency(name) | Grant::Technique(name) => (name, false),
                 Grant::Style(name) => (name, true),
@@ -104,6 +118,7 @@ pub(crate) fn resolve(
             Ok(Discovery {
                 name: def.name,
                 requires,
+                phase,
                 grants,
                 carried,
             })
@@ -113,6 +128,11 @@ pub(crate) fn resolve(
 
 fn met(state: &GameState, learner: Entity, (skill, level): (SkillId, u32)) -> bool {
     skill::level(skill::xp(&state.world, learner, skill)) >= level
+}
+
+/// Whether the player is on a dive in the phase `key`.
+fn in_phase(state: &GameState, key: &str) -> bool {
+    crate::phase::on_dive(state).is_some_and(|phase| phase.key == key)
 }
 
 fn made(state: &GameState, learner: Entity) -> Vec<String> {
@@ -135,6 +155,7 @@ pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
         .iter()
         .filter(|d| !discovered.contains(&d.name))
         .filter(|d| d.requires.iter().all(|&req| met(state, learner, req)))
+        .filter(|d| d.phase.as_ref().is_none_or(|key| in_phase(state, key)))
         .map(|d| (d.name.clone(), d.grants, d.carried))
         .collect();
     for (name, grants, carried) in new {
@@ -174,6 +195,9 @@ pub struct IdeaView {
     pub unmet: usize,
     /// The unmet ones by skill and level, when it was read of; else empty.
     pub missing: Vec<(String, u32)>,
+    /// The phase it must happen in, by name ("the embers"), and whether the
+    /// player is on a dive in it now: where to go is always said.
+    pub phase: Option<(String, bool)>,
 }
 
 /// The player's half-formed ideas, in file order, then what their followed
@@ -200,13 +224,24 @@ pub fn ideas(state: &GameState) -> Vec<IdeaView> {
         .filter_map(|d| {
             let (met, missing): (Vec<_>, Vec<_>) =
                 d.requires.iter().partition(|&&req| met(state, player, req));
-            let (met, unmet) = (named(met), missing.len());
+            let phase = d.phase.as_ref().map(|key| {
+                let name = state
+                    .blueprints
+                    .phases()
+                    .iter()
+                    .find(|phase| &phase.key == key)
+                    .map_or_else(|| key.clone(), |phase| phase.name.clone());
+                (name, in_phase(state, key))
+            });
+            let away = usize::from(phase.as_ref().is_some_and(|&(_, here)| !here));
+            let (met, unmet) = (named(met), missing.len() + away);
             let read_of = revealed.contains(&d.name);
             (read_of || (!met.is_empty() && met.len() >= unmet)).then(|| IdeaView {
                 name: d.name.clone(),
                 met,
                 unmet,
                 missing: if read_of { named(missing) } else { Vec::new() },
+                phase,
             })
         })
         // A followed style close to inventing something (ADR 0024).
@@ -219,6 +254,7 @@ pub fn ideas(state: &GameState) -> Vec<IdeaView> {
                         met: vec![(book.get(style)?.name.clone(), level)],
                         unmet: 1,
                         missing: Vec::new(),
+                        phase: None,
                     })
                 }),
         )
@@ -338,6 +374,7 @@ mod tests {
                 met: vec![("Poise".into(), 2)],
                 unmet: 1,
                 missing: Vec::new(),
+                phase: None,
             }]
         );
         // In no discovery at all.

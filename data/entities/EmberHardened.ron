@@ -1,0 +1,9 @@
+// Proficiency (docs/plans/phases.md): a body that has learned the embers'
+// heat. Fire takes 2 less, which answers the phase's lean on you.
+(
+    components: [
+        Name("ember-hardened"),
+        Proficiency,
+        Armor(fire: 2),
+    ],
+)

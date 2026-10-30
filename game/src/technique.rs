@@ -2023,6 +2023,7 @@ mod tests {
             wielding: Vec::new(),
             principles: Vec::new(),
             invents: Vec::new(),
+            thrives: Vec::new(),
         });
         if followed {
             style.attached_to(player).make(state)
@@ -2639,6 +2640,7 @@ mod tests {
             met: vec![("Fencing".to_string(), 1)],
             unmet: 1,
             missing: Vec::new(),
+            phase: None,
         };
         assert!(crate::discovery::ideas(&state).contains(&idea));
         let (state, _, _) = fencer(0);

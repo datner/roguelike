@@ -743,6 +743,23 @@ impl Blueprints {
                 )));
             }
         }
+        let known = |key: &String| phases.iter().any(|phase| &phase.key == key);
+        let bad = |why: String| Err(BlueprintError::BadPhases(why));
+        for blueprint in &self.resolved {
+            for (key, _) in blueprint.style.iter().flat_map(|style| &style.thrives) {
+                if !known(key) {
+                    return bad(format!("{:?} thrives in no phase {key:?}", blueprint.name));
+                }
+            }
+        }
+        for discovery in &self.discoveries {
+            if let Some(key) = discovery.phase.as_ref().filter(|key| !known(key)) {
+                return bad(format!(
+                    "discovery {:?} needs no phase {key:?}",
+                    discovery.name
+                ));
+            }
+        }
         self.phases = phases;
         Ok(self)
     }

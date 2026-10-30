@@ -100,8 +100,15 @@ fn attunement(state: &GameState, phase: &Phase) -> Option<crate::skill::SkillId>
 /// The attunement a use with stakes trains now: the phase's of the dive the
 /// player is on. Camp is in no phase yet.
 pub(crate) fn attuning(state: &GameState) -> Option<crate::skill::SkillId> {
+    on_dive(state).and_then(|phase| attunement(state, phase))
+}
+
+/// The phase of the dive the player is on; `None` at camp, which is in no
+/// phase yet. What the character systems read (attunement, thriving styles,
+/// discoveries), where `current` is what the world's rules read.
+pub(crate) fn on_dive(state: &GameState) -> Option<&Phase> {
     match state.place {
-        Place::Floor { .. } => current(state).and_then(|phase| attunement(state, phase)),
+        Place::Floor { .. } => current(state),
         Place::Camp => None,
     }
 }
@@ -495,6 +502,53 @@ pub(crate) mod tests {
         assert_eq!(mud(&state, goblin), 25, "the goblin is not attuned");
         let acid = DamageTypes::single(DamageType::Acid);
         assert_eq!(leaned(&state, 10, acid), 15, "the lean is everyone's");
+    }
+
+    #[test]
+    fn a_style_thriving_in_the_dives_phase_gains_more() {
+        let brawling_xp = |phase: &str| {
+            let (mut state, goblin) = attuning_in(phase);
+            let player = state.player;
+            state
+                .spawn(crate::spawn::Spawn::blueprint("Brawling").attached_to(player))
+                .unwrap();
+            let book = state.blueprints.skills();
+            let used = [book.id("Melee").unwrap(), book.id("Unarmed").unwrap()];
+            crate::skill::train(&mut state, player, &used, goblin, 10);
+            let id = state.blueprints.skills().id("Brawling").unwrap();
+            crate::skill::xp(&state.world, player, id)
+        };
+        assert_eq!(brawling_xp("Stillness"), 10);
+        assert_eq!(brawling_xp("Embers"), 15, "brawling thrives in the embers");
+    }
+
+    #[test]
+    fn a_phase_discovery_inspires_only_in_its_phase_with_stakes() {
+        let hardened = |phase: &str| {
+            let (mut state, goblin) = attuning_in(phase);
+            let player = state.player;
+            let book = state.blueprints.skills();
+            let ready = vec![
+                (book.id("Toughness").unwrap(), crate::skill::xp_for(3)),
+                (
+                    book.id("Embers attunement").unwrap(),
+                    crate::skill::xp_for(2),
+                ),
+            ];
+            crate::skill::gain(&mut state, player, &ready);
+            let idea = crate::discovery::ideas(&state)
+                .into_iter()
+                .find(|idea| idea.name == "Ember-hardened")
+                .unwrap();
+            assert_eq!(
+                idea.phase,
+                Some(("the embers".to_string(), phase == "Embers"))
+            );
+            crate::skill::train(&mut state, player, &[], goblin, 10);
+            crate::discovery::proficiencies(&state).contains(&"ember-hardened".to_string())
+        };
+        assert!(!hardened("Mire"));
+        assert!(hardened("Embers"));
     }
 
     #[test]

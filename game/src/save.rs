@@ -1176,6 +1176,7 @@ mod tests {
                 does: crate::entity::Does::Riposte,
             }],
             invents: vec![(3, state.blueprints.id("Bleeding").unwrap())],
+            thrives: vec![("Embers".into(), 50)],
         };
         thing("knifework")
             .with(style.clone())
