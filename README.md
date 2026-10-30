@@ -186,7 +186,10 @@ Title menu (New game, Continue, Load):
 In game:
 
 - Arrow keys or `hjkl`: move orthogonally.
-- `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE).
+- `y` / `u` / `b` / `n`: move diagonally (NW/NE/SW/SE). A step onto a
+  tile marked for a coming blow is refused once with a warning; the same
+  step again goes. A step onto rubble (`,`) costs two turns; deep water
+  (`~`) and chasms (`:`) are never walked, but a shove can put something in.
 - `.`: wait a turn.
 - `g` or `,`: pick up everything on your tile (one turn; nothing there costs
   nothing).

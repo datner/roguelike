@@ -71,10 +71,10 @@ decided while building. When a plan and this document disagree, ask the owner wh
 
 ## Fights
 
-Built so far (`docs/plans/fights.md`): the outnumbered rule, memory and morale, roamers, doors,
-chasms, tall grass, sprinting, the brute's telegraph, the archer (the skirmisher) and the rat swarm.
-Still to come: deep water, rubble, darkness as a trade, warnings before stepping into a telegraphed
-tile, and a smarter floor bot for the bench's answer builds.
+Built so far (`docs/plans/fights.md`, `fights-2.md`): the outnumbered rule, memory and morale,
+roamers, doors, chasms, tall grass, sprinting, the brute's telegraph, the archer (the skirmisher), the
+rat swarm, the warning before stepping into a telegraphed tile, rubble and deep water. Still to come:
+darkness as a trade, and a smarter floor bot for the bench's answer builds.
 
 Everything else stands on dives being fun in themselves. A fight is a decision when the obvious move
 (bump the nearest thing) is sometimes wrong and you can see why before you act. Sometimes, not always:
@@ -92,8 +92,9 @@ own, paid for in HP.
   around you, there is a wall behind you. Answers trade against each other: step away (lose tempo),
   interrupt it (a hit during the wind-up staggers it, a miss eats the blow), or take it on armor.
 - **Terrain does one thing each**, and gives existing techniques a target. **Doors** break sight and
-  make chokepoints. **Chasms** and **deep water** turn a shove, push kick or trip into a kill.
-  **Rubble** slows. **Tall grass** hides: in it you are unseen beyond the next tile (and so is anyone
+  make chokepoints. **Chasms** and **deep water** turn a shove, push kick or trip into a kill (a
+  shoved player falls a floor, or hauls out of the water a turn down). **Rubble** slows: a step
+  onto it costs two. **Tall grass** hides: in it you are unseen beyond the next tile (and so is anyone
   else), and it burns. Hiding is not stealth: it is only being out of sight, and a foe that loses
   sight of you goes to where it last saw you. That is a lure: show yourself, step into the grass, and
   meet it on your tile. **Darkness** makes a light a trade: you see, and you are seen.

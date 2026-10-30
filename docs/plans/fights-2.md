@@ -86,8 +86,10 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   2000-turn cap; none is a water bug. The caves draw differently from here on (the map stream
   draws the pools before the grass).
 
-### 4. The vision
+### 4. The vision — done
 - `docs/vision.md` Fights: mark the three as built; README Structure/Controls if they changed.
+- As built: the Fights section lists the three as built and says what a shove into a chasm or water
+  does to the player; README Controls has the warning, rubble and water under moving.
 
 ## Out of scope
 
