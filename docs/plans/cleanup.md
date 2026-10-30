@@ -23,11 +23,13 @@ and `try_move` use it with one own-summon check (`own_summon`), and `technique::
 `fightable_at`, so a step that swaps with your summon onto a struck tile is warned like any step
 (the bug). Test: the summon case warns.
 
-### 2. Shove into water lands on the bank; the warning flow is tested
+### 2. Shove into water lands on the bank — done
 
 `shove` writes the target's position before a `Sink`, so the player hauls out where they went in
-after a long shove, not where the shove started. A `Session` test drives the refuse-once flow:
-refused, same key goes, another key forgets.
+after a long shove, not where the shove started. The test's water now sits two tiles off.
+
+Left out: a `Session` test of the refuse-once flow. Planting a wind-up from `front` would need
+`GameState.world` public; `game`'s `step_warning` tests cover the danger, the flow is one match arm.
 
 ### 3. Dive test and call-site tidying
 

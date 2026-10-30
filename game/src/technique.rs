@@ -1080,6 +1080,10 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
         }
         at = next;
     }
+    // Before a drop too: the player hauls out of water where the shove left them.
+    if let Ok(mut pos) = state.world.get::<&mut Position>(target) {
+        (pos.x, pos.y) = at;
+    }
     match over_the_edge {
         Some(Tile::DeepWater) => return state.commands.push_back(Command::Sink(target)),
         Some(_) => return state.commands.push_back(Command::Fall(target)),
@@ -1089,9 +1093,6 @@ fn shove(state: &mut GameState, pusher: Entity, target: Entity, tiles: i32) {
     if at == start {
         state.log.push(shoved.sentence("hold", "firm"));
         return;
-    }
-    if let Ok(mut pos) = state.world.get::<&mut Position>(target) {
-        (pos.x, pos.y) = at;
     }
     state.log.push(shoved.sentence("be", "shoved back"));
     if target == state.player {
@@ -1501,7 +1502,7 @@ mod tests {
     #[test]
     fn the_player_shoved_into_deep_water_hauls_out_a_turn_down() {
         let mut state = crate::state::tests::bare_state();
-        state.map.set(3, 1, Tile::DeepWater);
+        state.map.set(4, 1, Tile::DeepWater);
         let goblin = crate::testkit::thing("goblin")
             .health(8)
             .hostile()
@@ -1515,7 +1516,7 @@ mod tests {
             .unwrap();
         shove(&mut state, goblin, player, 2);
         crate::command::apply_commands(&mut state);
-        assert_eq!(at(&state, player), (2, 1), "back on the bank");
+        assert_eq!(at(&state, player), (3, 1), "on the bank, a tile on");
         assert!(!state.game_over);
         assert_eq!(
             state.world.get::<&crate::entity::Energy>(player).unwrap().0,
