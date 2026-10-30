@@ -89,4 +89,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- phases: a floor keeps its phase (`Place::Floor`); spawn entries with `phases:` pick its natives.
+- spells: summons cross floors with their owner (`dive.rs`, ADR 0015).
+
+**Read by**
+- health: arriving on a floor refills the rest budget (`rest::arrive`); camp heals in full.
+- phases: camp's `WaitForPhase` sets the next dive's phase.
+- legacy: the camp store becomes the record's stash, ruins are built at camp
+  *(planned: legacy.md, slices 2–3)*.
+- situations: what a floor holds besides fights *(vision)*
+
+Depth (`depth.md`) extends this plan: way-landings and the bottom are `Dungeon` data read in
+`dive::build`.

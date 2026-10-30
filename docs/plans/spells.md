@@ -208,4 +208,13 @@ report listing what changed, what was left out, and follow-ups.
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- skills: `skill::cast` picks the skills a cast uses; `skill::steadied` lowers its fizzle.
+- combat: a spell's damage is a `Command::Damage`, finished by armor and resistances like a blow's.
+
+**Read by**
+- lore: `lore::first_cast` trains Arcana; `lore::inspect` lists the spells a creature knows.
+- ai: `spell::ready_cast` and `spell::check_target` decide a caster's turn (`ai.rs`).
+- techniques: a technique's shape and recharge are the spell's (`spell::cover`, `spell::recharge`).
+- phases: the element lean multiplies a spell's typed damage *(planned: phases.md, slice 1)*.
+- crafting: reagents and scribing scrolls *(vision)*

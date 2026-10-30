@@ -76,4 +76,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- skills: Toughness's level adds max health (`health::from_toughness`); Recovery quickens
+  regeneration (`rest.rs`).
+- origins: each origin's blueprint base health (`health::start`).
+- combat: damage dealt in a fight trains Toughness (`health::hurt`, from `Command::Damage`).
+- dives: the rest budget is per floor (`rest::arrive`).
+
+**Read by**
+- skills: `health::hurt` trains Toughness, healing a wound trains Recovery.
+- ai: a creature's morale breaks below a share of its health (`ai.rs`).
+
+`rest.md` is the first half of the health system; its connections are listed here.

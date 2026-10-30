@@ -78,6 +78,4 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Way-landings and the bottom (their own plan); roamers that make resting risky (the fights plan).
 - Tuning beyond the first numbers: the bench reports, the owner decides.
 
-## Connections
-
-*TODO* (interconnection.md, slices 2–3)
+Exempt: the first half of the health system; its connections are listed in sturdiness.md.

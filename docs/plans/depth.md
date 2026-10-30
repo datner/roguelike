@@ -66,6 +66,4 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Recall items (crafting, traders).
 - The floor bot banking at landings (it plays one dive down).
 
-## Connections
-
-*TODO* (interconnection.md, slices 2–3)
+Exempt: extends dives; its connections are listed in dives.md.

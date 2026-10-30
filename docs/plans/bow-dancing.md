@@ -127,4 +127,14 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- styles: `BowDancing.ron` is a style whose principles switch on with its skill.
+- techniques: the kicks (`Trip`, `PushKick`) and `PartingShot` are techniques.
+- combat: point blank is a named penalty in `combat::odds` that the style answers.
+
+**Read by**
+- discovery: the "Bow dancing" discovery grants the style (`data/discoveries.ron`).
+- origins: every origin starts knowing `Trip` (`data/entities/<Origin>.ron`).
+- ai: the spirit wolf trips (`SpiritWolf.ron`, through `technique::ready`).
+- training: `KickingPrimer` teaches a kick as a lesson.
+- crafting: fletching makes the arrows it spends *(vision)*

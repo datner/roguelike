@@ -196,4 +196,15 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- combat: a technique's blow is `combat::blow`, with `combat::odds`.
+- skills: `skill::train` and `skill::missile` for the blow.
+- styles: a step of a form needs the followed style (`style::followed`).
+- spells: shapes and recharge (`spell::cover`, `spell::occupied`, `spell::recharge`).
+
+**Read by**
+- ai: `technique::ready` and `technique::winding_up` decide a creature's turn and its telegraph.
+- styles: `style::invent` invents techniques a learner doesn't know (`technique::knows`).
+- training: a manual is a lesson that teaches its technique once (`training.rs`).
+- origins: an origin's starting techniques (`technique::techniques` in `origin.rs`).
+- discovery: a discovery that grants a known technique is skipped (`technique::knows`).

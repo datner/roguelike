@@ -113,4 +113,12 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- skills: the origin blueprint's starting skills (`origin.rs`).
+- styles: the styles an origin starts knowing and following (`style::known`, `style::followed`).
+- techniques: an origin's starting techniques and abilities (`technique::techniques`).
+
+**Read by**
+- health: each origin's blueprint sets its base health (`health::start`, sturdiness.md).
+- legacy: `Record.origin` *(planned: legacy.md, slice 1)*.
+- factions: born into one *(vision)*

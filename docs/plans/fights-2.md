@@ -98,6 +98,4 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - A warning for the AI: creatures step where they like.
 - Tuning: the bench reports, the owner decides.
 
-## Connections
-
-*TODO* (interconnection.md, slices 2–3)
+Exempt: extends fights; its connections are listed in fights.md.

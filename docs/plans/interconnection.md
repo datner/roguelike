@@ -75,7 +75,13 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
     weathering differs by the phase of death) but not required.
 - Any gap found becomes a slice in that plan, before it is built.
 
-### 3. Built plans: skills, spells, techniques, bow-dancing, dives, origins
+### 3. Built plans: skills, spells, techniques, bow-dancing, dives, origins — done
+- As built: every built plan meets the bar, so `docs/plans/connections.md` was not needed; the
+  candidates are listed under the README's table. Origins passes through health (each origin's base
+  health, from sturdiness.md, written after this plan), bow dancing through origins, ai and training
+  (`Trip`, the spirit wolf, `KickingPrimer`). Plans written after this one are covered too: fights,
+  sturdiness get sections; depth, fights-2 and rest extend another plan and say where they are listed
+  (a new `Exempt` reason in the README); legibility is text only.
 - Add `## Connections` to each, describing what exists, with code pointers. First pass, to verify
   against the code:
   - **skills** reads combat (stakes), lore, training, origins; read by combat, spells, techniques,

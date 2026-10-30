@@ -214,4 +214,17 @@ The owner's tuning after the bench reading above (the archer at equal speed was 
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- techniques: a telegraph is a technique with a wind-up (`technique::winding_up`); sprinting spends
+  the technique stamina pool (`technique::stamina`).
+- health: morale breaks below a share of health (`Morale`, read in `ai.rs`).
+- dives: doors, chasms, tall grass, rubble and deep water are tiles `dive::build` digs from dungeon
+  data.
+
+**Read by**
+- combat: `combat::outnumbered`, range falloff, snap shots and point blank in `combat::odds`.
+- ai: foes remember (`Quarry`), roam (`Roams`), flee (`Morale`) and charge (`SprintAi`).
+- lore: a creature hidden in grass is not offered to look at (`lore::look_targets`).
+- techniques: a shove into a chasm or deep water kills (fights-2's `Command::Sink`).
+
+`fights-2.md` extends this plan; its warning, rubble and deep water are listed here.

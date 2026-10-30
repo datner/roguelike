@@ -261,4 +261,19 @@ listing what changed, what was left out, and follow-ups.
 
 ## Connections
 
-*TODO* (interconnection.md, slices 2–3)
+**Reads**
+- combat: a blow with stakes trains the skills it used, `skill::after_blow` from `combat.rs`.
+- training: lessons and practice grant XP through `skill::gain` (`training.rs`).
+- lore: first sights and first casts train Beast lore and Arcana (`lore::sight`, `lore::first_cast`).
+- health: being hurt in a fight trains Toughness (`health::hurt`); healing wounds trains Recovery
+  (`rest.rs`).
+
+**Read by**
+- combat: `skill::effective` and `skill::damage_bonus` in the odds and the damage.
+- spells: `skill::cast` picks a cast's skills; `skill::steadied` lowers the fizzle.
+- techniques: `skill::train` and `skill::missile` for a technique's blow.
+- styles: `skill::train` trains the followed style (`style::following`); a style's principles switch
+  on at levels of its skill.
+- discovery: `skill::train` checks `discovery::inspire`; `Requirement::Skill` reads levels.
+- health: Toughness's level raises max health (`health::refresh`).
+- lore: Beast lore's level decides what `lore::inspect` reveals.
