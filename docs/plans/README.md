@@ -58,7 +58,7 @@ Systems: skills, styles, discovery, techniques, spells, combat, lore, training, 
 | `fights-2.md` | done | exempt: extends fights |
 | `floor-bot.md` | done | exempt: tooling |
 | `gui.md` | done | exempt: frontend |
-| `interconnection.md` | in progress | exempt: docs and a check |
+| `interconnection.md` | done | exempt: docs and a check |
 | `legacy.md` | not started | origins, skills, techniques, discovery, dives, combat → dives, training, techniques, discovery |
 | `legibility.md` | done | exempt: text only |
 | `origins.md` | done | skills, styles, techniques → health, legacy |

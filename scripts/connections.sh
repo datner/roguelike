@@ -25,10 +25,6 @@ lacks() {
     echo "$plan: no '## Connections' section and no 'Exempt:' line"
     return
   fi
-  # shortcut: a provisional section passes until interconnection.md's slice 4 makes the check strict.
-  if rg -q '^\*TODO\*' "$plan"; then
-    return
-  fi
   local section=none in_conn=0 line sys
   local -A reads=() read_by=() unknown=()
   while IFS= read -r line; do

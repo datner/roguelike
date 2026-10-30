@@ -103,7 +103,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - Each missing connection becomes a slice of **`docs/plans/connections.md`**, one slice per connection,
   each small: the mechanism, its one reader, tests. Ordered by how many systems it touches.
 
-### 4. Strict
+### 4. Strict — done
 - Turn the check's warnings into failures; remove every *TODO* section.
 - The README's per-plan lines are complete.
 
