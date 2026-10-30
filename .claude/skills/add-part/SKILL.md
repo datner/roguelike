@@ -18,8 +18,8 @@ Content lives in `data/entities/*.ron`; behaviour lives in reusable parts (ADR 0
 A part is registered in four places; it is done when all four exist and the round-trip test passes.
 
 1. **Component** in `game/src/entity.rs`: plain data deriving `Debug, Clone, PartialEq, Serialize, Deserialize` (plus `Copy`/`Eq` when possible); a unit struct for a pure flag. Timed state is a `Timed` (ADR 0006); a regenerating pool stores `value` + `as_of` and computes on read.
-2. **Blueprint:** a `ComponentDef` variant and its `builder.add` arm in `blueprint.rs`.
-3. **Save:** a `ComponentKind` (also in its `ALL` list) and a `SavedComponent` variant with both arms in `save.rs`, remapping any `Entity`/`BlueprintId` in both directions. Bump `SAVE_VERSION` and add a `…_survive(s)_a_round_trip` test.
+2. **Blueprint:** one line in `component_defs!` in `blueprint.rs`: `plain`, `markers`, or `resolved` (holds names, spawned from `ResolvedBlueprint`). Import the type.
+3. **Save:** one line in `components!` in `save.rs`: `plain`, `markers`, or `custom` (an `Entity`/`BlueprintId`/`SkillId` inside: a `CustomSaved` variant and its arms in `save_custom`/`load_custom`, remapping both ways). Import the type, bump `SAVE_VERSION`, and add a `…_survive(s)_a_round_trip` test when it's custom.
 4. **Behaviour:** handlers for (event, component) with a new named constant in `prio.rs`. They read `ctx.world` and push `Command`s into `ctx.out`; a new kind of state change goes through the `add-command` skill. Pure data read by an existing system needs no handler.
 
 Then:

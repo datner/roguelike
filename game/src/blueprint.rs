@@ -27,6 +27,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
+    Ability, Hardiness, OffBalance, Roams, Skirmish, SprintAi, Teaches, TechniqueAi, Verb, WindUp,
+};
+use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
     Body, BodyPart, Chain, CooldownCasting, Dash, Deflect, Delay, Duration, Equippable, Fizzle,
     Focus, Footwork, Graze, Health, Hostile, Item, Launcher, Learner, Lesson, Light, Loose, Mana,
@@ -34,7 +37,6 @@ use crate::entity::{
     Quiver, Regeneration, School, Scroll, Skills, Speed, Spell, SpellAi, SpellDamage, Stamina,
     Stats, Style, Summon, SummonLimit, Technique, Throwable, Trains, Weapon,
 };
-use crate::entity::{OffBalance, Teaches, TechniqueAi};
 use crate::equipment::free_part;
 use crate::holding;
 use crate::skill::{SkillBook, xp_for};
@@ -47,84 +49,77 @@ use crate::technique::{Missing, Names, TechniqueDef};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlueprintId(u32);
 
-/// Every component a blueprint can declare. A child's entry overrides the
-/// parent's entry of the same variant.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ComponentDef {
-    Name(Name),
-    Appearance(Appearance),
-    BlocksMovement,
-    Player,
-    Health(Health),
-    Armor(Armor),
-    Melee(Melee),
-    Speed(Speed),
-    Hostile,
-    Item,
-    Body(Vec<BodyPart>),
-    Equippable(Equippable),
-    Stats(Stats),
-    Weapon(Weapon),
-    Throwable(Throwable),
-    Ammo(Ammo),
-    Projectile(Projectile),
-    Launcher(Launcher),
-    Quiver(Quiver),
-    Spell(Spell),
-    SpellDamage(SpellDamage),
-    Area(Area),
-    Summon(SummonDef),
-    Binding,
-    SummonLimit(SummonLimit),
-    BloodCasting(BloodCasting),
-    Scroll,
-    Focus(Focus),
-    Fizzle(Fizzle),
-    Chain(Chain),
-    Delay(Delay),
-    Blast(Blast),
-    SpellAi,
-    TechniqueAi,
-    CooldownCasting(CooldownCasting),
-    ManaCasting(ManaCasting),
-    Mana(Mana),
-    Bleeding(Bleeding),
-    Regeneration(Regeneration),
-    Morale(Morale),
-    Hardiness(crate::entity::Hardiness),
-    Roams,
-    SprintAi,
-    WindUp(crate::entity::WindUp),
-    Skirmish,
-    Duration(Duration),
-    OnHit(Vec<OnHitDef>),
-    /// Fixed skill levels by name (ADR 0017); spawned as XP.
-    Skills(BTreeMap<String, u32>),
-    /// Skills by name that using this trains.
-    Trains(Vec<String>),
-    Learner,
-    Graze(Graze),
-    Deflect(Deflect),
-    Light(Light),
-    Proficiency,
-    /// From what the holder is, never learned (ADR 0025).
-    Ability,
-    /// The verb its use is logged with (a language part, like `Name`).
-    Verb(crate::entity::Verb),
-    Footwork(Footwork),
-    /// Skills by name; spawned from `ResolvedBlueprint::style`.
-    Style(StyleDef),
-    /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
-    Lesson(BTreeMap<String, u32>),
-    /// Skills by name; spawned from `ResolvedBlueprint::technique`.
-    Technique(TechniqueDef),
-    /// Technique blueprints by name; spawned from `ResolvedBlueprint::teaches`.
-    Teaches(Vec<String>),
-    Blow(Blow),
-    Dash(Dash),
-    Loose(Loose),
-    Stamina(Stamina),
-    OffBalance(OffBalance),
+/// Every component a blueprint can declare, in three kinds. A new one goes on
+/// one list:
+/// - `plain`: written as itself and added as itself;
+/// - `markers`: a unit struct, written by name;
+/// - `resolved`: holds names (skills, blueprints) that loading resolves to
+///   ids, so it is spawned from `ResolvedBlueprint`, never added here.
+///
+/// A child's entry overrides the parent's entry of the same variant.
+macro_rules! component_defs {
+    (
+        plain: [$($(#[$plain_doc:meta])* $plain:ident),* $(,)?],
+        markers: [$($(#[$marker_doc:meta])* $marker:ident),* $(,)?],
+        resolved: [$($(#[$resolved_doc:meta])* $resolved:ident($ty:ty)),* $(,)?] $(,)?
+    ) => {
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        pub enum ComponentDef {
+            $($(#[$plain_doc])* $plain($plain),)*
+            $($(#[$marker_doc])* $marker,)*
+            $($(#[$resolved_doc])* $resolved($ty),)*
+        }
+
+        impl ComponentDef {
+            fn add_to(&self, builder: &mut EntityBuilder) {
+                match self {
+                    $(ComponentDef::$plain(c) => {
+                        builder.add(c.clone());
+                    })*
+                    $(ComponentDef::$marker => {
+                        builder.add($marker);
+                    })*
+                    $(ComponentDef::$resolved(_))|* => {}
+                }
+            }
+        }
+    };
+}
+
+component_defs! {
+    plain: [
+        Name, Appearance, Health, Armor, Melee, Speed, Body, Equippable, Stats, Weapon, Throwable,
+        Ammo, Projectile, Launcher, Quiver, Spell, SpellDamage, Area, SummonLimit, BloodCasting,
+        Focus, Fizzle, Chain, Delay, Blast, CooldownCasting, ManaCasting, Mana, Bleeding,
+        Regeneration, Morale, Hardiness, WindUp, Duration, Graze, Deflect, Light,
+        /// The verb its use is logged with (a language part, like `Name`).
+        Verb,
+        Footwork, Blow, Dash, Loose, Stamina, OffBalance,
+    ],
+    markers: [
+        BlocksMovement, Player, Hostile, Item, Binding, Scroll, SpellAi, TechniqueAi, Roams,
+        SprintAi, Skirmish, Learner, Proficiency,
+        /// From what the holder is, never learned (ADR 0025).
+        Ability,
+    ],
+    resolved: [
+        /// The creature by blueprint name; spawned from `ResolvedBlueprint::summon`.
+        Summon(SummonDef),
+        /// Effects by blueprint name; spawned from `ResolvedBlueprint::on_hit`.
+        OnHit(Vec<OnHitDef>),
+        /// Fixed skill levels by name (ADR 0017); spawned as XP.
+        Skills(BTreeMap<String, u32>),
+        /// Skills by name that using this trains.
+        Trains(Vec<String>),
+        /// Skills by name; spawned from `ResolvedBlueprint::style`.
+        Style(StyleDef),
+        /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
+        Lesson(BTreeMap<String, u32>),
+        /// Skills by name; spawned from `ResolvedBlueprint::technique`.
+        Technique(TechniqueDef),
+        /// Technique blueprints by name; spawned from `ResolvedBlueprint::teaches`.
+        Teaches(Vec<String>),
+    ],
 }
 
 /// A `Summon` as written in RON: the creature by blueprint name.
@@ -143,82 +138,6 @@ pub struct OnHitDef {
     /// Whether a graze applies it too (`OnHitEntry::on_graze`).
     #[serde(default)]
     pub on_graze: bool,
-}
-
-impl ComponentDef {
-    fn add_to(&self, builder: &mut EntityBuilder) {
-        match self.clone() {
-            ComponentDef::Name(c) => builder.add(c),
-            ComponentDef::Appearance(c) => builder.add(c),
-            ComponentDef::BlocksMovement => builder.add(BlocksMovement),
-            ComponentDef::Player => builder.add(Player),
-            ComponentDef::Health(c) => builder.add(c),
-            ComponentDef::Armor(c) => builder.add(c),
-            ComponentDef::Melee(c) => builder.add(c),
-            ComponentDef::Speed(c) => builder.add(c),
-            ComponentDef::Hostile => builder.add(Hostile),
-            ComponentDef::Item => builder.add(Item),
-            ComponentDef::Body(parts) => builder.add(Body(parts)),
-            ComponentDef::Equippable(c) => builder.add(c),
-            ComponentDef::Stats(c) => builder.add(c),
-            ComponentDef::Weapon(c) => builder.add(c),
-            ComponentDef::Throwable(c) => builder.add(c),
-            ComponentDef::Ammo(c) => builder.add(c),
-            ComponentDef::Projectile(c) => builder.add(c),
-            ComponentDef::Launcher(c) => builder.add(c),
-            ComponentDef::Spell(c) => builder.add(c),
-            ComponentDef::SpellDamage(c) => builder.add(c),
-            ComponentDef::Area(c) => builder.add(c),
-            ComponentDef::Binding => builder.add(Binding),
-            ComponentDef::SummonLimit(c) => builder.add(c),
-            ComponentDef::BloodCasting(c) => builder.add(c),
-            ComponentDef::Scroll => builder.add(Scroll),
-            ComponentDef::Focus(c) => builder.add(c),
-            ComponentDef::Fizzle(c) => builder.add(c),
-            ComponentDef::Chain(c) => builder.add(c),
-            ComponentDef::Delay(c) => builder.add(c),
-            ComponentDef::Blast(c) => builder.add(c),
-            ComponentDef::SpellAi => builder.add(SpellAi),
-            ComponentDef::TechniqueAi => builder.add(TechniqueAi),
-            ComponentDef::CooldownCasting(c) => builder.add(c),
-            ComponentDef::ManaCasting(c) => builder.add(c),
-            ComponentDef::Mana(c) => builder.add(c),
-            ComponentDef::Quiver(c) => builder.add(c),
-            ComponentDef::Bleeding(c) => builder.add(c),
-            ComponentDef::Regeneration(c) => builder.add(c),
-            ComponentDef::Morale(c) => builder.add(c),
-            ComponentDef::Hardiness(c) => builder.add(c),
-            ComponentDef::Roams => builder.add(crate::entity::Roams),
-            ComponentDef::SprintAi => builder.add(crate::entity::SprintAi),
-            ComponentDef::WindUp(c) => builder.add(c),
-            ComponentDef::Skirmish => builder.add(crate::entity::Skirmish),
-            ComponentDef::Duration(c) => builder.add(c),
-            ComponentDef::Learner => builder.add(Learner),
-            ComponentDef::Graze(c) => builder.add(c),
-            ComponentDef::Deflect(c) => builder.add(c),
-            ComponentDef::Light(c) => builder.add(c),
-            ComponentDef::Proficiency => builder.add(Proficiency),
-            ComponentDef::Ability => builder.add(crate::entity::Ability),
-            ComponentDef::Verb(verb) => builder.add(verb.clone()),
-            ComponentDef::Footwork(c) => builder.add(c),
-            ComponentDef::Blow(c) => builder.add(c),
-            ComponentDef::Dash(c) => builder.add(c),
-            ComponentDef::Loose(c) => builder.add(c),
-            ComponentDef::Stamina(c) => builder.add(c),
-            ComponentDef::OffBalance(c) => builder.add(c),
-            // Hold names; spawned from `ResolvedBlueprint::skills`/`trains`.
-            ComponentDef::Skills(_)
-            | ComponentDef::Trains(_)
-            | ComponentDef::Style(_)
-            | ComponentDef::Technique(_)
-            | ComponentDef::Teaches(_)
-            | ComponentDef::Lesson(_) => return,
-            // Holds names; spawned from `ResolvedBlueprint::on_hit` instead.
-            ComponentDef::OnHit(_) => return,
-            // Holds a name; spawned from `ResolvedBlueprint::summon` instead.
-            ComponentDef::Summon(_) => return,
-        };
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -276,7 +195,7 @@ impl ResolvedBlueprint {
         self.components
             .iter()
             .find_map(|c| match c {
-                ComponentDef::Body(parts) => Some(parts.as_slice()),
+                ComponentDef::Body(body) => Some(body.0.as_slice()),
                 _ => None,
             })
             .unwrap_or_default()
@@ -1276,14 +1195,14 @@ mod tests {
     }
 
     fn two_hands() -> ComponentDef {
-        ComponentDef::Body(
+        ComponentDef::Body(Body(
             ["right hand", "left hand"]
                 .map(|name| BodyPart {
                     kind: PartKind::Hand,
                     name: name.to_string(),
                 })
                 .to_vec(),
-        )
+        ))
     }
 
     fn resolve_child_equipment(child_equipment: Option<&[&str]>) -> Vec<String> {

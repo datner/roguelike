@@ -621,12 +621,12 @@ pub(crate) mod tests {
             kind,
             name: name.to_string(),
         };
-        ComponentDef::Body(vec![
+        ComponentDef::Body(crate::entity::Body(vec![
             part(PartKind::Head, "head"),
             part(PartKind::Body, "body"),
             part(PartKind::Hand, "right hand"),
             part(PartKind::Hand, "left hand"),
-        ])
+        ]))
     }
 
     /// Player: 20 HP, 2-4 melee. Goblin: 8 HP wearing 1-AV armor, hostile.

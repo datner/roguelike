@@ -2165,10 +2165,10 @@ mod tests {
     }
 
     fn test_body() -> crate::entity::Body {
-        let crate::blueprint::ComponentDef::Body(parts) = crate::state::tests::test_body() else {
+        let crate::blueprint::ComponentDef::Body(body) = crate::state::tests::test_body() else {
             unreachable!("test_body is a body");
         };
-        crate::entity::Body(parts)
+        body
     }
 
     #[test]

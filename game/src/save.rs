@@ -41,14 +41,14 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 56;
+pub const SAVE_VERSION: u32 = 57;
 
 #[derive(Debug)]
 pub enum SaveError {
     /// Saving mid-turn would lose queued commands; save between player turns.
     CommandsPending(usize),
     /// The entity at this save index has a component the format doesn't
-    /// know. Add it to `ComponentKind` and `SavedComponent`.
+    /// know. Add it to one of the lists in `components!`.
     UnknownComponent(u32),
     /// This many entities have no `SpawnSeq`, so they have no place in the
     /// save order: they were created outside `GameState::spawn`.
@@ -183,274 +183,114 @@ enum SavedTimerKind {
     Regenerate(Option<u32>),
 }
 
-/// Every component type. Saving walks `ALL`; an entity with a component not
-/// covered here fails to save rather than losing it.
-#[derive(Debug, Clone, Copy)]
-enum ComponentKind {
-    Position,
-    Appearance,
-    BlocksMovement,
-    Player,
-    Dead,
-    Name,
-    Health,
-    Armor,
-    Melee,
-    Attachments,
-    Inventory,
-    Speed,
-    Energy,
-    SpawnSeq,
-    Hostile,
-    Item,
-    Found,
-    Body,
-    Equippable,
-    EquippedOn,
-    Stats,
-    Weapon,
-    Throwable,
-    Ammo,
-    Projectile,
-    Launcher,
-    Quiver,
-    Spell,
-    SpellDamage,
-    Area,
-    Recharging,
-    CooldownCasting,
-    ManaCasting,
-    Mana,
-    Duration,
-    Timed,
-    EffectTarget,
-    Summoned,
-    Summon,
-    Binding,
-    SummonLimit,
-    BloodCasting,
-    Scroll,
-    Focus,
-    Fizzle,
-    Chain,
-    Delay,
-    Blast,
-    SpellAi,
-    Bleeding,
-    Regeneration,
-    RestBudget,
-    Quarry,
-    Morale,
-    Roams,
-    Route,
-    Sprinting,
-    SprintAi,
-    WindUp,
-    Telegraph,
-    Skirmish,
-    Strode,
-    Loosed,
-    Hardiness,
-    BaseHealth,
-    Wounds,
-    OnHit,
-    Skills,
-    Trains,
-    Learner,
-    Familiarity,
-    Graze,
-    Deflect,
-    Light,
-    Proficiency,
-    Ability,
-    Verb,
-    Footwork,
-    Discovered,
-    Origin,
-    Style,
-    Lesson,
-    Studied,
-    Sighted,
-    Attuned,
-    Technique,
-    Blow,
-    Dash,
-    Loose,
-    Stamina,
-    OffBalance,
-    Performed,
-    TechniqueAi,
-    Teaches,
+/// Every component the save knows, in three kinds, and the code that saves
+/// and loads them. A new component goes on one list:
+/// - `plain`: saved as itself (`Clone` + `Serialize`, no `Entity` inside,
+///   no runtime id);
+/// - `markers`: a unit struct, saved by name;
+/// - `custom`: an `Entity` to remap or an id to name: a `CustomSaved`
+///   variant and its arms in `save_custom` and `load_custom`.
+///
+/// Saving walks the lists in this order; an entity with a component none of
+/// them covers fails to save rather than losing it.
+macro_rules! components {
+    (
+        plain: [$($plain:ident),* $(,)?],
+        markers: [$($marker:ident),* $(,)?],
+        custom: [$($custom:ident),* $(,)?] $(,)?
+    ) => {
+        #[derive(Debug, Clone, Copy)]
+        enum ComponentKind {
+            $($plain,)*
+            $($marker,)*
+            $($custom,)*
+        }
+
+        impl ComponentKind {
+            const ALL: &[ComponentKind] = &[
+                $(Self::$plain,)*
+                $(Self::$marker,)*
+                $(Self::$custom,)*
+            ];
+        }
+
+        /// A component as saved: plain values as-is, markers by name, the
+        /// rest as `CustomSaved` (entity references as save indices,
+        /// blueprints and skills as names).
+        #[derive(Debug, Serialize, Deserialize)]
+        enum SavedComponent {
+            $($plain($plain),)*
+            $($marker,)*
+            Custom(CustomSaved),
+        }
+
+        fn save_component(
+            kind: ComponentKind,
+            entity: EntityRef<'_>,
+            refer: &impl Fn(Entity) -> Result<u32, SaveError>,
+            blueprints: &Blueprints,
+        ) -> Result<Option<SavedComponent>, SaveError> {
+            Ok(match kind {
+                $(ComponentKind::$plain => entity
+                    .get::<&$plain>()
+                    .map(|component| SavedComponent::$plain((*component).clone())),)*
+                $(ComponentKind::$marker => {
+                    entity.has::<$marker>().then_some(SavedComponent::$marker)
+                })*
+                $(ComponentKind::$custom)|* => {
+                    save_custom(kind, entity, refer, blueprints)?.map(SavedComponent::Custom)
+                }
+            })
+        }
+
+        fn load_component(
+            component: SavedComponent,
+            builder: &mut EntityBuilder,
+            entity: &impl Fn(u32) -> Result<Entity, LoadError>,
+            blueprints: &Blueprints,
+        ) -> Result<(), LoadError> {
+            match component {
+                $(SavedComponent::$plain(c) => {
+                    builder.add(c);
+                })*
+                $(SavedComponent::$marker => {
+                    builder.add($marker);
+                })*
+                SavedComponent::Custom(c) => load_custom(c, builder, entity, blueprints)?,
+            }
+            Ok(())
+        }
+    };
 }
 
-impl ComponentKind {
-    const ALL: [ComponentKind; 94] = [
-        Self::Position,
-        Self::Appearance,
-        Self::BlocksMovement,
-        Self::Player,
-        Self::Dead,
-        Self::Name,
-        Self::Health,
-        Self::Armor,
-        Self::Melee,
-        Self::Attachments,
-        Self::Inventory,
-        Self::Speed,
-        Self::Energy,
-        Self::SpawnSeq,
-        Self::Hostile,
-        Self::Item,
-        Self::Found,
-        Self::Body,
-        Self::Equippable,
-        Self::EquippedOn,
-        Self::Stats,
-        Self::Weapon,
-        Self::Throwable,
-        Self::Ammo,
-        Self::Projectile,
-        Self::Launcher,
-        Self::Quiver,
-        Self::Spell,
-        Self::SpellDamage,
-        Self::Area,
-        Self::Recharging,
-        Self::CooldownCasting,
-        Self::ManaCasting,
-        Self::Mana,
-        Self::Duration,
-        Self::Timed,
-        Self::EffectTarget,
-        Self::Summoned,
-        Self::Summon,
-        Self::Binding,
-        Self::SummonLimit,
-        Self::BloodCasting,
-        Self::Scroll,
-        Self::Focus,
-        Self::Fizzle,
-        Self::Chain,
-        Self::Delay,
-        Self::Blast,
-        Self::SpellAi,
-        Self::Bleeding,
-        Self::Regeneration,
-        Self::RestBudget,
-        Self::Quarry,
-        Self::Morale,
-        Self::Roams,
-        Self::Route,
-        Self::Sprinting,
-        Self::SprintAi,
-        Self::WindUp,
-        Self::Telegraph,
-        Self::Skirmish,
-        Self::Strode,
-        Self::Loosed,
-        Self::Hardiness,
-        Self::BaseHealth,
-        Self::Wounds,
-        Self::OnHit,
-        Self::Skills,
-        Self::Trains,
-        Self::Learner,
-        Self::Familiarity,
-        Self::Graze,
-        Self::Deflect,
-        Self::Light,
-        Self::Proficiency,
-        Self::Ability,
-        Self::Verb,
-        Self::Footwork,
-        Self::Discovered,
-        Self::Origin,
-        Self::Style,
-        Self::Lesson,
-        Self::Studied,
-        Self::Sighted,
-        Self::Attuned,
-        Self::Technique,
-        Self::Blow,
-        Self::Dash,
-        Self::Loose,
-        Self::Stamina,
-        Self::OffBalance,
-        Self::Performed,
-        Self::TechniqueAi,
-        Self::Teaches,
-    ];
+components! {
+    plain: [
+        Position, Appearance, Name, Health, Armor, Melee, Speed, Energy, SpawnSeq, Body,
+        Equippable, EquippedOn, Stats, Weapon, Throwable, Ammo, Projectile, Launcher, Quiver,
+        Spell, SpellDamage, Area, Recharging, CooldownCasting, ManaCasting, Mana, Duration,
+        Timed, SummonLimit, BloodCasting, Focus, Fizzle, Chain, Delay, Blast, Bleeding,
+        Regeneration, RestBudget, Quarry, Morale, Route, WindUp, Strode, Loosed, Hardiness,
+        BaseHealth, Wounds, Graze, Deflect, Light, Verb, Footwork, Discovered, Origin, Studied,
+        Sighted, Attuned, Blow, Dash, Loose, Stamina, OffBalance, Performed,
+    ],
+    markers: [
+        BlocksMovement, Player, Dead, Hostile, Item, Found, Binding, Scroll, SpellAi, Roams,
+        Sprinting, SprintAi, Skirmish, Learner, Proficiency, Ability, TechniqueAi,
+    ],
+    custom: [
+        Attachments, Inventory, EffectTarget, Summoned, Summon, Telegraph, OnHit, Skills, Trains,
+        Familiarity, Lesson, Style, Technique, Teaches,
+    ],
 }
 
-/// A component as saved: plain values as-is, entity references as save
-/// indices, blueprint references as names.
+/// The components that can't be saved as themselves.
 #[derive(Debug, Serialize, Deserialize)]
-enum SavedComponent {
-    Position(Position),
-    Appearance(Appearance),
-    BlocksMovement,
-    Player,
-    Dead,
-    Name(Name),
-    Health(Health),
-    Armor(Armor),
-    Melee(Melee),
+enum CustomSaved {
     Attachments(Vec<u32>),
     Inventory(Vec<u32>),
-    Speed(Speed),
-    Energy(Energy),
-    SpawnSeq(SpawnSeq),
-    Hostile,
-    Item,
-    Found,
-    Body(Body),
-    Equippable(Equippable),
-    EquippedOn(EquippedOn),
-    Stats(Stats),
-    Weapon(Weapon),
-    Throwable(Throwable),
-    Ammo(Ammo),
-    Projectile(Projectile),
-    Launcher(Launcher),
-    Quiver(Quiver),
-    Spell(Spell),
-    SpellDamage(SpellDamage),
-    Area(Area),
-    Recharging(Recharging),
-    CooldownCasting(CooldownCasting),
-    ManaCasting(ManaCasting),
-    Mana(Mana),
-    Duration(Duration),
-    Timed(Timed),
     EffectTarget(u32),
     Summoned(u32),
     Summon(SummonDef),
-    Binding,
-    SummonLimit(SummonLimit),
-    BloodCasting(BloodCasting),
-    Scroll,
-    Focus(Focus),
-    Fizzle(Fizzle),
-    Chain(Chain),
-    Delay(Delay),
-    Blast(Blast),
-    SpellAi,
-    Bleeding(Bleeding),
-    Regeneration(Regeneration),
-    RestBudget(RestBudget),
-    Quarry(Quarry),
-    Morale(Morale),
-    Roams(Roams),
-    Route(Route),
-    Sprinting(Sprinting),
-    SprintAi(SprintAi),
-    WindUp(WindUp),
-    Skirmish(Skirmish),
-    Strode(Strode),
-    Loosed(Loosed),
-    Hardiness(Hardiness),
-    BaseHealth(BaseHealth),
-    Wounds(Wounds),
     Telegraph {
         technique: u32,
         tiles: Vec<(i32, i32)>,
@@ -459,34 +299,14 @@ enum SavedComponent {
     /// XP by skill name.
     Skills(Vec<(String, u32)>),
     Trains(Vec<String>),
-    Learner,
     /// Uses by skill name and kind of thing.
     Familiarity(Vec<(String, String, u32)>),
-    Graze(Graze),
-    Deflect(Deflect),
-    Light(Light),
-    Proficiency,
-    Ability,
-    Verb(Verb),
-    Footwork(Footwork),
-    Discovered(Discovered),
-    Origin(Origin),
-    /// Skills by name.
-    Style(StyleDef),
     /// XP by skill name.
     Lesson(Vec<(String, u32)>),
-    Studied(Studied),
-    Sighted(Sighted),
-    Attuned(Attuned),
+    /// Skills by name.
+    Style(StyleDef),
     /// Skills by name.
     Technique(TechniqueDef),
-    Blow(Blow),
-    Dash(Dash),
-    Loose(Loose),
-    Stamina(Stamina),
-    OffBalance(OffBalance),
-    Performed(Performed),
-    TechniqueAi,
     /// Technique blueprints by name.
     Teaches(Vec<String>),
 }
@@ -510,7 +330,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
             .entity(entity)
             .map_err(|_| SaveError::DanglingReference)?;
         let mut components = Vec::new();
-        for kind in ComponentKind::ALL {
+        for &kind in ComponentKind::ALL {
             if let Some(component) = save_component(kind, entity, &must_refer, &state.blueprints)? {
                 components.push(component);
             }
@@ -714,76 +534,44 @@ fn visit(world: &World, entity: Entity, order: &mut Vec<Entity>, visited: &mut B
     }
 }
 
-fn save_component(
+/// `save_component` for a `custom` component: entity references as save
+/// indices, blueprint and skill ids as names.
+fn save_custom(
     kind: ComponentKind,
     entity: EntityRef<'_>,
     refer: &impl Fn(Entity) -> Result<u32, SaveError>,
     blueprints: &Blueprints,
-) -> Result<Option<SavedComponent>, SaveError> {
+) -> Result<Option<CustomSaved>, SaveError> {
     fn copy<T: Component + Clone>(entity: EntityRef<'_>) -> Option<T> {
         entity.get::<&T>().map(|component| (*component).clone())
     }
-    fn marker<T: Component>(
-        entity: EntityRef<'_>,
-        saved: SavedComponent,
-    ) -> Option<SavedComponent> {
-        entity.has::<T>().then_some(saved)
-    }
-    use SavedComponent as S;
+    let missing = |missing| match missing {
+        Missing::SkillId(id) => SaveError::UnknownSkillId(id),
+        Missing::BlueprintId(id) => SaveError::UnknownBlueprintId(id),
+        // Saving only looks ids up.
+        Missing::Skill(_) | Missing::Blueprint(_) => SaveError::DanglingReference,
+    };
+    use CustomSaved as C;
 
     Ok(match kind {
-        ComponentKind::Position => copy(entity).map(S::Position),
-        ComponentKind::Appearance => copy(entity).map(S::Appearance),
-        ComponentKind::BlocksMovement => marker::<BlocksMovement>(entity, S::BlocksMovement),
-        ComponentKind::Player => marker::<Player>(entity, S::Player),
-        ComponentKind::Dead => marker::<Dead>(entity, S::Dead),
-        ComponentKind::Name => copy(entity).map(S::Name),
-        ComponentKind::Health => copy(entity).map(S::Health),
-        ComponentKind::Armor => copy(entity).map(S::Armor),
-        ComponentKind::Melee => copy(entity).map(S::Melee),
         ComponentKind::Attachments => match copy::<Attachments>(entity) {
-            Some(Attachments(items)) => Some(S::Attachments(
+            Some(Attachments(items)) => Some(C::Attachments(
                 items.into_iter().map(refer).collect::<Result<_, _>>()?,
             )),
             None => None,
         },
         ComponentKind::Inventory => match copy::<Inventory>(entity) {
-            Some(Inventory(items)) => Some(S::Inventory(
+            Some(Inventory(items)) => Some(C::Inventory(
                 items.into_iter().map(refer).collect::<Result<_, _>>()?,
             )),
             None => None,
         },
-        ComponentKind::Speed => copy(entity).map(S::Speed),
-        ComponentKind::Energy => copy(entity).map(S::Energy),
-        ComponentKind::SpawnSeq => copy(entity).map(S::SpawnSeq),
-        ComponentKind::Hostile => marker::<Hostile>(entity, S::Hostile),
-        ComponentKind::Item => marker::<Item>(entity, S::Item),
-        ComponentKind::Found => marker::<Found>(entity, S::Found),
-        ComponentKind::Body => copy(entity).map(S::Body),
-        ComponentKind::Equippable => copy(entity).map(S::Equippable),
-        ComponentKind::EquippedOn => copy(entity).map(S::EquippedOn),
-        ComponentKind::Stats => copy(entity).map(S::Stats),
-        ComponentKind::Weapon => copy(entity).map(S::Weapon),
-        ComponentKind::Throwable => copy(entity).map(S::Throwable),
-        ComponentKind::Ammo => copy(entity).map(S::Ammo),
-        ComponentKind::Projectile => copy(entity).map(S::Projectile),
-        ComponentKind::Launcher => copy(entity).map(S::Launcher),
-        ComponentKind::Quiver => copy(entity).map(S::Quiver),
-        ComponentKind::Spell => copy(entity).map(S::Spell),
-        ComponentKind::SpellDamage => copy(entity).map(S::SpellDamage),
-        ComponentKind::Area => copy(entity).map(S::Area),
-        ComponentKind::Recharging => copy(entity).map(S::Recharging),
-        ComponentKind::CooldownCasting => copy(entity).map(S::CooldownCasting),
-        ComponentKind::ManaCasting => copy(entity).map(S::ManaCasting),
-        ComponentKind::Mana => copy(entity).map(S::Mana),
-        ComponentKind::Duration => copy(entity).map(S::Duration),
-        ComponentKind::Timed => copy(entity).map(S::Timed),
         ComponentKind::EffectTarget => match copy::<EffectTarget>(entity) {
-            Some(EffectTarget(target)) => Some(S::EffectTarget(refer(target)?)),
+            Some(EffectTarget(target)) => Some(C::EffectTarget(refer(target)?)),
             None => None,
         },
         ComponentKind::Summoned => match copy::<Summoned>(entity) {
-            Some(summoned) => Some(S::Summoned(refer(summoned.owner)?)),
+            Some(summoned) => Some(C::Summoned(refer(summoned.owner)?)),
             None => None,
         },
         ComponentKind::Summon => match copy::<Summon>(entity) {
@@ -791,7 +579,7 @@ fn save_component(
                 let blueprint = blueprints
                     .by_id(summon.blueprint)
                     .ok_or(SaveError::UnknownBlueprintId(summon.blueprint))?;
-                Some(S::Summon(SummonDef {
+                Some(C::Summon(SummonDef {
                     blueprint: blueprint.name.clone(),
                     count: summon.count,
                     lifetime: summon.lifetime,
@@ -799,41 +587,15 @@ fn save_component(
             }
             None => None,
         },
-        ComponentKind::Binding => copy::<Binding>(entity).map(|_| S::Binding),
-        ComponentKind::SummonLimit => copy(entity).map(S::SummonLimit),
-        ComponentKind::BloodCasting => copy(entity).map(S::BloodCasting),
-        ComponentKind::Scroll => copy::<Scroll>(entity).map(|_| S::Scroll),
-        ComponentKind::Focus => copy(entity).map(S::Focus),
-        ComponentKind::Fizzle => copy(entity).map(S::Fizzle),
-        ComponentKind::Chain => copy(entity).map(S::Chain),
-        ComponentKind::Delay => copy(entity).map(S::Delay),
-        ComponentKind::Blast => copy(entity).map(S::Blast),
-        ComponentKind::SpellAi => copy::<SpellAi>(entity).map(|_| S::SpellAi),
-        ComponentKind::Bleeding => copy(entity).map(S::Bleeding),
-        ComponentKind::Regeneration => copy(entity).map(S::Regeneration),
-        ComponentKind::RestBudget => copy(entity).map(S::RestBudget),
-        ComponentKind::Quarry => copy(entity).map(S::Quarry),
-        ComponentKind::Morale => copy(entity).map(S::Morale),
-        ComponentKind::Roams => copy(entity).map(S::Roams),
-        ComponentKind::Route => copy(entity).map(S::Route),
-        ComponentKind::Sprinting => copy(entity).map(S::Sprinting),
-        ComponentKind::SprintAi => copy(entity).map(S::SprintAi),
-        ComponentKind::WindUp => copy(entity).map(S::WindUp),
-        ComponentKind::Skirmish => copy(entity).map(S::Skirmish),
-        ComponentKind::Strode => copy(entity).map(S::Strode),
-        ComponentKind::Loosed => copy(entity).map(S::Loosed),
-        ComponentKind::Hardiness => copy(entity).map(S::Hardiness),
-        ComponentKind::BaseHealth => copy(entity).map(S::BaseHealth),
-        ComponentKind::Wounds => copy(entity).map(S::Wounds),
-        ComponentKind::Telegraph => match entity.get::<&Telegraph>().map(|t| (*t).clone()) {
-            Some(Telegraph { technique, tiles }) => Some(S::Telegraph {
+        ComponentKind::Telegraph => match copy::<Telegraph>(entity) {
+            Some(Telegraph { technique, tiles }) => Some(C::Telegraph {
                 technique: refer(technique)?,
                 tiles,
             }),
             None => None,
         },
         ComponentKind::OnHit => match copy::<OnHit>(entity) {
-            Some(OnHit(entries)) => Some(S::OnHit(
+            Some(OnHit(entries)) => Some(C::OnHit(
                 entries
                     .into_iter()
                     .map(|entry| {
@@ -851,7 +613,7 @@ fn save_component(
             None => None,
         },
         ComponentKind::Skills => match copy::<Skills>(entity) {
-            Some(Skills(entries)) => Some(S::Skills(
+            Some(Skills(entries)) => Some(C::Skills(
                 entries
                     .into_iter()
                     .map(|(id, xp)| Ok((skill_name(blueprints.skills(), id)?, xp)))
@@ -860,25 +622,24 @@ fn save_component(
             None => None,
         },
         ComponentKind::Trains => match copy::<Trains>(entity) {
-            Some(Trains(ids)) => Some(S::Trains(
+            Some(Trains(ids)) => Some(C::Trains(
                 ids.into_iter()
                     .map(|id| skill_name(blueprints.skills(), id))
                     .collect::<Result<_, SaveError>>()?,
             )),
             None => None,
         },
-        ComponentKind::Learner => marker::<Learner>(entity, S::Learner),
-        ComponentKind::Graze => copy(entity).map(S::Graze),
-        ComponentKind::Deflect => copy(entity).map(S::Deflect),
-        ComponentKind::Light => copy(entity).map(S::Light),
-        ComponentKind::Proficiency => marker::<Proficiency>(entity, S::Proficiency),
-        ComponentKind::Ability => marker::<Ability>(entity, S::Ability),
-        ComponentKind::Verb => copy(entity).map(S::Verb),
-        ComponentKind::Footwork => copy(entity).map(S::Footwork),
-        ComponentKind::Discovered => copy(entity).map(S::Discovered),
-        ComponentKind::Origin => copy(entity).map(S::Origin),
+        ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
+            Some(Familiarity(entries)) => Some(C::Familiarity(
+                entries
+                    .into_iter()
+                    .map(|(id, kind, uses)| Ok((skill_name(blueprints.skills(), id)?, kind, uses)))
+                    .collect::<Result<_, SaveError>>()?,
+            )),
+            None => None,
+        },
         ComponentKind::Lesson => match copy::<Lesson>(entity) {
-            Some(Lesson(grants)) => Some(S::Lesson(
+            Some(Lesson(grants)) => Some(C::Lesson(
                 grants
                     .into_iter()
                     .map(|(id, xp)| Ok((skill_name(blueprints.skills(), id)?, xp)))
@@ -886,39 +647,21 @@ fn save_component(
             )),
             None => None,
         },
-        ComponentKind::Studied => copy(entity).map(S::Studied),
-        ComponentKind::Sighted => copy(entity).map(S::Sighted),
-        ComponentKind::Attuned => copy(entity).map(S::Attuned),
         ComponentKind::Style => match copy::<Style>(entity) {
-            Some(style) => Some(S::Style(
-                with_names(blueprints, |names| StyleDef::of(&style, names)).map_err(|missing| {
-                    match missing {
-                        Missing::SkillId(id) => SaveError::UnknownSkillId(id),
-                        Missing::BlueprintId(id) => SaveError::UnknownBlueprintId(id),
-                        // Saving only looks ids up.
-                        Missing::Skill(_) | Missing::Blueprint(_) => SaveError::DanglingReference,
-                    }
-                })?,
+            Some(style) => Some(C::Style(
+                with_names(blueprints, |names| StyleDef::of(&style, names)).map_err(missing)?,
             )),
             None => None,
         },
         ComponentKind::Technique => match copy::<Technique>(entity) {
-            Some(technique) => {
-                let def = with_names(blueprints, |names| TechniqueDef::of(&technique, names));
-                Some(S::Technique(def.map_err(|missing| match missing {
-                    Missing::SkillId(id) => SaveError::UnknownSkillId(id),
-                    Missing::BlueprintId(id) => SaveError::UnknownBlueprintId(id),
-                    // Saving only looks ids up.
-                    Missing::Skill(_) | Missing::Blueprint(_) => SaveError::DanglingReference,
-                })?))
-            }
+            Some(technique) => Some(C::Technique(
+                with_names(blueprints, |names| TechniqueDef::of(&technique, names))
+                    .map_err(missing)?,
+            )),
             None => None,
         },
-        ComponentKind::OffBalance => copy(entity).map(S::OffBalance),
-        ComponentKind::Performed => copy(entity).map(S::Performed),
-        ComponentKind::TechniqueAi => copy::<TechniqueAi>(entity).map(|_| S::TechniqueAi),
         ComponentKind::Teaches => match copy::<Teaches>(entity) {
-            Some(Teaches(ids)) => Some(S::Teaches(
+            Some(Teaches(ids)) => Some(C::Teaches(
                 ids.into_iter()
                     .map(|id| {
                         blueprints
@@ -930,19 +673,8 @@ fn save_component(
             )),
             None => None,
         },
-        ComponentKind::Blow => copy(entity).map(S::Blow),
-        ComponentKind::Dash => copy(entity).map(S::Dash),
-        ComponentKind::Loose => copy(entity).map(S::Loose),
-        ComponentKind::Stamina => copy(entity).map(S::Stamina),
-        ComponentKind::Familiarity => match copy::<Familiarity>(entity) {
-            Some(Familiarity(entries)) => Some(S::Familiarity(
-                entries
-                    .into_iter()
-                    .map(|(id, kind, uses)| Ok((skill_name(blueprints.skills(), id)?, kind, uses)))
-                    .collect::<Result<_, SaveError>>()?,
-            )),
-            None => None,
-        },
+        // Plain components and markers are saved by `components!`.
+        _ => None,
     })
 }
 
@@ -965,97 +697,45 @@ fn skill_id(book: &SkillBook, name: String) -> Result<SkillId, LoadError> {
     book.id(&name).ok_or(LoadError::UnknownSkill(name))
 }
 
-fn load_component(
-    component: SavedComponent,
+/// `load_component` for a `CustomSaved`: indices back to entities, names
+/// back to ids.
+fn load_custom(
+    component: CustomSaved,
     builder: &mut EntityBuilder,
     entity: &impl Fn(u32) -> Result<Entity, LoadError>,
     blueprints: &Blueprints,
 ) -> Result<(), LoadError> {
-    use SavedComponent as S;
+    let missing = |missing| match missing {
+        Missing::Skill(name) => LoadError::UnknownSkill(name),
+        Missing::Blueprint(name) => LoadError::UnknownBlueprint(name),
+        Missing::SkillId(id) => LoadError::UnknownSkill(format!("{id:?}")),
+        Missing::BlueprintId(id) => LoadError::UnknownBlueprint(format!("{id:?}")),
+    };
+    use CustomSaved as C;
 
     match component {
-        S::Position(c) => builder.add(c),
-        S::Appearance(c) => builder.add(c),
-        S::BlocksMovement => builder.add(BlocksMovement),
-        S::Player => builder.add(Player),
-        S::Dead => builder.add(Dead),
-        S::Name(c) => builder.add(c),
-        S::Health(c) => builder.add(c),
-        S::Armor(c) => builder.add(c),
-        S::Melee(c) => builder.add(c),
-        S::Attachments(items) => builder.add(Attachments(
+        C::Attachments(items) => builder.add(Attachments(
             items.into_iter().map(entity).collect::<Result<_, _>>()?,
         )),
-        S::Inventory(items) => builder.add(Inventory(
+        C::Inventory(items) => builder.add(Inventory(
             items.into_iter().map(entity).collect::<Result<_, _>>()?,
         )),
-        S::Speed(c) => builder.add(c),
-        S::Energy(c) => builder.add(c),
-        S::SpawnSeq(c) => builder.add(c),
-        S::Hostile => builder.add(Hostile),
-        S::Item => builder.add(Item),
-        S::Found => builder.add(Found),
-        S::Body(c) => builder.add(c),
-        S::Equippable(c) => builder.add(c),
-        S::EquippedOn(c) => builder.add(c),
-        S::Stats(c) => builder.add(c),
-        S::Weapon(c) => builder.add(c),
-        S::Throwable(c) => builder.add(c),
-        S::Ammo(c) => builder.add(c),
-        S::Projectile(c) => builder.add(c),
-        S::Launcher(c) => builder.add(c),
-        S::Quiver(c) => builder.add(c),
-        S::Spell(c) => builder.add(c),
-        S::SpellDamage(c) => builder.add(c),
-        S::Area(c) => builder.add(c),
-        S::Recharging(c) => builder.add(c),
-        S::CooldownCasting(c) => builder.add(c),
-        S::ManaCasting(c) => builder.add(c),
-        S::Mana(c) => builder.add(c),
-        S::Duration(c) => builder.add(c),
-        S::Timed(c) => builder.add(c),
-        S::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
-        S::Summoned(owner) => builder.add(Summoned {
+        C::EffectTarget(target) => builder.add(EffectTarget(entity(target)?)),
+        C::Summoned(owner) => builder.add(Summoned {
             owner: entity(owner)?,
         }),
-        S::Summon(def) => builder.add(Summon {
+        C::Summon(def) => builder.add(Summon {
             blueprint: blueprints
                 .id(&def.blueprint)
                 .ok_or(LoadError::UnknownBlueprint(def.blueprint))?,
             count: def.count,
             lifetime: def.lifetime,
         }),
-        S::Binding => builder.add(Binding),
-        S::SummonLimit(c) => builder.add(c),
-        S::BloodCasting(c) => builder.add(c),
-        S::Scroll => builder.add(Scroll),
-        S::Focus(c) => builder.add(c),
-        S::Fizzle(c) => builder.add(c),
-        S::Chain(c) => builder.add(c),
-        S::Delay(c) => builder.add(c),
-        S::Blast(c) => builder.add(c),
-        S::SpellAi => builder.add(SpellAi),
-        S::Bleeding(c) => builder.add(c),
-        S::Regeneration(c) => builder.add(c),
-        S::RestBudget(c) => builder.add(c),
-        S::Quarry(c) => builder.add(c),
-        S::Morale(c) => builder.add(c),
-        S::Roams(c) => builder.add(c),
-        S::Route(c) => builder.add(c),
-        S::Sprinting(c) => builder.add(c),
-        S::SprintAi(c) => builder.add(c),
-        S::WindUp(c) => builder.add(c),
-        S::Skirmish(c) => builder.add(c),
-        S::Strode(c) => builder.add(c),
-        S::Loosed(c) => builder.add(c),
-        S::Hardiness(c) => builder.add(c),
-        S::BaseHealth(c) => builder.add(c),
-        S::Wounds(c) => builder.add(c),
-        S::Telegraph { technique, tiles } => builder.add(Telegraph {
+        C::Telegraph { technique, tiles } => builder.add(Telegraph {
             technique: entity(technique)?,
             tiles,
         }),
-        S::OnHit(entries) => builder.add(OnHit(
+        C::OnHit(entries) => builder.add(OnHit(
             entries
                 .into_iter()
                 .map(|entry| {
@@ -1072,14 +752,14 @@ fn load_component(
         )),
         // Sorted by id, which follows the skill file: it may have been
         // reordered since the save.
-        S::Skills(entries) => {
+        C::Skills(entries) => {
             let mut learned = Skills::default();
             for (name, xp) in entries {
                 learned.set(skill_id(blueprints.skills(), name)?, xp);
             }
             builder.add(learned)
         }
-        S::Trains(names) => {
+        C::Trains(names) => {
             let mut ids = names
                 .into_iter()
                 .map(|name| skill_id(blueprints.skills(), name))
@@ -1087,47 +767,27 @@ fn load_component(
             ids.sort();
             builder.add(Trains(ids))
         }
-        S::Learner => builder.add(Learner),
-        S::Graze(c) => builder.add(c),
-        S::Deflect(c) => builder.add(c),
-        S::Light(c) => builder.add(c),
-        S::Proficiency => builder.add(Proficiency),
-        S::Ability => builder.add(Ability),
-        S::Verb(c) => builder.add(c),
-        S::Footwork(c) => builder.add(c),
-        S::Discovered(c) => builder.add(c),
-        S::Origin(c) => builder.add(c),
-        S::Lesson(grants) => builder.add(Lesson(
+        C::Familiarity(entries) => {
+            let mut familiarity = entries
+                .into_iter()
+                .map(|(name, kind, uses)| Ok((skill_id(blueprints.skills(), name)?, kind, uses)))
+                .collect::<Result<Vec<_>, LoadError>>()?;
+            familiarity.sort();
+            builder.add(Familiarity(familiarity))
+        }
+        C::Lesson(grants) => builder.add(Lesson(
             grants
                 .into_iter()
                 .map(|(name, xp)| Ok((skill_id(blueprints.skills(), name)?, xp)))
                 .collect::<Result<_, LoadError>>()?,
         )),
-        S::Studied(c) => builder.add(c),
-        S::Sighted(c) => builder.add(c),
-        S::Attuned(c) => builder.add(c),
-        S::Style(def) => builder.add(with_names(blueprints, |names| def.resolve(names)).map_err(
-            |missing| match missing {
-                Missing::Skill(name) => LoadError::UnknownSkill(name),
-                Missing::Blueprint(name) => LoadError::UnknownBlueprint(name),
-                Missing::SkillId(id) => LoadError::UnknownSkill(format!("{id:?}")),
-                Missing::BlueprintId(id) => LoadError::UnknownBlueprint(format!("{id:?}")),
-            },
-        )?),
-        S::Technique(def) => builder.add(
-            with_names(blueprints, |names| def.resolve(names)).map_err(
-                |missing| match missing {
-                    Missing::Skill(name) => LoadError::UnknownSkill(name),
-                    Missing::Blueprint(name) => LoadError::UnknownBlueprint(name),
-                    Missing::SkillId(id) => LoadError::UnknownSkill(format!("{id:?}")),
-                    Missing::BlueprintId(id) => LoadError::UnknownBlueprint(format!("{id:?}")),
-                },
-            )?,
-        ),
-        S::OffBalance(c) => builder.add(c),
-        S::Performed(c) => builder.add(c),
-        S::TechniqueAi => builder.add(TechniqueAi),
-        S::Teaches(names) => builder.add(Teaches(
+        C::Style(def) => {
+            builder.add(with_names(blueprints, |names| def.resolve(names)).map_err(missing)?)
+        }
+        C::Technique(def) => {
+            builder.add(with_names(blueprints, |names| def.resolve(names)).map_err(missing)?)
+        }
+        C::Teaches(names) => builder.add(Teaches(
             names
                 .into_iter()
                 .map(|name| {
@@ -1137,18 +797,6 @@ fn load_component(
                 })
                 .collect::<Result<_, _>>()?,
         )),
-        S::Blow(c) => builder.add(c),
-        S::Dash(c) => builder.add(c),
-        S::Loose(c) => builder.add(c),
-        S::Stamina(c) => builder.add(c),
-        S::Familiarity(entries) => {
-            let mut familiarity = entries
-                .into_iter()
-                .map(|(name, kind, uses)| Ok((skill_id(blueprints.skills(), name)?, kind, uses)))
-                .collect::<Result<Vec<_>, LoadError>>()?;
-            familiarity.sort();
-            builder.add(Familiarity(familiarity))
-        }
     };
     Ok(())
 }
