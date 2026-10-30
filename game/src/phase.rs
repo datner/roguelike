@@ -238,6 +238,12 @@ pub struct PhaseView {
     pub chosen: bool,
     /// Why it can't be waited for now, if it can't (`refusal`).
     pub refused: Option<String>,
+    /// The element it leans toward and how much, if any.
+    pub leans: Option<(DamageType, u32)>,
+    /// The rules it bends.
+    pub rules: Vec<Rule>,
+    /// Its opposite's name.
+    pub opposite: Option<String>,
 }
 
 /// Every phase in order, the choices for which to wait for, each with why
@@ -249,6 +255,16 @@ pub fn phases(state: &GameState) -> Vec<PhaseView> {
             name: phase.name.clone(),
             chosen: phase.key == state.phase,
             refused: refusal(state, index),
+            leans: phase.element.map(|element| (element, phase.lean)),
+            rules: phase.rules.clone(),
+            opposite: phase.opposite.as_ref().map(|key| {
+                state
+                    .blueprints
+                    .phases()
+                    .iter()
+                    .find(|other| &other.key == key)
+                    .map_or_else(|| key.clone(), |other| other.name.clone())
+            }),
         })
         .collect()
 }

@@ -516,6 +516,27 @@ mod tests {
     }
 
     #[test]
+    fn a_dive_after_waiting_is_in_that_phase_and_the_status_names_its_lean() {
+        let mut session = session();
+        session.handle(Input::Game(InputEvent::WaitForPhase));
+        session.handle(Input::List(OverlayInput::Down));
+        session.handle(Input::List(OverlayInput::Select));
+        // Round the tents to the caves' entrance (data/camp.ron), then down.
+        let moves = [(Dir::N, 3), (Dir::E, 14), (Dir::S, 3)];
+        for (dir, steps) in moves {
+            for _ in 0..steps {
+                session.handle(Input::Game(InputEvent::Move(dir)));
+            }
+        }
+        session.handle(Input::Game(InputEvent::Descend));
+        assert!(
+            session.status().contains("(the embers: fire)"),
+            "{}",
+            session.status()
+        );
+    }
+
+    #[test]
     fn w_away_from_camp_says_why_not() {
         let blueprints = game::Blueprints::load(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),

@@ -157,7 +157,10 @@ fn scene(name: &str) -> Harness<'static, App> {
         "spells" => type_text(&mut harness, "c"),
         "techniques" => type_text(&mut harness, "a"),
         "aim" => type_text(&mut harness, "f"),
-        "phases" => type_text(&mut harness, "W"),
+        "phases" => {
+            type_text(&mut harness, "W");
+            press_key(&mut harness, egui::Key::ArrowDown);
+        }
         // Round the tents to the camp's entrance (data/camp.ron), then down.
         "floor" => type_text(&mut harness, &format!("kkk{}jjj>", "l".repeat(14))),
         // The same round the tents, west to the castle's entrance.

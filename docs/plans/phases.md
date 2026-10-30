@@ -152,7 +152,12 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Content: one thriving style, one discovery that needs a phase.
 - Tests: style XP is higher in a thriving phase; the discovery fires only in its phase, with stakes.
 
-### 6. Seeing it
+### 6. Seeing it — done
+- As built: `PhaseView` gains `leans`, `rules` and `opposite` (`game::Rule` re-exported), worded by
+  `front::text::phase_details`, drawn under the chooser's list for the selected phase (a
+  `chooser_with_details` in `gui::modes`). `PlaceView::Floor.leans` puts the element in the status
+  line ("(the embers: fire)") and the side panel. Attunements show on the sheet's skills tab under
+  their own domain heading. The `phases` shot selects the Embers.
 - The camp chooser shows each phase's element, rule and opposite from a `game` view (`PhaseView`
   grows), built into text in `front/text.rs`. The status line names the phase and its element on a
   floor. The sheet lists attunements as skills.
@@ -173,17 +178,13 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 
 **Reads**
 - dives: a floor keeps the phase it was entered in (`Place::Floor`); camp reads the one waited for
-  through `WaitForPhase`, and `phase::current` reads both.
-- skills: a holder's attunement level softens a rule for them, in `phase::rule_strength`
-  *(planned: slice 4)*.
+  through `WaitForPhase`; `phase::current` and `phase::on_dive` read both.
+- skills: a holder's attunement level softens a hardship for them, in `phase::rule`.
 
 **Read by**
-- combat: the element lean where typed damage is finished, and `RangedFalloff` in `combat::odds`
-  *(planned: slices 1, 3)*.
-- skills: `skill::train` trains the current phase's attunement on every use with stakes
-  *(planned: slice 4)*.
-- styles: `Style.thrives` multiplies style XP in its phases, in `style.rs`'s training
-  *(planned: slice 5)*.
-- discovery: `Requirement::Phase` is met only in that phase *(planned: slice 5)*.
+- combat: the element lean in `BeforeTakeDamage::new`, and `RangedFalloff` in `combat::odds`.
+- skills: `skill::train` trains the dive's attunement on every use with stakes (`phase::attuning`).
+- styles: `Style.thrives` grows style XP in its phases (`style::thriving`, from `skill::train`).
+- discovery: `Discovery.phase` is met only on a dive in that phase (`discovery::inspire`).
 - dives: spawn entries with `phases:` decide a floor's natives and finds.
-- legacy: a record's `place` names the phase of the ending *(planned: legacy.md, slice 1)*.
+- legacy: a record's `place` names the phase of the ending.

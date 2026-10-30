@@ -192,8 +192,20 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
             chooser_window(ui, "Perform what?", rows, chooser.selected())
         }
         Mode::ChoosePhase(chooser) => {
-            let rows = phases(state).iter().map(text::phase).collect();
-            chooser_window(ui, "Wait for which phase?", rows, chooser.selected())
+            let all = phases(state);
+            let rows = all.iter().map(text::phase).collect();
+            // What the selected phase does, under the list.
+            let details = all
+                .get(chooser.selected())
+                .map(text::phase_details)
+                .unwrap_or_default();
+            chooser_with_details(
+                ui,
+                "Wait for which phase?",
+                rows,
+                chooser.selected(),
+                &details,
+            )
         }
         Mode::Overlay(overlay) => {
             let views = Views::of(state);
@@ -309,6 +321,17 @@ fn centred_window(ui: &egui::Ui, id: &str, contents: impl FnOnce(&mut egui::Ui))
 
 /// A list to pick from: a click picks the row, as Enter does.
 fn chooser_window(ui: &egui::Ui, title: &str, rows: Vec<Vec<Seg>>, selected: usize) -> Vec<Input> {
+    chooser_with_details(ui, title, rows, selected, &[])
+}
+
+/// `chooser_window`, with plain lines about the selected row under the list.
+fn chooser_with_details(
+    ui: &egui::Ui,
+    title: &str,
+    rows: Vec<Vec<Seg>>,
+    selected: usize,
+    details: &[String],
+) -> Vec<Input> {
     let mut inputs = Vec::new();
     centred_window(ui, title, |ui| {
         boxed(
@@ -323,6 +346,12 @@ fn chooser_window(ui: &egui::Ui, title: &str, rows: Vec<Vec<Seg>>, selected: usi
                     {
                         inputs.push(Input::List(OverlayInput::Focus(index)));
                         inputs.push(Input::List(OverlayInput::Select));
+                    }
+                }
+                if !details.is_empty() {
+                    ui.label(theme::line("", DIM));
+                    for line in details {
+                        ui.label(theme::line(line, DIM));
                     }
                 }
             },

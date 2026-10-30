@@ -48,6 +48,31 @@ pub fn phase(phase: &PhaseView) -> Row {
     row
 }
 
+/// What a phase does, a line each, for under the camp's list: its lean,
+/// the rules it bends and its opposite. The stillness has none.
+pub fn phase_details(phase: &PhaseView) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some((element, lean)) = phase.leans {
+        lines.push(format!(
+            "{} hits {lean}% harder, for everyone",
+            capitalize(element.noun())
+        ));
+    }
+    lines.extend(phase.rules.iter().map(|&rule| match rule {
+        game::Rule::LightReach(pct) => format!("Light reaches {pct}% farther"),
+        game::Rule::StaminaRecovery(pct) => format!("Stamina comes back {pct}% slower"),
+        game::Rule::RangedFalloff(pct) => format!("Missiles lose {pct}% to hit per tile"),
+        game::Rule::MoveCost(pct) => format!("Each step costs {pct}% more"),
+    }));
+    if let Some(opposite) = &phase.opposite {
+        lines.push(format!("Opposed to {opposite}"));
+    }
+    if lines.is_empty() {
+        lines.push("Nothing leans".to_string());
+    }
+    lines
+}
+
 /// The item's glyph, name and note.
 pub fn item(item: &ItemView) -> Row {
     let mut row = vec![
@@ -70,8 +95,15 @@ pub fn place(state: &GameState) -> String {
             floor,
             of,
             phase,
+            leans,
             ..
-        } => format!("{}, floor {floor} of {of} ({phase})", capitalize(&dungeon)),
+        } => {
+            let leans = leans.map_or_else(String::new, |element| format!(": {element}"));
+            format!(
+                "{}, floor {floor} of {of} ({phase}{leans})",
+                capitalize(&dungeon)
+            )
+        }
     }
 }
 
@@ -166,7 +198,9 @@ pub fn whereabouts(state: &GameState) -> Vec<Row> {
             of,
             way_back,
             phase,
+            leans,
         } => {
+            let leans = leans.map_or_else(String::new, |element| format!(", leaning {element}"));
             let back = if way_back == floor {
                 "here, on the stairs up".to_string()
             } else {
@@ -182,7 +216,7 @@ pub fn whereabouts(state: &GameState) -> Vec<Row> {
                     "{}, floor {floor} of {of}",
                     capitalize(&dungeon)
                 ))],
-                vec![quiet("Phase  "), plain(phase)],
+                vec![quiet("Phase  "), plain(format!("{phase}{leans}"))],
                 vec![quiet("Way back  "), plain(back)],
                 vec![quiet(keys)],
             ]
@@ -320,6 +354,21 @@ pub fn equipment(state: &GameState) -> Vec<Row> {
 mod tests {
     use super::*;
     use crate::tests::state;
+
+    #[test]
+    fn a_phases_details_say_its_lean_rules_and_opposite_and_the_stillness_nothing() {
+        let state = crate::tests::state();
+        let all = game::phases(&state);
+        assert_eq!(phase_details(&all[0]), ["Nothing leans"]);
+        assert_eq!(
+            phase_details(&all[4]),
+            [
+                "Acid hits 50% harder, for everyone",
+                "Each step costs 25% more",
+                "Opposed to the tempest",
+            ]
+        );
+    }
 
     #[test]
     fn a_death_chain_reads_in_order_and_leaves_out_what_did_not_matter() {

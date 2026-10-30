@@ -62,7 +62,7 @@ Systems: skills, styles, discovery, techniques, spells, combat, lore, training, 
 | `legacy.md` | done | origins, skills, techniques, discovery, dives, combat → dives, training, techniques, discovery |
 | `legibility.md` | done | exempt: text only |
 | `origins.md` | done | skills, styles, techniques → health, legacy |
-| `phases.md` | not started | dives, skills → combat, skills, styles, discovery, dives, legacy |
+| `phases.md` | done | dives, skills → combat, skills, styles, discovery, dives, legacy |
 | `rest.md` | done | exempt: extends health (sturdiness) |
 | `skills.md` | done | combat, training, lore, health → combat, spells, techniques, styles, discovery, health, lore |
 | `spells.md` | done | skills, combat → lore, ai, techniques, phases |

@@ -93,7 +93,7 @@ pub use legacy::{LifeView, Record, summary};
 pub use light::{Lit, render_layers, tint};
 pub use lore::{Inspection, inspect, look_targets};
 pub use origin::{OriginDef, OriginView, origins};
-pub use phase::{Phase, PhaseView, phases, wait_refusal};
+pub use phase::{Phase, PhaseView, Rule, phases, wait_refusal};
 pub use ranged::Trail;
 pub use rest::{rest_refusal, rest_step};
 pub use rng::Rngs;

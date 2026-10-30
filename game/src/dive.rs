@@ -44,6 +44,8 @@ pub enum PlaceView {
         way_back: u32,
         /// "the embers".
         phase: String,
+        /// The element the phase leans toward, if any: "fire".
+        leans: Option<String>,
     },
 }
 
@@ -74,6 +76,9 @@ pub fn place_view(state: &GameState) -> PlaceView {
                 of: found.map_or(*floor, |found| found.floors),
                 way_back: found.map_or(*floor, |found| found.way_back(*floor)),
                 phase: phase_name(phase),
+                leans: crate::phase::current(state)
+                    .and_then(|phase| phase.element)
+                    .map(|element| element.noun().to_string()),
             }
         }
     }
