@@ -31,9 +31,9 @@ after a long shove, not where the shove started. The test's water now sits two t
 Left out: a `Session` test of the refuse-once flow. Planting a wind-up from `front` would need
 `GameState.world` public; `game`'s `step_warning` tests cover the danger, the flow is one match arm.
 
-### 3. Dive test and call-site tidying
+### 3. Dive test and call-site tidying — done
 
-One test helper replaces a tile across a map (the drained/cleared loops); `dig` takes its arguments
+One test helper replaces a tile across a map (the chasm, water and rubble tests' loops); `dig` takes its arguments
 directly instead of through a tuple built for it.
 
 ### 4. Stale pointers

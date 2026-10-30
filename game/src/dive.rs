@@ -145,12 +145,24 @@ pub(crate) fn build(
     };
     // None on the bottom: there is nowhere to fall to.
     if found.chasms > 0 && !found.is_bottom(floor) {
-        let (count, ends) = (found.chasms, (arrival, stairs));
-        dig(&mut map, &mut map_stream, count, ends, Tile::Chasm);
+        dig(
+            &mut map,
+            &mut map_stream,
+            found.chasms,
+            arrival,
+            stairs,
+            Tile::Chasm,
+        );
     }
     if found.water > 0 {
-        let (count, ends) = (found.water, (arrival, stairs));
-        dig(&mut map, &mut map_stream, count, ends, Tile::DeepWater);
+        dig(
+            &mut map,
+            &mut map_stream,
+            found.water,
+            arrival,
+            stairs,
+            Tile::DeepWater,
+        );
     }
     if found.grass > 0 {
         cover(&mut map, &mut map_stream, found.grass, Tile::Grass, 2);
@@ -181,7 +193,8 @@ fn dig(
     map: &mut Map,
     rng: &mut Pcg64,
     count: u32,
-    (arrival, stairs): ((i32, i32), Option<(i32, i32)>),
+    arrival: (i32, i32),
+    stairs: Option<(i32, i32)>,
     tile: Tile,
 ) {
     use rand::RngExt;
@@ -586,6 +599,19 @@ mod tests {
         (0..map.height).any(|y| (0..map.width).any(|x| map.get(x, y) == Some(&tile)))
     }
 
+    /// `map` with every `tile` back to floor.
+    fn without(map: &Map, tile: Tile) -> Map {
+        let mut map = map.clone();
+        for y in 0..map.height {
+            for x in 0..map.width {
+                if map.get(x, y) == Some(&tile) {
+                    map.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        map
+    }
+
     #[test]
     fn only_landings_have_a_way_back_and_the_bottom_no_way_down() {
         let dungeon = deep();
@@ -644,15 +670,11 @@ mod tests {
         };
         let with = build(9, &dungeon, "Test", "Still", 1, 1);
         assert!(has(&with.map, Tile::Chasm));
-        let mut filled = with.map.clone();
-        for y in 0..filled.height {
-            for x in 0..filled.width {
-                if filled.get(x, y) == Some(&Tile::Chasm) {
-                    filled.set(x, y, Tile::Floor);
-                }
-            }
-        }
-        assert_eq!(filled, plain.map, "only chasms differ");
+        assert_eq!(
+            without(&with.map, Tile::Chasm),
+            plain.map,
+            "only chasms differ"
+        );
         let stairs = (0..with.map.height)
             .flat_map(|y| (0..with.map.width).map(move |x| (x, y)))
             .find(|&(x, y)| with.map.get(x, y) == Some(&Tile::StairsDown))
@@ -700,15 +722,11 @@ mod tests {
         let dungeon = Dungeon { water: 6, ..test() };
         let with = build(9, &dungeon, "Test", "Still", 1, 1);
         assert!(has(&with.map, Tile::DeepWater));
-        let mut drained = with.map.clone();
-        for y in 0..drained.height {
-            for x in 0..drained.width {
-                if drained.get(x, y) == Some(&Tile::DeepWater) {
-                    drained.set(x, y, Tile::Floor);
-                }
-            }
-        }
-        assert_eq!(drained, plain.map, "only water differs");
+        assert_eq!(
+            without(&with.map, Tile::DeepWater),
+            plain.map,
+            "only water differs"
+        );
         let stairs = (0..with.map.height)
             .flat_map(|y| (0..with.map.width).map(move |x| (x, y)))
             .find(|&(x, y)| with.map.get(x, y) == Some(&Tile::StairsDown))
@@ -729,15 +747,11 @@ mod tests {
         let with = build(9, &dungeon, "Test", "Still", 1, 1);
         assert!(has(&with.map, Tile::Rubble));
         assert_eq!(with.map, build(9, &dungeon, "Test", "Still", 1, 1).map);
-        let mut cleared = with.map.clone();
-        for y in 0..cleared.height {
-            for x in 0..cleared.width {
-                if cleared.get(x, y) == Some(&Tile::Rubble) {
-                    cleared.set(x, y, Tile::Floor);
-                }
-            }
-        }
-        assert_eq!(cleared, plain.map, "only rubble differs");
+        assert_eq!(
+            without(&with.map, Tile::Rubble),
+            plain.map,
+            "only rubble differs"
+        );
     }
 
     #[test]
