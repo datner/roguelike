@@ -12,7 +12,7 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 14] = [
+const SHOTS: [&str; 17] = [
     "menu",
     "origins",
     "play",
@@ -27,6 +27,9 @@ const SHOTS: [&str; 14] = [
     "phases",
     "floor",
     "castle",
+    "death",
+    "fallen",
+    "ruins",
 ];
 
 /// The `fx` sheet: this many frames, this far apart, from when the effects
@@ -91,6 +94,37 @@ fn effects_around((x, y): (i32, i32)) -> Vec<game::Fx> {
     ]
 }
 
+/// The legacy shots (docs/plans/legacy.md), each set up on disk first: a
+/// dead hero's panel, the title's Fallen list, and a camp with two ruins.
+fn legacy_scene(name: &str) -> Option<Harness<'static, App>> {
+    if !matches!(name, "death" | "fallen" | "ruins") {
+        return None;
+    }
+    let setup = setup(&format!("shot-{name}"));
+    let blueprints = game::Blueprints::load(&setup.data_dir).unwrap();
+    let mut state = game::GameState::new(3, blueprints).unwrap();
+    state.now = game::Tick(81_200);
+    std::fs::create_dir_all(&setup.saves_dir).unwrap();
+    if name == "death" {
+        state.game_over = true;
+        let save = front::saves::path(&setup.saves_dir, "hero").unwrap();
+        std::fs::write(save, game::save::to_ron(&state).unwrap()).unwrap();
+        return Some(harness(App::new(setup, Some("hero".into()))));
+    }
+    for life in ["Bo", "Ana"] {
+        front::saves::bury(&setup.saves_dir, life, &state).unwrap();
+    }
+    if name == "ruins" {
+        return Some(harness(App::new(setup, Some("hero".into()))));
+    }
+    let mut harness = harness(App::new(setup, None));
+    for _ in 0..3 {
+        press_key(&mut harness, egui::Key::ArrowDown);
+    }
+    press_key(&mut harness, egui::Key::Enter);
+    Some(harness)
+}
+
 /// The window showing `name`, from a fresh game (or the title menu), on a
 /// stopped clock: animation shows its first moment, so a shot is the same
 /// every run and can be compared with its reference.
@@ -99,6 +133,9 @@ fn scene(name: &str) -> Harness<'static, App> {
     set_clock(Some(start));
     if name == "menu" {
         return harness(App::new(setup("shot-menu"), None));
+    }
+    if let Some(harness) = legacy_scene(name) {
+        return harness;
     }
     if name == "origins" {
         // New game, a name, then the origin to start as.

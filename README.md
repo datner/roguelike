@@ -177,9 +177,11 @@ This is a Cargo workspace with four crates:
 
 ## Controls
 
-Title menu (New game, Continue, Load):
+Title menu (New game, Continue, Load, Fallen):
 
 - Arrow keys or `j`/`k`: select; `Enter`: choose; `Esc` or `q`: back/quit.
+- One character lives at a time: New game is offered once the last one has
+  died (or been deleted, which counts as a death).
 - New game asks for a character name (letters, digits, `-`, `_`), then
   an origin: what the character starts as, with its kit, skills, techniques,
   spells and styles listed under it; `Esc` goes back to the name. A save
@@ -188,6 +190,9 @@ Title menu (New game, Continue, Load):
 - Continue resumes the most recently saved character.
 - Load lists saves, newest first: `Enter` loads, `r` renames, `d` deletes
   (with confirmation).
+- Fallen lists the lineage's past lives, newest first: who they were, how
+  they ended and their best skills.
+- On death a panel says how the life ended; any key returns to the title.
 
 In game:
 

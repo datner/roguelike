@@ -169,7 +169,14 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 - Tests: the cap is a % of the recorded level; a skill already above the cap is untouched; studied once
   only; a revealed idea lists its requirements before any are met; studying gives no inspiration.
 
-### 5. Seeing it
+### 5. Seeing it — done
+- As built: `game::summary(&Blueprints, &Record) -> LifeView` (names resolved, best three skills);
+  `front::text::life` makes its line, used by the death panel (`Session::death_panel`, drawn by
+  `gui::modes::windows` while dead) and the menu's Fallen screen (`Menu::set_fallen`, filled by
+  `title::refresh`, which now takes the `Setup` to load content). The memoir's story reuses
+  `summary`. New game is disabled while a non-outdated save exists, with a message naming who still
+  lives. Shots `death`, `fallen`, `ruins`; `menu` gains the Fallen row. A follow-up from slice 4:
+  writings are `Keepsake`s, never in the floor item pool.
 - Death: the status line and a death panel show the record's summary from a `game` view
   (`legacy::summary`), built in `front/text.rs`, so the session and the menu say the same thing. This is
   what the *player* sees; within the world no one tells it yet.
@@ -196,18 +203,17 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 ## Connections
 
 **Reads**
-- origins: `Record.origin` names the origin the life began as *(planned: slice 1)*.
-- skills: `Record.skills` holds each skill's level, the memoir's cap *(planned: slice 1)*.
-- techniques: `Record.techniques`, abilities left out *(planned: slice 1)*.
-- discovery: `Record.discoveries` from `Discovered`, a journal's contents *(planned: slice 1)*.
-- dives: the camp store becomes `Record.stash`; `Record.place` names the dungeon, floor and phase
-  *(planned: slices 1, 2)*.
-- combat: `Command::Die`'s `cause` becomes the record's ending *(planned: slice 1)*.
+- origins: `Record.origin` names the origin the life began as (`legacy::record`).
+- skills: `Record.skills` holds each skill's level, the memoir's cap.
+- techniques: `Record.techniques` by `Made` name, abilities left out.
+- discovery: `Record.discoveries` from `Discovered`, a journal's contents.
+- dives: camp's `Stashed` items become `Record.stash`; `Record.place` names the dungeon, floor and
+  phase.
+- combat: the death chain's killer (`state.death`, from `last_hurt`) becomes `Ending::Died`.
 
 **Read by**
-- dives: `GameState::new_as` builds ruins at camp's ruin spots from the records *(planned: slice 3)*.
+- dives: `GameState::new_in_lineage` builds ruins at camp's ruin spots (`legacy::build_ruins`).
 - training: a memoir is a `Study` lesson raising skills to a cap through `skill::gain`
-  *(planned: slice 4)*.
-- techniques: a memoir teaches its recorded techniques through `learn` *(planned: slice 4)*.
-- discovery: `Revealed` makes `discovery::ideas` list a journal's discoveries with their requirements
-  *(planned: slice 4)*.
+  (`training::study`, `Memoir`).
+- techniques: a memoir teaches its recorded techniques through `Teaches`.
+- discovery: `Revealed` makes `discovery::ideas` list a journal's discoveries with every requirement.

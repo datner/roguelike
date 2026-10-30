@@ -192,6 +192,56 @@ pub fn record(state: &GameState, name: &str) -> Record {
     }
 }
 
+/// A life as the player reads it, its names resolved against the content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LifeView {
+    pub name: String,
+    /// The origin's name, as the menu shows it.
+    pub origin: Option<String>,
+    /// "killed by the goblin's blow", "abandoned".
+    pub ending: String,
+    /// "camp", "the caves, floor 3".
+    pub place: String,
+    pub turn: u64,
+    /// The highest skills, at most three.
+    pub best: Vec<(String, u32)>,
+}
+
+/// How many skills a summary names.
+const BEST: usize = 3;
+
+/// `record` for reading: what the death panel and the title's Fallen list
+/// say. A name the content no longer has is shown as it was recorded.
+pub fn summary(blueprints: &crate::blueprint::Blueprints, record: &Record) -> LifeView {
+    let origin = record.origin.as_ref().map(|key| {
+        blueprints
+            .origins()
+            .iter()
+            .find(|origin| &origin.key == key)
+            .map_or_else(|| key.clone(), |origin| origin.name.clone())
+    });
+    let place = match &record.place {
+        Place::Camp => "camp".to_string(),
+        Place::Floor { dungeon, floor, .. } => {
+            let name = blueprints
+                .dungeon(dungeon)
+                .map_or(dungeon.as_str(), |found| found.name.as_str());
+            format!("{name}, floor {floor}")
+        }
+    };
+    LifeView {
+        name: record.name.clone(),
+        origin,
+        ending: match &record.ending {
+            Ending::Died { by } => format!("killed by {by}"),
+            Ending::Abandoned => "abandoned".to_string(),
+        },
+        place,
+        turn: record.turn,
+        best: record.skills.iter().take(BEST).cloned().collect(),
+    }
+}
+
 /// `record` added to a lineage, newest first, trimmed to the `keep` the
 /// content sets.
 pub fn add(records: &mut Vec<Record>, record: Record, legacy: &Legacy) {
@@ -273,20 +323,13 @@ fn memoir(state: &GameState, record: &Record, gap: &Gap) -> Spawn {
         .iter()
         .filter_map(|name| state.blueprints.id(name))
         .collect();
-    let origin = record
+    let life = summary(&state.blueprints, record);
+    let origin = life
         .origin
-        .as_ref()
-        .and_then(|key| state.blueprints.origins().iter().find(|o| &o.key == key))
-        .map_or_else(String::new, |origin| {
-            format!(", {}", origin.name.to_lowercase())
-        });
-    let how = match &record.ending {
-        Ending::Died { by } => format!("killed by {by}"),
-        Ending::Abandoned => "they walked away".to_string(),
-    };
+        .map_or_else(String::new, |origin| format!(", {}", origin.to_lowercase()));
     let story = format!(
-        "The memoir of {}{origin}. It ends on turn {}: {how}.",
-        record.name, record.turn
+        "The memoir of {}{origin}. It ends on turn {}: {}.",
+        life.name, life.turn, life.ending
     );
     let spawn = Spawn::blueprint("Memoir")
         .with(Name(format!("memoir of {}", record.name)))

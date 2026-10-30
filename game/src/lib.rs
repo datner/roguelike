@@ -89,6 +89,7 @@ pub use entity::{
 pub use explore::{ExploreItems, cycle_explore_items, explore_step, travel_step};
 pub use fx::{Fx, Outcome, take_fx};
 pub use grammar::{Subject, capitalize};
+pub use legacy::{LifeView, Record, summary};
 pub use light::{Lit, render_layers, tint};
 pub use lore::{Inspection, inspect, look_targets};
 pub use origin::{OriginDef, OriginView, origins};

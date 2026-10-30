@@ -142,6 +142,17 @@ pub fn hover_tooltip(response: &egui::Response, session: &Session, at: Option<(i
 /// panel. `scrolled` remembers the row last scrolled to, so the panel
 /// follows the keys without fighting the mouse wheel.
 pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -> Vec<Input> {
+    if let Some(lines) = session.death_panel() {
+        centred_window(ui, "death", |ui| {
+            boxed(ui, theme::title("Dead"), Some("any key: title"), |ui| {
+                for (i, line) in lines.iter().enumerate() {
+                    let colour = if i == 0 { BRIGHT } else { FG };
+                    ui.label(theme::line(line, colour));
+                }
+            });
+        });
+        return Vec::new();
+    }
     let state = session.state();
     match session.mode() {
         Mode::Choose(chooser) => {

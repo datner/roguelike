@@ -61,7 +61,7 @@ impl App {
     /// Opens on the title menu, or straight into `first`'s game.
     pub fn new(setup: Setup, first: Option<String>) -> Self {
         let mut menu = Menu::new(Vec::new());
-        title::refresh(&mut menu, &setup.saves_dir);
+        title::refresh(&mut menu, &setup);
         menu.set_origins(title::origins(&setup));
         let mut app = Self {
             setup,
@@ -110,7 +110,7 @@ impl App {
         if let Some(game) = self.game.take() {
             let (Ok(message) | Err(message)) = title::finish(&game, self.played.as_secs());
             self.menu.show(message);
-            title::refresh(&mut self.menu, &self.setup.saves_dir);
+            title::refresh(&mut self.menu, &self.setup);
         }
         self.next_step = None;
         self.effects.finish();

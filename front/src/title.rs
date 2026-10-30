@@ -53,7 +53,7 @@ pub fn perform(menu: &mut Menu, setup: &Setup, action: Action) -> Option<Next> {
     };
     let (Ok(message) | Err(message)) = outcome;
     menu.show(message);
-    refresh(menu, saves_dir);
+    refresh(menu, setup);
     None
 }
 
@@ -72,8 +72,20 @@ fn abandon(setup: &Setup, character: &str) -> Result<(), String> {
     }
 }
 
-/// Reloads the menu's save list from disk.
-pub fn refresh(menu: &mut Menu, saves_dir: &Path) {
+/// Reloads the menu's save list and the lineage's fallen from disk.
+pub fn refresh(menu: &mut Menu, setup: &Setup) {
+    let saves_dir = setup.saves_dir.as_path();
+    match (saves::lineage(saves_dir), Blueprints::load(&setup.data_dir)) {
+        (Ok(records), Ok(blueprints)) => menu.set_fallen(
+            records
+                .iter()
+                .map(|record| crate::text::life(&game::summary(&blueprints, record)))
+                .collect(),
+        ),
+        // Starting a game says why the content fails to load.
+        (Err(err), _) => menu.show(err),
+        (_, Err(_)) => {}
+    }
     match saves::list(saves_dir) {
         Ok(list) => {
             let outdated = list
@@ -164,6 +176,7 @@ pub fn finish(game: &Game, seconds: u64) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::input::MenuInput;
 
     #[test]
     fn leaving_a_game_records_its_play_beside_the_saves() {
@@ -235,6 +248,18 @@ mod tests {
         let lineage = saves::lineage(&setup.saves_dir).unwrap();
         assert_eq!(lineage[0].ending, game::legacy::Ending::Abandoned);
         assert_eq!(saves::list(&setup.saves_dir).unwrap(), Vec::<String>::new());
+        for input in [
+            MenuInput::Down,
+            MenuInput::Down,
+            MenuInput::Down,
+            MenuInput::Select,
+        ] {
+            menu.handle(input);
+        }
+        let crate::menu::Body::Text(fallen) = menu.view().body else {
+            panic!("the Fallen list");
+        };
+        assert!(fallen[0].starts_with("hero"), "{fallen:?}");
         let heir = start(&setup, "heir", None).unwrap();
         let ruin = heir
             .session

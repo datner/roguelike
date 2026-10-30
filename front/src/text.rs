@@ -123,6 +123,30 @@ pub fn death_chain(death: &game::DeathView) -> String {
     format!(": {}", parts.join("; "))
 }
 
+/// A life in one line, for the death panel and the Fallen list: "Ana, Pit
+/// fighter: killed by the goblin's blow in the caves, floor 3, turn 812.
+/// Best: Bow 8, Dodge 4."
+pub fn life(life: &game::LifeView) -> String {
+    let origin = life
+        .origin
+        .as_ref()
+        .map_or_else(String::new, |origin| format!(", {origin}"));
+    let best: Vec<String> = life
+        .best
+        .iter()
+        .map(|(skill, level)| format!("{skill} {level}"))
+        .collect();
+    let best = if best.is_empty() {
+        String::new()
+    } else {
+        format!(" Best: {}.", best.join(", "))
+    };
+    format!(
+        "{}{origin}: {} in {}, turn {}.{best}",
+        life.name, life.ending, life.place, life.turn
+    )
+}
+
 /// The side panel's account of where you are and what comes next.
 pub fn whereabouts(state: &GameState) -> Vec<Row> {
     let plain = |text: String| Seg::Plain(text);

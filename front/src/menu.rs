@@ -29,10 +29,11 @@ pub enum Action {
     Quit,
 }
 
-const MAIN: [&str; 3] = ["New game", "Continue", "Load"];
+const MAIN: [&str; 4] = ["New game", "Continue", "Load", "Fallen"];
 const NEW: usize = 0;
 const CONTINUE: usize = 1;
 const LOAD: usize = 2;
+const FALLEN: usize = 3;
 /// Save files are named after characters; a short cap keeps them tidy.
 const MAX_NAME: usize = 24;
 /// Rows of the save list shown at once; longer lists scroll.
@@ -61,6 +62,8 @@ enum Screen {
         replace: bool,
         selected: usize,
     },
+    /// The lineage's past lives, read-only (docs/plans/legacy.md).
+    Fallen,
 }
 
 enum Naming {
@@ -76,6 +79,8 @@ pub struct Menu {
     outdated: Vec<String>,
     /// What a new character can start as; none skips the choice.
     origins: Vec<OriginView>,
+    /// The lineage's past lives, newest first, a line each.
+    fallen: Vec<String>,
     message: Option<String>,
 }
 
@@ -118,8 +123,21 @@ impl Menu {
             saves,
             outdated: Vec::new(),
             origins: Vec::new(),
+            fallen: Vec::new(),
             message: None,
         }
+    }
+
+    /// The lineage's past lives, newest first, a line each (`text::life`).
+    pub fn set_fallen(&mut self, fallen: Vec<String>) {
+        self.fallen = fallen;
+    }
+
+    /// The character still alive, if any: one living character per
+    /// lineage (docs/plans/legacy.md), so a new one waits for its end. An
+    /// outdated save can't be played and doesn't count.
+    fn living(&self) -> Option<&String> {
+        self.saves.iter().find(|name| !self.outdated.contains(name))
     }
 
     /// What a new character can start as (`game::origins`), in order.
@@ -236,6 +254,11 @@ impl Menu {
                 }
                 _ => {}
             },
+            Screen::Fallen => {
+                if input == MenuInput::Back {
+                    self.screen = Screen::Main { selected: FALLEN };
+                }
+            }
         }
         None
     }
@@ -255,16 +278,22 @@ impl Menu {
             return None;
         };
         match selected {
-            NEW => {
-                self.screen = Screen::Name {
-                    naming: Naming::New,
-                    text: String::new(),
+            NEW => match self.living() {
+                Some(name) => self.show(format!(
+                    "{name} still lives: continue them, or delete them to start anew."
+                )),
+                None => {
+                    self.screen = Screen::Name {
+                        naming: Naming::New,
+                        text: String::new(),
+                    }
                 }
-            }
+            },
             CONTINUE => match self.saves.first() {
                 Some(name) => return Some(Action::Play(name.clone())),
                 None => self.show("No saves yet."),
             },
+            FALLEN => self.screen = Screen::Fallen,
             _ => self.screen = Screen::Load { selected: 0 },
         }
         None
@@ -315,7 +344,11 @@ impl Menu {
                             _ => (*label).to_string(),
                         },
                         selected: i == *selected,
-                        disabled: i != NEW && self.saves.is_empty(),
+                        disabled: match i {
+                            NEW => self.living().is_some(),
+                            FALLEN => self.fallen.is_empty(),
+                            _ => self.saves.is_empty(),
+                        },
                     })
                     .collect();
                 (
@@ -377,6 +410,18 @@ impl Menu {
                     Body::Choice { rows, details },
                     "↑↓ select  Enter start  Esc back",
                 )
+            }
+            Screen::Fallen => {
+                let lines = self
+                    .fallen
+                    .iter()
+                    .flat_map(|life| {
+                        let mut lines = wrap(life, DETAIL_WIDTH, "  ");
+                        lines.push(String::new());
+                        lines
+                    })
+                    .collect();
+                ("Fallen", Body::Text(lines), "Esc back")
             }
         };
         MenuView {
@@ -589,18 +634,44 @@ mod tests {
     }
 
     #[test]
-    fn new_game_refuses_an_existing_name() {
+    fn new_game_waits_until_no_one_is_alive() {
         let mut menu = menu(&["hero"]);
-        press(&mut menu, &[Select]);
-        type_text(&mut menu, "hero");
+        assert!(menu_rows(&menu)[0].disabled);
         assert_eq!(press(&mut menu, &[Select]), None);
-        assert!(menu.typing());
-        assert!(text(&menu).contains("hero already has a save"));
+        assert!(!menu.typing());
+        assert!(text(&menu).contains("hero still lives"));
+    }
+
+    #[test]
+    fn the_fallen_are_listed_newest_first_and_esc_leads_back() {
+        let mut menu = menu(&[]);
+        assert!(menu_rows(&menu)[FALLEN].disabled, "no one has fallen yet");
+        menu.set_fallen(vec![
+            "Bo: abandoned in camp, turn 3.".into(),
+            "Ana: …".into(),
+        ]);
+        press(&mut menu, &[Down, Down, Down, Select]);
+        let view = menu.view();
+        assert_eq!(view.title, "Fallen");
+        let Body::Text(lines) = view.body else {
+            panic!("the fallen are plain lines");
+        };
+        assert_eq!(lines[0], "Bo: abandoned in camp, turn 3.");
+        press(&mut menu, &[Back]);
+        assert_eq!(menu.view().title, "Roguelike");
+        assert!(menu_rows(&menu)[FALLEN].selected);
+    }
+
+    fn menu_rows(menu: &Menu) -> Vec<Row> {
+        let Body::List(rows) = menu.view().body else {
+            panic!("the main menu is a list");
+        };
+        rows
     }
 
     #[test]
     fn new_game_replaces_an_outdated_save_of_that_name() {
-        let mut menu = menu(&["hero", "old"]);
+        let mut menu = menu(&["old"]);
         menu.set_outdated(vec!["old".into()]);
         press(&mut menu, &[Down, Down, Select]);
         assert!(text(&menu).contains("old (old version: a new game replaces it)"));

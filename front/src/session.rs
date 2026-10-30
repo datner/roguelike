@@ -109,6 +109,21 @@ impl Session {
         &self.mode
     }
 
+    /// What the death panel says once the character is dead
+    /// (docs/plans/legacy.md): the life as the lineage will keep it.
+    pub fn death_panel(&self) -> Option<Vec<String>> {
+        if !self.state.game_over {
+            return None;
+        }
+        let record = game::legacy::record(&self.state, &self.character);
+        let life = game::summary(&self.state.blueprints, &record);
+        Some(vec![
+            format!("{} is dead.", self.character),
+            crate::text::life(&life),
+            "Their camp will stand in ruins for whoever comes next.".to_string(),
+        ])
+    }
+
     pub fn keys(&self) -> Keys {
         if self.state.game_over {
             return Keys::Any;
@@ -753,6 +768,13 @@ mod tests {
         assert_eq!(
             session.status(),
             "You died on turn 7. Press any key to return to the title."
+        );
+        let panel = session.death_panel().unwrap();
+        assert_eq!(panel[0], "hero is dead.");
+        assert!(
+            panel[1].contains(": abandoned in camp, turn 7."),
+            "{}",
+            panel[1]
         );
         assert_eq!(session.keys(), Keys::Any);
         assert_eq!(session.handle(Input::Any), Outcome::Quit);
