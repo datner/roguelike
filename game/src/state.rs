@@ -272,14 +272,28 @@ impl GameState {
         for inhabitant in dungeon.creatures.iter().filter(|i| i.in_phase(&phase)) {
             self.place(&inhabitant.blueprint, inhabitant.on_floor(floor), from)?;
         }
-        // After the creatures, so adding items leaves their placement alone.
-        let items = dungeon
+        // After the creatures, so adding items leaves their placement alone;
+        // named finds after the rest, likewise.
+        let here: Vec<_> = dungeon
             .items
             .iter()
             .filter(|scatter| scatter.in_phase(&phase))
+            .collect();
+        let any = here
+            .iter()
+            .filter(|scatter| scatter.blueprint.is_none())
             .map(|scatter| scatter.on_floor(floor))
             .sum();
-        self.scatter_items(items, from)?;
+        self.scatter_items(self.blueprints.items(), any, from)?;
+        for scatter in here {
+            if let Some(id) = scatter
+                .blueprint
+                .as_ref()
+                .and_then(|b| self.blueprints.id(b))
+            {
+                self.scatter_items(vec![id], scatter.on_floor(floor), from)?;
+            }
+        }
         self.log.push(dungeon.arrival);
         Ok(())
     }
@@ -319,8 +333,13 @@ impl GameState {
         Ok(())
     }
 
-    fn scatter_items(&mut self, count: usize, from: (i32, i32)) -> Result<(), BlueprintError> {
-        let pool = self.blueprints.items();
+    /// `count` items, each picked from `pool`, away from `from`.
+    fn scatter_items(
+        &mut self,
+        pool: Vec<crate::blueprint::BlueprintId>,
+        count: usize,
+        from: (i32, i32),
+    ) -> Result<(), BlueprintError> {
         if pool.is_empty() {
             return Ok(());
         }

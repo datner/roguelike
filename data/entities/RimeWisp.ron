@@ -1,0 +1,15 @@
+// A drifting knot of frost (docs/plans/phases.md): a native of the rime. It shrugs off cold and deals
+// it, so the phase's lean cuts both ways.
+(
+    inherits: "Creature",
+    components: [
+        Name("rime wisp"),
+        Appearance(glyph: 'w', fg: (170, 220, 255), bg: (0, 0, 0)),
+        Health(current: 5, max: 5),
+        Melee(min: 1, max: 3),
+        Natural([Cold]),
+        Armor(cold: 4),
+        Speed(120),
+        Hostile,
+    ],
+)

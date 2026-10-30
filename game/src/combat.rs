@@ -10,8 +10,8 @@ use rand_pcg::Pcg64;
 use crate::command::{Command, DamageCause, dispatch};
 use crate::effect::BASIS_POINTS;
 use crate::entity::{
-    Armor, DamageType, DamageTypes, Deflect, Footwork, Graze, Health, Launcher, Melee, OnHit,
-    Projectile, Stat, Stats, Throwable, Weapon,
+    Armor, DamageType, DamageTypes, Deflect, Footwork, Graze, Health, Launcher, Melee, Natural,
+    OnHit, Projectile, Stat, Stats, Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::event::{Ctx, EventRegistry, settle};
@@ -185,13 +185,10 @@ pub(crate) fn blow_strike(
         });
     let natural = || {
         let melee = *world.get::<&Melee>(attacker).ok()?;
-        Some((
-            melee.min,
-            melee.max,
-            Stat::Strength,
-            DamageTypes::single(DamageType::Blunt),
-            None,
-        ))
+        let types = world
+            .get::<&Natural>(attacker)
+            .map_or(DamageTypes::single(DamageType::Blunt), |natural| natural.0);
+        Some((melee.min, melee.max, Stat::Strength, types, None))
     };
     let (min, max, stat, types, weapon) = wielded.or_else(natural)?;
     let bonus = world

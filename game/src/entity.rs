@@ -207,6 +207,11 @@ pub struct Melee {
     pub max: i32,
 }
 
+/// What a creature's own blows (`Melee`) carry, beside it: a rime wisp's
+/// touch is cold. Without one, a natural blow is blunt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Natural(pub DamageTypes);
+
 /// A creature attribute an item can draw on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Stat {

@@ -1,0 +1,11 @@
+// A javelin that crackles in the hand (docs/plans/phases.md):
+// found only in the tempest, never lying about elsewhere.
+(
+    components: [
+        Name("storm javelin"),
+        Appearance(glyph: '|', fg: (230, 230, 120), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+        Throwable(range: 8, min: 2, max: 5, stat: Strength, types: [Shock]),
+    ],
+)

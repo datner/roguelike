@@ -96,7 +96,13 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
   equals the blow in a leaning phase; the Stillness changes nothing; a bad opposite fails at load;
   `choices` lists every phase today.
 
-### 2. Natives and finds
+### 2. Natives and finds — done
+- As built: natives `EmberImp`, `RimeWisp`, `StormHawk`, `BogCrawler`, each with `Armor(<element>: 4)`
+  and a new `Natural(types)` part, read in `combat::blow_strike`, so their own blows carry their
+  element (a creature without one still hits blunt; `Melee` is untouched). Finds `AshMantle`,
+  `RimeCharm`, `StormJavelin`, `BogWaders` are `Keepsake`s placed by a dungeon item entry naming its
+  `blueprint` (checked at load), after the random items so other floors are unchanged. Both dungeons
+  list them. Left out: acid wearing armor down, a mechanic of its own. Save version 64.
 - Blueprints: one native per new phase (e.g. a rime wisp, a storm-hawk, a bog crawler), plus an ember
   native beside the shaman. Each resists its element and deals it; Acid wears armor.
 - One find per phase (a manual or an item that only spawns there), added to dungeon spawn entries.

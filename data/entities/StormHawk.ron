@@ -1,0 +1,15 @@
+// A hawk that rides the static (docs/plans/phases.md): a native of the tempest. It shrugs off shock and deals
+// it, so the phase's lean cuts both ways.
+(
+    inherits: "Creature",
+    components: [
+        Name("storm-hawk"),
+        Appearance(glyph: 'h', fg: (230, 230, 120), bg: (0, 0, 0)),
+        Health(current: 5, max: 5),
+        Melee(min: 1, max: 3),
+        Natural([Shock]),
+        Armor(shock: 4),
+        Speed(160),
+        Hostile,
+    ],
+)

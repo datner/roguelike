@@ -79,6 +79,10 @@ pub struct Scatter {
     /// The phases these turn up in; none means every phase.
     #[serde(default)]
     pub phases: Vec<String>,
+    /// This item only, such as a phase's find (docs/plans/phases.md);
+    /// none picks each from every item that can be found lying about.
+    #[serde(default)]
+    pub blueprint: Option<String>,
 }
 
 impl Scatter {
@@ -197,9 +201,19 @@ pub(crate) fn check(
     if dungeon.floors == 0 || dungeon.landing_every == 0 {
         return Err(bad("floors and landing_every must be at least 1".into()));
     }
-    for inhabitant in &dungeon.creatures {
-        if blueprints.id(&inhabitant.blueprint).is_none() {
-            return Err(bad(format!("unknown blueprint {:?}", inhabitant.blueprint)));
+    let blueprints_named = dungeon
+        .creatures
+        .iter()
+        .map(|inhabitant| &inhabitant.blueprint)
+        .chain(
+            dungeon
+                .items
+                .iter()
+                .filter_map(|scatter| scatter.blueprint.as_ref()),
+        );
+    for name in blueprints_named {
+        if blueprints.id(name).is_none() {
+            return Err(bad(format!("unknown blueprint {name:?}")));
         }
     }
     let named = dungeon
@@ -244,6 +258,7 @@ pub(crate) mod tests {
                 count: 5,
                 per_floor: 0,
                 phases: Vec::new(),
+                blueprint: None,
             }],
         }
     }
@@ -281,5 +296,97 @@ pub(crate) mod tests {
             loaded,
             Err(BlueprintError::BadDungeon { dungeon, why }) if dungeon == "Lair" && why.contains("Dragon")
         ));
+        let mut dungeon = test_dungeon();
+        dungeon.items[0].blueprint = Some("Grail".into());
+        let loaded = crate::state::tests::test_blueprints()
+            .with_dungeons(BTreeMap::from([("Lair".to_string(), dungeon)]));
+        assert!(
+            matches!(loaded, Err(BlueprintError::BadDungeon { why, .. }) if why.contains("Grail"))
+        );
+    }
+
+    /// The first floor of the caves in `phase`, from camp, by its stairs.
+    fn caves_in(phase: &str) -> crate::state::GameState {
+        use crate::entity::Position;
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap();
+        let mut state = crate::state::GameState::new(5, data).unwrap();
+        state.phase = phase.into();
+        let camp = state.blueprints.camp().unwrap();
+        let (x, y) = camp.entrances.iter().find(|(_, d)| d == "Caves").unwrap().0;
+        let player = state.player;
+        *state.world.get::<&mut Position>(player).unwrap() = Position { x, y };
+        state.run(crate::command::Command::Descend(player));
+        state
+    }
+
+    fn made(state: &crate::state::GameState) -> Vec<String> {
+        state
+            .world
+            .query::<&crate::entity::Made>()
+            .iter()
+            .map(|made| made.0.clone())
+            .collect()
+    }
+
+    #[test]
+    fn each_phase_has_its_natives_and_find_and_never_anothers() {
+        let natives = [
+            ("Embers", "EmberImp", "AshMantle"),
+            ("Rime", "RimeWisp", "RimeCharm"),
+            ("Tempest", "StormHawk", "StormJavelin"),
+            ("Mire", "BogCrawler", "BogWaders"),
+        ];
+        for (phase, native, find) in natives {
+            let here = made(&caves_in(phase));
+            assert!(here.iter().any(|m| m == native), "{phase}: {native}");
+            assert!(here.iter().any(|m| m == find), "{phase}: {find}");
+            for (other, native, find) in natives.iter().filter(|(p, ..)| *p != phase) {
+                assert!(
+                    !here.iter().any(|m| m == native || m == find),
+                    "{phase} has {other}'s"
+                );
+            }
+        }
+        let still = made(&caves_in("Stillness"));
+        assert!(
+            natives
+                .iter()
+                .all(|(_, n, f)| !still.iter().any(|m| m == n || m == f))
+        );
+    }
+
+    #[test]
+    fn natives_resist_and_deal_their_element() {
+        use crate::entity::{Armor, DamageType, DamageTypes, Natural};
+        let data = crate::blueprint::Blueprints::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        )
+        .unwrap();
+        let mut state = crate::state::GameState::new(5, data).unwrap();
+        for (native, element) in [
+            ("EmberImp", DamageType::Fire),
+            ("RimeWisp", DamageType::Cold),
+            ("StormHawk", DamageType::Shock),
+            ("BogCrawler", DamageType::Acid),
+        ] {
+            let it = state.spawn(crate::spawn::Spawn::blueprint(native)).unwrap();
+            assert!(
+                state.world.get::<&Armor>(it).unwrap().of(element) > 0,
+                "{native}"
+            );
+            assert_eq!(
+                *state.world.get::<&Natural>(it).unwrap(),
+                Natural(DamageTypes::single(element))
+            );
+            let strike = crate::combat::strike(&state.world, state.blueprints.skills(), it);
+            assert_eq!(
+                strike.unwrap().types,
+                DamageTypes::single(element),
+                "{native}'s blow"
+            );
+        }
     }
 }

@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ability, Hardiness, Keepsake, Made, Note, OffBalance, Roams, Skirmish, SprintAi, Teaches,
-    TechniqueAi, Verb, WindUp,
+    Ability, Hardiness, Keepsake, Made, Natural, Note, OffBalance, Roams, Skirmish, SprintAi,
+    Teaches, TechniqueAi, Verb, WindUp,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -97,6 +97,8 @@ component_defs! {
         Verb,
         /// What looking at it reads (a language part).
         Note,
+        /// What its own blows carry.
+        Natural,
         Footwork, Blow, Dash, Loose, Stamina, OffBalance,
     ],
     markers: [

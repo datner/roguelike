@@ -28,8 +28,18 @@
         (blueprint: "GoblinBrute", count: 1),
         (blueprint: "GoblinShaman", count: 1),
         (blueprint: "GoblinShaman", count: 1, phases: ["Embers"]),
+        // Each phase's natives (docs/plans/phases.md).
+        (blueprint: "EmberImp", count: 1, phases: ["Embers"]),
+        (blueprint: "RimeWisp", count: 2, phases: ["Rime"]),
+        (blueprint: "StormHawk", count: 1, phases: ["Tempest"]),
+        (blueprint: "BogCrawler", count: 1, phases: ["Mire"]),
     ],
     items: [
         (count: 4, per_floor: 1),
+        // Each phase's find, never lying about in another.
+        (count: 1, phases: ["Embers"], blueprint: "AshMantle"),
+        (count: 1, phases: ["Rime"], blueprint: "RimeCharm"),
+        (count: 1, phases: ["Tempest"], blueprint: "StormJavelin"),
+        (count: 1, phases: ["Mire"], blueprint: "BogWaders"),
     ],
 )
