@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ability, Hardiness, OffBalance, Roams, Skirmish, SprintAi, Teaches, TechniqueAi, Verb, WindUp,
+    Ability, Hardiness, Made, OffBalance, Roams, Skirmish, SprintAi, Teaches, TechniqueAi, Verb,
+    WindUp,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -805,6 +806,7 @@ impl Blueprints {
             .ok_or_else(|| BlueprintError::UnknownBlueprint(format!("{id:?}")))?;
 
         let mut builder = EntityBuilder::new();
+        builder.add(Made(blueprint.name.clone()));
         for component in &blueprint.components {
             component.add_to(&mut builder);
         }

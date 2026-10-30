@@ -5,6 +5,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
+use game::legacy::{self, Record};
 use game::{Blueprints, GameState, save};
 
 /// `<platform data dir>/saves`, or `None` if the platform has no home
@@ -13,9 +14,17 @@ pub fn default_dir() -> Option<PathBuf> {
     ProjectDirs::from("", "", "roguelike").map(|dirs| dirs.data_dir().join("saves"))
 }
 
-/// Character names become file names, so they may not leave the directory.
+/// The lineage's file beside the saves (docs/plans/legacy.md): one lineage per saves directory.
+const LINEAGE: &str = "legacy";
+
+/// Character names become file names, so they may not leave the directory
+/// or take the lineage's.
 pub fn path(dir: &Path, character: &str) -> Result<PathBuf, String> {
-    if character.is_empty() || character.starts_with('.') || character.contains(['/', '\\']) {
+    if character.is_empty()
+        || character.starts_with('.')
+        || character.contains(['/', '\\'])
+        || character == LINEAGE
+    {
         return Err(format!("invalid character name {character:?}"));
     }
     Ok(dir.join(format!("{character}.ron")))
@@ -64,8 +73,8 @@ pub fn outdated(dir: &Path, character: &str) -> bool {
         .is_some_and(|version| version != save::SAVE_VERSION)
 }
 
-/// Saves `state` to `path` unless the character is dead, in which case the
-/// last save is left as it was. Returns whether it saved.
+/// Saves `state` to `path` unless the character is dead (then `bury` is the
+/// caller's). Returns whether it saved.
 pub fn save_on_quit(path: &Path, state: &GameState) -> Result<bool, String> {
     if state.game_over {
         return Ok(false);
@@ -150,6 +159,36 @@ pub fn rename(dir: &Path, from: &str, to: &str) -> Result<(), String> {
         return Err(format!("a save named {to:?} already exists"));
     }
     fs::rename(&source, &target).map_err(|err| format!("cannot rename {}: {err}", source.display()))
+}
+
+/// The lives recorded in `dir`, newest first. A missing file is an empty
+/// lineage; one this build can't read is an error and left as it is.
+pub fn lineage(dir: &Path) -> Result<Vec<Record>, String> {
+    let file = dir.join(format!("{LINEAGE}.ron"));
+    match fs::read_to_string(&file) {
+        Ok(text) => legacy::from_ron(&text).map_err(|err| format!("{}: {err}", file.display())),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(err) => Err(format!("cannot read {}: {err}", file.display())),
+    }
+}
+
+/// Ends `character` for good: `record` joins the lineage, then the save is
+/// removed (if there is one), so a failure never loses both. A lineage this
+/// build can't read is replaced, starting over from this record.
+pub fn bury(dir: &Path, character: &str, record: Record) -> Result<(), String> {
+    let save = path(dir, character)?;
+    let mut records = lineage(dir).unwrap_or_default();
+    legacy::add(&mut records, record);
+    let text = legacy::to_ron(&records).map_err(|err| format!("cannot record a life: {err}"))?;
+    let file = dir.join(format!("{LINEAGE}.ron"));
+    write_atomic(&file, text.as_bytes())
+        .map_err(|err| format!("cannot write {}: {err}", file.display()))?;
+    match fs::remove_file(&save) {
+        Err(err) if err.kind() != io::ErrorKind::NotFound => {
+            Err(format!("cannot delete {}: {err}", save.display()))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Writes a temp file next to `path`, then renames it over `path`, so a
@@ -307,9 +346,45 @@ mod tests {
     fn character_names_cannot_escape_the_saves_directory() {
         let dir = Path::new("saves");
         assert_eq!(path(dir, "hero"), Ok(PathBuf::from("saves/hero.ron")));
-        for bad in ["", "../hero", "a/b", ".hidden"] {
+        for bad in ["", "../hero", "a/b", ".hidden", "legacy"] {
             assert!(path(dir, bad).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn burying_removes_the_save_and_keeps_the_newest_lives() {
+        let dir = temp_dir("bury");
+        let record = game::legacy::record(&state(), "hero");
+        for name in ["a", "b", "c", "d"] {
+            let save = path(&dir, name).unwrap();
+            fs::write(&save, "save").unwrap();
+            let life = Record {
+                name: name.into(),
+                ..record.clone()
+            };
+            bury(&dir, name, life).unwrap();
+            assert!(!save.exists(), "{name}");
+        }
+        let names: Vec<String> = lineage(&dir).unwrap().into_iter().map(|r| r.name).collect();
+        assert_eq!(names, ["d", "c", "b"]);
+        assert_eq!(
+            list(&dir).unwrap(),
+            Vec::<String>::new(),
+            "no character named legacy"
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_outdated_lineage_is_left_alone_until_the_next_ending_replaces_it() {
+        let dir = temp_dir("lineage");
+        let file = dir.join("legacy.ron");
+        fs::write(&file, "(version: 0)").unwrap();
+        assert!(lineage(&dir).unwrap_err().contains("version 0"));
+        assert_eq!(fs::read_to_string(&file).unwrap(), "(version: 0)");
+        bury(&dir, "hero", game::legacy::record(&state(), "hero")).unwrap();
+        assert_eq!(lineage(&dir).unwrap().len(), 1);
+        fs::remove_dir_all(dir).unwrap();
     }
 
     fn touch(file: &Path, secs_after_epoch: u64) {

@@ -161,7 +161,7 @@ impl App {
             let Some(action) = self.menu.handle(input) else {
                 return Flow::Continue;
             };
-            return match title::perform(&mut self.menu, &self.setup.saves_dir, action) {
+            return match title::perform(&mut self.menu, &self.setup, action) {
                 Some(Next::Quit) => Flow::Exit,
                 Some(Next::Play { character, origin }) => {
                     self.play(&character, origin.as_deref());

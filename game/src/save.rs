@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
-    Ability, Attuned, Blow, Dash, Lesson, Loose, OffBalance, Origin, Performed, Sighted, Stamina,
-    Studied, Teaches, Technique, TechniqueAi, Verb,
+    Ability, Attuned, Blow, Dash, Lesson, Loose, Made, OffBalance, Origin, Performed, Sighted,
+    Stamina, Studied, Teaches, Technique, TechniqueAi, Verb,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
@@ -41,7 +41,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 57;
+pub const SAVE_VERSION: u32 = 58;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -271,7 +271,7 @@ components! {
         Timed, SummonLimit, BloodCasting, Focus, Fizzle, Chain, Delay, Blast, Bleeding,
         Regeneration, RestBudget, Quarry, Morale, Route, WindUp, Strode, Loosed, Hardiness,
         BaseHealth, Wounds, Graze, Deflect, Light, Verb, Footwork, Discovered, Origin, Studied,
-        Sighted, Attuned, Blow, Dash, Loose, Stamina, OffBalance, Performed,
+        Sighted, Attuned, Blow, Dash, Loose, Stamina, OffBalance, Performed, Made,
     ],
     markers: [
         BlocksMovement, Player, Dead, Hostile, Item, Found, Binding, Scroll, SpellAi, Roams,

@@ -92,7 +92,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 component: blueprint `ComponentDef` where content sets it, `SavedComponent` + round-trip test,
 `SAVE_VERSION` bump.
 
-### 1. The record
+### 1. The record — done
+- As built: no `Command::Die { cause }`. The death chain (`state.death`, legibility.md) already
+  names the killer at the moment of death, so `Ending::Died { by }` takes it, and `Ending::Abandoned`
+  covers the menu's Delete; `legacy::record(state, name)` always builds a record (the name is the
+  frontend's), abandoned unless the life ended in death. Every spawn from a blueprint now carries
+  `Made(name)` so gear, styles and techniques are recorded by blueprint name (save version 58).
+  `KEEP` is a constant (3) until slice 3's `data/legacy.ron`. `saves::lineage` reads the file;
+  `title::perform` takes the `Setup` so Delete can load the save it abandons. The name `legacy` is
+  reserved. Gear lists what was worn and carried, not what a container holds.
 - `Command::Die { entity, cause }`; every producer passes its cause. `die` keeps it on the player
   (`DiedOf(Cause)`, with the killer's name resolved at that moment) when the game ends.
 - `game/src/legacy.rs` (new): `Record`, `Ending`, `legacy::record(&GameState) -> Option<Record>`

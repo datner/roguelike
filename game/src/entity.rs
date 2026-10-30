@@ -957,6 +957,12 @@ pub struct Verb {
     pub at: bool,
 }
 
+/// The blueprint a thing was made from, by name, set by every spawn from a
+/// blueprint. What outlives the world names things by it (a legacy record,
+/// docs/plans/legacy.md), never by `BlueprintId`, which is runtime-only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Made(pub String);
+
 /// Where a character started (docs/plans/origins.md): the key of its origin
 /// in `data/origins.ron`. Saved by key; legacy will read it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

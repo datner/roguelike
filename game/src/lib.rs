@@ -45,6 +45,7 @@ pub mod fx;
 pub mod grammar;
 pub mod health;
 pub mod holding;
+pub mod legacy;
 pub mod light;
 pub mod lore;
 pub mod origin;
