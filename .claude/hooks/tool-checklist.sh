@@ -10,7 +10,7 @@ Tool checklist for this project (run it at the start of each task, and again aft
 2. LSP: load it (ToolSearch "select:LSP") and use goToDefinition / findReferences / incomingCalls for symbols. Never rg for a symbol.
 3. Compile errors come from IDE diagnostics; build only to run tests, the bench or shots.
 4. A module's API: scripts/map.sh --sigs <path>, before opening the file.
-5. Text search: the Grep tool. Reading: Read with offset/limit. Never cat/sed/head on files.
+5. Text search: rg in Bash (several searches can share one call); finding files: fd. Reading: Read with offset/limit. Never cat/sed/head on files.
 6. Changes: Edit/Write (the rustfmt hook runs). Repeated multi-site edits mean the design needs fixing or a tool, not a script.
 EOF
 

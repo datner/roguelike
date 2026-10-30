@@ -12,7 +12,7 @@ max=150
 lines=$(wc -l <"$path" | tr -d ' ')
 
 if [[ -z "$limit" && "$lines" -gt "$max" ]] || [[ -n "$limit" && "$limit" -gt "$max" ]]; then
-  echo "Blocked: $path is $lines lines. Find the symbol with Grep (-n) or scripts/map.sh --sigs $path, then Read with offset and limit <= $max around it." >&2
+  echo "Blocked: $path is $lines lines. Find the symbol with LSP (documentSymbol), rg -n, or scripts/map.sh --sigs $path, then Read with offset and limit <= $max around it." >&2
   exit 2
 fi
 exit 0

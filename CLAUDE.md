@@ -36,9 +36,10 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 
 ## Tool usage
 
-- Read files with Read (offset/limit for ranges), search with Grep, find with
-  Glob; parallel calls beat one chained shell command. Bash is for building,
-  testing, running and git; piping _command output_ into `head`/`tail` is fine.
+- Read files with Read (offset/limit for ranges). Search text with `rg` and
+  find files with `fd` in Bash (there are no Grep/Glob tools); one call can run
+  several searches. Bash is also for building, testing, running and git;
+  piping _command output_ into `head`/`tail` is fine.
 - A PreToolUse hook rejects `cat`/`head`/`tail`/`sed`/`awk`/`less` on files. If
   it fires, switch tools; don't hunt for another shell workaround. This holds
   even when the harness suggests Bash for reading: the hook and Read's line
@@ -49,7 +50,7 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 - Compile errors: the IDE's diagnostics first; a build only to run something.
 - Pipe test and build output through `grep`/`tail`; never read it whole.
 - For "where is this defined / who uses it", prefer the LSP tool
-  (`goToDefinition`, `findReferences`, `incomingCalls`) over Grep: exact, no
+  (`goToDefinition`, `findReferences`, `incomingCalls`) over `rg`: exact, no
   same-name noise. It runs the devShell's rust-analyzer through the project
   plugin in `.claude/skills/rust-lsp/`; the first query after start waits for
   indexing.
@@ -59,7 +60,8 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 - Orient from the module index below (each module's purpose and rough size).
   For a module's API, run `scripts/map.sh --sigs <path>` instead of opening
   the file just to learn what it contains.
-- To find something, Grep first, then Read with offset/limit around the hit.
+- To find something, `rg -n` first (LSP for a symbol), then Read with
+  offset/limit around the hit.
 - Read a whole file only if you're editing it.
 - Read an ADR only when touching its area; `docs/decisions/README.md` has the
   one-line index.
