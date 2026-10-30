@@ -27,9 +27,17 @@ last ones left (docs/plans/legacy.md), so a life needs a form that outlives its 
 - **Burying writes the record before it removes the save**, so a failure never loses both. On death,
   `title::finish` buries instead of saving.
 
+- **Records are an input to a new game**, like the seed and the origin
+  (`GameState::new_in_lineage`). Ruins are built once, at camp, from their own stream
+  (`rng::stream::LEGACY`, seeded from the world seed, never part of `Rngs`): per record the gap,
+  then each left item in order. After that they are ordinary saved entities and the lineage file is
+  never read again for that character.
+- **How much a legacy is worth is data** (`data/legacy.ron`: `keep` and a weighted gap table, shortest
+  first). An older record's gap is its newer neighbour's plus a roll, so older ruins are never better
+  kept and nothing ages during play. Camp marks a ruin spot (`x`) per kept life.
+
 ## Consequences
 
 - Death is final: there is no save to continue after it.
-- A record is the only thing a new game will read from a past life (ruins, slice 3): the same seed,
-  origin and records give the same game.
-- `KEEP` is a constant until `data/legacy.ron` holds it.
+- A record is the only thing a new game reads from a past life: the same seed, origin and records
+  give the same game.

@@ -13,6 +13,9 @@ pub mod stream {
     pub const SPAWN: u128 = 2;
     pub const COMBAT: u128 = 3;
     pub const SPELL: u128 = 4;
+    /// Ruins, built once from the lineage when a game starts
+    /// (`legacy::build_ruins`), so it has no `Rngs` field.
+    pub const LEGACY: u128 = 5;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

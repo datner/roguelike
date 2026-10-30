@@ -249,6 +249,9 @@ pub struct Blueprints {
     phases: Vec<Phase>,
     /// What a character can start as, in menu order (`data/origins.ron`).
     origins: Vec<OriginDef>,
+    /// How many lives a lineage keeps and what time leaves of them
+    /// (`data/legacy.ron`).
+    legacy: crate::legacy::Legacy,
 }
 
 #[derive(Debug)]
@@ -327,6 +330,7 @@ pub enum BlueprintError {
     BadCamp(String),
     BadPhases(String),
     BadOrigins(String),
+    BadLegacy(String),
     /// A technique without the `Verb` its log needs.
     TechniqueWithoutVerb(String),
     /// A manual, a style's inventions or a discovery (`by`) hands out an
@@ -355,6 +359,7 @@ impl std::fmt::Display for BlueprintError {
             Self::BadCamp(why) => write!(f, "data/camp.ron: {why}"),
             Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
             Self::BadOrigins(why) => write!(f, "data/origins.ron: {why}"),
+            Self::BadLegacy(why) => write!(f, "data/legacy.ron: {why}"),
             Self::UnknownOrigin(key) => write!(f, "no origin {key:?}"),
             Self::TechniqueWithoutVerb(name) => {
                 write!(f, "technique {name:?} has no Verb to be logged with")
@@ -435,7 +440,8 @@ impl Blueprints {
             .with_tiles(Tiles::load(data)?)?
             .with_origins(crate::origin::read(data)?)?
             .with_phases(phase::read(data)?)
-            .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)
+            .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)?
+            .with_legacy(crate::legacy::read(data)?)
             .and_then(|blueprints| {
                 let camp = camp::load(data, &blueprints)?;
                 Ok(blueprints.with_camp(camp))
@@ -650,7 +656,23 @@ impl Blueprints {
             camp: None,
             phases: Vec::new(),
             origins: Vec::new(),
+            legacy: crate::legacy::Legacy::default(),
         })
+    }
+
+    /// Ruins are built from `AbandonedCamp`, so keeping lives needs it.
+    pub fn with_legacy(mut self, legacy: crate::legacy::Legacy) -> Result<Self, BlueprintError> {
+        if legacy.keep > 0 && self.id("AbandonedCamp").is_none() {
+            return Err(BlueprintError::BadLegacy(
+                "lives are kept, so there must be an AbandonedCamp blueprint".into(),
+            ));
+        }
+        self.legacy = legacy;
+        Ok(self)
+    }
+
+    pub fn legacy(&self) -> &crate::legacy::Legacy {
+        &self.legacy
     }
 
     /// Every skill there is.

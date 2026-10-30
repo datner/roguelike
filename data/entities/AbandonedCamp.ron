@@ -1,0 +1,9 @@
+// What is left of a predecessor's camp (docs/plans/legacy.md). Its `Note`,
+// set when the ruins are built, says how long ago; whose it was is read in
+// what lies around it.
+(
+    components: [
+        Name("abandoned camp"),
+        Appearance(glyph: '^', fg: (150, 120, 90), bg: (0, 0, 0)),
+    ],
+)

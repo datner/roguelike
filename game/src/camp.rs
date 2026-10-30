@@ -12,8 +12,8 @@ use crate::map::{Grid, Map, Tile};
 #[serde(deny_unknown_fields)]
 struct CampDef {
     arrival: String,
-    /// `#` wall, `.` floor, `@` where you stand on arriving, and an
-    /// entrance's character for its stairs.
+    /// `#` wall, `.` floor, `@` where you stand on arriving, `x` a ruin spot
+    /// (floor), and an entrance's character for its stairs.
     layout: Vec<String>,
     /// Entrance characters, each to the dungeon (`data/dungeons/<Key>.ron`)
     /// it leads into.
@@ -28,6 +28,10 @@ pub struct Camp {
     pub map: Map,
     pub arrival: (i32, i32),
     pub entrances: Vec<((i32, i32), String)>,
+    /// Where past lives' ruins go (docs/plans/legacy.md), nearest the
+    /// arrival first (ties by row, then column), so the newest is nearest
+    /// the fire.
+    pub ruins: Vec<(i32, i32)>,
 }
 
 impl Camp {
@@ -80,11 +84,16 @@ fn parse(def: CampDef, blueprints: &Blueprints) -> Result<Camp, BlueprintError> 
     let mut map = Grid::new(width, height, Tile::Wall);
     let mut arrival = None;
     let mut entrances = Vec::new();
+    let mut ruins = Vec::new();
     for (y, row) in (0..).zip(&def.layout) {
         for (x, ch) in (0..).zip(row.chars()) {
             let tile = match ch {
                 '#' => Tile::Wall,
                 '.' => Tile::Floor,
+                'x' => {
+                    ruins.push((x, y));
+                    Tile::Floor
+                }
                 '@' => {
                     if arrival.replace((x, y)).is_some() {
                         return Err(bad("the layout has more than one @"));
@@ -103,11 +112,19 @@ fn parse(def: CampDef, blueprints: &Blueprints) -> Result<Camp, BlueprintError> 
         }
     }
     let arrival = arrival.ok_or_else(|| bad("the layout has no @"))?;
+    let keep = blueprints.legacy().keep;
+    if ruins.len() < keep {
+        return Err(bad(format!(
+            "a lineage keeps {keep} lives, so the layout needs {keep} ruin spots (x)"
+        )));
+    }
+    ruins.sort_by_key(|&(x, y)| (crate::ranged::distance(arrival, (x, y)), y, x));
     Ok(Camp {
         arrival_line: def.arrival,
         map,
         arrival,
         entrances,
+        ruins,
     })
 }
 
@@ -160,8 +177,26 @@ pub(crate) mod tests {
         fails(&["#.#", "#@##"], "Test", "as long as");
         fails(&["@.@"], "Test", "more than one");
         fails(&["..1"], "Test", "no @");
-        fails(&["@.x"], "Test", "'x'");
+        fails(&["@.?"], "Test", "'?'");
         fails(&["@.1"], "Lair", "unknown dungeon");
+    }
+
+    #[test]
+    fn ruin_spots_come_nearest_the_arrival_first_and_must_cover_the_kept_lives() {
+        let data =
+            Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap();
+        let def = |layout: &[&str]| CampDef {
+            arrival: String::new(),
+            layout: layout.iter().map(|row| row.to_string()).collect(),
+            entrances: BTreeMap::new(),
+        };
+        let camp = parse(def(&["x...x@x.x"]), &data).unwrap();
+        assert_eq!(camp.ruins, [(4, 0), (6, 0), (8, 0), (0, 0)]);
+        assert_eq!(camp.map.get(4, 0), Some(&Tile::Floor));
+        let Err(BlueprintError::BadCamp(why)) = parse(def(&["x.@.x"]), &data) else {
+            panic!("three lives kept, two spots");
+        };
+        assert!(why.contains("ruin spots"), "{why}");
     }
 
     #[test]

@@ -2,18 +2,76 @@
 //! the next characters of the same lineage are built from. Everything in it is a name, never an
 //! id, so content can change under it: a name that no longer exists is skipped, never an error.
 
+use std::path::Path;
+
+use rand::RngExt;
+use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
+use crate::blueprint::{BlueprintError, ron_options};
 use crate::dive::Place;
-use crate::entity::{Ability, Discovered, Item, Made, Origin, Position, Skills, Stashed};
+use crate::entity::{Ability, Discovered, Item, Made, Note, Origin, Position, Skills, Stashed};
+use crate::spawn::Spawn;
 use crate::state::GameState;
 
 /// Bumped on any change to the lineage file's format; a file of another version is ignored.
 pub const LINEAGE_VERSION: u32 = 1;
 
-/// How many lives a lineage remembers.
-// shortcut: a constant until `data/legacy.ron` sets `keep` (legacy.md, slice 3).
-pub const KEEP: usize = 3;
+/// How much a legacy is worth (`data/legacy.ron`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Legacy {
+    /// How many lives a lineage remembers; camp has a ruin spot for each.
+    pub keep: usize,
+    /// Shortest first.
+    pub gaps: Vec<Gap>,
+}
+
+/// How long ago a life ended, and what that left.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Gap {
+    /// "years": "An abandoned camp, left years ago."
+    pub name: String,
+    pub weight: u32,
+    /// % chance each stashed item lasts.
+    pub survives: u32,
+    /// % of a predecessor's level a memoir can teach.
+    pub lesson: u32,
+    /// Whether their journal can still be read.
+    pub journal: bool,
+}
+
+/// `legacy.ron` in `data`; content without one keeps no lives.
+pub(crate) fn read(data: &Path) -> Result<Legacy, BlueprintError> {
+    let path = data.join("legacy.ron");
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Legacy::default()),
+        Err(err) => return Err(BlueprintError::Io(path, err)),
+    };
+    let legacy: Legacy = ron_options()
+        .from_str(&text)
+        .map_err(|err| BlueprintError::Parse(path.clone(), Box::new(err)))?;
+    check(&legacy)?;
+    Ok(legacy)
+}
+
+fn check(legacy: &Legacy) -> Result<(), BlueprintError> {
+    let bad = |why: String| Err(BlueprintError::BadLegacy(why));
+    if legacy.keep > 0 && legacy.gaps.is_empty() {
+        return bad("lives are kept, so there must be a gap".into());
+    }
+    for gap in &legacy.gaps {
+        if gap.weight == 0 {
+            return bad(format!("gap {:?} has weight 0", gap.name));
+        }
+        if gap.survives > 100 || gap.lesson > 100 {
+            return bad(format!("gap {:?} has a percentage over 100", gap.name));
+        }
+    }
+    Ok(())
+}
 
 /// How a life ended. Retiring will be another variant, so nothing may read a record as a death.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,10 +189,91 @@ pub fn record(state: &GameState, name: &str) -> Record {
     }
 }
 
-/// `record` added to a lineage, newest first, trimmed to `KEEP`.
-pub fn add(records: &mut Vec<Record>, record: Record) {
+/// `record` added to a lineage, newest first, trimmed to the `keep` the
+/// content sets.
+pub fn add(records: &mut Vec<Record>, record: Record, legacy: &Legacy) {
     records.insert(0, record);
-    records.truncate(KEEP);
+    records.truncate(legacy.keep);
+}
+
+/// The ruins `records` (newest first) left at camp's ruin spots, newest
+/// nearest the fire: an abandoned camp saying how long ago, and what
+/// survived of what they left. Built once, when a game starts at camp; the
+/// legacy stream is seeded from the world seed and draws, per record, the gap
+/// and then each item in order, so the same seed and records give the same
+/// ruins.
+pub(crate) fn build_ruins(state: &mut GameState, records: &[Record]) -> Result<(), BlueprintError> {
+    let Some(camp) = state.blueprints.camp().cloned() else {
+        return Ok(());
+    };
+    if state.place != Place::Camp {
+        return Ok(());
+    }
+    let legacy = state.blueprints.legacy().clone();
+    // Only here, once, at creation: never part of a running game's `Rngs`.
+    let mut rng = Pcg64::new(u128::from(state.seed), crate::rng::stream::LEGACY);
+    let mut gap = 0;
+    let lives = records.iter().take(legacy.keep).zip(&camp.ruins);
+    for (i, (record, &spot)) in lives.enumerate() {
+        let roll = weighted(&mut rng, &legacy.gaps);
+        // Older ruins are never better kept than newer ones.
+        gap = if i == 0 { roll } else { gap + roll }.min(legacy.gaps.len().saturating_sub(1));
+        let Some(this) = legacy.gaps.get(gap) else {
+            break;
+        };
+        state.spawn(
+            Spawn::blueprint("AbandonedCamp")
+                .at(spot.0, spot.1)
+                .with(Note(format!("An abandoned camp, left {} ago.", this.name))),
+        )?;
+        let mut left = record.stash.clone();
+        // Gear died with them, unless they died at camp.
+        if record.place == Place::Camp {
+            left.extend(record.gear.iter().cloned());
+        }
+        let mut around = around(&camp.map, spot).into_iter().cycle();
+        for name in left {
+            let lasts = rng.random_range(0..100) < this.survives;
+            if !lasts || state.blueprints.id(&name).is_none() {
+                continue;
+            }
+            let (x, y) = around.next().unwrap_or(spot);
+            state.spawn(Spawn::blueprint(&name).at(x, y))?;
+        }
+    }
+    Ok(())
+}
+
+/// An index into `gaps`, by weight.
+fn weighted(rng: &mut Pcg64, gaps: &[Gap]) -> usize {
+    let total: u32 = gaps.iter().map(|gap| gap.weight).sum();
+    let mut roll = rng.random_range(0..total.max(1));
+    gaps.iter()
+        .position(|gap| {
+            let here = roll < gap.weight;
+            roll = roll.saturating_sub(gap.weight);
+            here
+        })
+        .unwrap_or(0)
+}
+
+/// The floor tiles around `spot`, in a fixed order; the spot itself if none.
+fn around(map: &crate::map::Map, spot: (i32, i32)) -> Vec<(i32, i32)> {
+    let tiles: Vec<(i32, i32)> = [
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (1, -1),
+        (-1, 1),
+        (1, 1),
+    ]
+    .iter()
+    .map(|(dx, dy)| (spot.0 + dx, spot.1 + dy))
+    .filter(|&(x, y)| map.get(x, y) == Some(&crate::map::Tile::Floor))
+    .collect();
+    if tiles.is_empty() { vec![spot] } else { tiles }
 }
 
 pub fn to_ron(records: &[Record]) -> Result<String, ron::Error> {
@@ -255,6 +394,151 @@ mod tests {
         );
     }
 
+    fn data() -> Blueprints {
+        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+    }
+
+    /// A life that left `stash` at camp and died on a floor with `gear`.
+    fn life(name: &str, stash: &[&str], gear: &[&str]) -> Record {
+        Record {
+            stash: stash.iter().map(|s| s.to_string()).collect(),
+            gear: gear.iter().map(|s| s.to_string()).collect(),
+            place: Place::Floor {
+                dungeon: "Caves".into(),
+                phase: "Stillness".into(),
+                dive: 1,
+                floor: 2,
+            },
+            ending: Ending::Died {
+                by: "the goblin's blow".into(),
+            },
+            ..record(&pit_fighter(), name)
+        }
+    }
+
+    /// What lies at camp besides the player: (blueprint, x, y), sorted.
+    fn ruins(state: &GameState) -> Vec<(String, i32, i32)> {
+        let mut found: Vec<(String, i32, i32)> = state
+            .world
+            .query::<(hecs::Entity, &Made, &Position)>()
+            .iter()
+            .filter(|&(entity, ..)| entity != state.player)
+            .map(|(_, made, at)| (made.0.clone(), at.x, at.y))
+            .collect();
+        found.sort();
+        found
+    }
+
+    fn new_game(seed: u64, records: &[Record]) -> GameState {
+        GameState::new_in_lineage(seed, data(), Some("PitFighter"), records).unwrap()
+    }
+
+    #[test]
+    fn no_records_give_todays_camp() {
+        assert!(ruins(&new_game(1, &[])).is_empty());
+    }
+
+    #[test]
+    fn the_same_seed_and_records_give_the_same_ruins() {
+        let records = [life("Ana", &["Torch", "RustyKnife", "Quiver"], &[])];
+        assert_eq!(ruins(&new_game(4, &records)), ruins(&new_game(4, &records)));
+    }
+
+    #[test]
+    fn ruins_stand_at_the_spot_nearest_the_fire_and_say_how_long_ago() {
+        let state = new_game(4, &[life("Ana", &[], &[])]);
+        let spot = state.blueprints.camp().unwrap().ruins[0];
+        assert_eq!(
+            ruins(&state),
+            [("AbandonedCamp".to_string(), spot.0, spot.1)]
+        );
+        let note = state
+            .world
+            .query::<&Note>()
+            .iter()
+            .next()
+            .map(|note| note.0.clone())
+            .unwrap();
+        let gaps: Vec<String> = state
+            .blueprints
+            .legacy()
+            .gaps
+            .iter()
+            .map(|gap| format!("An abandoned camp, left {} ago.", gap.name))
+            .collect();
+        assert!(gaps.contains(&note), "{note}");
+    }
+
+    #[test]
+    fn unknown_names_and_gear_from_a_floor_death_are_not_spawned() {
+        let records = [life("Ana", &["NoSuchThing"; 20], &["Torch"; 20])];
+        for seed in 0..10 {
+            let names: Vec<String> = ruins(&new_game(seed, &records))
+                .into_iter()
+                .map(|(name, ..)| name)
+                .collect();
+            assert_eq!(names, ["AbandonedCamp"], "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn gear_is_left_when_the_death_was_at_camp() {
+        let at_camp = Record {
+            place: Place::Camp,
+            ..life("Ana", &[], &["Torch"; 20])
+        };
+        let torches = ruins(&new_game(4, &[at_camp]))
+            .iter()
+            .filter(|(name, ..)| name == "Torch")
+            .count();
+        assert!(torches > 0);
+    }
+
+    #[test]
+    fn older_ruins_are_never_better_kept() {
+        let full = ["Torch"; 30];
+        let records = [life("New", &full, &[]), life("Old", &full, &[])];
+        let spots = data().camp().unwrap().ruins.clone();
+        let near = |state: &GameState, spot: (i32, i32)| {
+            ruins(state)
+                .iter()
+                .filter(|(name, x, y)| {
+                    name == "Torch" && (x - spot.0).abs() <= 1 && (y - spot.1).abs() <= 1
+                })
+                .count()
+        };
+        for seed in 0..20 {
+            let state = new_game(seed, &records);
+            let gap_at = |spot: (i32, i32)| {
+                state
+                    .world
+                    .query::<(&Note, &Position)>()
+                    .iter()
+                    .find(|(_, at)| (at.x, at.y) == spot)
+                    .and_then(|(note, _)| {
+                        let gaps = &state.blueprints.legacy().gaps;
+                        gaps.iter().position(|gap| note.0.contains(&gap.name))
+                    })
+                    .unwrap()
+            };
+            let gaps = [gap_at(spots[0]), gap_at(spots[1])];
+            assert!(gaps[0] <= gaps[1], "seed {seed}: {gaps:?}");
+            assert!(
+                near(&state, spots[0]) + near(&state, spots[1]) > 0,
+                "seed {seed}"
+            );
+        }
+    }
+
+    #[test]
+    fn kept_lives_need_a_gap() {
+        let legacy = Legacy {
+            keep: 1,
+            gaps: Vec::new(),
+        };
+        assert!(check(&legacy).is_err());
+    }
+
     #[test]
     fn a_living_character_is_recorded_as_abandoned() {
         assert_eq!(record(&pit_fighter(), "Ana").ending, Ending::Abandoned);
@@ -262,7 +546,8 @@ mod tests {
 
     #[test]
     fn a_lineage_round_trips_newest_first_and_trimmed() {
-        let one = record(&pit_fighter(), "One");
+        let state = pit_fighter();
+        let one = record(&state, "One");
         let mut records = Vec::new();
         for name in ["A", "B", "C", "D"] {
             add(
@@ -271,6 +556,7 @@ mod tests {
                     name: name.into(),
                     ..one.clone()
                 },
+                state.blueprints.legacy(),
             );
         }
         let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();

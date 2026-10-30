@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use game::{Blueprints, GameState, OriginView, legacy, random_seed};
+use game::{Blueprints, GameState, OriginView, random_seed};
 
 use crate::menu::{Action, Menu};
 use crate::saves::{self, Loaded};
@@ -67,11 +67,7 @@ fn abandon(setup: &Setup, character: &str) -> Result<(), String> {
         .ok()
         .and_then(|blueprints| saves::load(&path, blueprints).ok());
     match loaded {
-        Some(Loaded::Saved(state)) => saves::bury(
-            &setup.saves_dir,
-            character,
-            legacy::record(&state, character),
-        ),
+        Some(Loaded::Saved(state)) => saves::bury(&setup.saves_dir, character, &state),
         _ => saves::delete(&setup.saves_dir, character),
     }
 }
@@ -141,7 +137,10 @@ fn load_or_new(
         }
         Loaded::New(blueprints) => {
             let seed = setup.seed.unwrap_or_else(random_seed);
-            GameState::new_as(seed, *blueprints, origin)
+            // A lineage this build can't read leaves no ruins; it is kept
+            // until the next ending replaces it.
+            let lineage = saves::lineage(&setup.saves_dir).unwrap_or_default();
+            GameState::new_in_lineage(seed, *blueprints, origin, &lineage)
                 .map_err(|err| format!("Failed to start a game: {err}"))
         }
     }
@@ -156,7 +155,7 @@ pub fn finish(game: &Game, seconds: u64) -> Result<String, String> {
     // Calibration only: a failure here never costs the save.
     let _ = saves::record_play(dir, character, game.session.keypresses(), seconds);
     if state.game_over {
-        saves::bury(dir, character, legacy::record(state, character))?;
+        saves::bury(dir, character, state)?;
         return Ok(format!("{character} died on turn {}.", state.now.turn()));
     }
     saves::save_on_quit(&game.path, state).map(|_| format!("Saved {character}."))
@@ -234,8 +233,22 @@ mod tests {
         );
         assert!(!game.path.exists());
         let lineage = saves::lineage(&setup.saves_dir).unwrap();
-        assert_eq!(lineage[0].ending, legacy::Ending::Abandoned);
+        assert_eq!(lineage[0].ending, game::legacy::Ending::Abandoned);
         assert_eq!(saves::list(&setup.saves_dir).unwrap(), Vec::<String>::new());
+        let heir = start(&setup, "heir", None).unwrap();
+        let ruin = heir
+            .session
+            .state()
+            .blueprints
+            .camp()
+            .map(|camp| camp.ruins[0])
+            .unwrap();
+        let state = heir.session.state();
+        let look = game::inspect(state, ruin).expect("the ruin is in view at camp");
+        assert_eq!(
+            look.name, "abandoned camp",
+            "the next character finds the ruins"
+        );
         let _ = std::fs::remove_dir_all(&setup.saves_dir);
     }
 

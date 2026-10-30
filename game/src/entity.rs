@@ -963,6 +963,11 @@ pub struct Verb {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Made(pub String);
 
+/// Language part: what looking at a thing reads, beyond its name ("An
+/// abandoned camp, left years ago.").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Note(pub String);
+
 /// An item left on the camp floor while the player is away
 /// (docs/plans/legacy.md): its spot, in place of a `Position`, so leaving
 /// camp doesn't forget it and nothing on a floor sees it.

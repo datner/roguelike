@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
 use game::legacy::{self, Record};
+
 use game::{Blueprints, GameState, save};
 
 /// `<platform data dir>/saves`, or `None` if the platform has no home
@@ -172,13 +173,14 @@ pub fn lineage(dir: &Path) -> Result<Vec<Record>, String> {
     }
 }
 
-/// Ends `character` for good: `record` joins the lineage, then the save is
-/// removed (if there is one), so a failure never loses both. A lineage this
-/// build can't read is replaced, starting over from this record.
-pub fn bury(dir: &Path, character: &str, record: Record) -> Result<(), String> {
+/// Ends `character` for good: the life `state` led joins the lineage, then
+/// the save is removed (if there is one), so a failure never loses both. A
+/// lineage this build can't read is replaced, starting over from this life.
+pub fn bury(dir: &Path, character: &str, state: &GameState) -> Result<(), String> {
     let save = path(dir, character)?;
     let mut records = lineage(dir).unwrap_or_default();
-    legacy::add(&mut records, record);
+    let record = legacy::record(state, character);
+    legacy::add(&mut records, record, state.blueprints.legacy());
     let text = legacy::to_ron(&records).map_err(|err| format!("cannot record a life: {err}"))?;
     let file = dir.join(format!("{LINEAGE}.ron"));
     write_atomic(&file, text.as_bytes())
@@ -354,15 +356,12 @@ mod tests {
     #[test]
     fn burying_removes_the_save_and_keeps_the_newest_lives() {
         let dir = temp_dir("bury");
-        let record = game::legacy::record(&state(), "hero");
+        let state = state();
+        assert_eq!(state.blueprints.legacy().keep, 3);
         for name in ["a", "b", "c", "d"] {
             let save = path(&dir, name).unwrap();
             fs::write(&save, "save").unwrap();
-            let life = Record {
-                name: name.into(),
-                ..record.clone()
-            };
-            bury(&dir, name, life).unwrap();
+            bury(&dir, name, &state).unwrap();
             assert!(!save.exists(), "{name}");
         }
         let names: Vec<String> = lineage(&dir).unwrap().into_iter().map(|r| r.name).collect();
@@ -382,7 +381,7 @@ mod tests {
         fs::write(&file, "(version: 0)").unwrap();
         assert!(lineage(&dir).unwrap_err().contains("version 0"));
         assert_eq!(fs::read_to_string(&file).unwrap(), "(version: 0)");
-        bury(&dir, "hero", game::legacy::record(&state(), "hero")).unwrap();
+        bury(&dir, "hero", &state()).unwrap();
         assert_eq!(lineage(&dir).unwrap().len(), 1);
         fs::remove_dir_all(dir).unwrap();
     }

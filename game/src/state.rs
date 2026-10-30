@@ -150,8 +150,21 @@ impl GameState {
         blueprints: Blueprints,
         origin: Option<&str>,
     ) -> Result<Self, BlueprintError> {
+        Self::new_in_lineage(seed, blueprints, origin, &[])
+    }
+
+    /// `new_as`, finding at camp the ruins of the lineage's past lives
+    /// (`records`, newest first; docs/plans/legacy.md). Records are an input
+    /// like the seed: the same ones give the same game.
+    pub fn new_in_lineage(
+        seed: u64,
+        blueprints: Blueprints,
+        origin: Option<&str>,
+        records: &[crate::legacy::Record],
+    ) -> Result<Self, BlueprintError> {
         let mut state = Self::bare_as(seed, blueprints, origin)?;
         state.populate()?;
+        crate::legacy::build_ruins(&mut state, records)?;
         Ok(state)
     }
 
@@ -542,25 +555,36 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
         }
     }
 
-    let mut shown: Vec<(Position, Cell, bool)> = state
+    let mut shown: Vec<(Position, Cell, u8)> = state
         .world
-        .query::<(&Position, &Appearance, Option<&Item>)>()
+        .query::<(
+            &Position,
+            &Appearance,
+            Option<&Item>,
+            Option<&crate::entity::Health>,
+        )>()
         .iter()
-        .filter(|(pos, _, _)| {
+        .filter(|(pos, ..)| {
             flag(&state.visible, pos.x, pos.y) && !crate::fov::hidden_in_grass(state, **pos)
         })
-        .map(|(pos, look, item)| {
+        .map(|(pos, look, item, creature)| {
             let shows = Cell {
                 glyph: look.glyph,
                 fg: look.fg,
                 bg: look.bg,
                 sprite: look.sprite.as_deref().and_then(|name| tiles.id(name)),
             };
-            (*pos, shows, item.is_some())
+            // Drawn in this order: items, then things like a ruin, then
+            // creatures, so anyone standing on one is drawn over it.
+            let layer = match (item, creature) {
+                (Some(_), _) => 0,
+                (None, None) => 1,
+                (None, Some(_)) => 2,
+            };
+            (*pos, shows, layer)
         })
         .collect();
-    // Items first, so anyone standing on one is drawn over it.
-    shown.sort_by_key(|&(_, _, item)| !item);
+    shown.sort_by_key(|&(_, _, layer)| layer);
     for (pos, shows, _) in shown {
         let (screen_x, screen_y) = camera.world_to_screen((pos.x, pos.y));
         if let Some(cell) = grid.get_mut(screen_x, screen_y) {

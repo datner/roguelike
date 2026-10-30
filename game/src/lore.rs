@@ -6,8 +6,8 @@
 use hecs::Entity;
 
 use crate::entity::{
-    Attuned, DamageType, DamageTypes, Dead, Health, Item, Learner, Name, Position, Sighted, Spell,
-    SpellDamage,
+    Attuned, DamageType, DamageTypes, Dead, Health, Item, Learner, Name, Note, Position, Sighted,
+    Spell, SpellDamage,
 };
 use crate::grammar::Subject;
 use crate::skill;
@@ -179,10 +179,22 @@ pub fn inspect(state: &GameState, at: (i32, i32)) -> Option<Inspection> {
         .iter()
         .filter(|(_, pos, ..)| here(pos))
         .max_by_key(|&(_, _, _, seq)| *seq)
-        .map(|(entity, ..)| entity)?;
+        .map(|(entity, ..)| entity);
+    // Else something with a note to read, such as a ruin.
+    let thing = item.or_else(|| {
+        world
+            .query::<(hecs::Entity, &Position, &Note)>()
+            .iter()
+            .find(|(_, pos, _)| here(pos))
+            .map(|(entity, ..)| entity)
+    })?;
+    let lines = world
+        .get::<&Note>(thing)
+        .map(|note| vec![note.0.clone()])
+        .unwrap_or_default();
     Some(Inspection {
-        name: noun(world, item),
-        lines: Vec::new(),
+        name: noun(world, thing),
+        lines,
     })
 }
 
@@ -261,6 +273,19 @@ mod tests {
         thing("rat").health(2).at(5, 1).make(&mut state);
         state.run(Command::UpdateFov);
         assert_eq!(lore_xp(&state), 2 * FIRST_SIGHT_XP);
+    }
+
+    #[test]
+    fn looking_at_a_ruin_reads_its_note() {
+        let mut state = bare_state();
+        thing("abandoned camp")
+            .with(Note("An abandoned camp, left years ago.".into()))
+            .at(3, 1)
+            .make(&mut state);
+        see_everything(&mut state);
+        let look = inspect(&state, (3, 1)).unwrap();
+        assert_eq!(look.name, "abandoned camp");
+        assert_eq!(look.lines, ["An abandoned camp, left years ago."]);
     }
 
     #[test]

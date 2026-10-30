@@ -128,7 +128,16 @@ component: blueprint `ComponentDef` where content sets it, `SavedComponent` + ro
 - Tests: drop at camp, dive, return, it's there; a save round-trip in between keeps it; the record
   lists the stash.
 
-### 3. Ruins
+### 3. Ruins — done
+- As built: `GameState::new_in_lineage(seed, blueprints, origin, records)` beside `new_as` (which
+  passes `&[]`), so the existing callers are untouched. The legacy stream is a local `Pcg64` on
+  `rng::stream::LEGACY`, built once in `legacy::build_ruins`, not an `Rngs` field: ruins are drawn
+  once, at creation. Ruin spots are `x` in `camp.ron`, ordered nearest the arrival. A gap rolls an
+  index into the table; an older record adds its roll to its newer neighbour's, capped at the last.
+  Surviving items go on the floor tiles around the spot, in a fixed order. `Note(text)` is the
+  ruin's language part; `inspect` reads it on anything that is not a creature. Features draw between
+  items and creatures. `bury` takes the `GameState` (the record and `keep` both come from it); `KEEP`
+  is gone. Save version 60.
 - `data/legacy.ron` (`keep`, gap table), loaded and checked with the blueprints (weights > 0,
   percentages ≤ 100). `rng::stream::LEGACY` with an `Rngs` field.
 - `camp.ron` gets ruin spots; load fails if it has fewer than `keep`.
