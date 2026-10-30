@@ -221,7 +221,7 @@ fn simulate(
         };
         let acted = state.now;
         let mana = spell::pool(&state.world, player);
-        let stamina = technique::stamina(&state.world, player);
+        let stamina = technique::stamina(&state, player);
         let health = health(&state, player);
         let (held, _) = arrows(&state);
         let mut took = false;
@@ -241,7 +241,7 @@ fn simulate(
         let (now, elapsed) = (state.now, state.now.since(start));
         let pool = spell::pool(&state.world, player);
         mana_gauge.pool(mana, pool, (acted, now), elapsed);
-        let pool = technique::stamina(&state.world, player);
+        let pool = technique::stamina(&state, player);
         stamina_gauge.pool(stamina, pool, (acted, now), elapsed);
         run.health += health.saturating_sub(self::health(&state, player));
         arrow_gauge.stock(held, arrows(&state).0, elapsed);

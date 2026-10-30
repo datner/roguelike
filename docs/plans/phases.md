@@ -109,7 +109,15 @@ component: blueprint `ComponentDef`, `SavedComponent` + round-trip test, `SAVE_V
 - Tests: each phase's floor spawns its natives and never another phase's; the natives load with their
   resistances.
 
-### 3. Rules
+### 3. Rules — done
+- As built: `phase::rule(state, pick)` sums the current phase's strength for one variant, and each
+  variant has one reader: `LightReach` widens the held light's radius in `light::lit_by` (sight is
+  untouched, so the glow is brighter to the edge of view, not further), `StaminaRecovery` slows
+  `technique::stamina`'s rate (which now takes the `GameState`), `RangedFalloff` takes its percent off
+  a missile's hit chance per tile flown in `combat::odds_explained`, named "the tempest, over the
+  distance" so aim shows it, `MoveCost` grows a `TryMove`'s energy in `apply_commands`. Content:
+  Embers LightReach 50, Rime StaminaRecovery 50, Tempest RangedFalloff 4, Mire MoveCost 25. No save
+  change (rules are data, read live).
 - `Rule` variants and their one reader each: `LightReach` (`light.rs`), `StaminaRecovery` (the stamina
   pool's rate), `RangedFalloff` (`combat::odds` for missiles, so `aim` shows it), `MoveCost`
   (`cost.rs`).

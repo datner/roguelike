@@ -26,8 +26,7 @@ pub fn sprinting(state: &GameState) -> bool {
 }
 
 fn stamina_left(state: &GameState, actor: Entity) -> u32 {
-    technique::stamina(&state.world, actor)
-        .map_or(0, |(pool, rates)| pool.current(rates, state.now))
+    technique::stamina(state, actor).map_or(0, |(pool, rates)| pool.current(rates, state.now))
 }
 
 /// Why `actor` can't start sprinting now, or `None`.
@@ -59,7 +58,7 @@ pub(crate) fn pay_step(state: &mut GameState, actor: Entity) -> bool {
     if !is_sprinting(state, actor) {
         return false;
     }
-    let Some((pool, rates)) = technique::stamina(&state.world, actor) else {
+    let Some((pool, rates)) = technique::stamina(state, actor) else {
         let _ = state.world.remove_one::<Sprinting>(actor);
         return false;
     };

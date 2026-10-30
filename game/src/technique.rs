@@ -404,10 +404,19 @@ pub(crate) struct Ready {
 }
 
 /// `actor`'s stamina pool and its size and pace for their stats.
-pub(crate) fn stamina(world: &World, actor: Entity) -> Option<(Pool, PoolRates)> {
+pub(crate) fn stamina(state: &GameState, actor: Entity) -> Option<(Pool, PoolRates)> {
+    let world = &state.world;
     let pool = world.get::<&Stamina>(actor).ok()?.0.clone();
     let stats = world.get::<&Stats>(actor).ok().map(|stats| *stats);
-    let rates = pool.rates(stats);
+    let mut rates = pool.rates(stats);
+    // The phase's StaminaRecovery, the one place it is read. A pool spans a
+    // change of phase only across stairs, so reading today's rate is enough.
+    let slower = crate::phase::rule(state, |rule| match rule {
+        crate::phase::Rule::StaminaRecovery(pct) => Some(pct),
+        _ => None,
+    });
+    let ticks = i64::try_from(rates.regen_ticks).unwrap_or(i64::MAX);
+    rates.regen_ticks = u64::try_from(crate::phase::grown(ticks, slower)).unwrap_or(u64::MAX);
     Some((pool, rates))
 }
 
@@ -621,7 +630,7 @@ fn unmet(
         }
     }
     if stamina_cost > 0 {
-        let Some((pool, rates)) = stamina(world, actor) else {
+        let Some((pool, rates)) = stamina(state, actor) else {
             return Some("You have no stamina for that.".to_string());
         };
         if pool.current(rates, state.now) < stamina_cost {
@@ -843,7 +852,7 @@ pub(crate) fn perform(state: &mut GameState, actor: Entity, technique: Entity, a
         return;
     };
     if ready.stamina > 0
-        && let Some((pool, rates)) = stamina(&state.world, actor)
+        && let Some((pool, rates)) = stamina(state, actor)
     {
         let spent = pool.spend(ready.stamina, rates, state.now);
         let _ = state.world.insert_one(actor, Stamina(spent));
@@ -1680,7 +1689,7 @@ mod tests {
 
         let _ = state.world.insert_one(player, pool(5));
         perform(&mut state, technique, (3, 1));
-        let (left, rates) = stamina(&state.world, player).unwrap();
+        let (left, rates) = stamina(&state, player).unwrap();
         assert_eq!(left.current(rates, state.now), 2);
     }
 

@@ -31,6 +31,36 @@ pub struct Phase {
     /// The phase it is opposed to, by key; that one names it back.
     #[serde(default)]
     pub opposite: Option<String>,
+    /// The rules it bends, for everyone.
+    #[serde(default)]
+    pub rules: Vec<Rule>,
+}
+
+/// A rule a phase bends, with its strength in percent (docs/plans/phases.md).
+/// Each is read in one place only, where its system already decides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum Rule {
+    /// Held light reaches this much farther (`light.rs`).
+    LightReach(u32),
+    /// Stamina comes back this much more slowly (`technique::stamina`).
+    StaminaRecovery(u32),
+    /// A missile loses this much of its hit chance per tile it flies
+    /// (`combat::odds`).
+    RangedFalloff(u32),
+    /// A step costs this much more energy (`apply_commands`).
+    MoveCost(u32),
+}
+
+/// The current phase's strength for the rule `pick` names (summed, 0 when
+/// the phase doesn't bend it): `rule(state, |r| match r { Rule::MoveCost(p)
+/// => Some(p), _ => None })`.
+pub(crate) fn rule(state: &GameState, pick: impl Fn(Rule) -> Option<u32>) -> u32 {
+    current(state).map_or(0, |phase| phase.rules.iter().filter_map(|&r| pick(r)).sum())
+}
+
+/// `value` grown by `pct` percent.
+pub(crate) fn grown(value: i64, pct: u32) -> i64 {
+    value + value * i64::from(pct) / 100
 }
 
 /// `phases.ron` in `data`; at least one phase, keys unique.
@@ -184,12 +214,19 @@ pub(crate) mod tests {
             element: None,
             lean: 0,
             opposite: None,
+            rules: Vec::new(),
         };
         vec![
             phase("Still", "the stillness", "The air settles."),
             Phase {
                 element: Some(DamageType::Fire),
                 lean: 50,
+                rules: vec![
+                    Rule::LightReach(50),
+                    Rule::StaminaRecovery(100),
+                    Rule::RangedFalloff(10),
+                    Rule::MoveCost(50),
+                ],
                 ..phase("Embers", "the embers", "Heat rises from below.")
             },
         ]
@@ -275,6 +312,77 @@ pub(crate) mod tests {
             floor: 1,
         };
         assert_eq!(leaned(&state, 10, fire), 10, "a dive keeps its own phase");
+    }
+
+    /// A bare state in the test embers, which bend every rule.
+    fn in_embers() -> GameState {
+        let mut state = crate::state::tests::bare_state();
+        set_floor_phase(&mut state, "Embers");
+        state
+    }
+
+    /// The bare state's floor in `phase`: a dive's own phase is what holds.
+    pub(crate) fn set_floor_phase(state: &mut GameState, key: &str) {
+        if let Place::Floor { phase, .. } = &mut state.place {
+            *phase = key.into();
+        }
+    }
+
+    #[test]
+    fn move_cost_makes_a_step_dearer_only_in_its_phase() {
+        use crate::entity::Energy;
+        for (mut state, cost) in [
+            (crate::state::tests::bare_state(), crate::cost::MOVE),
+            (in_embers(), crate::cost::MOVE * 3 / 2),
+        ] {
+            let player = state.player;
+            state.world.insert_one(player, Energy(0)).unwrap();
+            state.run(crate::command::Command::TryMove(
+                player,
+                crate::input::Dir::E,
+            ));
+            assert_eq!(state.world.get::<&Energy>(player).unwrap().0, -cost);
+        }
+    }
+
+    #[test]
+    fn stamina_recovery_slows_stamina_only_in_its_phase() {
+        use crate::entity::{Pool, Stamina};
+        let pool = Stamina(Pool {
+            value: 0,
+            max: 10,
+            as_of: crate::time::Tick::default(),
+            regen_ticks: 100,
+            growth: Vec::new(),
+        });
+        for (mut state, ticks) in [(crate::state::tests::bare_state(), 100), (in_embers(), 200)] {
+            let player = state.player;
+            state.world.insert_one(player, pool.clone()).unwrap();
+            let (_, rates) = crate::technique::stamina(&state, player).unwrap();
+            assert_eq!(rates.regen_ticks, ticks);
+        }
+    }
+
+    #[test]
+    fn light_reach_carries_a_held_light_farther_only_in_its_phase() {
+        use crate::entity::Light;
+        let lit_at_edge = |mut state: GameState| {
+            let player = state.player;
+            crate::testkit::thing("torch")
+                .item()
+                .with(Light {
+                    radius: 2,
+                    tint: crate::cell::Rgb(255, 150, 50),
+                    tint_bp: 5_000,
+                })
+                .equipped_on(player, 0)
+                .make(&mut state);
+            crate::testkit::see_everything(&mut state);
+            // Three tiles east of the player at (1, 1): past a radius of 2.
+            crate::light::lit_by(&state)(4, 1).is_some()
+        };
+        assert!(!lit_at_edge(crate::state::tests::bare_state()));
+        assert!(lit_at_edge(in_embers()));
     }
 
     #[test]

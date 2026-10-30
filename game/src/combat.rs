@@ -448,7 +448,29 @@ pub(crate) fn odds_explained(
         0
     };
     let snap = if strike.snap { -SNAP_BP } else { 0 };
-    let raw = base + OUTNUMBERED_BP * crowd - FALLOFF_BP * beyond + point_blank + snap;
+    // The phase's RangedFalloff, the one place it is read: a missile (one
+    // with a steady range) loses it for every tile it flies.
+    let phase_falloff = match strike.steady {
+        None => 0,
+        Some(_) => {
+            let pct = crate::phase::rule(state, |rule| match rule {
+                crate::phase::Rule::RangedFalloff(pct) => Some(pct),
+                _ => None,
+            });
+            let at = |who: Entity| {
+                world
+                    .get::<&crate::entity::Position>(who)
+                    .ok()
+                    .map(|p| (p.x, p.y))
+            };
+            let tiles = at(attacker)
+                .zip(at(defender))
+                .map_or(0, |(a, d)| crate::ranged::distance(a, d));
+            -i32::try_from(pct).unwrap_or(0) * 100 * tiles
+        }
+    };
+    let raw =
+        base + OUTNUMBERED_BP * crowd - FALLOFF_BP * beyond + point_blank + snap + phase_falloff;
     let hit_bp = raw.clamp(MIN_HIT_BP, MAX_HIT_BP);
     let mut reasons = vec![Reason {
         what: format!("accuracy {} against dodge {dodge}", strike.accuracy),
@@ -476,6 +498,13 @@ pub(crate) fn odds_explained(
         reasons.push(Reason {
             what: format!("range, {beyond} past steady"),
             bp: -FALLOFF_BP * beyond,
+        });
+    }
+    if phase_falloff != 0 {
+        let phase = crate::phase::current(state).map_or("", |phase| phase.name.as_str());
+        reasons.push(Reason {
+            what: format!("{phase}, over the distance"),
+            bp: phase_falloff,
         });
     }
     if hit_bp != raw {
@@ -1539,6 +1568,32 @@ mod odds_tests {
             odds_explained(&state, &strike, player, dummy).0.hit_bp,
             even.hit_bp
         );
+    }
+
+    #[test]
+    fn a_phases_ranged_falloff_costs_a_shot_every_tile_and_spares_a_blow() {
+        let mut state = bare_state();
+        let player = state.player;
+        let dummy = thing("dummy")
+            .health(1000)
+            .hostile()
+            .at(6, 1)
+            .make(&mut state);
+        let mut strike = strike_of(&state, player);
+        strike.steady = Some(9);
+        let (even, _) = odds_explained(&state, &strike, player, dummy);
+        // The test phases' embers bend every rule; RangedFalloff is 10%.
+        crate::phase::tests::set_floor_phase(&mut state, "Embers");
+        let (odds, reasons) = odds_explained(&state, &strike, player, dummy);
+        assert_eq!(odds.hit_bp, even.hit_bp - 5 * 1_000, "five tiles");
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.what == "the embers, over the distance")
+        );
+        strike.steady = None;
+        let (blow, _) = odds_explained(&state, &strike, player, dummy);
+        assert_eq!(blow.hit_bp, even.hit_bp, "a blow flies nowhere");
     }
 
     #[test]

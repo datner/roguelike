@@ -24,6 +24,9 @@ lean the whole world one way, for everyone, and the character systems to read it
 - **Choosing a phase is one seam**: `phase::refusal(state, index)` says why a phase can't be waited for,
   read by `WaitForPhase`'s input check and by `phases()` (`PhaseView.refused`) for the chooser. Today
   every phase can be chosen at camp; a cycle, a ritual or earned phases replace `refusal` only.
+- **A rule is data, read where its system already decides**: `Rule` variants with a strength in
+  percent, each read in exactly one place through `phase::rule` (light, stamina rate, missile odds,
+  step cost), so a new rule is a variant and one reader.
 - `DamageType::Acid`, the Mire's element; armor resists it like any kind. Save version 63.
 
 ## Consequences

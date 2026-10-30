@@ -338,6 +338,17 @@ pub(crate) fn apply_commands(state: &mut GameState) {
                 Command::TryMove(_, dir) if onto_rubble(state, actor, dir) => cost::RUBBLE_STEP,
                 _ => cost,
             };
+            let cost = match command {
+                // The phase's MoveCost, the one place it is read.
+                Command::TryMove(..) => crate::phase::grown(
+                    cost,
+                    crate::phase::rule(state, |rule| match rule {
+                        crate::phase::Rule::MoveCost(pct) => Some(pct),
+                        _ => None,
+                    }),
+                ),
+                _ => cost,
+            };
             let sprinting =
                 matches!(command, Command::TryMove(..)) && crate::sprint::pay_step(state, actor);
             spend_energy(state, actor, if sprinting { cost / 2 } else { cost });

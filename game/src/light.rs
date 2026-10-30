@@ -26,6 +26,16 @@ pub(crate) fn lit_by(state: &GameState) -> impl Fn(i32, i32) -> Option<Lit> + '_
             .ok()
             .map(|pos| *pos),
     );
+    // The phase's LightReach, the one place it is read.
+    let farther = crate::phase::rule(state, |rule| match rule {
+        crate::phase::Rule::LightReach(pct) => Some(pct),
+        _ => None,
+    });
+    let source = source.map(|(mut light, at)| {
+        light.radius = i32::try_from(crate::phase::grown(i64::from(light.radius), farther))
+            .unwrap_or(light.radius);
+        (light, at)
+    });
     move |x, y| {
         let (light, at) = source?;
         let (dx, dy) = (x - at.x, y - at.y);

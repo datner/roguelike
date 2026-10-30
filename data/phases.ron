@@ -4,6 +4,9 @@
 // name the phases they belong to (none means every phase).
 // `element` and `lean`: damage of that element is `lean`% stronger, for
 // everyone. `opposite` names the opposed phase, which names this one back.
+// `rules` each bend one rule for everyone, in percent: LightReach (held
+// light reaches farther), StaminaRecovery (slower), RangedFalloff (per tile
+// a missile flies), MoveCost (a step costs more).
 // The stillness leans nowhere, on purpose.
 [
     (
@@ -18,6 +21,7 @@
         element: Fire,
         lean: 50,
         opposite: "Rime",
+        rules: [LightReach(50)],
     ),
     (
         key: "Rime",
@@ -26,6 +30,7 @@
         element: Cold,
         lean: 50,
         opposite: "Embers",
+        rules: [StaminaRecovery(50)],
     ),
     (
         key: "Tempest",
@@ -34,6 +39,7 @@
         element: Shock,
         lean: 50,
         opposite: "Mire",
+        rules: [RangedFalloff(4)],
     ),
     (
         key: "Mire",
@@ -42,5 +48,6 @@
         element: Acid,
         lean: 50,
         opposite: "Tempest",
+        rules: [MoveCost(25)],
     ),
 ]
