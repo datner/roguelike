@@ -24,6 +24,7 @@ use crate::map::Tile;
 use crate::ranged;
 use crate::spell;
 use crate::state::GameState;
+use crate::technique::creature_at;
 use crate::time;
 
 /// Upper bound on commands applied per `apply_commands` call, so a handler
@@ -561,19 +562,17 @@ fn onto_rubble(state: &GameState, actor: Entity, dir: Dir) -> bool {
 
 /// A creature other than one's own summon stands at `to`: walking there is
 /// an attack.
-fn fightable_at(state: &GameState, entity: Entity, to: (i32, i32)) -> bool {
+pub(crate) fn fightable_at(state: &GameState, entity: Entity, to: (i32, i32)) -> bool {
+    creature_at(&state.world, to)
+        .is_some_and(|other| other != entity && !own_summon(state, entity, other))
+}
+
+/// Walking into your own summon trades places with it.
+fn own_summon(state: &GameState, owner: Entity, other: Entity) -> bool {
     state
         .world
-        .query::<(Entity, &Position, &Health)>()
-        .iter()
-        .any(|(other, pos, _)| {
-            other != entity
-                && (pos.x, pos.y) == to
-                && !state
-                    .world
-                    .get::<&Summoned>(other)
-                    .is_ok_and(|summoned| summoned.owner == entity)
-        })
+        .get::<&Summoned>(other)
+        .is_ok_and(|summoned| summoned.owner == owner)
 }
 
 fn destination(state: &GameState, entity: Entity, dir: Dir) -> Option<(i32, i32)> {
@@ -705,19 +704,8 @@ fn try_move(state: &mut GameState, entity: Entity, dir: Dir) {
         return;
     }
 
-    let victim = state
-        .world
-        .query::<(Entity, &Position, &Health)>()
-        .iter()
-        .find(|&(other, pos, _)| other != entity && (pos.x, pos.y) == target)
-        .map(|(other, _, _)| other);
-    if let Some(victim) = victim {
-        // Walking into your own summon trades places with it.
-        let own = state
-            .world
-            .get::<&Summoned>(victim)
-            .is_ok_and(|summoned| summoned.owner == entity);
-        if own {
+    if let Some(victim) = creature_at(&state.world, target).filter(|&other| other != entity) {
+        if own_summon(state, entity, victim) {
             swap_places(state, entity, victim);
             return;
         }

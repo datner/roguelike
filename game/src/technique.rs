@@ -814,7 +814,7 @@ fn swept(
 }
 
 /// The living creature standing on `at`, if any.
-fn creature_at(world: &World, at: (i32, i32)) -> Option<Entity> {
+pub(crate) fn creature_at(world: &World, at: (i32, i32)) -> Option<Entity> {
     world
         .query::<(Entity, &Position, &crate::entity::Health)>()
         .without::<&crate::entity::Dead>()
@@ -1024,18 +1024,13 @@ pub(crate) fn telegraphed(state: &GameState) -> Vec<(i32, i32)> {
 
 /// Why the player's step in `dir` deserves a second thought: it ends on a
 /// tile a wind-up in view will strike (docs/plans/fights-2.md). A bump at a
-/// creature is no step, so it is never warned. The frontend's flow decides
-/// what a warning does.
+/// creature is no step, so it is never warned; a swap with your own summon
+/// is. The frontend's flow decides what a warning does.
 pub fn step_warning(state: &GameState, dir: crate::input::Dir) -> Option<&'static str> {
     let at = *state.world.get::<&Position>(state.player).ok()?;
     let (dx, dy) = dir.delta();
     let to = (at.x + dx, at.y + dy);
-    let creature_there = state
-        .world
-        .query::<(&Position, &crate::entity::Health)>()
-        .iter()
-        .any(|(pos, _)| (pos.x, pos.y) == to);
-    (!creature_there && telegraphed(state).contains(&to))
+    (!crate::command::fightable_at(state, state.player, to) && telegraphed(state).contains(&to))
         .then_some("A blow is about to land there. Step again to go anyway.")
 }
 
@@ -1418,6 +1413,19 @@ mod tests {
         thing("rat").health(3).at(1, 2).make(&mut state);
         assert_eq!(step_warning(&state, Dir::S), None);
         assert!(step_warning(&state, Dir::SE).is_some());
+    }
+
+    #[test]
+    fn a_swap_with_your_summon_onto_a_marked_tile_is_warned() {
+        let (mut state, brute) = brute_beside_player();
+        swing(&mut state, brute);
+        let player = state.player;
+        thing("wolf")
+            .health(3)
+            .summoned_by(player)
+            .at(1, 2)
+            .make(&mut state);
+        assert!(step_warning(&state, Dir::S).is_some());
     }
 
     #[test]
