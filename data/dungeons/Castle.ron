@@ -15,6 +15,9 @@
     // and there (docs/plans/depth.md).
     floors: 12,
     landing_every: 3,
+    // Fallen masonry in the halls: a step onto it costs double
+    // (docs/plans/fights-2.md).
+    rubble: 5,
     creatures: [
         (blueprint: "Goblin", count: 5, per_floor: 1),
         // One patrols each floor: resting in the open can be found.

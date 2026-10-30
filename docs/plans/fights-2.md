@@ -55,13 +55,19 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `handle`, so any key forgets it) is not tested in `front`: a session can't place a brute, as with
   the outnumbered status in `fights.md`.
 
-### 2. Rubble
+### 2. Rubble — done
 - `Tile::Rubble`, `is_open`; the doubled step cost in `apply_commands`; glyph, sprite name;
   `Dungeon.rubble` and `grow_rubble`; caves 4, castle 5.
 - Tests: a step onto rubble costs double, a sprinting one the normal step; a bump at a creature on
   rubble costs one move; a goblin pays it too; rubble is seen and shot across; a dungeon without it
   draws nothing new; same seed, same rubble.
 - Bench rerun.
+- As built: `tiles.ron`'s `terrain` is now a map from `Tile` to sprite name (`{Floor: "floor", …}`),
+  so a new tile needs no new field in `tiles.rs`. Grass and rubble share `dive::cover` (rubble a
+  radius of 1, grass 2). `zone::region` walks rubble like a door (never listed), so a rubble patch in a
+  castle corridor can't cut the spawn region. Bench: nothing moved past noise (keypresses per floor
+  ±10, the castle pit fighter's fights 9.9 → 9.6 actions); the duelist's runs reaching floor 3 in the
+  caves went 10% → 5%, still far under its target. The `floor` and `castle` shots didn't change.
 
 ### 3. Deep water
 - `Tile::DeepWater`, `is_clear`, `Tile::is_drop`; `shove` ends in `Fall` or `Sink` by the tile;

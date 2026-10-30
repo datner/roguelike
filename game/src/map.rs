@@ -4,7 +4,7 @@ use rand::RngExt;
 use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Tile {
     Floor,
     Wall,
@@ -24,6 +24,9 @@ pub enum Tile {
     /// Tall grass (`"`): walked through, but it blocks sight past itself and
     /// hides what stands in it beyond the next tile. Fire burns it to floor.
     Grass,
+    /// Rubble (`,`): walked, seen and shot across, but a step onto it costs
+    /// double (docs/plans/fights-2.md).
+    Rubble,
 }
 
 impl Tile {
@@ -32,7 +35,14 @@ impl Tile {
     pub fn is_open(tile: Option<&Tile>) -> bool {
         matches!(
             tile,
-            Some(Tile::Floor | Tile::StairsDown | Tile::StairsUp | Tile::DoorOpen | Tile::Grass)
+            Some(
+                Tile::Floor
+                    | Tile::StairsDown
+                    | Tile::StairsUp
+                    | Tile::DoorOpen
+                    | Tile::Grass
+                    | Tile::Rubble
+            )
         )
     }
 

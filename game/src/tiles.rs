@@ -37,29 +37,14 @@ impl Sprite {
     }
 }
 
-/// Which sprite each kind of terrain uses, if any.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-struct TerrainDef {
-    floor: Option<String>,
-    wall: Option<String>,
-    down: Option<String>,
-    up: Option<String>,
-    #[serde(default)]
-    door: Option<String>,
-    #[serde(default)]
-    door_open: Option<String>,
-    #[serde(default)]
-    chasm: Option<String>,
-    #[serde(default)]
-    grass: Option<String>,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 struct TilesDef {
     atlas: PathBuf,
     cell: (u32, u32),
+    /// Which sprite a kind of terrain uses; one left out is drawn as its
+    /// glyph.
     #[serde(default)]
-    terrain: TerrainDef,
+    terrain: BTreeMap<Tile, String>,
     sprites: BTreeMap<String, Sprite>,
 }
 
@@ -73,14 +58,7 @@ pub struct Tiles {
     pub cell: (u32, u32),
     sprites: Vec<Sprite>,
     ids: BTreeMap<String, SpriteId>,
-    floor: Option<SpriteId>,
-    wall: Option<SpriteId>,
-    down: Option<SpriteId>,
-    up: Option<SpriteId>,
-    door: Option<SpriteId>,
-    door_open: Option<SpriteId>,
-    chasm: Option<SpriteId>,
-    grass: Option<SpriteId>,
+    terrain: BTreeMap<Tile, SpriteId>,
 }
 
 impl Tiles {
@@ -108,33 +86,13 @@ impl Tiles {
             tiles.sprites.push(sprite);
             tiles.ids.insert(name, id);
         }
-        let terrain = |name: Option<String>| {
-            name.map(|name| {
-                tiles.id(&name).ok_or(BlueprintError::UnknownSprite {
-                    owner: "terrain".into(),
-                    sprite: name,
-                })
-            })
-            .transpose()
-        };
-        let chasm = terrain(def.terrain.chasm)?;
-        let grass = terrain(def.terrain.grass)?;
-        let (floor, wall, down, up, door, door_open) = (
-            terrain(def.terrain.floor)?,
-            terrain(def.terrain.wall)?,
-            terrain(def.terrain.down)?,
-            terrain(def.terrain.up)?,
-            terrain(def.terrain.door)?,
-            terrain(def.terrain.door_open)?,
-        );
-        tiles.floor = floor;
-        tiles.wall = wall;
-        tiles.down = down;
-        tiles.up = up;
-        tiles.door = door;
-        tiles.door_open = door_open;
-        tiles.chasm = chasm;
-        tiles.grass = grass;
+        for (tile, name) in def.terrain {
+            let id = tiles.id(&name).ok_or(BlueprintError::UnknownSprite {
+                owner: "terrain".into(),
+                sprite: name,
+            })?;
+            tiles.terrain.insert(tile, id);
+        }
         Ok(tiles)
     }
 
@@ -147,16 +105,7 @@ impl Tiles {
     }
 
     pub(crate) fn terrain(&self, tile: Tile) -> Option<SpriteId> {
-        match tile {
-            Tile::Floor => self.floor,
-            Tile::Wall => self.wall,
-            Tile::StairsDown => self.down,
-            Tile::StairsUp => self.up,
-            Tile::Door => self.door,
-            Tile::DoorOpen => self.door_open,
-            Tile::Chasm => self.chasm,
-            Tile::Grass => self.grass,
-        }
+        self.terrain.get(&tile).copied()
     }
 }
 
@@ -256,7 +205,7 @@ mod tests {
     #[test]
     fn a_bad_table_fails_at_load() {
         let unknown =
-            load(r#"(atlas: "a.png", cell: (8, 16), terrain: (wall: "brick"), sprites: {})"#);
+            load(r#"(atlas: "a.png", cell: (8, 16), terrain: {Wall: "brick"}, sprites: {})"#);
         assert!(
             matches!(unknown, Err(BlueprintError::UnknownSprite { sprite, .. }) if sprite == "brick")
         );

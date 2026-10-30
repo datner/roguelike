@@ -148,7 +148,10 @@ pub(crate) fn build(
         dig_chasms(&mut map, &mut map_stream, found.chasms, arrival, stairs);
     }
     if found.grass > 0 {
-        grow_grass(&mut map, &mut map_stream, found.grass);
+        cover(&mut map, &mut map_stream, found.grass, Tile::Grass, 2);
+    }
+    if found.rubble > 0 {
+        cover(&mut map, &mut map_stream, found.rubble, Tile::Rubble, 1);
     }
     // After every tile is set: `region` walks plain floor.
     let near = region(&map, arrival, &mut Grid::new(map.width, map.height, false));
@@ -207,10 +210,10 @@ fn dig_chasms(
     }
 }
 
-/// Patches of tall grass, each the floor within two tiles of a floor tile,
-/// drawn on the map stream after the chasms. Grass is walked through, so it
-/// never cuts anything off; it grows only on plain floor.
-fn grow_grass(map: &mut Map, rng: &mut Pcg64, count: u32) {
+/// `count` patches of `tile` (tall grass, rubble), each the plain floor within
+/// `radius` tiles of a floor tile, drawn on the map stream after the chasms.
+/// Both are walked through, so a patch never cuts anything off.
+fn cover(map: &mut Map, rng: &mut Pcg64, count: u32, tile: Tile, radius: i32) {
     use rand::RngExt;
     for _ in 0..count {
         let floor: Vec<(i32, i32)> = (0..map.height)
@@ -221,10 +224,10 @@ fn grow_grass(map: &mut Map, rng: &mut Pcg64, count: u32) {
             return;
         }
         let (cx, cy) = floor[rng.random_range(0..floor.len())];
-        for y in cy - 2..=cy + 2 {
-            for x in cx - 2..=cx + 2 {
+        for y in cy - radius..=cy + radius {
+            for x in cx - radius..=cx + radius {
                 if map.get(x, y) == Some(&Tile::Floor) {
-                    map.set(x, y, Tile::Grass);
+                    map.set(x, y, tile);
                 }
             }
         }
@@ -667,6 +670,28 @@ mod tests {
             !has(&bottom.map, Tile::Chasm),
             "nowhere to fall from the bottom"
         );
+    }
+
+    #[test]
+    fn rubble_covers_only_floor_and_is_the_same_from_the_same_seed() {
+        let test = crate::dungeon::tests::test_dungeon;
+        let plain = build(9, &test(), "Test", "Still", 1, 1);
+        let dungeon = Dungeon {
+            rubble: 5,
+            ..test()
+        };
+        let with = build(9, &dungeon, "Test", "Still", 1, 1);
+        assert!(has(&with.map, Tile::Rubble));
+        assert_eq!(with.map, build(9, &dungeon, "Test", "Still", 1, 1).map);
+        let mut cleared = with.map.clone();
+        for y in 0..cleared.height {
+            for x in 0..cleared.width {
+                if cleared.get(x, y) == Some(&Tile::Rubble) {
+                    cleared.set(x, y, Tile::Floor);
+                }
+            }
+        }
+        assert_eq!(cleared, plain.map, "only rubble differs");
     }
 
     #[test]

@@ -330,6 +330,10 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             continue;
         }
         if let Some((actor, cost)) = cost::of(&command) {
+            let cost = match command {
+                Command::TryMove(_, dir) if onto_rubble(state, actor, dir) => cost::RUBBLE_STEP,
+                _ => cost,
+            };
             let sprinting =
                 matches!(command, Command::TryMove(..)) && crate::sprint::pay_step(state, actor);
             spend_energy(state, actor, if sprinting { cost / 2 } else { cost });
@@ -541,6 +545,14 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
         _ => return false,
     }
     true
+}
+
+/// `actor`'s step in `dir` ends on rubble: a bump at a creature standing in it
+/// is no step, so it costs a plain move.
+fn onto_rubble(state: &GameState, actor: Entity, dir: Dir) -> bool {
+    destination(state, actor, dir).is_some_and(|to| {
+        state.map.get(to.0, to.1) == Some(&Tile::Rubble) && !fightable_at(state, actor, to)
+    })
 }
 
 /// A creature other than one's own summon stands at `to`: walking there is
@@ -1029,6 +1041,66 @@ pub(crate) mod tests {
 
     fn pick_up_here(state: &mut GameState) {
         state.run(Command::PickUp(state.player));
+    }
+
+    fn energy(state: &GameState, who: Entity) -> i64 {
+        state.world.get::<&Energy>(who).unwrap().0
+    }
+
+    #[test]
+    fn a_step_onto_rubble_costs_double() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.map.set(2, 1, Tile::Rubble);
+        state.world.insert_one(player, Energy(0)).unwrap();
+        state.run(Command::TryMove(player, Dir::E));
+        assert_eq!(energy(&state, player), -cost::RUBBLE_STEP);
+        assert_eq!(
+            *state.world.get::<&Position>(player).unwrap(),
+            Position { x: 2, y: 1 }
+        );
+        state.world.insert_one(player, Energy(0)).unwrap();
+        state.run(Command::TryMove(player, Dir::E));
+        assert_eq!(
+            energy(&state, player),
+            -cost::MOVE,
+            "off it is a plain step"
+        );
+    }
+
+    #[test]
+    fn a_bump_at_a_creature_in_rubble_costs_one_move() {
+        let mut state = bare_state();
+        let player = state.player;
+        state.map.set(2, 1, Tile::Rubble);
+        thing("goblin")
+            .health(5)
+            .hostile()
+            .at(2, 1)
+            .make(&mut state);
+        state.world.insert_one(player, Energy(0)).unwrap();
+        state.run(Command::TryMove(player, Dir::E));
+        assert_eq!(energy(&state, player), -cost::MOVE);
+    }
+
+    #[test]
+    fn creatures_pay_for_rubble_too() {
+        let mut state = bare_state();
+        state.map.set(5, 4, Tile::Rubble);
+        let goblin = thing("goblin")
+            .health(5)
+            .hostile()
+            .at(5, 5)
+            .energy(0)
+            .make(&mut state);
+        state.run(Command::TryMove(goblin, Dir::N));
+        assert_eq!(energy(&state, goblin), -cost::RUBBLE_STEP);
+    }
+
+    #[test]
+    fn rubble_is_seen_and_shot_across() {
+        assert!(Tile::is_transparent(Some(&Tile::Rubble)));
+        assert!(Tile::is_clear(Some(&Tile::Rubble)));
     }
 
     #[test]

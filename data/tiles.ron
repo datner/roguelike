@@ -1,12 +1,13 @@
 // Sprites (ADR 0023) for frontends that draw them; the window shows them on F2.
 // `atlas` is beside this file; `cell` is one sprite in pixels, the shape of
 // a terminal cell. A sprite's `frames` are atlas cells (column, row), shown
-// `frame_ms` each in turn. Blueprints name a sprite in `Appearance(sprite:)`.
-// tiles.png is a placeholder.
+// `frame_ms` each in turn. Blueprints name a sprite in `Appearance(sprite:)`;
+// `terrain` maps a tile (game::Tile) to its sprite, and one left out is drawn
+// as its glyph. tiles.png is a placeholder.
 (
     atlas: "tiles.png",
     cell: (8, 16),
-    terrain: (floor: "floor", wall: "wall", down: "stairs down"),
+    terrain: {Floor: "floor", Wall: "wall", StairsDown: "stairs down"},
     sprites: {
         "floor": (frames: [(0, 0)]),
         "wall": (frames: [(1, 0)]),

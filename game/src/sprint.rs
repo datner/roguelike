@@ -138,6 +138,17 @@ mod tests {
     }
 
     #[test]
+    fn sprinting_onto_rubble_costs_a_plain_step() {
+        let mut state = with_stamina(5);
+        let player = state.player;
+        state.map.set(2, 1, crate::map::Tile::Rubble);
+        state.run(Command::Sprint(player));
+        state.world.insert_one(player, Energy(0)).unwrap();
+        state.run(Command::TryMove(player, Dir::E));
+        assert_eq!(energy(&state), -crate::cost::MOVE);
+    }
+
+    #[test]
     fn out_of_stamina_the_sprint_ends_and_the_step_is_a_walk() {
         let mut state = with_stamina(1);
         let player = state.player;
