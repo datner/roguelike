@@ -66,12 +66,11 @@ pub(crate) fn explore_step_past(state: &mut GameState, ignored: &[Entity]) -> bo
     match next_step(state, before, ignored) {
         Ok(dir) => {
             let unfound = unfound_items(state);
-            take_turn(state, PlayerAction::Move(dir));
-            // A step that didn't move (something unseen in the way) already
+            // A step that got nowhere (something unseen in the way) already
             // logged why; stopping keeps it from repeating forever.
-            let moved = player_position(state).is_some_and(|after| after != before);
-            if !moved || unfound_items(state) == unfound {
-                return moved;
+            let progressed = step(state, before, dir);
+            if !progressed || unfound_items(state) == unfound {
+                return progressed;
             }
             match state.explore_items {
                 ExploreItems::Find => true,
@@ -118,8 +117,18 @@ pub fn travel_step(state: &mut GameState, to: (i32, i32)) -> bool {
         state.log.push("You know no way there.");
         return false;
     };
+    step(state, before, dir) && player_position(state).is_some_and(|after| (after.x, after.y) != to)
+}
+
+/// Moves the player one step as their turn: whether it got anywhere, by
+/// moving or by opening the door in the way (opening one is the move).
+fn step(state: &mut GameState, before: Position, dir: Dir) -> bool {
+    let (dx, dy) = dir.delta();
+    let ahead = (before.x + dx, before.y + dy);
+    let door = state.map.get(ahead.0, ahead.1) == Some(&Tile::Door);
     take_turn(state, PlayerAction::Move(dir));
-    player_position(state).is_some_and(|after| after != before && (after.x, after.y) != to)
+    let opened = door && state.map.get(ahead.0, ahead.1) == Some(&Tile::DoorOpen);
+    opened || player_position(state).is_some_and(|after| after != before)
 }
 
 /// Floor items the player has not found yet.
@@ -406,6 +415,22 @@ mod tests {
                 .all(|(x, y)| flag(&state.seen, x, y))
         );
         assert_eq!(last_log(&state), "There is nowhere left to explore.");
+    }
+
+    #[test]
+    fn opening_a_door_on_the_way_keeps_going() {
+        let mut state = bare_state();
+        for y in 0..state.map.height {
+            state.map.set(3, y, Tile::Wall);
+        }
+        state.map.set(3, 1, Tile::Door);
+        let mut steps = 0;
+        while travel_step(&mut state, (5, 1)) {
+            steps += 1;
+            assert!(steps < 100, "travel did not stop");
+        }
+        assert_eq!(at(&state), (5, 1));
+        assert_eq!(state.map.get(3, 1), Some(&Tile::DoorOpen));
     }
 
     #[test]
