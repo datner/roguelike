@@ -10,6 +10,7 @@ use proptest::prelude::*;
 
 use crate::aim::{Shot, aim, aim_targets};
 use crate::blueprint::Blueprints;
+use crate::craft::MAX_SLOTS;
 use crate::entity::{BlocksMovement, Dead, Health, Position};
 use crate::fx::{Fx, take_fx};
 use crate::input::{Dir, PlayerAction};
@@ -32,6 +33,8 @@ enum Act {
     Throw(usize, usize),
     Cast(usize, usize),
     Perform(usize, usize),
+    /// A recipe, and maybe a carried thing for its first slot (fitting or not).
+    Craft(usize, Option<usize>),
 }
 
 fn act() -> impl Strategy<Value = Act> {
@@ -45,6 +48,7 @@ fn act() -> impl Strategy<Value = Act> {
         1 => (any::<usize>(), any::<usize>()).prop_map(|(a, b)| Act::Throw(a, b)),
         2 => (any::<usize>(), any::<usize>()).prop_map(|(a, b)| Act::Cast(a, b)),
         2 => (any::<usize>(), any::<usize>()).prop_map(|(a, b)| Act::Perform(a, b)),
+        2 => (any::<usize>(), any::<Option<usize>>()).prop_map(|(a, b)| Act::Craft(a, b)),
     ]
 }
 
@@ -99,7 +103,39 @@ fn shot(state: &GameState, act: &Act) -> Option<(Shot, (i32, i32))> {
     Some((shot, pick(&targets, at)?))
 }
 
+/// The recipe `act` crafts and its first slot's choice, if it is a craft and
+/// any recipe is known.
+fn craft(state: &GameState, act: &Act) -> Option<(u32, [Option<hecs::Entity>; MAX_SLOTS])> {
+    let Act::Craft(recipe, pick) = *act else {
+        return None;
+    };
+    let recipes = state.blueprints.recipes().len();
+    let recipe = u32::try_from(recipe % recipes.max(1))
+        .ok()
+        .filter(|_| recipes > 0)?;
+    let carried = crate::holding::carried(&state.world, state.player);
+    let mut chosen = [None; MAX_SLOTS];
+    chosen[0] = pick.and_then(|i| pick_one(&carried, i));
+    Some((recipe, chosen))
+}
+
+fn pick_one(list: &[hecs::Entity], index: usize) -> Option<hecs::Entity> {
+    (!list.is_empty()).then(|| list[index % list.len()])
+}
+
 fn action(state: &GameState, act: &Act) -> PlayerAction {
+    if let Some((recipe, chosen)) = craft(state, act) {
+        let inputs = chosen.map(|thing| {
+            thing.and_then(|thing| {
+                state
+                    .world
+                    .get::<&crate::entity::SpawnSeq>(thing)
+                    .ok()
+                    .map(|seq| crate::view::ItemRef(*seq))
+            })
+        });
+        return PlayerAction::Craft { recipe, inputs };
+    }
     if let Some((shot, at)) = shot(state, act) {
         return match shot {
             Shot::Fire => PlayerAction::Fire { at },
@@ -213,9 +249,18 @@ proptest! {
             if !alive(&state) {
                 break;
             }
+            // A craft goes ahead exactly when `craft::ready` says it can.
+            if let Some((recipe, chosen)) = craft(&state, act) {
+                let ready = crate::craft::ready(&state, state.player, recipe, chosen);
+                let before = state.now;
+                let action = action(&state, act);
+                take_turn(&mut state, action);
+                prop_assert_eq!(state.now > before, ready.is_ok(), "{:?}: {:?}", act, ready);
+                continue;
+            }
             let Some((shot, at)) = shot(&state, act) else {
                 let action = action(&state, act);
-            take_turn(&mut state, action);
+                take_turn(&mut state, action);
                 continue;
             };
             let Some(preview) = aim(&state, shot, at) else {

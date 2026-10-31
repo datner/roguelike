@@ -1,0 +1,14 @@
+// A knife made at the workbench (data/recipes.ron): plainer than a found one,
+// until its edge's properties make it more.
+(
+    components: [
+        Name("knife"),
+        Appearance(glyph: '/', fg: (200, 200, 190), bg: (0, 0, 0)),
+        Item,
+        // Only ever made, never found lying about.
+        Keepsake,
+        Equippable(part: Hand),
+        Weapon(min: 1, max: 2, stat: Agility, types: [Slashing]),
+        Trains(["Dagger"]),
+    ],
+)

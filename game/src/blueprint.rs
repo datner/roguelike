@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ability, Hardiness, Keepsake, Made, Material, Natural, Note, OffBalance, Roams, Skirmish,
-    SprintAi, Teaches, TechniqueAi, Verb, WindUp, Yields,
+    Ability, Hardiness, Keepsake, Made, Material, Natural, Note, OffBalance, Recipes, Roams,
+    Skirmish, SprintAi, Teaches, TechniqueAi, Verb, WindUp, Yields,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -219,8 +219,9 @@ pub struct Blueprints {
     /// How many lives a lineage keeps and what time leaves of them
     /// (`data/legacy.ron`).
     legacy: crate::legacy::Legacy,
-    /// What materials can be (`data/properties.ron`, docs/plans/crafting.md).
-    properties: Vec<crate::craft::PropertyDef>,
+    /// Properties and recipes (`data/properties.ron`, `data/recipes.ron`,
+    /// docs/plans/crafting.md).
+    crafting: crate::craft::Crafting,
 }
 
 #[derive(Debug)]
@@ -414,7 +415,7 @@ impl Blueprints {
             .with_phases(phase::read(data)?)?
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)?
             .with_legacy(crate::legacy::read(data)?)?
-            .with_properties(crate::craft::read(data)?)
+            .with_crafting(crate::craft::read(data)?)
             .and_then(|blueprints| {
                 let camp = camp::load(data, &blueprints)?;
                 Ok(blueprints.with_camp(camp))
@@ -630,20 +631,62 @@ impl Blueprints {
             phases: Vec::new(),
             origins: Vec::new(),
             legacy: crate::legacy::Legacy::default(),
-            properties: Vec::new(),
+            crafting: crate::craft::Crafting::default(),
         })
     }
 
-    /// Every material names known properties, and every yield a blueprint
-    /// at a chance no more than certain, so neither fails during play.
-    pub fn with_properties(
+    /// Every name crafting uses exists: a material's properties, a yield's
+    /// blueprint (at a chance no more than certain), a recipe's product and
+    /// the properties its slots need, and the recipes a creature knows; and
+    /// no recipe has more than `craft::MAX_SLOTS` slots. So none fails during
+    /// play.
+    pub fn with_crafting(
         mut self,
-        properties: Vec<crate::craft::PropertyDef>,
+        crafting: crate::craft::Crafting,
     ) -> Result<Self, BlueprintError> {
         let bad = |why: String| Err(BlueprintError::BadCraft(why));
+        let properties = &crafting.properties;
+        let property = |name: &String| properties.iter().any(|known| &known.name == name);
+        for recipe in &crafting.recipes {
+            if self.id(&recipe.makes).is_none() {
+                return bad(format!(
+                    "recipe {:?} makes unknown {:?}",
+                    recipe.name, recipe.makes
+                ));
+            }
+            if recipe.slots.is_empty() || recipe.slots.len() > crate::craft::MAX_SLOTS {
+                return bad(format!(
+                    "recipe {:?} has {} slots, not 1 to {}",
+                    recipe.name,
+                    recipe.slots.len(),
+                    crate::craft::MAX_SLOTS
+                ));
+            }
+            if let Some(need) = recipe
+                .slots
+                .iter()
+                .flat_map(|s| &s.needs)
+                .find(|n| !property(n))
+            {
+                return bad(format!(
+                    "recipe {:?} needs unknown property {need:?}",
+                    recipe.name
+                ));
+            }
+        }
         for blueprint in &self.resolved {
             for def in &blueprint.components {
                 match def {
+                    ComponentDef::Recipes(known) => {
+                        for name in &known.0 {
+                            if !crafting.recipes.iter().any(|recipe| &recipe.name == name) {
+                                return bad(format!(
+                                    "{:?} knows unknown recipe {name:?}",
+                                    blueprint.name
+                                ));
+                            }
+                        }
+                    }
                     ComponentDef::Material(material) => {
                         for property in &material.0 {
                             if !properties.iter().any(|known| &known.name == property) {
@@ -674,12 +717,24 @@ impl Blueprints {
                 }
             }
         }
-        self.properties = properties;
+        self.crafting = crafting;
         Ok(self)
     }
 
     pub fn properties(&self) -> &[crate::craft::PropertyDef] {
-        &self.properties
+        &self.crafting.properties
+    }
+
+    /// The recipes, in `data/recipes.ron`'s order; a craft names one by index.
+    pub fn recipes(&self) -> &[crate::craft::RecipeDef] {
+        &self.crafting.recipes
+    }
+
+    /// `crafting`, unchecked: for tests that build recipes inline.
+    #[cfg(test)]
+    pub(crate) fn with_crafting_unchecked(mut self, crafting: crate::craft::Crafting) -> Self {
+        self.crafting = crafting;
+        self
     }
 
     /// Ruins are built from `AbandonedCamp`, so keeping lives needs it.

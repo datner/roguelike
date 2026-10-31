@@ -1,12 +1,13 @@
 // What materials can be (docs/plans/crafting.md). A material names its
 // properties (`Material([...])`); a recipe's slot asks for some, and the
-// product takes what went in. Few properties, many materials.
+// product takes what went in (`gives`: more damage, another kind of damage).
+// Few properties, many materials.
 [
-    (name: "hard", note: "holds an edge or a point"),
+    (name: "hard", note: "holds an edge or a point", gives: [Damage(1)]),
     (name: "flexible", note: "bends without breaking"),
     (name: "light", note: "weighs little in the hand"),
     (name: "brittle", note: "snaps under a hard blow"),
-    (name: "cold", note: "cold to the touch, and keeps it"),
-    (name: "hot", note: "never cools"),
+    (name: "cold", note: "cold to the touch, and keeps it", gives: [Kind(Cold)]),
+    (name: "hot", note: "never cools", gives: [Kind(Fire)]),
     (name: "rare", note: "seldom found; working it can inspire"),
 ]

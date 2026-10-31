@@ -60,7 +60,8 @@ found or started with. After this plan:
   marked `rare` (the vision: "working a rare material can inspire, common ones never do").
 - **A new skill domain, `Craft`**, so crafting skills never count toward a martial or magic use, and a
   future crafting style has a domain to follow.
-- **The maker's mark**: a crafted thing carries `MadeBy(name)`, the character's name. Legacy keeps it
+- **The maker's mark** (after the game knows the character's name): a crafted thing carries
+  `MadeBy(name)`. Legacy keeps it
   with `Made` (a predecessor's blade in the ruins says whose it was); relics are the judgement plan's.
 - **Taking apart** is a lesson (`training.rs`): once per kind of thing, a `Disassemble` action on a
   carried item with a `Salvage { recipe, returns }` part (its own: `Teaches` names techniques) returns
@@ -89,9 +90,9 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   recomputed the view, so a game saved after the map changed (grass burned) remembered more once
   loaded. The view is now saved (`SAVE_VERSION` 65).
 
-### 2. Recipes and the craft command — open
+### 2. Recipes and the craft command — done
 - `data/recipes.ron`, loaded and checked; `Recipes` part; `craft::ready` and `Command::Craft`
-  (`add-command` skill), the product built from `makes` plus each property's edits, `MadeBy` on it.
+  (`add-command` skill), the product built from `makes` plus each property's edits.
 - First recipes: `Arrow` (field: a shaft from anything flexible, a head from anything hard), `Blade` (a
   knife: edge hard, grip flexible), `Jerkin` (armor: two of anything flexible).
 - The wanderer starts knowing `Arrow`; nobody else knows a recipe yet.
@@ -99,6 +100,11 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   makes a cold blade; a chosen material fills its slot and the rest fill themselves; a chosen material
   that does not fit, a missing material, the wrong place or an unknown recipe is refused with its
   reason and costs no time; `ready` and the command agree (a property in `properties.rs`).
+- Done, with two changes. The wrong place is slice 3's, which brings the workbench. `MadeBy` waits:
+  the game state does not know the character's name (the frontend hands it to `legacy::record`),
+  and giving it one is its own change; until then a crafted thing is unsigned. Authored recipes
+  (named inputs) come with the first one, in slice 6. Generated play rarely carries two fitting
+  materials, so the property mostly checks refusals; the unit tests check the crafts.
 
 ### 3. The workbench — open
 - `Tile::Workbench` in camp; `ready` refuses a non-field recipe away from it ("You need a workbench.").
@@ -155,4 +161,4 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 - skills: crafting trains its recipe's skills through `skill::train`, the material as subject *(planned: crafting slice 4)*
 - discovery: a craft with a rare material calls `discovery::inspire` *(planned: crafting slice 4)*
 - origins: an origin's blueprint lists the recipes it starts knowing in `Recipes` *(planned: crafting slice 2)*
-- legacy: `MadeBy` stays on a crafted thing in the ruins, so a predecessor's work says whose it was *(planned: crafting slice 2)*
+- legacy: `MadeBy` stays on a crafted thing in the ruins, so a predecessor's work says whose it was *(planned: crafting, once the game knows the character's name)*

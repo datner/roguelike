@@ -149,6 +149,13 @@ pub enum PlayerAction {
     /// At camp: the next dive will be in this phase, an index into
     /// `phase::phases` (`phase`).
     WaitForPhase(u32),
+    /// Make a known recipe, an index into `craft::recipes`; a slot's chosen
+    /// carried material, or `None` for the first that fits
+    /// (docs/plans/crafting.md).
+    Craft {
+        recipe: u32,
+        inputs: [Option<ItemRef>; crate::craft::MAX_SLOTS],
+    },
 }
 
 #[cfg(test)]

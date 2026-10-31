@@ -40,6 +40,7 @@ macro_rules! with_components {
                 /// What its own blows carry.
                 Natural,
                 Footwork, Blow, Dash, Loose, Stamina, OffBalance, Material, Yields,
+                Recipes,
             ],
             state: [
                 Position, Energy, SpawnSeq, EquippedOn, Recharging, Timed, RestBudget, Quarry,
@@ -1075,6 +1076,10 @@ pub struct Note(pub String);
 /// recipe and what it gives the product.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Material(pub Vec<String>);
+
+/// The recipes a creature knows, by name from `data/recipes.ron`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Recipes(pub Vec<String>);
 
 /// What a creature leaves when it dies: each entry a blueprint by name and
 /// its chance in basis points, drawn on the `craft` stream.

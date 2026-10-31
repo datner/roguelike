@@ -711,6 +711,24 @@ pub(crate) mod tests {
                     ),
                 ),
                 (
+                    "Shiv".to_string(),
+                    blueprint(
+                        vec![
+                            name("shiv"),
+                            ComponentDef::Item,
+                            ComponentDef::Weapon(crate::entity::Weapon {
+                                min: 1,
+                                max: 2,
+                                stat: crate::entity::Stat::Agility,
+                                types: crate::entity::DamageTypes::single(
+                                    crate::entity::DamageType::Slashing,
+                                ),
+                            }),
+                        ],
+                        &[],
+                    ),
+                ),
+                (
                     "Rubble".to_string(),
                     blueprint(
                         vec![name("rubble"), look('%'), ComponentDef::BlocksMovement],

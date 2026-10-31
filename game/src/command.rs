@@ -158,6 +158,14 @@ pub(crate) enum Command {
     },
     /// A turn of drills with what `actor` wields.
     Practice(Entity),
+    /// Make recipe `recipe` (an index into `Blueprints::recipes`), each slot
+    /// from its chosen material or, if none, the first that fits
+    /// (`craft::ready`).
+    Craft {
+        actor: Entity,
+        recipe: u32,
+        inputs: [Option<Entity>; crate::craft::MAX_SLOTS],
+    },
     /// Close an open door beside the actor (`close_door`).
     Close(Entity),
     /// Forced into a chasm (`fall`).
@@ -273,6 +281,7 @@ impl Command {
             } => [Some(actor), Some(technique)],
             Command::FollowStyle { actor, style } => [Some(actor), Some(style)],
             Command::Study { actor, item } => [Some(actor), Some(item)],
+            Command::Craft { actor, .. } => [Some(actor), None],
             Command::Practice(actor)
             | Command::Close(actor)
             | Command::Fall(actor)
@@ -370,6 +379,11 @@ pub(crate) fn apply_commands(state: &mut GameState) {
             } => crate::technique::perform(state, actor, technique, at),
             Command::FollowStyle { actor, style } => crate::style::follow(state, actor, style),
             Command::Study { actor, item } => crate::training::study(state, actor, item),
+            Command::Craft {
+                actor,
+                recipe,
+                inputs,
+            } => crate::craft::craft(state, actor, recipe, inputs),
             Command::Practice(actor) => crate::training::practice(state, actor),
             Command::Close(actor) => close_door(state, actor),
             Command::Fall(entity) => fall(state, entity),
@@ -484,6 +498,14 @@ pub(crate) fn reject_input(state: &mut GameState, command: &Command) -> bool {
             }
             state.log.push("There is nothing here to pick up.");
         }
+        Command::Craft {
+            actor,
+            recipe,
+            inputs,
+        } => match crate::craft::ready(state, actor, recipe, inputs) {
+            Ok(_) => return false,
+            Err(why) => state.log.push(why),
+        },
         Command::WaitForPhase { phase, .. } => match crate::phase::refusal(state, phase) {
             None => return false,
             Some(why) => state.log.push(why),

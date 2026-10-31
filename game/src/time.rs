@@ -205,6 +205,23 @@ pub fn take_turn(state: &mut GameState, action: PlayerAction) {
                 item,
             }
         }
+        PlayerAction::Craft { recipe, inputs } => {
+            let carried = carried(state);
+            let mut found = [None; crate::craft::MAX_SLOTS];
+            for (slot, choice) in found.iter_mut().zip(inputs) {
+                let Some(choice) = choice else { continue };
+                let Some(thing) = choice.find(&state.world, &carried) else {
+                    state.log.push("You do not carry that.");
+                    return;
+                };
+                *slot = Some(thing);
+            }
+            Command::Craft {
+                actor: player,
+                recipe,
+                inputs: found,
+            }
+        }
         PlayerAction::Practice => Command::Practice(player),
         PlayerAction::Close => Command::Close(player),
         PlayerAction::Sprint => Command::Sprint(player),
