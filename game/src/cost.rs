@@ -47,7 +47,8 @@ pub const QUIVER: i64 = STANDARD;
 
 /// The actor that pays for `command`, and how much. `None` for commands that
 /// are consequences of an action (`Attack` from a bump, damage, death…)
-/// rather than actions themselves, so a bump-attack costs one move.
+/// rather than actions themselves, so a bump-attack costs one move. Every
+/// variant is named, so a new command fails to compile until it is priced.
 pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
     match *command {
         Command::TryMove(actor, _) => Some((actor, MOVE)),
@@ -68,6 +69,29 @@ pub(crate) fn of(command: &Command) -> Option<(Entity, i64)> {
         Command::WaitForPhase { actor, .. } => Some((actor, WAIT_FOR_PHASE)),
         Command::Nock { actor, .. } => Some((actor, NOCK)),
         Command::Quiver { actor, .. } => Some((actor, QUIVER)),
-        _ => None,
+        // Free: the steps pay for sprinting.
+        Command::Sprint(_) => None,
+        // Consequences of an action, already paid for by it.
+        Command::Ride { .. }
+        | Command::Recharge { .. }
+        | Command::Fall(_)
+        | Command::Sink(_)
+        | Command::SpendMana { .. }
+        | Command::Attack { .. }
+        | Command::DealDamage { .. }
+        | Command::Die { .. }
+        | Command::UseUp { .. }
+        | Command::Dismiss(_)
+        | Command::ApplyEffect { .. }
+        | Command::ModifyDuration { .. }
+        | Command::FindItems(_) => None,
+        // The scheduler's and timers' own, done by no one.
+        Command::ExpireEffect(_)
+        | Command::BleedTick(_)
+        | Command::Regenerate(_)
+        | Command::Notice { .. }
+        | Command::SetRoute { .. }
+        | Command::AdvanceClock { .. }
+        | Command::UpdateFov => None,
     }
 }
