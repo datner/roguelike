@@ -1,0 +1,59 @@
+// Phases (game::phase, docs/plans/phases.md): the world turns through these,
+// and at camp you choose which to wait for; a dive keeps the phase it began
+// in. The first is where a new world starts. A dungeon's spawn entries may
+// name the phases they belong to (none means every phase).
+// `element` and `lean`: damage of that element is `lean`% stronger, for
+// everyone. `opposite` names the opposed phase, which names this one back.
+// `rules` each bend one rule for everyone, in percent: LightReach (held
+// light reaches farther), StaminaRecovery (slower), RangedFalloff (per tile
+// a missile flies), MoveCost (a step costs more).
+// `attunement` names the skill a use with stakes in it trains, which
+// softens its hardships for the attuned.
+// The stillness leans nowhere, on purpose.
+[
+    (
+        key: "Stillness",
+        name: "the stillness",
+        wait: "You wait until the deep air settles.",
+    ),
+    (
+        key: "Embers",
+        name: "the embers",
+        wait: "You wait until heat rises from below and the shamans stir.",
+        element: Fire,
+        lean: 50,
+        opposite: "Rime",
+        rules: [LightReach(50)],
+        attunement: "Embers attunement",
+    ),
+    (
+        key: "Rime",
+        name: "the rime",
+        wait: "You wait until frost creeps up the stairs and your breath hangs.",
+        element: Cold,
+        lean: 50,
+        opposite: "Embers",
+        rules: [StaminaRecovery(50)],
+        attunement: "Rime attunement",
+    ),
+    (
+        key: "Tempest",
+        name: "the tempest",
+        wait: "You wait until the air hums and the hair on your arms rises.",
+        element: Shock,
+        lean: 50,
+        opposite: "Mire",
+        rules: [RangedFalloff(4)],
+        attunement: "Tempest attunement",
+    ),
+    (
+        key: "Mire",
+        name: "the mire",
+        wait: "You wait until the ground softens and everything smells of rot.",
+        element: Acid,
+        lean: 50,
+        opposite: "Tempest",
+        rules: [MoveCost(25)],
+        attunement: "Mire attunement",
+    ),
+]

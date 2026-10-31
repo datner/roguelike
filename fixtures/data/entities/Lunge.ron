@@ -1,0 +1,24 @@
+// A technique (ADR 0024), attached to whoever knows it like a spell. A step
+// toward an enemy two tiles away and a thrust on arrival: the blow is an
+// ordinary blow with what is wielded, a little surer and harder, so it needs
+// a piercing weapon. 500 ticks is five turns at any speed. A fencer lunges
+// more often from Fencing 2, and from 5 leaves the target reeling.
+(
+    components: [
+        Name("lunge"),
+        Verb(word: "lunge", at: true),
+        Technique(
+            domain: Martial,
+            reach: 2,
+            recharge: 500,
+            stamina: 0,
+            requires: [Wielding(["Pierce"])],
+            bonuses: [
+                (style: "Fencing", from_level: 2, recharge_pct: -40),
+                (style: "Fencing", from_level: 5, riders: [Effect("OffBalance")]),
+            ],
+        ),
+        Dash(tiles: 1),
+        Blow(accuracy: 2, damage_pct: 25),
+    ],
+)

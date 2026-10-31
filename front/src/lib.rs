@@ -15,9 +15,10 @@ pub(crate) mod tests {
 
     use game::{Blueprints, GameState};
 
-    /// The content every `front` test loads.
+    /// The content every `front` test loads: frozen, so balance and new
+    /// content never move a flow test (`scripts/fixtures.sh`).
     pub fn data() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/data")
     }
 
     /// A new game from the test content, seed 3.

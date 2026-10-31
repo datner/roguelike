@@ -1,0 +1,28 @@
+// A technique (ADR 0024): a step back and a shot, drawn as the gap opens, so
+// an enemy at your elbow is no longer point blank. The shot is the wielded
+// launcher's next arrow, a little surer; bow dancing invents it.
+(
+    components: [
+        Name("parting shot"),
+        Verb(word: "shoot"),
+        Technique(
+            domain: Martial,
+            reach: 6,
+            recharge: 600,
+            stamina: 0,
+            bonuses: [(style: "Bow dancing", from_level: 3, damage_pct: 25)],
+            // The bow dance, step 3: surer and harder right after a trip.
+            combo: (
+                group: "bow dance",
+                step: 3,
+                within: 200,
+                xp_pct: 50,
+                display: Steps,
+                accuracy: 1,
+                damage_pct: 15,
+            ),
+        ),
+        Dash(tiles: 1, away: true),
+        Loose(accuracy: 2),
+    ],
+)

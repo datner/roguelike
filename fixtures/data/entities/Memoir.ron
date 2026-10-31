@@ -1,0 +1,11 @@
+// A predecessor's memoir (docs/plans/legacy.md), written into the ruins
+// from their record: its `Name`, `Note` (who they were, how they ended),
+// `Memoir` (skills it can raise, capped) and `Teaches` are set then.
+(
+    components: [
+        Name("memoir"),
+        Appearance(glyph: '"', fg: (220, 200, 150), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+    ],
+)

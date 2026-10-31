@@ -1,0 +1,10 @@
+// A timed effect (ADR 0006, ADR 0024): a trip leaves its target reeling, so
+// blows at it land a fifth more often and it can't dodge perfectly. The
+// name completes the messages: "The goblin starts reeling."
+(
+    components: [
+        Name("reeling"),
+        OffBalance(hit_bp: 2000),
+        Duration(300),
+    ],
+)

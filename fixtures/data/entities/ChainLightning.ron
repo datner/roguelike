@@ -1,0 +1,12 @@
+// An arcane bolt that leaps (ADR 0014, `Chain`): after its first victim it
+// jumps twice more to the nearest enemy within 3 tiles, each taking its own
+// roll.
+(
+    components: [
+        Name("chain lightning"),
+        Appearance(glyph: '~', fg: (230, 230, 120), bg: (0, 0, 0)),
+        Spell(school: Arcane, range: 6, power: 3),
+        SpellDamage(min: 2, max: 4, types: [Shock]),
+        Chain(jumps: 2, reach: 3),
+    ],
+)

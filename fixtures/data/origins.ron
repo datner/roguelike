@@ -1,0 +1,33 @@
+// What a character can start as (docs/plans/origins.md, ADR 0025), in the
+// order the menu shows them; the first is the default. Each blueprint
+// inherits "Player" and adds the kit, skills and techniques; `styles` are
+// known from the start, `follow` names one taken up.
+[
+    (
+        key: "Wanderer",
+        name: "Wanderer",
+        summary: "A traveller with a short bow, a torch and nowhere to be.",
+        blueprint: "Wanderer",
+    ),
+    (
+        key: "Duelist",
+        name: "Duelist",
+        summary: "Trained with the rapier, the off hand kept free; fencing is already second nature.",
+        blueprint: "Duelist",
+        styles: ["Fencing"],
+        follow: Some("Fencing"),
+    ),
+    (
+        key: "HedgeMage",
+        name: "Hedge mage",
+        summary: "Self-taught in a little fire and a little of the arcane: three spells and a torch.",
+        blueprint: "HedgeMage",
+    ),
+    (
+        key: "PitFighter",
+        name: "Pit fighter",
+        summary: "Raised in the fighting pits: leather, fists, a brawler's habits and a hard head.",
+        blueprint: "PitFighter",
+        styles: ["Brawling"],
+    ),
+]

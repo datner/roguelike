@@ -21,4 +21,4 @@ What each module is for is in the index (`docs/MAP.md`); its API is
 
 - No ratatui, crossterm, egui or other drawing crate; never refer to hecs; never name `Command` or `Entity` (all checked by `scripts/check.sh`).
 - Timing is the frontend's: `Session::auto_step` is one turn of a run, the caller paces it. No clock here.
-- Test flows by driving a `Session` with `Input`s (`session.rs` tests); `crate::tests::state()` is a seed-3 game from the real data.
+- Test flows by driving a `Session` with `Input`s (`session.rs` tests); `crate::tests::state()` is a seed-3 game from the frozen test content (`fixtures/data/`, `crate::tests::data()`), never the shipped `data/`, so balance never moves a flow test.

@@ -1,0 +1,17 @@
+// A style (ADR 0019): fighting with the body alone. Its skill grows with
+// every bare-handed blow; at 3 it invents the shove (ADR 0024); at 4 a
+// perfect dodge is answered with a punch. It thrives in the embers.
+(
+    components: [
+        Name("brawling"),
+        Style(
+            domains: [Martial],
+            skill: "Brawling",
+            follows: ["Melee", "Unarmed"],
+            principles: [(from_level: 4, does: Riposte)],
+            invents: [(3, "Shove")],
+            // The heat of the pits: half again the style XP in the embers.
+            thrives: [("Embers", 50)],
+        ),
+    ],
+)

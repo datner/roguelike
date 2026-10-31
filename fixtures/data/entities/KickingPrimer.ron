@@ -1,0 +1,11 @@
+// A manual (ADR 0017, ADR 0024): read once, it teaches the push kick and a
+// little about fighting bare.
+(
+    components: [
+        Name("kicking primer"),
+        Appearance(glyph: '"', fg: (190, 170, 140), bg: (0, 0, 0)),
+        Item,
+        Lesson({"Unarmed": 100}),
+        Teaches(["PushKick"]),
+    ],
+)

@@ -1,0 +1,11 @@
+// Worn on the back. Arrows picked up go in it automatically, and it
+// supplies the bow's shots; nocking a special arrow by hand overrides it.
+(
+    components: [
+        Name("quiver"),
+        Appearance(glyph: ')', fg: (140, 100, 60), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Back),
+        Quiver(ammo: Arrow, capacity: 20),
+    ],
+)

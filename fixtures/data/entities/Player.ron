@@ -1,0 +1,51 @@
+(
+    inherits: "Humanoid",
+    components: [
+        Name("player"),
+        Player,
+        // The bare person: what a character holds and knows at the start
+        // comes from its origin (`data/origins.ron`), whose blueprint
+        // inherits this one.
+        // Skills grow by use (ADR 0017); only the player learns.
+        Learner,
+        Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
+        Health(current: 22, max: 22),
+        // Two more max health per level of Toughness, grown by being hurt in
+        // a fight (docs/plans/sturdiness.md). Origins set their own base.
+        Hardiness(per_level: 2),
+        // A point every three turns, from a budget of 125% of max health per
+        // floor (docs/plans/rest.md): too slow to matter in a fight, enough
+        // for a rest between fights, never more than a floor allows.
+        Regeneration(interval: 300, per_floor: 125, share: 5),
+        // Breath for sprinting (docs/plans/fights.md): ten steps, a point back
+        // every two turns, Agility deepening it.
+        Stamina(
+            value: 1000,
+            max: 10,
+            regen_ticks: 200,
+            growth: [(stat: Agility, max: 1, regen_bp: 1000)],
+        ),
+        Melee(min: 2, max: 4),
+        // Sharper of mind and will than the average creature: spells scale
+        // with the stat of the discipline casting them (ADR 0014).
+        Stats(strength: 16, agility: 16, intelligence: 18, willpower: 18),
+        CooldownCasting(school: Pyromancy, ticks_per_power: 300, stat: Willpower),
+        ManaCasting(school: Arcane, mana_per_power: 3, stat: Intelligence),
+        // A base of 10 mana, a point per 2 turns. Intelligence deepens it (+3 a
+        // modifier point, a little faster); Willpower quickens it (+20% pace a
+        // point, a little deeper). A value above the maximum starts it full.
+        Mana(
+            value: 1000,
+            max: 10,
+            regen_ticks: 200,
+            growth: [
+                (stat: Intelligence, max: 3, regen_bp: 500),
+                (stat: Willpower, max: 1, regen_bp: 2000),
+            ],
+        ),
+        SummonLimit(max: 2),
+        // Armor gets in the way: 5% per point worn, 1% less per point of
+        // Willpower modifier. Unarmored, casting never fizzles.
+        Fizzle(base_bp: 0, per_armor_bp: 500, per_modifier_bp: 100, stat: Willpower),
+    ],
+)

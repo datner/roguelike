@@ -1,0 +1,12 @@
+// A pyromancy burst (ADR 0014): it flies like firebolt, then goes off where
+// it lands, catching everyone nearby, the caster too if they stand close.
+// Twice firebolt's power, so twice its recharge.
+(
+    components: [
+        Name("fireball"),
+        Appearance(glyph: '*', fg: (255, 90, 20), bg: (0, 0, 0)),
+        Spell(school: Pyromancy, range: 6, power: 4),
+        SpellDamage(min: 2, max: 5, types: [Fire]),
+        Area(shape: Burst(radius: 1), hits: All),
+    ],
+)

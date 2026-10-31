@@ -1,0 +1,27 @@
+// The tri-sword form, step 2 of 3: only right after the horizontal slash,
+// a little surer and harder, and the run's blows teach half again as much.
+(
+    components: [
+        Name("vertical slash"),
+        Verb(word: "chop", at: true),
+        Technique(
+            domain: Martial,
+            reach: 1,
+            recharge: 0,
+            stamina: 0,
+            requires: [Wielding(["Sword"]), Continuing],
+            combo: (
+                group: "tri-sword",
+                step: 2,
+                within: 200,
+                xp_pct: 50,
+                display: Turns,
+                accuracy: 1,
+                damage_pct: 15,
+            ),
+        ),
+        // A form (ADR 0024): weaker than a bump untrained, far stronger
+        // mastered, 8% more damage per level of the blow's skill.
+        Blow(damage_pct: -30, mastery: 8),
+    ],
+)

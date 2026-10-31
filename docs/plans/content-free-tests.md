@@ -46,9 +46,9 @@ wanderer carries a bow, a quiver and a torch") instead of what the code does. Af
   `technique::a_kick_strikes_with_the_leg_…`. Numbers only move up, so a lower bound
   (`ai::a_rat_outpaces_you…`'s "at least four") passes it; slice 3 moves that one by hand.
 
-### 2. Frozen content for front, gui and shots — open
-- `fixtures/data/` and `scripts/fixtures.sh`; `front` tests, `gui` tests and shots load it. References
-  re-rendered once, on the fixture.
+### 2. Frozen content for front, gui and shots — done
+- `fixtures/data/` and `scripts/fixtures.sh`; `front` tests, `gui` tests and shots load it. Taken from
+  today's `data/`, so no reference moved.
 
 ### 3. Game tests check mechanisms — open
 - Every test `nudge.sh` lists: values of its own (inline blueprints, `bare_state`), or a relation to the

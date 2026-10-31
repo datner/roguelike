@@ -1,0 +1,26 @@
+// The tri-sword form, step 1 of 3 (ADR 0024): a level cut that opens the run.
+// The next step must follow within two turns. Shown as one row that turns
+// into whichever step comes next.
+(
+    components: [
+        Name("horizontal slash"),
+        Verb(word: "slash", at: true),
+        Technique(
+            domain: Martial,
+            reach: 1,
+            recharge: 400,
+            stamina: 0,
+            requires: [Wielding(["Sword"])],
+            combo: (
+                group: "tri-sword",
+                step: 1,
+                within: 200,
+                xp_pct: 50,
+                display: Turns,
+            ),
+        ),
+        // A form (ADR 0024): weaker than a bump untrained, far stronger
+        // mastered, 8% more damage per level of the blow's skill.
+        Blow(damage_pct: -30, mastery: 8),
+    ],
+)

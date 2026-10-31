@@ -1,0 +1,15 @@
+// The swarm (docs/plans/fights.md): fast, weak and many. One is nothing; a
+// pack in the open surrounds you (each beyond the first makes you easier to
+// hit). Find a corridor or a door, or use an area.
+(
+    inherits: "Creature",
+    components: [
+        Name("rat"),
+        Appearance(glyph: 'r', fg: (150, 120, 90), bg: (0, 0, 0)),
+        Health(current: 3, max: 3),
+        Melee(min: 1, max: 2),
+        Speed(150),
+        Hostile,
+        Morale(flee_below: 50),
+    ],
+)

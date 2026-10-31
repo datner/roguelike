@@ -1,0 +1,16 @@
+// Two-armed, two-legged anatomy. Each part holds one equipped item; an
+// item's `Equippable(part: ..)` says which kind of part it goes on.
+(
+    inherits: "Creature",
+    components: [
+        Name("humanoid"),
+        Body([
+            (kind: Head, name: "head"),
+            (kind: Body, name: "body"),
+            (kind: Back, name: "back"),
+            (kind: Hand, name: "right hand"),
+            (kind: Hand, name: "left hand"),
+            (kind: Feet, name: "feet"),
+        ]),
+    ],
+)

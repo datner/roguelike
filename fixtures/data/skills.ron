@@ -1,0 +1,67 @@
+// Every skill (ADR 0017). An action uses several at once; its level is their
+// weighted average, so specific skills weigh more than general ones. Ids
+// follow this order, but saves store names: reordering is safe.
+[
+    // Martial: how you fight.
+    (name: "Melee", domain: Martial, weight: 1),
+    (name: "Unarmed", domain: Martial, weight: 3),
+    (name: "Pierce", domain: Martial, weight: 2),
+    (name: "Slash", domain: Martial, weight: 2),
+    (name: "Blunt", domain: Martial, weight: 2),
+    (name: "Dagger", domain: Martial, weight: 3),
+    (name: "Sword", domain: Martial, weight: 3),
+    // How a weapon is held (from equipment, not the weapon).
+    (name: "One-handed", domain: Martial, weight: 1),
+    (name: "Empty offhand", domain: Martial, weight: 1),
+    // Missiles: the action, then the launcher.
+    (name: "Thrown", domain: Martial, weight: 1),
+    (name: "Archery", domain: Martial, weight: 1),
+    (name: "Bow", domain: Martial, weight: 3),
+    // A tag (weight 0): never counts toward a level, but names the short bow
+    // for techniques and styles that need one in hand (bow dancing).
+    (name: "Short bow", domain: Martial, weight: 0),
+    // Styles: each has its own skill, trained by uses that follow it
+    // (ADR 0019). It never counts toward a use's level.
+    (name: "Fencing", domain: Martial, weight: 1),
+    (name: "Brawling", domain: Martial, weight: 1),
+    (name: "Bow dancing", domain: Martial, weight: 1),
+
+    // Defence: how you avoid being hurt.
+    (name: "Dodge", domain: Defence, weight: 1),
+    (name: "Poise", domain: Defence, weight: 1),
+    (name: "Deflection", domain: Defence, weight: 1),
+    // Lasting: grown by being hurt in a fight, and by healing real wounds
+    // (docs/plans/sturdiness.md).
+    (name: "Toughness", domain: Defence, weight: 1),
+    (name: "Recovery", domain: Defence, weight: 1),
+
+    // Magic: the act, the school, then the form it takes.
+    (name: "Magic", domain: Magic, weight: 1),
+    (name: "Pyromancy", domain: Magic, weight: 3),
+    (name: "Arcane", domain: Magic, weight: 3),
+    (name: "Hemomancy", domain: Magic, weight: 3),
+    (name: "Bolt", domain: Magic, weight: 2),
+    (name: "Burst", domain: Magic, weight: 2),
+    (name: "Cone", domain: Magic, weight: 2),
+    (name: "Beam", domain: Magic, weight: 2),
+    (name: "Nova", domain: Magic, weight: 2),
+    (name: "Chain", domain: Magic, weight: 2),
+    (name: "Rune", domain: Magic, weight: 2),
+    (name: "Summoning", domain: Magic, weight: 2),
+    // Disciplines: how a cast is paid for; trained by paying.
+    (name: "Channeling", domain: Magic, weight: 1),
+    (name: "Bloodletting", domain: Magic, weight: 1),
+    (name: "Scroll lore", domain: Magic, weight: 1),
+
+    // Lore: what you know of the world, grown by meeting new things.
+    (name: "Beast lore", domain: Lore, weight: 1),
+    (name: "Arcana", domain: Lore, weight: 1),
+
+    // Attunement: at home in a phase (docs/plans/phases.md). Any use with
+    // stakes on a dive trains its phase's; each level softens that phase's
+    // hardships for you, never its lean.
+    (name: "Embers attunement", domain: Attunement, weight: 1),
+    (name: "Rime attunement", domain: Attunement, weight: 1),
+    (name: "Tempest attunement", domain: Attunement, weight: 1),
+    (name: "Mire attunement", domain: Attunement, weight: 1),
+]

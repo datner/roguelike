@@ -1,0 +1,14 @@
+// A goblin's bow: short, weak and badly strung. It reaches less far than a
+// short bow and holds steady only two tiles; past that each tile costs
+// accuracy (docs/plans/fights.md). A goblin archer has to come close.
+(
+    components: [
+        Name("crude bow"),
+        Appearance(glyph: '}', fg: (120, 90, 50), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Hand),
+        Launcher(range: 7, ammo: Arrow, stat: Agility, steady: 2),
+        Weapon(min: 1, max: 2, stat: Strength, types: [Blunt]),
+        Trains(["Bow", "Short bow"]),
+    ],
+)

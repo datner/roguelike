@@ -1,0 +1,10 @@
+// Hemomancy (ADR 0014): a bolt paid for in the caster's own blood. Known by
+// goblin shamans; raw force, so no armor resists it.
+(
+    components: [
+        Name("blood bolt"),
+        Appearance(glyph: '*', fg: (200, 30, 40), bg: (0, 0, 0)),
+        Spell(school: Hemomancy, range: 5, power: 2),
+        SpellDamage(min: 2, max: 4),
+    ],
+)

@@ -1,0 +1,27 @@
+// A technique (ADR 0024): a low blow at the legs with anything at all, weak
+// but leaving the enemy reeling (`OffBalance.ron`) for three turns.
+(
+    components: [
+        Name("trip"),
+        Verb(word: "trip"),
+        Technique(
+            domain: Martial,
+            reach: 1,
+            recharge: 600,
+            stamina: 0,
+            riders: [Effect("OffBalance")],
+            bonuses: [(style: "Bow dancing", from_level: 1, accuracy: 1, recharge_pct: -33)],
+            // The bow dance, step 2: it works alone as ever, and is a little
+            // surer right after a push kick.
+            combo: (
+                group: "bow dance",
+                step: 2,
+                within: 200,
+                xp_pct: 50,
+                display: Steps,
+                accuracy: 1,
+            ),
+        ),
+        Blow(damage_pct: -50),
+    ],
+)

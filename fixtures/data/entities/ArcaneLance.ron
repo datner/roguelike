@@ -1,0 +1,11 @@
+// An arcane beam (ADR 0014): aimed in a direction, it runs its full range
+// through every creature until a wall, sparing the caster's side.
+(
+    components: [
+        Name("arcane lance"),
+        Appearance(glyph: '-', fg: (180, 140, 255), bg: (0, 0, 0)),
+        Spell(school: Arcane, range: 8, power: 2),
+        SpellDamage(min: 2, max: 4, types: [Shock]),
+        Area(shape: Beam, hits: Enemies),
+    ],
+)

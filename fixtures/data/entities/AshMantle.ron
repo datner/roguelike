@@ -1,0 +1,12 @@
+// A cloak woven from ash (docs/plans/phases.md):
+// found only in the embers, never lying about elsewhere.
+(
+    components: [
+        Name("ash mantle"),
+        Appearance(glyph: '(', fg: (200, 110, 60), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+        Equippable(part: Back),
+        Armor(fire: 3),
+    ],
+)

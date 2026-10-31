@@ -1,0 +1,15 @@
+// A slow thing from the mud (docs/plans/phases.md): a native of the mire. It shrugs off acid and deals
+// it, so the phase's lean cuts both ways.
+(
+    inherits: "Creature",
+    components: [
+        Name("bog crawler"),
+        Appearance(glyph: 'c', fg: (120, 160, 70), bg: (0, 0, 0)),
+        Health(current: 12, max: 12),
+        Melee(min: 2, max: 4),
+        Natural([Acid]),
+        Armor(acid: 4),
+        Speed(80),
+        Hostile,
+    ],
+)

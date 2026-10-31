@@ -1,0 +1,45 @@
+// A dungeon (game::dungeon); see Caves.ron for the fields. Its floors are
+// built rooms joined by corridors (game::rooms) rather than grown caves.
+(
+    name: "the castle",
+    arrival: "Cold halls open around you; goblins hold the castle.",
+    generator: Rooms(
+        attempts: 60,
+        min_size: 4,
+        max_size: 10,
+        // A door in most doorways: shut, it breaks sight and makes a
+        // chokepoint (docs/plans/fights.md).
+        doors: 60,
+    ),
+    // Its bottom, and a way-landing (stairs up to camp) every third floor
+    // and there (docs/plans/depth.md).
+    floors: 12,
+    landing_every: 3,
+    // Fallen masonry in the halls: a step onto it costs double
+    // (docs/plans/fights-2.md).
+    rubble: 5,
+    creatures: [
+        (blueprint: "Goblin", count: 5, per_floor: 1),
+        // One patrols each floor: resting in the open can be found.
+        (blueprint: "GoblinScout", count: 1),
+        // An archer on the walls: it keeps its distance (docs/plans/fights.md).
+        (blueprint: "GoblinArcher", count: 1),
+        // A brute guards the halls: its swing is shown before it lands.
+        (blueprint: "GoblinBrute", count: 1),
+        (blueprint: "GoblinShaman", count: 1),
+        (blueprint: "GoblinShaman", count: 1, phases: ["Embers"]),
+        // Each phase's natives (docs/plans/phases.md).
+        (blueprint: "EmberImp", count: 1, phases: ["Embers"]),
+        (blueprint: "RimeWisp", count: 2, phases: ["Rime"]),
+        (blueprint: "StormHawk", count: 1, phases: ["Tempest"]),
+        (blueprint: "BogCrawler", count: 1, phases: ["Mire"]),
+    ],
+    items: [
+        (count: 4, per_floor: 1),
+        // Each phase's find, never lying about in another.
+        (count: 1, phases: ["Embers"], blueprint: "AshMantle"),
+        (count: 1, phases: ["Rime"], blueprint: "RimeCharm"),
+        (count: 1, phases: ["Tempest"], blueprint: "StormJavelin"),
+        (count: 1, phases: ["Mire"], blueprint: "BogWaders"),
+    ],
+)

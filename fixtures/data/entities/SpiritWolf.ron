@@ -1,0 +1,19 @@
+// What "summon wolf" calls (ADR 0015): a quick, light fighter on its
+// summoner's side, held in the world by a `Binding` until it runs out. It
+// goes for the legs: an ability, known from what it is (ADR 0024).
+(
+    inherits: "Creature",
+    components: [
+        Name("spirit wolf"),
+        Appearance(glyph: 'w', fg: (150, 200, 255), bg: (0, 0, 0)),
+        Health(current: 8, max: 8),
+        Melee(min: 2, max: 4),
+        Speed(120),
+        TechniqueAi,
+        // It charges: sprinting while its quarry is far, a few bounds' worth
+        // of breath (docs/plans/fights.md).
+        SprintAi,
+        Stamina(value: 6, max: 6, regen_ticks: 300),
+    ],
+    techniques: ["Trip"],
+)

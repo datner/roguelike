@@ -1,0 +1,15 @@
+// Legacy (game::legacy, docs/plans/legacy.md): how many lives a lineage
+// keeps, and how long ago each one ended. Gaps go from shortest to longest;
+// the newest ruins roll one, each older set adds another roll to its newer
+// neighbour's, so older ruins are never better kept. `survives` is the %
+// chance each stashed item lasts, `lesson` the % of a predecessor's level a
+// memoir can still teach, `journal` whether their journal can still be read.
+// First guesses, to tune after playing.
+(
+    keep: 3,
+    gaps: [
+        (name: "a season", weight: 3, survives: 70, lesson: 50, journal: true),
+        (name: "years", weight: 2, survives: 35, lesson: 35, journal: true),
+        (name: "an age", weight: 1, survives: 10, lesson: 25, journal: false),
+    ],
+)

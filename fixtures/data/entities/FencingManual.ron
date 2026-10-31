@@ -1,0 +1,10 @@
+// A lesson (ADR 0017): read once, it teaches the blade and the thrust a
+// good deal; a second copy teaches nothing new.
+(
+    components: [
+        Name("fencing manual"),
+        Appearance(glyph: '"', fg: (210, 190, 140), bg: (0, 0, 0)),
+        Item,
+        Lesson({"Sword": 200, "Pierce": 100}),
+    ],
+)

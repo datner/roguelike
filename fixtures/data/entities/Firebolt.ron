@@ -1,0 +1,12 @@
+// A known spell, attached to its caster rather than carried (ADR 0014). It
+// is a bolt along a line: `Spell` says how it is aimed and how much
+// `power` it asks of a discipline, `SpellDamage` what it does on arrival.
+// It scales with the stat of the discipline that casts it, not its own.
+(
+    components: [
+        Name("firebolt"),
+        Appearance(glyph: '*', fg: (255, 140, 40), bg: (0, 0, 0)),
+        Spell(school: Pyromancy, range: 7, power: 2),
+        SpellDamage(min: 3, max: 6, types: [Fire]),
+    ],
+)

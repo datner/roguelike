@@ -1,0 +1,12 @@
+// A shard of ice that never melts (docs/plans/phases.md):
+// found only in the rime, never lying about elsewhere.
+(
+    components: [
+        Name("rime charm"),
+        Appearance(glyph: '"', fg: (170, 220, 255), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+        Equippable(part: Head),
+        Armor(cold: 3),
+    ],
+)

@@ -1,0 +1,18 @@
+// A technique (ADR 0024): a long low cut through the enemies in front of you,
+// out to two tiles, at half strength. The ground is a cone, as for spells
+// (`area.rs`), so walls stop it the same way.
+(
+    components: [
+        Name("sweep"),
+        Verb(word: "sweep"),
+        Technique(
+            domain: Martial,
+            reach: 2,
+            recharge: 800,
+            stamina: 0,
+            requires: [Wielding(["Slash"])],
+        ),
+        Area(shape: Cone, hits: Enemies),
+        Blow(damage_pct: -50),
+    ],
+)

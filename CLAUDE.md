@@ -20,6 +20,11 @@ already runs in it, so commands need no `nix develop` prefix.
   `gui/tests/snapshots/` and names the diff image on a mismatch;
   `--update` rewrites changed references, committed with the drawing change.
   Run `--check` after any drawing change.
+- Test content: game tests load `data/` through `testkit::data()` and must not
+  pin its numbers (`scripts/nudge.sh`, in `check.sh`, runs them on a copy with
+  the numbers moved). `front`/`gui` tests and shots load the frozen
+  `fixtures/data/`; `scripts/fixtures.sh` refreshes it, only when the data's
+  format changes. A balance change touches no test and no shot.
 - `nix flake check` only sees files git tracks: `git add -N` new files first.
 - Balance bench: `cargo balance` (~20 s, every core) rewrites `bench/report.md` and `.json` (builds
   in `bench/builds/` against training dolls and through dives, in the real game) and says on stderr

@@ -1,0 +1,6 @@
+// A wind-up under way (docs/plans/fights.md): a timed effect on the one
+// winding up, marking the tiles its blow will strike when it expires. No
+// `Name`, so it starts and ends silently; the wind-up and the blow say so.
+(
+    components: [],
+)

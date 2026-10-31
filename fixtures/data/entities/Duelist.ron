@@ -1,0 +1,16 @@
+// The duelist: a rapier and an empty off hand, fencing already under way.
+// No ability: the style is its head start (`data/origins.ron`).
+(
+    inherits: "Player",
+    components: [
+        Skills({
+            "Pierce": 2,
+            "Sword": 1,
+            "One-handed": 2,
+            "Empty offhand": 2,
+            "Fencing": 1,
+        }),
+    ],
+    equipment: ["Rapier"],
+    techniques: ["Trip"],
+)

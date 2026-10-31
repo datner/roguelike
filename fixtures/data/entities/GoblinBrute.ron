@@ -1,0 +1,12 @@
+// The brute (docs/plans/fights.md): big, slow to swing, and the swing is
+// shown before it lands. Step out of it, hit it to stagger it, or take it.
+(
+    inherits: "Goblin",
+    components: [
+        Name("goblin brute"),
+        Appearance(glyph: 'G', fg: (60, 170, 60), bg: (0, 0, 0), sprite: "goblin"),
+        Health(current: 18, max: 18),
+        Melee(min: 2, max: 4),
+    ],
+    techniques: ["HeavySwing"],
+)

@@ -1,0 +1,23 @@
+// A style (ADR 0019): fighting up close with a short bow in hand, the legs
+// doing the close work. Any martial use with a short bow in hand follows it
+// (a shot, a kick, a bash); the same kick with a sabre does not. From 1
+// every action gathers the arrows lying within a tile back into the quiver;
+// at 2 an enemy alongside no longer spoils a shot; it invents the push kick at 2
+// and the parting shot at 4 (docs/plans/bow-dancing.md).
+(
+    components: [
+        Name("bow dancing"),
+        Style(
+            domains: [Martial],
+            skill: "Bow dancing",
+            follows: [],
+            wielding: ["Short bow"],
+            principles: [
+                // Arrows shot up close are caught up again in the dance.
+                (from_level: 1, does: Gather),
+                (from_level: 2, does: SteadyClose),
+            ],
+            invents: [(2, "PushKick"), (4, "PartingShot")],
+        ),
+    ],
+)

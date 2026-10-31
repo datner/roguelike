@@ -1,0 +1,43 @@
+// What skill combinations inspire (ADR 0018). Checked in this order after
+// each use with stakes; a discovery is made once, and grants a proficiency
+// (a blueprint with `Proficiency`, attached to the learner), a style (a
+// blueprint with `Style`, known until followed; ADR 0019) or a technique
+// (a blueprint with `Technique`, attached; ADR 0024). `Phase(key)` means the
+// use must happen on a dive in that phase (docs/plans/phases.md).
+[
+    (
+        name: "Footwork",
+        requires: [Skill("Dodge", 4), Skill("Poise", 2)],
+        grants: Proficiency("Footwork"),
+    ),
+    (
+        name: "Fencing",
+        requires: [
+            Skill("Melee", 3),
+            Skill("Pierce", 3),
+            Skill("One-handed", 3),
+            Skill("Empty offhand", 3),
+        ],
+        grants: Style("Fencing"),
+    ),
+    (
+        name: "Brawling",
+        requires: [Skill("Melee", 3), Skill("Unarmed", 3), Skill("Dodge", 3)],
+        grants: Style("Brawling"),
+    ),
+    (
+        name: "Bow dancing",
+        requires: [Skill("Archery", 3), Skill("Unarmed", 2)],
+        grants: Style("BowDancing"),
+    ),
+    (
+        name: "the cleave",
+        requires: [Skill("Melee", 3), Skill("Slash", 3)],
+        grants: Technique("Cleave"),
+    ),
+    (
+        name: "Ember-hardened",
+        requires: [Skill("Toughness", 3), Skill("Embers attunement", 2), Phase("Embers")],
+        grants: Proficiency("EmberHardened"),
+    ),
+]

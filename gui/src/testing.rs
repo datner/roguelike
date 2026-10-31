@@ -36,7 +36,8 @@ pub fn setup(name: &str) -> Setup {
         std::env::temp_dir().join(format!("roguelike-gui-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&saves_dir);
     Setup {
-        data_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        // Frozen content, so balance never moves a shot (`scripts/fixtures.sh`).
+        data_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/data"),
         saves_dir,
         seed: Some(3),
     }

@@ -1,0 +1,9 @@
+(
+    components: [
+        Name("leather armor"),
+        Appearance(glyph: '[', fg: (160, 120, 80), bg: (0, 0, 0)),
+        Item,
+        Equippable(part: Body),
+        Armor(slashing: 1, blunt: 1),
+    ],
+)

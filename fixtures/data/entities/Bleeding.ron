@@ -1,0 +1,10 @@
+// A timed effect: attached to its target by `ApplyEffect`, which turns
+// `Duration` into `Timed { start: now, .. }`. The name completes the expiry
+// message ("You stop bleeding.").
+(
+    components: [
+        Name("bleeding"),
+        Bleeding(damage: 1, interval: 100),
+        Duration(500),
+    ],
+)

@@ -1,0 +1,12 @@
+// Waders tarred against the mire (docs/plans/phases.md):
+// found only in the mire, never lying about elsewhere.
+(
+    components: [
+        Name("bog waders"),
+        Appearance(glyph: '[', fg: (120, 160, 70), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+        Equippable(part: Feet),
+        Armor(acid: 3),
+    ],
+)

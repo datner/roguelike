@@ -1,0 +1,8 @@
+// The timed effect that holds a summon in the world (ADR 0015). Its length
+// is the summoning spell's `lifetime`, set when it is attached; on expiry
+// the summon is dismissed. No `Name`, so it starts and stops silently.
+(
+    components: [
+        Binding,
+    ],
+)

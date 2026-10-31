@@ -1,0 +1,11 @@
+// A manual (ADR 0017, ADR 0024): read once, it teaches the lunge and a
+// little about the thrust; a second copy teaches nothing new.
+(
+    components: [
+        Name("treatise on the lunge"),
+        Appearance(glyph: '"', fg: (200, 190, 160), bg: (0, 0, 0)),
+        Item,
+        Lesson({"Pierce": 100}),
+        Teaches(["Lunge"]),
+    ],
+)

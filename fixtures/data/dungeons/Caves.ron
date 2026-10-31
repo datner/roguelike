@@ -1,0 +1,60 @@
+// A dungeon (game::dungeon): its name, the line logged on reaching each
+// floor, how its floors are generated, and what lives on them. Creatures are
+// placed in the order listed, then items; `per_floor` adds that many more on
+// each floor below the first they live on (`from`, 1 when absent), and
+// `phases` limits an entry to those phases (data/phases.ron). Changing the
+// cave tuning or the counts changes every seeded world.
+(
+    name: "the caves",
+    arrival: "Goblins prowl these caves.",
+    generator: Cave(
+        wall_chance: 0.45,
+        iterations: 5,
+        wall_birth: 5,
+        wall_survival: 4,
+        min_floor_fraction: 0.35,
+    ),
+    // Its bottom, and a way-landing (stairs up to camp) every third floor
+    // and there (docs/plans/depth.md).
+    floors: 9,
+    landing_every: 3,
+    // Drops to the floor below: shove something in.
+    chasms: 4,
+    // Deep water: shove something in to drown it (docs/plans/fights-2.md).
+    water: 3,
+    // Tall grass: hides what stands in it, and burns.
+    grass: 6,
+    // Rubble: a step onto it costs double (docs/plans/fights-2.md).
+    rubble: 4,
+    creatures: [
+        (blueprint: "Goblin", count: 4, per_floor: 1),
+        // One patrols each floor: resting in the open can be found.
+        (blueprint: "GoblinScout", count: 1),
+        // The first floor teaches the bump; range comes on the second.
+        (blueprint: "GoblinArcher", count: 1, from: 2),
+        // A rat pack: fast and many, for a corridor or an area to answer.
+        (blueprint: "Rat", count: 3, per_floor: 1),
+        // Deeper is newer: below the first landing, kinds the shallows lack.
+        // The Embers have them from the top (below).
+        (blueprint: "GoblinBrute", count: 1, from: 4, phases: ["Stillness", "Rime", "Tempest", "Mire"]),
+        (blueprint: "GoblinShaman", count: 1, from: 5, phases: ["Stillness", "Rime", "Tempest", "Mire"]),
+        // In the Embers a brute prowls the caves.
+        (blueprint: "GoblinBrute", count: 1, phases: ["Embers"]),
+        (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),
+        // Each phase's natives (docs/plans/phases.md): they shrug off its
+        // element and deal it.
+        (blueprint: "EmberImp", count: 2, phases: ["Embers"]),
+        (blueprint: "RimeWisp", count: 3, phases: ["Rime"]),
+        (blueprint: "StormHawk", count: 2, phases: ["Tempest"]),
+        (blueprint: "BogCrawler", count: 2, phases: ["Mire"]),
+    ],
+    items: [
+        (count: 5),
+        (count: 3, phases: ["Embers"]),
+        // Each phase's find, never lying about in another.
+        (count: 1, phases: ["Embers"], blueprint: "AshMantle"),
+        (count: 1, phases: ["Rime"], blueprint: "RimeCharm"),
+        (count: 1, phases: ["Tempest"], blueprint: "StormJavelin"),
+        (count: 1, phases: ["Mire"], blueprint: "BogWaders"),
+    ],
+)

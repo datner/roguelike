@@ -1,0 +1,10 @@
+// A predecessor's journal (docs/plans/legacy.md): its `Reveals`, set in the
+// ruins from their record, names the discoveries they made.
+(
+    components: [
+        Name("journal"),
+        Appearance(glyph: '"', fg: (170, 190, 220), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+    ],
+)
