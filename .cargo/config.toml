@@ -1,0 +1,3 @@
+[alias]
+# The balance bench (docs/plans/bench-cli.md); its modes are in bench/src/main.rs.
+balance = "run --quiet --release -p bench --"

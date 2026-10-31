@@ -2,7 +2,7 @@
 <!--
   The balance bench's readable report (docs/plans/balance.md, slice 6; the
   Floors and Off target panels, docs/plans/floor-bot.md).
-  `bench --page FILE` fills the REPORT and PREVIOUS constants with the bench's
+  `cargo balance --page FILE` fills the REPORT and PREVIOUS constants with the bench's
   JSON; the /balance-report skill may replace the READING comment below
   with a short written reading before publishing. Nothing here works out a
   number: it only draws what the bench measured.
@@ -153,7 +153,7 @@ function ticks(max) {
 
 function render() {
   if (!REPORT) {
-    $("meta").textContent = "No report filled in: run scripts/balance.sh --page FILE.";
+    $("meta").textContent = "No report filled in: run cargo balance --page FILE.";
     return;
   }
   const first = REPORT.scenarios[0];

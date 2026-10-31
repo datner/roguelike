@@ -4,5 +4,7 @@ edition.workspace = true
 
 [dependencies]
 game = { path = "../game" }
+# The gui's saves directory, for `--calibrate`'s default file.
+front = { path = "../front" }
 serde.workspace = true
 ron.workspace = true

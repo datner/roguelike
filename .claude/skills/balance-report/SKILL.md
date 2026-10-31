@@ -8,9 +8,9 @@ description: Runs the balance bench and publishes its readable report as a priva
 The bench measures; you only read. Every number on the page comes from `bench` (docs/plans/balance.md);
 never type one into the page yourself.
 
-1. **Make the page.** `scripts/balance.sh --page <scratchpad>/balance.html` runs the bench and fills
+1. **Make the page.** `cargo balance --page <scratchpad>/balance.html` runs the bench and fills
    `bench/page.html` with its JSON, and with the committed `bench/report.json` for "What moved".
-2. **Read it.** Read the generated `bench/report.md`'s numbers (or `scripts/balance.sh --print`), and
+2. **Read it.** Read the generated `bench/report.md`'s numbers (or `cargo balance --print`), and
    `git log --oneline -15 -- data game/src bench` for what changed lately.
 3. **Write the reading.** Replace the `<!--READING-->` comment in the generated page (not the template)
    with three to six short `<p>` paragraphs, plain words, no headings:

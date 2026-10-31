@@ -68,13 +68,18 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   a count. The off-target numbers are a count; the report lists them. Only after a full run at
   the default seeds, since any other differs everywhere.
 
-### 6. One command
+### 6. One command — done
 - `--check` in the binary (regenerate, compare with `bench/report.md`, print the diff's rows, exit
   1 if moved); `--page` reads the previous JSON from `git show HEAD:bench/report.json` itself;
   `--calibrate` defaults to the gui's saves directory (`front::saves::default_dir`).
 - `.cargo/config.toml`: `[alias] balance = "run --quiet --release -p bench --"`.
   `scripts/balance.sh` is removed; `CLAUDE.md`, `README.md`, the plans and the `/balance-report`
   skill name `cargo balance`.
+- As built: no mode rewrites the report (the script's default); `--out`, `--json` and
+  `--previous` are gone with the script that passed them. Narrowed or other-seed runs only print,
+  and refuse `--check` and `--page`. `bench` depends on `front` for the saves directory. Done
+  plans keep naming `scripts/balance.sh`, as built at the time. The committed `report.json` had
+  been a filled-in page since slice 2's commit; regenerated here.
 
 ## Out of scope
 
