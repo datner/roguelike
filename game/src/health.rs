@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn origins_start_at_their_own_health() {
-        for (origin, max) in [("PitFighter", 26), ("HedgeMage", 16), ("Wanderer", 20)] {
+        for (origin, max) in [("PitFighter", 26), ("HedgeMage", 16), ("Wanderer", 22)] {
             let state = GameState::new_as(1, data(), Some(origin)).unwrap();
             assert_eq!(health(&state), (max, max), "{origin}");
         }
@@ -144,11 +144,11 @@ mod tests {
         skills.set(core.toughness, skill::xp_for(3));
         state.world.insert_one(player, skills).unwrap();
         refresh(&mut state, player);
-        assert_eq!(health(&state), (16, 26));
+        assert_eq!(health(&state), (16, 28));
         let mut skills = Skills::default();
         skills.set(core.toughness, skill::xp_for(10));
         state.world.insert_one(player, skills).unwrap();
         refresh(&mut state, player);
-        assert_eq!(health(&state).1, 40, "a veteran at Toughness 10");
+        assert_eq!(health(&state).1, 42, "a veteran at Toughness 10");
     }
 }

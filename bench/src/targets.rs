@@ -221,7 +221,8 @@ pub fn misses(rows: &[DiveRow], targets: &Targets) -> Vec<Miss> {
         };
         for target in &targets.levels {
             let reach = reach(&row.runs, &skill, target.level);
-            if reach.floors().is_none_or(|n| outside(n, target.floors)) {
+            // A build made at that level (a veteran) says nothing about the pace there.
+            if reach != Reach::Start && reach.floors().is_none_or(|n| outside(n, target.floors)) {
                 misses.push(miss(
                     &format!("floors to {skill} {}", target.level),
                     reach.label(),

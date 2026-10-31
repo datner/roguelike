@@ -9,7 +9,7 @@
         // Skills grow by use (ADR 0017); only the player learns.
         Learner,
         Appearance(glyph: '☺', fg: (255, 255, 255), bg: (0, 0, 0), sprite: "player"),
-        Health(current: 20, max: 20),
+        Health(current: 22, max: 22),
         // Two more max health per level of Toughness, grown by being hurt in
         // a fight (docs/plans/sturdiness.md). Origins set their own base.
         Hardiness(per_level: 2),

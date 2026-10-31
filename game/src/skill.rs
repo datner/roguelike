@@ -196,7 +196,7 @@ pub(crate) const BASE_XP: u32 = 10;
 const ATTUNE_SHARE: u32 = 4;
 /// How fast repetition decays XP: the `n`th use against the same kind of
 /// thing is worth `DECAY / (DECAY + n)` of a first one.
-const DECAY: u32 = 10;
+const DECAY: u32 = 20;
 
 /// Total XP needed to reach `level`.
 pub fn xp_for(level: u32) -> u32 {

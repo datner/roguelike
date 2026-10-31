@@ -462,7 +462,7 @@ mod tests {
         let mut looking = Looking::new(&state).unwrap();
         let status = look_status(&state, &looking);
         assert!(
-            status.starts_with("You: health 20/20") || status.contains("know too little"),
+            status.starts_with("You: health 22/22") || status.contains("know too little"),
             "{status}"
         );
         looking.handle(AimInput::Move(Dir::N), &state);

@@ -723,7 +723,7 @@ mod tests {
             .find(|inhabitant| inhabitant.blueprint == "Rat")
             .unwrap();
         assert!(castle || rats.len() == pack.on_floor(1));
-        assert!(pack.on_floor(1) >= 4);
+        assert!(pack.on_floor(1) >= 3);
         let rat = data.get("Rat").unwrap();
         let speed = rat
             .components

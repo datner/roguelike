@@ -957,6 +957,7 @@ mod tests {
             blueprint: "Goblin".into(),
             count: 3,
             per_floor: 0,
+            from: 1,
             phases: vec!["Embers".into()],
         });
         let blueprints = test_blueprints()

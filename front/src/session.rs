@@ -567,6 +567,7 @@ mod tests {
         assert_eq!(
             worn,
             [
+                ("leather armor".to_string(), None),
                 ("quiver".to_string(), Some("12/20".to_string())),
                 ("short bow".to_string(), None),
                 ("torch".to_string(), None)
@@ -739,12 +740,9 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
         let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
         let state = GameState::new(3, blueprints).unwrap();
-        // 125% of the player's 20 health.
-        assert!(
-            Session::new(state, "hero")
-                .status()
-                .contains("  Rest: 25  Turn: 0")
-        );
+        // 125% of the player's 22 health.
+        let status = Session::new(state, "hero").status();
+        assert!(status.contains("  Rest: 27  Turn: 0"), "{status}");
     }
 
     #[test]

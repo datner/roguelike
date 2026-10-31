@@ -138,20 +138,31 @@ impl Generator {
 #[serde(deny_unknown_fields)]
 pub struct Inhabitant {
     pub blueprint: String,
-    /// How many on the first floor.
+    /// How many on the first floor they live on.
     pub count: usize,
-    /// How many more on each floor below the first.
+    /// How many more on each floor below that.
     #[serde(default)]
     pub per_floor: usize,
+    /// The first floor they live on (the vision's "deeper is newer"): a new
+    /// kind of creature is new to fight, and novelty is what trains.
+    #[serde(default = "first_floor")]
+    pub from: u32,
     /// The phases these live in; none means every phase.
     #[serde(default)]
     pub phases: Vec<String>,
 }
 
+fn first_floor() -> u32 {
+    1
+}
+
 impl Inhabitant {
     /// How many on `floor`, counted from 1.
     pub fn on_floor(&self, floor: u32) -> usize {
-        grow(self.count, self.per_floor, floor)
+        if floor < self.from {
+            return 0;
+        }
+        grow(self.count, self.per_floor, floor + 1 - self.from.max(1))
     }
 
     pub fn in_phase(&self, phase: &str) -> bool {
@@ -252,6 +263,7 @@ pub(crate) mod tests {
                 blueprint: "Goblin".into(),
                 count: 6,
                 per_floor: 1,
+                from: 1,
                 phases: Vec::new(),
             }],
             items: vec![Scatter {
@@ -269,10 +281,25 @@ pub(crate) mod tests {
             blueprint: "Goblin".into(),
             count: 6,
             per_floor: 2,
+            from: 1,
             phases: Vec::new(),
         };
         assert_eq!(goblins.on_floor(1), 6);
         assert_eq!(goblins.on_floor(3), 10);
+    }
+
+    #[test]
+    fn deeper_kinds_start_on_their_floor_and_grow_from_it() {
+        let brutes = Inhabitant {
+            blueprint: "GoblinBrute".into(),
+            count: 1,
+            per_floor: 1,
+            from: 4,
+            phases: Vec::new(),
+        };
+        assert_eq!(brutes.on_floor(3), 0);
+        assert_eq!(brutes.on_floor(4), 1);
+        assert_eq!(brutes.on_floor(6), 3);
     }
 
     #[test]

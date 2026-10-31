@@ -331,7 +331,7 @@ mod tests {
         assert!(
             wanderer
                 .starts_with
-                .contains(&"Carries: short bow, quiver, torch".to_string()),
+                .contains(&"Carries: short bow, quiver, torch, leather armor".to_string()),
             "{:?}",
             wanderer.starts_with
         );
@@ -386,7 +386,12 @@ mod tests {
         let wanderer = room_as("Wanderer");
         assert_eq!(
             equipped(&wanderer),
-            ["the short bow", "the quiver", "the torch"]
+            [
+                "the short bow",
+                "the quiver",
+                "the torch",
+                "the leather armor"
+            ]
         );
         assert_eq!(level(&wanderer, "Archery"), 1);
         assert!(crate::view::known_spells(&wanderer).is_empty());

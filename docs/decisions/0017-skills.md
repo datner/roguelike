@@ -34,10 +34,12 @@ cannot be ground out by repetition. The build plan is
 - **XP is stored; levels are derived** (`skill::level`, `50 × n²` XP for
   level `n`, at most 20). Changing the curve needs no save migration.
 - **Use trains, only with stakes, less each time.** A melee hit on an
-  enemy (`side::enemies`) gives each skill used `BASE_XP × 10 / (10 + n)`,
+  enemy (`side::enemies`) gives each skill used `BASE_XP × 20 / (20 + n)`,
   where `n` counts earlier uses of that skill against that kind of thing
   (its `Name`, in `Familiarity`). Variety restores the rate; repetition
-  can't be ground. No randomness is drawn.
+  can't be ground. No randomness is drawn. (The decay was `10 / (10 + n)`
+  until the first pacing pass: a dungeon's handful of kinds then ran dry
+  long before the vision's level targets; the bench measures it.)
 - **Training happens inside the attack's applier** (`skill::train`, called
   from `command::attack`), not through its own `Command`: it is part of
   applying the attack, and the skill list it carries isn't `Copy`.

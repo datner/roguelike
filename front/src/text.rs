@@ -423,7 +423,7 @@ mod tests {
     fn the_sheet_lines_up_labels_and_values() {
         let rows: Vec<String> = character(&state()).iter().map(|row| flat(row)).collect();
         assert_eq!(rows[0], "Wanderer", "the origin heads the sheet");
-        assert!(rows[1].starts_with("HP 20/20"), "{rows:?}");
+        assert!(rows[1].starts_with("HP 22/22"), "{rows:?}");
         assert!(rows.iter().any(|row| row.starts_with("STR ")), "{rows:?}");
         assert!(
             rows.iter().any(|row| row == "Explore note items"),

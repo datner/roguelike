@@ -1,9 +1,9 @@
 // A dungeon (game::dungeon): its name, the line logged on reaching each
 // floor, how its floors are generated, and what lives on them. Creatures are
 // placed in the order listed, then items; `per_floor` adds that many more on
-// each floor below the first, and `phases` limits an entry to those phases
-// (data/phases.ron). Changing the cave tuning or the counts changes every
-// seeded world.
+// each floor below the first they live on (`from`, 1 when absent), and
+// `phases` limits an entry to those phases (data/phases.ron). Changing the
+// cave tuning or the counts changes every seeded world.
 (
     name: "the caves",
     arrival: "Goblins prowl these caves.",
@@ -27,12 +27,17 @@
     // Rubble: a step onto it costs double (docs/plans/fights-2.md).
     rubble: 4,
     creatures: [
-        (blueprint: "Goblin", count: 6, per_floor: 1),
+        (blueprint: "Goblin", count: 4, per_floor: 1),
         // One patrols each floor: resting in the open can be found.
         (blueprint: "GoblinScout", count: 1),
-        (blueprint: "GoblinArcher", count: 1),
+        // The first floor teaches the bump; range comes on the second.
+        (blueprint: "GoblinArcher", count: 1, from: 2),
         // A rat pack: fast and many, for a corridor or an area to answer.
-        (blueprint: "Rat", count: 4, per_floor: 1),
+        (blueprint: "Rat", count: 3, per_floor: 1),
+        // Deeper is newer: below the first landing, kinds the shallows lack.
+        // The Embers have them from the top (below).
+        (blueprint: "GoblinBrute", count: 1, from: 4, phases: ["Stillness", "Rime", "Tempest", "Mire"]),
+        (blueprint: "GoblinShaman", count: 1, from: 5, phases: ["Stillness", "Rime", "Tempest", "Mire"]),
         // In the Embers a brute prowls the caves.
         (blueprint: "GoblinBrute", count: 1, phases: ["Embers"]),
         (blueprint: "GoblinShaman", count: 2, phases: ["Embers"]),

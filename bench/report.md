@@ -240,51 +240,32 @@ The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through rea
 
 ### Off target
 
-- pit fighter in Caves: keypresses per floor 148 (target 150–300)
-- pit fighter in Caves: floors to Dodge 5 ~16 (target 3–12)
-- pit fighter in Caves: floors to Dodge 10 ~83 (target 12–48)
-- pit fighter in Caves: floors to Dodge 15 ~196 (target 36–90)
-- duelist in Caves: keypresses per floor 78 (target 150–300)
-- duelist in Caves: runs reaching floor 3 5% (target 0.6–0.9)
-- hedge mage in Caves: fight length 1.8 (target 3–8)
-- hedge mage in Caves: keypresses per floor 51 (target 150–300)
-- hedge mage in Caves: floors to Magic 5 ~17 (target 3–12)
-- hedge mage in Caves: floors to Magic 10 ~91 (target 12–48)
-- hedge mage in Caves: floors to Magic 15 ~214 (target 36–90)
-- wanderer in Caves: keypresses per floor 67 (target 150–300)
-- wanderer in Caves: runs reaching floor 3 0% (target 0.6–0.9)
-- pit fighter in Caves in the Embers: fight length 8.2 (target 3–8)
-- pit fighter in Caves in the Embers: keypresses per floor 100 (target 150–300)
-- duelist in Caves in the Embers: keypresses per floor 58 (target 150–300)
+- pit fighter in Caves: keypresses per floor 124 (target 150–300)
+- pit fighter in Caves: runs reaching floor 3 100% (target 0.6–0.9)
+- pit fighter in Caves: floors to Dodge 15 ~93 (target 36–90)
+- duelist in Caves: keypresses per floor 72 (target 150–300)
+- hedge mage in Caves: fight length 1.9 (target 3–8)
+- hedge mage in Caves: keypresses per floor 47 (target 150–300)
+- wanderer in Caves: keypresses per floor 119 (target 150–300)
+- wanderer in Caves: runs reaching floor 3 95% (target 0.6–0.9)
+- pit fighter in Caves in the Embers: keypresses per floor 103 (target 150–300)
+- pit fighter in Caves in the Embers: floors to Blunt 15 ~35 (target 36–90)
+- duelist in Caves in the Embers: keypresses per floor 52 (target 150–300)
 - hedge mage in Caves in the Embers: fight length 2.0 (target 3–8)
-- hedge mage in Caves in the Embers: keypresses per floor 67 (target 150–300)
-- hedge mage in Caves in the Embers: floors to Magic 10 ~53 (target 12–48)
-- hedge mage in Caves in the Embers: floors to Magic 15 ~127 (target 36–90)
-- wanderer in Caves in the Embers: keypresses per floor 66 (target 150–300)
-- pit fighter in Castle: keypresses per floor 103 (target 150–300)
-- duelist in Castle: keypresses per floor 43 (target 150–300)
+- hedge mage in Caves in the Embers: keypresses per floor 58 (target 150–300)
+- wanderer in Caves in the Embers: keypresses per floor 91 (target 150–300)
+- wanderer in Caves in the Embers: floors to Bow 15 ~31 (target 36–90)
+- pit fighter in Castle: keypresses per floor 94 (target 150–300)
+- duelist in Castle: keypresses per floor 50 (target 150–300)
 - hedge mage in Castle: fight length 2.1 (target 3–8)
 - hedge mage in Castle: keypresses per floor 41 (target 150–300)
-- hedge mage in Castle: floors to Magic 5 ~15 (target 3–12)
-- hedge mage in Castle: floors to Magic 10 ~80 (target 12–48)
-- hedge mage in Castle: floors to Magic 15 ~188 (target 36–90)
-- wanderer in Castle: keypresses per floor 51 (target 150–300)
-- sabre (10) in Caves: keypresses per floor 101 (target 150–300)
-- sabre (10) in Caves: floors to Toughness 5 ~14 (target 3–12)
-- sabre (10) in Caves: floors to Toughness 10 ~63 (target 12–48)
-- sabre (10) in Caves: floors to Toughness 15 ~144 (target 36–90)
-- tri-sword (10) in Caves: keypresses per floor 99 (target 150–300)
-- tri-sword (10) in Caves: floors to Melee 5 start (target 3–12)
-- tri-sword (10) in Caves: floors to Melee 10 start (target 12–48)
-- tri-sword (10) in Caves: floors to Melee 15 ~108 (target 36–90)
-- sabre veteran in Caves: keypresses per floor 112 (target 150–300)
-- sabre veteran in Caves: floors to Toughness 5 start (target 3–12)
-- sabre veteran in Caves: floors to Toughness 10 start (target 12–48)
-- sabre veteran in Caves: floors to Toughness 15 ~98 (target 36–90)
-- tri-sword veteran in Caves: keypresses per floor 101 (target 150–300)
-- tri-sword veteran in Caves: floors to Melee 5 start (target 3–12)
-- tri-sword veteran in Caves: floors to Melee 10 start (target 12–48)
-- tri-sword veteran in Caves: floors to Melee 15 ~105 (target 36–90)
+- hedge mage in Castle: floors to Magic 10 ~53 (target 12–48)
+- hedge mage in Castle: floors to Magic 15 ~125 (target 36–90)
+- wanderer in Castle: keypresses per floor 74 (target 150–300)
+- sabre (10) in Caves: keypresses per floor 95 (target 150–300)
+- tri-sword (10) in Caves: keypresses per floor 88 (target 150–300)
+- sabre veteran in Caves: keypresses per floor 98 (target 150–300)
+- tri-sword veteran in Caves: keypresses per floor 89 (target 150–300)
 
 ### Caves
 
@@ -292,67 +273,72 @@ Caves, the starting phase, 6 floors.
 
 | build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length |
 |---|---|---|---|---|---|---|---|---|---|
-| pit fighter | 1 | 20/20 | 117 (102–132) | 1365 | 1692 (Dodge 265) | 9.1 | 6 | 11.3 | 9.2 (2.0–16.0) |
-| pit fighter | 2 | 19/20 | 129 (107–144) | 1357 | 798 (Dodge 132) | 3.0 | 21 | 14.9 | 7.5 (1.0–13.0) |
-| pit fighter | 3 | 16/20 | 140 (131–156) | 1315 | 663 (Dodge 113) | 3.6 | 18 | 15.4 | 8.0 (1.0–14.0) |
-| pit fighter | 4 | 13/20 | 148 (140–165) | 1270 | 399 (Toughness 77) | 6.2 | 11 | 19.6 | 6.5 (1.0–13.0) |
-| pit fighter | 5 | 10/20 | 184 (159–219) | 1390 | 424 (Recovery 81) | 6.6 | 15 | 22.5 | 7.1 (1.0–14.0) |
-| pit fighter | 6 | 8/20 | 171 (142–201) | 1151 | 320 (Recovery 68) | 10.8 | 24 | 18.5 | 8.1 (2.0–14.0) |
-| duelist | 1 | 20/20 | 73 (53–91) | 1101 | 1874 (Toughness 212) | 17.7 | 7 | 9.9 | 6.3 (2.0–10.0) |
-| duelist | 2 | 6/20 | 86 (79–111) | 981 | 826 (Toughness 122) | 7.2 | 40 | 12.0 | 6.1 (1.0–9.0) |
-| duelist | 3 | 1/20 | 76 (76–76) | 484 | 488 (Toughness 74) | 5.0 | 50 | 10.0 | 6.4 (3.0–9.0) |
-| hedge mage | 1 | 20/20 | 37 (34–39) | 1326 | 794 (Magic 144) | 0.0 | 0 | 12.4 | 1.8 (1.0–3.0) |
-| hedge mage | 2 | 20/20 | 43 (39–45) | 1294 | 498 (Magic 101) | 0.0 | 1 | 14.1 | 1.9 (1.0–3.0) |
-| hedge mage | 3 | 20/20 | 48 (45–53) | 1311 | 409 (Magic 81) | 0.0 | 0 | 16.6 | 1.8 (1.0–3.0) |
-| hedge mage | 4 | 20/20 | 57 (51–58) | 1258 | 398 (Magic 59) | 1.6 | 0 | 19.1 | 1.9 (1.0–3.0) |
-| hedge mage | 5 | 18/20 | 58 (55–61) | 1326 | 321 (Magic 55) | 0.0 | 4 | 19.7 | 1.8 (1.0–3.0) |
-| hedge mage | 6 | 18/20 | 66 (62–69) | 1342 | 317 (Magic 51) | 0.0 | 2 | 22.2 | 1.9 (1.0–3.0) |
-| wanderer | 1 | 20/20 | 79 (54–102) | 872 | 1797 (Bow 213) | 19.7 | 18 | 9.7 | 7.1 (1.0–14.0) |
-| wanderer | 2 | 3/20 | 55 (41–79) | 455 | 508 (Toughness 115) | 2.7 | 59 | 5.7 | 8.5 (4.0–15.0) |
-| sabre (10) | 1 | 20/20 | 82 (68–95) | 1258 | 1216 (Dodge 158) | 5.9 | 2 | 10.2 | 6.8 (3.0–11.0) |
-| sabre (10) | 2 | 17/20 | 90 (76–113) | 1223 | 743 (Toughness 120) | 5.1 | 9 | 12.7 | 5.9 (1.0–9.0) |
-| sabre (10) | 3 | 15/20 | 100 (89–122) | 1199 | 622 (Toughness 98) | 5.9 | 10 | 14.5 | 5.8 (1.0–10.0) |
-| sabre (10) | 4 | 12/20 | 110 (86–133) | 1235 | 509 (Toughness 83) | 5.3 | 21 | 16.1 | 5.7 (1.0–9.0) |
-| sabre (10) | 5 | 10/20 | 103 (65–142) | 884 | 424 (Toughness 77) | 8.1 | 27 | 13.4 | 6.5 (2.0–12.0) |
-| sabre (10) | 6 | 4/20 | 123 (121–128) | 1228 | 363 (Toughness 60) | 6.0 | 24 | 19.0 | 5.4 (2.0–8.0) |
-| tri-sword (10) | 1 | 20/20 | 74 (62–88) | 1345 | 1099 (Melee 141) | 2.2 | 1 | 10.8 | 5.7 (2.0–8.0) |
-| tri-sword (10) | 2 | 20/20 | 87 (74–100) | 1318 | 760 (Toughness 104) | 2.1 | 5 | 13.1 | 5.5 (2.0–8.0) |
-| tri-sword (10) | 3 | 20/20 | 96 (79–110) | 1300 | 666 (Toughness 93) | 3.5 | 10 | 14.6 | 5.4 (2.0–8.0) |
-| tri-sword (10) | 4 | 19/20 | 106 (90–121) | 1238 | 538 (Toughness 73) | 3.2 | 14 | 18.7 | 4.5 (1.0–8.0) |
-| tri-sword (10) | 5 | 16/20 | 111 (100–124) | 1378 | 485 (Melee 63) | 1.0 | 6 | 16.8 | 5.5 (2.0–8.0) |
-| tri-sword (10) | 6 | 16/20 | 123 (110–136) | 1294 | 433 (Melee 56) | 3.4 | 6 | 17.9 | 5.8 (2.0–9.0) |
-| sabre veteran | 1 | 20/20 | 84 (72–96) | 1358 | 1266 (Dodge 162) | 0.0 | 0 | 10.7 | 6.7 (3.0–9.0) |
-| sabre veteran | 2 | 20/20 | 97 (81–114) | 1336 | 805 (Toughness 121) | 0.0 | 0 | 13.4 | 6.0 (1.0–9.0) |
-| sabre veteran | 3 | 20/20 | 105 (94–115) | 1313 | 672 (Toughness 100) | 2.0 | 0 | 14.8 | 6.0 (2.0–10.0) |
-| sabre veteran | 4 | 19/20 | 123 (104–156) | 1344 | 576 (Toughness 88) | 1.1 | 0 | 21.3 | 4.7 (1.0–8.0) |
-| sabre veteran | 5 | 19/20 | 126 (114–135) | 1373 | 537 (Recovery 97) | 0.1 | 0 | 18.7 | 5.6 (1.0–9.0) |
-| sabre veteran | 6 | 19/20 | 136 (122–152) | 1317 | 434 (Recovery 100) | 2.1 | 0 | 18.7 | 6.1 (3.0–10.0) |
-| tri-sword veteran | 1 | 20/20 | 74 (62–88) | 1344 | 1103 (Melee 141) | 0.0 | 0 | 10.8 | 5.7 (2.0–8.0) |
-| tri-sword veteran | 2 | 20/20 | 87 (74–100) | 1315 | 771 (Toughness 104) | 0.0 | 0 | 13.1 | 5.5 (2.0–8.0) |
-| tri-sword veteran | 3 | 20/20 | 96 (83–110) | 1293 | 693 (Toughness 94) | 2.0 | 0 | 14.7 | 5.4 (2.0–9.0) |
-| tri-sword veteran | 4 | 19/20 | 109 (93–135) | 1309 | 577 (Toughness 79) | 2.1 | 0 | 19.3 | 4.5 (1.0–8.0) |
-| tri-sword veteran | 5 | 18/20 | 114 (100–124) | 1351 | 500 (Toughness 65) | 0.0 | 0 | 18.4 | 5.1 (1.0–8.0) |
-| tri-sword veteran | 6 | 18/20 | 125 (113–136) | 1307 | 467 (Recovery 72) | 2.2 | 0 | 18.3 | 5.7 (2.0–8.0) |
+| pit fighter | 1 | 20/20 | 68 (62–76) | 1360 | 1336 (Blunt 226) | 0.0 | 0 | 8.4 | 6.9 (1.0–12.0) |
+| pit fighter | 2 | 20/20 | 106 (91–116) | 1315 | 1302 (Dodge 236) | 2.1 | 0 | 11.9 | 7.8 (1.0–16.0) |
+| pit fighter | 3 | 20/20 | 122 (110–142) | 1289 | 1045 (Dodge 190) | 4.0 | 2 | 14.1 | 7.6 (1.0–13.0) |
+| pit fighter | 4 | 18/20 | 146 (131–160) | 1385 | 1301 (Blunt 209) | 5.4 | 2 | 16.2 | 7.9 (1.0–14.0) |
+| pit fighter | 5 | 18/20 | 147 (131–157) | 1370 | 961 (Toughness 148) | 3.9 | 11 | 17.5 | 7.3 (2.0–12.0) |
+| pit fighter | 6 | 17/20 | 157 (140–172) | 1285 | 779 (Toughness 130) | 5.5 | 14 | 20.0 | 6.7 (1.0–11.0) |
+| duelist | 1 | 20/20 | 51 (46–55) | 1446 | 1697 (Toughness 193) | 5.4 | 2 | 8.3 | 4.9 (1.0–9.0) |
+| duelist | 2 | 19/20 | 79 (55–95) | 1293 | 1601 (Toughness 196) | 10.6 | 12 | 9.8 | 6.8 (2.0–9.0) |
+| duelist | 3 | 14/20 | 80 (59–101) | 1062 | 1173 (Toughness 159) | 9.1 | 36 | 10.6 | 6.4 (3.0–10.0) |
+| duelist | 4 | 5/20 | 78 (47–121) | 601 | 1129 (Toughness 137) | 8.4 | 44 | 10.0 | 6.8 (2.0–9.0) |
+| hedge mage | 1 | 20/20 | 25 (23–27) | 1308 | 580 (Magic 112) | 0.0 | 0 | 8.4 | 1.7 (1.0–3.0) |
+| hedge mage | 2 | 20/20 | 33 (31–36) | 1285 | 523 (Magic 117) | 0.0 | 0 | 11.2 | 1.8 (1.0–3.0) |
+| hedge mage | 3 | 20/20 | 40 (36–43) | 1288 | 516 (Magic 113) | 0.0 | 1 | 13.2 | 1.9 (1.0–3.0) |
+| hedge mage | 4 | 20/20 | 54 (48–56) | 1352 | 684 (Magic 138) | 0.0 | 2 | 17.1 | 2.1 (1.0–3.0) |
+| hedge mage | 5 | 20/20 | 62 (58–67) | 1330 | 736 (Magic 142) | 0.1 | 2 | 19.7 | 2.0 (1.0–3.0) |
+| hedge mage | 6 | 20/20 | 66 (61–71) | 1322 | 619 (Magic 126) | 0.0 | 1 | 21.4 | 2.0 (1.0–3.0) |
+| wanderer | 1 | 20/20 | 56 (50–67) | 1346 | 1611 (Bow 226) | 0.0 | 5 | 8.7 | 5.2 (1.0–12.0) |
+| wanderer | 2 | 20/20 | 117 (99–136) | 1330 | 2055 (Dodge 285) | 7.0 | 6 | 11.7 | 8.8 (1.0–15.0) |
+| wanderer | 3 | 19/20 | 131 (116–148) | 1293 | 1411 (Dodge 186) | 3.6 | 14 | 14.3 | 8.0 (1.0–14.0) |
+| wanderer | 4 | 16/20 | 138 (121–168) | 1221 | 1725 (Blunt 215) | 12.5 | 23 | 13.9 | 8.8 (2.0–16.0) |
+| wanderer | 5 | 10/20 | 128 (98–148) | 1193 | 1032 (Toughness 128) | 4.7 | 29 | 15.3 | 7.2 (3.0–12.0) |
+| wanderer | 6 | 7/20 | 142 (97–179) | 1130 | 926 (Toughness 118) | 3.3 | 22 | 20.7 | 5.8 (1.0–11.0) |
+| sabre (10) | 1 | 20/20 | 49 (44–53) | 1337 | 860 (Melee 118) | 0.0 | 0 | 7.8 | 5.1 (2.0–7.0) |
+| sabre (10) | 2 | 20/20 | 84 (70–95) | 1300 | 1060 (Toughness 158) | 4.5 | 4 | 11.3 | 6.2 (1.0–11.0) |
+| sabre (10) | 3 | 19/20 | 95 (80–107) | 1306 | 891 (Dodge 133) | 3.5 | 5 | 11.8 | 6.8 (3.0–9.0) |
+| sabre (10) | 4 | 18/20 | 107 (96–122) | 1287 | 1009 (Melee 136) | 4.3 | 8 | 14.0 | 6.5 (2.0–11.0) |
+| sabre (10) | 5 | 17/20 | 118 (103–130) | 1226 | 999 (Toughness 164) | 12.1 | 14 | 16.4 | 6.1 (2.0–10.0) |
+| sabre (10) | 6 | 14/20 | 116 (88–133) | 966 | 793 (Toughness 142) | 8.9 | 40 | 16.9 | 5.8 (1.0–10.0) |
+| tri-sword (10) | 1 | 20/20 | 46 (41–49) | 1341 | 753 (Melee 112) | 0.0 | 3 | 7.7 | 4.7 (2.0–7.0) |
+| tri-sword (10) | 2 | 20/20 | 72 (56–87) | 1243 | 934 (Dodge 129) | 3.0 | 0 | 10.8 | 5.5 (1.0–8.0) |
+| tri-sword (10) | 3 | 18/20 | 84 (73–95) | 1281 | 838 (Dodge 115) | 2.3 | 3 | 12.3 | 5.7 (2.0–8.0) |
+| tri-sword (10) | 4 | 17/20 | 97 (83–115) | 1293 | 948 (Melee 137) | 0.5 | 0 | 14.0 | 5.8 (2.0–10.0) |
+| tri-sword (10) | 5 | 17/20 | 111 (96–123) | 1345 | 1009 (Melee 141) | 5.2 | 5 | 16.2 | 5.7 (2.0–10.0) |
+| tri-sword (10) | 6 | 17/20 | 118 (103–137) | 1250 | 852 (Toughness 126) | 7.1 | 10 | 16.9 | 5.8 (2.0–10.0) |
+| sabre veteran | 1 | 20/20 | 49 (44–53) | 1337 | 861 (Melee 118) | 0.0 | 0 | 7.8 | 5.1 (2.0–7.0) |
+| sabre veteran | 2 | 20/20 | 83 (70–95) | 1309 | 1089 (Toughness 163) | 2.1 | 0 | 11.3 | 6.2 (1.0–11.0) |
+| sabre veteran | 3 | 19/20 | 94 (80–107) | 1317 | 927 (Dodge 138) | 2.2 | 0 | 11.9 | 6.7 (3.0–9.0) |
+| sabre veteran | 4 | 18/20 | 110 (96–123) | 1326 | 1044 (Melee 138) | 0.0 | 0 | 14.2 | 6.6 (2.0–11.0) |
+| sabre veteran | 5 | 18/20 | 119 (111–130) | 1354 | 1058 (Toughness 168) | 0.0 | 0 | 16.8 | 5.9 (2.0–10.0) |
+| sabre veteran | 6 | 18/20 | 133 (117–150) | 1314 | 972 (Toughness 158) | 0.0 | 0 | 19.2 | 5.8 (1.0–10.0) |
+| tri-sword veteran | 1 | 20/20 | 46 (41–49) | 1338 | 753 (Melee 112) | 0.0 | 0 | 7.7 | 4.7 (2.0–7.0) |
+| tri-sword veteran | 2 | 20/20 | 74 (59–87) | 1304 | 978 (Dodge 136) | 2.1 | 0 | 11.1 | 5.5 (1.0–8.0) |
+| tri-sword veteran | 3 | 19/20 | 84 (73–95) | 1293 | 873 (Dodge 123) | 2.2 | 0 | 12.1 | 5.8 (2.0–8.0) |
+| tri-sword veteran | 4 | 18/20 | 97 (83–116) | 1304 | 945 (Melee 138) | 0.0 | 0 | 13.9 | 5.8 (2.0–9.0) |
+| tri-sword veteran | 5 | 18/20 | 109 (96–123) | 1338 | 1012 (Melee 141) | 0.0 | 0 | 16.3 | 5.6 (2.0–9.0) |
+| tri-sword veteran | 6 | 18/20 | 121 (105–138) | 1309 | 910 (Toughness 132) | 0.0 | 0 | 17.3 | 5.9 (3.0–10.0) |
 
-- **pit fighter**: 5 reached floor 6, 12 died (goblin 7, rat 3, unseen 2), 3 stuck.
-- **duelist**: 0 reached floor 6, 20 died (goblin 9, goblin archer 8, rat 2, unseen 1), 0 stuck.
-- **hedge mage**: 18 reached floor 6, 2 died (goblin 1, rat 1), 0 stuck.
-- **wanderer**: 0 reached floor 6, 20 died (goblin 14, rat 3, goblin archer 2, unseen 1), 0 stuck.
-- **sabre (10)**: 3 reached floor 6, 17 died (goblin 13, rat 3, unseen 1), 0 stuck.
-- **tri-sword (10)**: 14 reached floor 6, 6 died (rat 3, goblin 2, goblin archer 1), 0 stuck.
+- **pit fighter**: 14 reached floor 6, 6 died (goblin 3, goblin shaman 1, rat 1, unseen 1), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (rat 6, goblin archer 5, goblin 4, unseen 3, goblin scout 2), 0 stuck.
+- **hedge mage**: 20 reached floor 6, 0 died, 0 stuck.
+- **wanderer**: 5 reached floor 6, 15 died (goblin 9, goblin archer 3, goblin shaman 1, rat 1, unseen 1), 0 stuck.
+- **sabre (10)**: 4 reached floor 6, 16 died (goblin 7, goblin shaman 4, rat 2, unseen 2, goblin archer 1), 0 stuck.
+- **tri-sword (10)**: 13 reached floor 6, 7 died (rat 4, goblin archer 1, goblin shaman 1, unseen 1), 0 stuck.
 - **sabre veteran**: 18 reached floor 6, 2 died (rat 2), 0 stuck.
-- **tri-sword veteran**: 17 reached floor 6, 3 died (rat 3), 0 stuck.
+- **tri-sword veteran**: 18 reached floor 6, 2 died (rat 2), 0 stuck.
 
 | build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
 |---|---|---|---|---|---|
-| pit fighter | Dodge | ~16 | ~83 | ~196 | 8.9 |
-| duelist | Toughness | ~6 | ~24 | ~53 | 4.7 |
-| hedge mage | Magic | ~17 | ~91 | ~214 | 3.1 |
-| wanderer | Bow | ~6 | ~23 | ~53 | 4.0 |
-| sabre (10) | Toughness | ~14 | ~63 | ~144 | 6.1 |
-| tri-sword (10) | Melee | start | start | ~108 | 6.0 |
-| sabre veteran | Toughness | start | start | ~98 | 6.7 |
-| tri-sword veteran | Melee | start | start | ~105 | 6.0 |
+| pit fighter | Dodge | ~7 | ~39 | ~93 | 7.5 |
+| duelist | Toughness | ~7 | ~31 | ~70 | 4.3 |
+| hedge mage | Magic | ~8 | ~38 | ~88 | 2.8 |
+| wanderer | Dodge | ~7 | ~37 | ~87 | 7.1 |
+| sabre (10) | Toughness | ~9 | ~36 | ~80 | 5.7 |
+| tri-sword (10) | Melee | start | start | ~53 | 5.3 |
+| sabre veteran | Toughness | start | start | ~40 | 5.9 |
+| tri-sword veteran | Melee | start | start | ~51 | 5.3 |
 
 ### Caves in the Embers
 
@@ -360,28 +346,29 @@ Caves, Embers, 6 floors.
 
 | build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length |
 |---|---|---|---|---|---|---|---|---|---|
-| pit fighter | 1 | 20/20 | 113 (87–139) | 777 | 2291 (Blunt 302) | 25.8 | 14 | 12.2 | 8.2 (3.0–13.0) |
-| pit fighter | 2 | 1/20 | 88 (88–88) | 402 | 1064 (Embers attunement 213) | 6.0 | 66 | 9.0 | 8.7 (4.0–13.0) |
-| duelist | 1 | 20/20 | 58 (45–72) | 536 | 1958 (Toughness 208) | 20.0 | 25 | 8.6 | 5.7 (2.0–9.0) |
-| hedge mage | 1 | 20/20 | 54 (50–60) | 1310 | 1261 (Magic 220) | 0.0 | 2 | 17.2 | 2.0 (1.0–3.0) |
-| hedge mage | 2 | 20/20 | 56 (53–60) | 1334 | 779 (Magic 157) | 0.1 | 5 | 18.2 | 1.9 (1.0–3.0) |
-| hedge mage | 3 | 20/20 | 64 (58–70) | 1314 | 700 (Magic 128) | 0.0 | 3 | 21.1 | 1.9 (1.0–3.0) |
-| hedge mage | 4 | 20/20 | 70 (66–75) | 1319 | 696 (Magic 111) | 0.0 | 1 | 23.1 | 2.0 (1.0–3.0) |
-| hedge mage | 5 | 20/20 | 78 (75–82) | 1368 | 618 (Magic 90) | 0.0 | 1 | 24.9 | 2.0 (1.0–3.0) |
-| hedge mage | 6 | 20/20 | 81 (75–87) | 1372 | 572 (Embers attunement 93) | 0.0 | 1 | 26.8 | 2.0 (1.0–3.0) |
-| wanderer | 1 | 20/20 | 66 (33–87) | 480 | 1980 (Bow 227) | 20.0 | 19 | 8.9 | 6.3 (2.0–12.0) |
+| pit fighter | 1 | 20/20 | 93 (75–106) | 957 | 2255 (Blunt 323) | 23.3 | 12 | 11.1 | 7.3 (3.0–12.0) |
+| pit fighter | 2 | 6/20 | 113 (108–143) | 773 | 1593 (Dodge 230) | 9.2 | 46 | 13.3 | 7.5 (2.0–12.0) |
+| duelist | 1 | 20/20 | 52 (40–68) | 648 | 2050 (Toughness 246) | 22.0 | 12 | 8.1 | 5.4 (3.0–9.0) |
+| hedge mage | 1 | 20/20 | 42 (38–46) | 1289 | 1039 (Magic 195) | 0.2 | 1 | 12.9 | 2.1 (1.0–3.0) |
+| hedge mage | 2 | 20/20 | 51 (47–56) | 1316 | 860 (Magic 190) | 0.0 | 0 | 16.4 | 2.0 (1.0–3.0) |
+| hedge mage | 3 | 20/20 | 56 (52–60) | 1343 | 819 (Magic 171) | 0.0 | 3 | 17.9 | 2.0 (1.0–3.0) |
+| hedge mage | 4 | 20/20 | 61 (57–67) | 1292 | 794 (Magic 158) | 0.0 | 4 | 20.3 | 1.9 (1.0–3.0) |
+| hedge mage | 5 | 20/20 | 68 (62–71) | 1338 | 776 (Magic 146) | 0.0 | 2 | 22.1 | 2.0 (1.0–3.0) |
+| hedge mage | 6 | 20/20 | 72 (67–81) | 1366 | 765 (Magic 131) | 0.0 | 2 | 23.6 | 2.0 (1.0–3.0) |
+| wanderer | 1 | 20/20 | 89 (72–104) | 1001 | 2947 (Bow 365) | 19.3 | 11 | 11.9 | 6.4 (2.0–13.0) |
+| wanderer | 2 | 6/20 | 93 (73–134) | 522 | 1852 (Dodge 213) | 9.3 | 40 | 9.7 | 8.6 (2.0–14.0) |
 
-- **pit fighter**: 0 reached floor 6, 20 died (goblin 7, ember imp 3, goblin archer 3, goblin brute 3, goblin shaman 2, unseen 2), 0 stuck.
-- **duelist**: 0 reached floor 6, 20 died (goblin 6, goblin archer 4, goblin brute 3, ember imp 2, rat 2, unseen 2, goblin shaman 1), 0 stuck.
+- **pit fighter**: 0 reached floor 6, 20 died (goblin shaman 6, unseen 5, goblin 4, ember imp 2, goblin archer 1, goblin brute 1, goblin scout 1), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin shaman 6, goblin 5, ember imp 4, goblin brute 3, unseen 2), 0 stuck.
 - **hedge mage**: 20 reached floor 6, 0 died, 0 stuck.
-- **wanderer**: 0 reached floor 6, 20 died (goblin 13, goblin brute 3, ember imp 1, goblin scout 1, goblin shaman 1, rat 1), 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 6, goblin shaman 4, ember imp 3, goblin archer 2, goblin brute 2, unseen 2, rat 1), 0 stuck.
 
 | build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
 |---|---|---|---|---|---|
-| pit fighter | Blunt | ~4 | ~17 | ~37 | 6.0 |
-| duelist | Toughness | ~6 | ~24 | ~54 | 3.5 |
-| hedge mage | Magic | ~9 | ~53 | ~127 | 4.0 |
-| wanderer | Bow | ~5 | ~22 | ~49 | 4.0 |
+| pit fighter | Blunt | ~4 | ~15 | ~35 | 6.2 |
+| duelist | Toughness | ~5 | ~20 | ~46 | 3.1 |
+| hedge mage | Magic | ~6 | ~35 | ~83 | 3.5 |
+| wanderer | Bow | ~3 | ~14 | ~31 | 5.5 |
 
 ### Castle
 
@@ -389,29 +376,31 @@ Castle, the starting phase, 6 floors.
 
 | build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length |
 |---|---|---|---|---|---|---|---|---|---|
-| pit fighter | 1 | 20/20 | 83 (77–97) | 802 | 1781 (Blunt 265) | 22.1 | 12 | 9.8 | 7.3 (1.0–13.0) |
-| pit fighter | 2 | 7/20 | 75 (58–92) | 710 | 747 (Toughness 131) | 7.1 | 47 | 8.3 | 7.8 (3.0–13.0) |
-| pit fighter | 3 | 3/20 | 107 (93–119) | 927 | 709 (Toughness 119) | 6.0 | 37 | 11.7 | 8.1 (1.0–15.0) |
-| pit fighter | 4 | 1/20 | 138 (138–138) | 1042 | 475 (Toughness 114) | 22.0 | 0 | 18.0 | 6.6 (1.0–10.0) |
-| pit fighter | 5 | 1/20 | 110 (110–110) | 890 | 337 (Toughness 81) | 3.0 | 72 | 15.0 | 6.3 (1.0–12.0) |
-| duelist | 1 | 20/20 | 51 (36–65) | 633 | 1731 (Toughness 208) | 19.8 | 18 | 7.7 | 5.5 (1.0–10.0) |
-| duelist | 2 | 1/20 | 35 (35–35) | 428 | 799 (Toughness 131) | 5.0 | 64 | 4.0 | 7.2 (2.0–15.0) |
-| hedge mage | 1 | 20/20 | 34 (24–40) | 877 | 907 (Beast lore 146) | 2.4 | 4 | 9.9 | 2.2 (1.0–4.0) |
-| hedge mage | 2 | 17/20 | 36 (32–39) | 958 | 585 (Magic 105) | 0.0 | 2 | 10.9 | 2.1 (1.0–4.0) |
-| hedge mage | 3 | 17/20 | 39 (35–43) | 929 | 500 (Magic 81) | 0.2 | 4 | 12.0 | 2.1 (1.0–3.0) |
-| hedge mage | 4 | 17/20 | 43 (39–48) | 920 | 450 (Magic 68) | 0.1 | 6 | 13.2 | 2.1 (1.0–4.0) |
-| hedge mage | 5 | 17/20 | 44 (42–52) | 917 | 423 (Magic 55) | 1.1 | 2 | 13.2 | 2.2 (1.0–3.0) |
-| hedge mage | 6 | 16/20 | 51 (47–58) | 980 | 386 (Magic 58) | 0.1 | 5 | 15.5 | 2.2 (1.0–4.0) |
-| wanderer | 1 | 20/20 | 51 (29–64) | 514 | 1638 (Toughness 201) | 20.0 | 18 | 7.3 | 5.9 (1.0–12.0) |
+| pit fighter | 1 | 20/20 | 84 (67–100) | 863 | 2073 (Blunt 324) | 19.8 | 7 | 10.6 | 6.8 (1.0–13.0) |
+| pit fighter | 2 | 12/20 | 78 (50–100) | 823 | 1183 (Toughness 191) | 7.8 | 44 | 9.8 | 6.7 (1.0–13.0) |
+| pit fighter | 3 | 6/20 | 100 (93–118) | 809 | 1026 (Dodge 167) | 5.3 | 66 | 11.7 | 7.4 (1.0–14.0) |
+| pit fighter | 4 | 2/20 | 107 (94–120) | 978 | 652 (Toughness 116) | 5.5 | 60 | 15.0 | 5.9 (1.0–10.0) |
+| pit fighter | 5 | 2/20 | 98 (97–99) | 1040 | 552 (Toughness 100) | 2.0 | 58 | 13.0 | 6.3 (1.0–12.0) |
+| pit fighter | 6 | 2/20 | 100 (91–109) | 1170 | 538 (Toughness 91) | 1.5 | 58 | 13.5 | 6.2 (1.0–11.0) |
+| duelist | 1 | 20/20 | 57 (47–65) | 708 | 2120 (Toughness 247) | 21.1 | 14 | 8.4 | 5.7 (1.0–10.0) |
+| duelist | 2 | 3/20 | 42 (39–45) | 595 | 1284 (Toughness 178) | 6.3 | 65 | 5.7 | 6.1 (2.0–10.0) |
+| hedge mage | 1 | 20/20 | 34 (24–40) | 877 | 939 (Magic 154) | 2.4 | 4 | 9.9 | 2.2 (1.0–4.0) |
+| hedge mage | 2 | 17/20 | 36 (32–39) | 958 | 676 (Magic 134) | 0.0 | 2 | 10.9 | 2.1 (1.0–4.0) |
+| hedge mage | 3 | 17/20 | 39 (35–43) | 929 | 623 (Magic 114) | 0.2 | 4 | 12.0 | 2.1 (1.0–3.0) |
+| hedge mage | 4 | 17/20 | 43 (39–48) | 920 | 590 (Magic 104) | 0.2 | 6 | 13.2 | 2.1 (1.0–4.0) |
+| hedge mage | 5 | 17/20 | 44 (42–52) | 917 | 561 (Magic 85) | 1.1 | 2 | 13.2 | 2.2 (1.0–3.0) |
+| hedge mage | 6 | 16/20 | 52 (47–58) | 980 | 533 (Magic 87) | 0.1 | 5 | 15.6 | 2.2 (1.0–4.0) |
+| wanderer | 1 | 20/20 | 80 (66–94) | 911 | 2718 (Bow 350) | 13.7 | 8 | 10.7 | 6.4 (1.0–13.0) |
+| wanderer | 2 | 15/20 | 68 (46–88) | 576 | 1607 (Dodge 206) | 11.6 | 36 | 7.4 | 8.1 (1.0–15.0) |
 
-- **pit fighter**: 0 reached floor 6, 20 died (goblin shaman 6, goblin archer 5, goblin 3, goblin brute 2, goblin scout 2, unseen 2), 0 stuck.
-- **duelist**: 0 reached floor 6, 20 died (goblin 5, goblin shaman 5, goblin archer 4, goblin scout 4, goblin brute 2), 0 stuck.
+- **pit fighter**: 2 reached floor 6, 18 died (goblin archer 6, goblin 3, goblin brute 3, goblin scout 3, goblin shaman 2, unseen 1), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin archer 6, goblin shaman 5, goblin 4, goblin brute 2, unseen 2, goblin scout 1), 0 stuck.
 - **hedge mage**: 16 reached floor 6, 4 died (unseen 3, goblin archer 1), 0 stuck.
-- **wanderer**: 0 reached floor 6, 20 died (goblin 6, goblin archer 5, goblin brute 4, unseen 3, goblin scout 2), 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 7, goblin archer 5, goblin brute 4, goblin shaman 3, goblin scout 1), 0 stuck.
 
 | build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
 |---|---|---|---|---|---|
-| pit fighter | Toughness | ~5 | ~20 | ~44 | 6.2 |
-| duelist | Toughness | ~6 | ~24 | ~54 | 2.6 |
-| hedge mage | Magic | ~15 | ~80 | ~188 | 2.5 |
-| wanderer | Toughness | ~6 | ~25 | ~56 | 3.1 |
+| pit fighter | Blunt | ~6 | ~26 | ~59 | 5.7 |
+| duelist | Toughness | ~5 | ~20 | ~46 | 3.0 |
+| hedge mage | Magic | ~10 | ~53 | ~125 | 2.5 |
+| wanderer | Bow | ~6 | ~27 | ~62 | 4.4 |
