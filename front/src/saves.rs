@@ -165,20 +165,33 @@ pub fn rename(dir: &Path, from: &str, to: &str) -> Result<(), String> {
 /// The lives recorded in `dir`, newest first. A missing file is an empty
 /// lineage; one this build can't read is an error and left as it is.
 pub fn lineage(dir: &Path) -> Result<Vec<Record>, String> {
+    read_lineage(dir).map_err(|(_, message)| message)
+}
+
+/// `lineage`, saying whether a failure is only another lineage version.
+fn read_lineage(dir: &Path) -> Result<Vec<Record>, (bool, String)> {
     let file = dir.join(format!("{LINEAGE}.ron"));
     match fs::read_to_string(&file) {
-        Ok(text) => legacy::from_ron(&text).map_err(|err| format!("{}: {err}", file.display())),
+        Ok(text) => legacy::from_ron(&text).map_err(|err| {
+            let version = matches!(err, legacy::LineageError::Version { .. });
+            (version, format!("{}: {err}", file.display()))
+        }),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(err) => Err(format!("cannot read {}: {err}", file.display())),
+        Err(err) => Err((false, format!("cannot read {}: {err}", file.display()))),
     }
 }
 
 /// Ends `character` for good: the life `state` led joins the lineage, then
 /// the save is removed (if there is one), so a failure never loses both. A
-/// lineage this build can't read is replaced, starting over from this life.
+/// lineage from another version is replaced, starting over from this life;
+/// one that can't be read for any other reason is left, and so is the save.
 pub fn bury(dir: &Path, character: &str, state: &GameState) -> Result<(), String> {
     let save = path(dir, character)?;
-    let mut records = lineage(dir).unwrap_or_default();
+    let mut records = match read_lineage(dir) {
+        Ok(records) => records,
+        Err((true, _)) => Vec::new(),
+        Err((false, message)) => return Err(message),
+    };
     let record = legacy::record(state, character);
     legacy::add(&mut records, record, state.blueprints.legacy());
     let text = legacy::to_ron(&records).map_err(|err| format!("cannot record a life: {err}"))?;
@@ -383,6 +396,22 @@ mod tests {
         assert_eq!(fs::read_to_string(&file).unwrap(), "(version: 0)");
         bury(&dir, "hero", &state()).unwrap();
         assert_eq!(lineage(&dir).unwrap().len(), 1);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_lineage_keeps_both_it_and_the_save() {
+        let dir = temp_dir("broken-lineage");
+        let file = dir.join("legacy.ron");
+        fs::write(&file, "(version: 1, records: [oops").unwrap();
+        let save = path(&dir, "hero").unwrap();
+        save_on_quit(&save, &state()).unwrap();
+        assert!(bury(&dir, "hero", &state()).is_err());
+        assert_eq!(
+            fs::read_to_string(&file).unwrap(),
+            "(version: 1, records: [oops"
+        );
+        assert!(save.exists(), "nothing lost");
         fs::remove_dir_all(dir).unwrap();
     }
 
