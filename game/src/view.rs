@@ -9,7 +9,7 @@ use crate::combat::{Strike, strike};
 use crate::entity::{
     Ammo, Appearance, Armor, Body, DamageType, DamageTypes, Equippable, Health, Launcher, Lesson,
     Light, Name, Note, PartKind, Projectile, Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell,
-    Stat, Stats, Style, Throwable, Weapon,
+    Stats, Style, Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -59,46 +59,28 @@ pub struct ItemView {
     pub facts: Vec<String>,
 }
 
-/// The stat a roll adds, as the character sheet names it.
-fn stat_name(stat: Stat) -> &'static str {
-    match stat {
-        Stat::Strength => "STR",
-        Stat::Agility => "AGI",
-        Stat::Intelligence => "INT",
-        Stat::Willpower => "WIL",
-    }
-}
-
-fn kinds(types: DamageTypes) -> String {
-    types
-        .iter()
-        .map(DamageType::noun)
-        .collect::<Vec<_>>()
-        .join("+")
-}
-
 /// What `item` does, read from its parts: dice, reach, armor, light, notes.
 fn facts(world: &World, item: Entity) -> Vec<String> {
     let mut facts = Vec::new();
     if let Ok(w) = world.get::<&Weapon>(item) {
-        let (min, max, kinds, stat) = (w.min, w.max, kinds(w.types), stat_name(w.stat));
+        let (min, max, kinds, stat) = (w.min, w.max, w.types.words(), w.stat.abbr());
         facts.push(format!("melee {min}-{max} {kinds}, +{stat}"));
     }
     if let Ok(t) = world.get::<&Throwable>(item) {
-        let (min, max, kinds, stat) = (t.min, t.max, kinds(t.types), stat_name(t.stat));
+        let (min, max, kinds, stat) = (t.min, t.max, t.types.words(), t.stat.abbr());
         let range = t.range;
         facts.push(format!(
             "thrown {min}-{max} {kinds} up to {range} tiles, +{stat}"
         ));
     }
     if let Ok(l) = world.get::<&Launcher>(item) {
-        let (range, steady, stat) = (l.range, l.steady, stat_name(l.stat));
+        let (range, steady, stat) = (l.range, l.steady, l.stat.abbr());
         facts.push(format!(
             "shoots arrows up to {range} tiles, steady to {steady}, +{stat}"
         ));
     }
     if let Ok(p) = world.get::<&Projectile>(item) {
-        let (min, max, kinds) = (p.min, p.max, kinds(p.types));
+        let (min, max, kinds) = (p.min, p.max, p.types.words());
         let breaks = p.break_bp / 100;
         facts.push(format!("hits for {min}-{max} {kinds}, {breaks}% to break"));
     }

@@ -205,11 +205,11 @@ pub fn status(state: &GameState, aiming: &Aiming) -> String {
     if let Some(problem) = shot.problem {
         return format!("{problem}  {keys}");
     }
-    let kinds: Vec<_> = shot.types.iter().map(game::DamageType::noun).collect();
+    let kinds = shot.types.words();
     let kinds = if kinds.is_empty() {
-        String::new()
+        kinds
     } else {
-        format!(" {}", kinds.join("+"))
+        format!(" {kinds}")
     };
     let (low, high) = shot.damage;
     if !shot.summons.is_empty() {

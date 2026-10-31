@@ -1,7 +1,7 @@
 //! Text the player reads in panels, as rows of segments a frontend styles: the character sheet, the equipment list, an item's name. Built once here so every frontend says the same thing.
 
 use game::{
-    DamageType, ExploreItems, GameState, ItemView, PhaseView, PlaceView, Rgb, Stat, capitalize,
+    ExploreItems, GameState, ItemView, PhaseView, PlaceView, Rgb, Stat, capitalize,
     character_sheet, equipment_view, inspect, place_view, styles,
 };
 
@@ -250,9 +250,9 @@ pub fn character(state: &GameState) -> Vec<Row> {
         rows.push(row);
     }
     if let Some(stats) = sheet.stats {
-        let stat = |label: &str, which| {
+        let stat = |which: Stat| {
             vec![
-                quiet(format!("{label} ")),
+                quiet(format!("{} ", which.abbr())),
                 plain(format!(
                     "{} ({:+})",
                     stats.score(which),
@@ -260,24 +260,19 @@ pub fn character(state: &GameState) -> Vec<Row> {
                 )),
             ]
         };
-        let pair = |left: (&str, Stat), right: (&str, Stat)| {
-            let mut row = stat(left.0, left.1);
+        let pair = |left: Stat, right: Stat| {
+            let mut row = stat(left);
             row.push(plain("  "));
-            row.extend(stat(right.0, right.1));
+            row.extend(stat(right));
             row
         };
-        rows.push(pair(("STR", Stat::Strength), ("AGI", Stat::Agility)));
-        rows.push(pair(("INT", Stat::Intelligence), ("WIL", Stat::Willpower)));
+        rows.push(pair(Stat::Strength, Stat::Agility));
+        rows.push(pair(Stat::Intelligence, Stat::Willpower));
     }
     let damage = sheet
         .damage
         .map_or_else(|| "-".to_string(), |(min, max)| format!("{min}-{max}"));
-    let kinds = sheet
-        .damage_types
-        .iter()
-        .map(DamageType::noun)
-        .collect::<Vec<_>>()
-        .join("+");
+    let kinds = sheet.damage_types.words();
     let armor = sheet.armor;
     rows.push(vec![
         quiet("Armor "),

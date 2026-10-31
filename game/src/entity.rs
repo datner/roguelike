@@ -116,6 +116,14 @@ impl DamageTypes {
             .into_iter()
             .filter(move |&kind| self.contains(kind))
     }
+
+    /// For reading: "slashing+piercing"; empty for none.
+    pub fn words(self) -> String {
+        self.iter()
+            .map(DamageType::noun)
+            .collect::<Vec<_>>()
+            .join("+")
+    }
 }
 
 impl FromIterator<DamageType> for DamageTypes {
@@ -219,6 +227,18 @@ pub enum Stat {
     Agility,
     Intelligence,
     Willpower,
+}
+
+impl Stat {
+    /// As the character sheet names it: "STR".
+    pub fn abbr(self) -> &'static str {
+        match self {
+            Stat::Strength => "STR",
+            Stat::Agility => "AGI",
+            Stat::Intelligence => "INT",
+            Stat::Willpower => "WIL",
+        }
+    }
 }
 
 /// A creature's attribute scores. 16 is average: see `Stats::modifier`.

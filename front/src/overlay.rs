@@ -395,6 +395,7 @@ impl Overlay {
         let picking_part = self
             .picking
             .and_then(|picking| contents.equipment.iter().find(|p| p.index == picking.part));
+        let mut styles_details = None;
         let (title, mut lines, focus, hint) = match (self.tab, self.picking, picking_part) {
             (Tab::Equipment, Some(picking), Some(part)) => {
                 let fits: Vec<ItemView> = fitting(contents.inventory, part).cloned().collect();
@@ -422,6 +423,7 @@ impl Overlay {
             }
             (Tab::Styles, _, _) => {
                 let ways = way_lines(contents, self.selected);
+                styles_details = Some(ways.details);
                 (
                     Title::Tabs(Tab::Styles),
                     ways.lines,
@@ -460,7 +462,7 @@ impl Overlay {
             lines,
             focus,
             hint,
-            details: self.details(contents, picking_part),
+            details: styles_details.unwrap_or_else(|| self.details(contents, picking_part)),
         }
     }
 
@@ -482,8 +484,8 @@ impl Overlay {
                 .get(self.selected)
                 .map(item_details)
                 .unwrap_or_default(),
-            (Tab::Styles, _, _) => way_lines(contents, self.selected).details,
-            (Tab::Skills, _, _) => Vec::new(),
+            // The Styles tab's come with its lines, from `way_lines`.
+            (Tab::Styles | Tab::Skills, _, _) => Vec::new(),
         }
     }
 }
