@@ -3,9 +3,9 @@
 # a whole plan to learn what it is, where it stands, or what one slice asks.
 # Usage:
 #   plans.sh                      every plan: status and summary; open slices listed under it
-#   plans.sh NAME                 one plan's outline: header lines, sections (with sizes), slices
-#   plans.sh NAME PART...         just those parts: a section by its heading's first word ("goal",
-#                                 "out", "connections") or a slice by its number ("3", "1b")
+#   plans.sh NAME                 one plan's header lines, then its outline (scripts/doc.sh)
+#   plans.sh NAME PART...         just those parts: a slice by its number ("3", "1b"), a section by
+#                                 words of its heading ("goal", "out of scope")
 #   plans.sh --lint [--test]      check every plan follows the format (fixtures with --test)
 # NAME is a file stem (`fights-2`).
 set -euo pipefail
@@ -45,48 +45,9 @@ index() {
 }
 
 outline() {
-  local plan=$1 line n=0 head="" start=0
-  # The header lines, then each section with its length, so a reader knows what a part costs
-  # before asking for it.
-  while IFS= read -r line; do
-    n=$((n + 1))
-    if ((start == 0)) && [[ $line != '## '* ]]; then
-      [[ -z $line ]] || echo "$line"
-    elif [[ $line == '## '* ]]; then
-      [[ -z $head ]] || echo "$head ($((n - start)) lines)"
-      head=$line start=$n
-    elif [[ $line == '### '* ]]; then
-      [[ -z $head ]] || echo "$head ($((n - start)) lines)"
-      head="  $line" start=$n
-    fi
-  done <"$plan"
-  [[ -z $head ]] || echo "$head ($((n + 1 - start)) lines)"
-}
-
-# Prints one part: from its heading to the next heading at its level or above.
-part() {
-  local plan=$1 want=$2 line level=0 found=0
-  local lower=${want,,}
-  while IFS= read -r line; do
-    if ((level)); then
-      if [[ $line == '## '* ]] || { ((level == 3)) && [[ $line == '### '* ]]; }; then
-        break
-      fi
-      echo "$line"
-      continue
-    fi
-    case $line in
-    '## '*)
-      local first=${line#'## '}
-      first=${first%% *}
-      [[ ${first,,} == "$lower"* ]] && level=2 found=1 && echo "$line"
-      ;;
-    '### '*)
-      [[ ${line#'### '} == "$want. "* || ${line#'### '} == "$want "* ]] && level=3 found=1 && echo "$line"
-      ;;
-    esac
-  done <"$plan"
-  ((found)) || echo "$plan: no part '$want' (plans.sh $(basename "$plan" .md) lists them)"
+  # The header (Summary, Read first) whole, since the outline cuts a section's opening short.
+  rg -N -m1 -B100 '^## ' "$1" | rg -v '^(## |$)' || true
+  scripts/doc.sh "$1" | tail -n +2
 }
 
 # Prints what one plan breaks of the format, nothing if it follows it.
@@ -143,7 +104,7 @@ case ${1:-} in
   if (($# == 0)); then
     outline "$plan"
   else
-    for want in "$@"; do part "$plan" "$want"; done
+    scripts/doc.sh "$plan" "$@"
   fi
   ;;
 esac

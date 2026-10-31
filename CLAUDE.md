@@ -68,6 +68,9 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
   one-line index.
 - Plans: `scripts/plans.sh` (every plan, status, open slices), `plans.sh NAME`
   (outline), `plans.sh NAME PART...` (a section or slice), never the whole file.
+- Other long docs (`docs/vision.md`, a long ADR or CLAUDE.md): `scripts/doc.sh
+  FILE` outlines it (headings, sizes, opening words), `doc.sh FILE PART...`
+  prints the parts a task touches by words of their heading.
 - An image costs about width × height / 750 tokens: render only the shots a
   change touches, cropped to the region it touched; after `--check` fails,
   read the diff image, not the shot.
@@ -83,7 +86,8 @@ driving a `front::Session` with inputs, and drawing with `scripts/shots.sh`.
 - `bench/` — binary: the balance bench, a tool (not the game); builds and scenarios as RON.
 - `data/` — RON content (`data/entities/<PascalName>.ron` blueprints).
 - `docs/vision.md` — where the game is going (pillars, character systems, camp,
-  legacy). Read before designing a new system; `docs/plans/` hold build plans
+  legacy). Read its outline (`scripts/doc.sh docs/vision.md`) and the parts a new
+  system touches before designing it; `docs/plans/` hold build plans
   in the format and under the connections rule of `docs/plans/README.md`.
 - `docs/decisions/` — short ADRs explaining _why_ things are the way they are.
   Read the relevant one before changing an invariant below.

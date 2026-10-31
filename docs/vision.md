@@ -3,6 +3,9 @@
 Where the game is going. Not a spec: plans in `docs/plans/` build pieces of it, ADRs record what was
 decided while building. When a plan and this document disagree, ask the owner which one moves.
 
+It has no fixed shape, only a habit: each section opens with a line saying what it holds, since
+`scripts/doc.sh docs/vision.md` shows that line beside the heading and readers choose parts from it.
+
 ## The shape of the game
 
 - **A camp, and dives into themed dungeons** (a castle, a cave, …). You return to camp between dives.

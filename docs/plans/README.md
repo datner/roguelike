@@ -8,8 +8,9 @@ scope. A game system earns its place by reaching into the others and being read 
 
 `scripts/plans.sh` lists every plan with its status and summary, and the open slices under it.
 `scripts/plans.sh NAME` outlines one (header, sections with their sizes, slices);
-`scripts/plans.sh NAME PART...` prints only those parts: a section by its heading's first word
-(`decisions`, `out`), a slice by its number (`3`, `1b`). Read a whole plan only to edit most of it.
+`scripts/plans.sh NAME PART...` prints only those parts: a slice by its number (`3`, `1b`), a section
+by words of its heading (`decisions`, `"out of scope"`). Read a whole plan only to edit most of it.
+Outlines and parts come from `scripts/doc.sh`, which reads any markdown file this way.
 
 ## Format
 
