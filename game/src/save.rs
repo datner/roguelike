@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
     Ability, Attuned, Blow, Dash, Keepsake, Lesson, Loose, Made, Material, Memoir, Natural, Note,
-    OffBalance, Origin, Performed, Recipes, Revealed, Reveals, Sighted, Stamina, Stashed, Studied,
-    Teaches, Technique, TechniqueAi, Verb, Yields,
+    OffBalance, Origin, Performed, Quality, Recipes, Revealed, Reveals, Sighted, Stamina, Stashed,
+    Studied, Teaches, Technique, TechniqueAi, Verb, Yields,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,

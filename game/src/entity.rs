@@ -45,7 +45,7 @@ macro_rules! with_components {
             state: [
                 Position, Energy, SpawnSeq, EquippedOn, Recharging, Timed, RestBudget, Quarry,
                 Route, Strode, Loosed, BaseHealth, Wounds, Discovered, Origin, Studied, Sighted,
-                Attuned, Performed, Made, Stashed, Memoir, Reveals, Revealed,
+                Attuned, Performed, Made, Stashed, Memoir, Reveals, Revealed, Quality,
             ],
             markers: [
                 BlocksMovement, Player, Hostile, Item, Binding, Scroll, SpellAi, TechniqueAi,
@@ -1076,6 +1076,15 @@ pub struct Note(pub String);
 /// recipe and what it gives the product.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Material(pub Vec<String>);
+
+/// How well a crafted thing turned out (docs/plans/crafting.md): its damage
+/// or armor is one off either way, and its name says so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Quality {
+    Crude,
+    Plain,
+    Fine,
+}
 
 /// The recipes a creature knows, by name from `data/recipes.ron`.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

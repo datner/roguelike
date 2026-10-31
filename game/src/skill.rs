@@ -33,6 +33,8 @@ pub enum Domain {
     Lore,
     /// Being at home in a phase (docs/plans/phases.md).
     Attunement,
+    /// Making things (docs/plans/crafting.md): never counts toward a fight.
+    Craft,
 }
 
 /// One entry of `data/skills.ron`. `weight` is how much the skill counts in
@@ -79,6 +81,8 @@ pub(crate) struct Core {
     pub bloodletting: SkillId,
     pub scroll_lore: SkillId,
     pub arcana: SkillId,
+    /// What a kill yields (docs/plans/crafting.md).
+    pub scavenging: SkillId,
 }
 
 impl Core {
@@ -162,6 +166,7 @@ impl SkillBook {
             bloodletting: core_id("Bloodletting")?,
             scroll_lore: core_id("Scroll lore")?,
             arcana: core_id("Arcana")?,
+            scavenging: core_id("Scavenging")?,
         };
         Ok(Self {
             defs,
@@ -412,6 +417,25 @@ pub(crate) fn train(
     if !state.world.satisfies::<&Learner>(learner) {
         return;
     }
+    grow(state, learner, skills, subject, base);
+    // Only uses with stakes reach here, so only they can invent or inspire.
+    crate::style::invent(state, learner);
+    crate::discovery::inspire(state, learner);
+}
+
+/// `train` without its moment of inspiration: a use that counts, decaying
+/// with repetition against the same kind of thing, but whose stakes don't
+/// call for one (a craft from common materials, docs/plans/crafting.md).
+pub(crate) fn grow(
+    state: &mut GameState,
+    learner: Entity,
+    skills: &[SkillId],
+    subject: Entity,
+    base: u32,
+) {
+    if !state.world.satisfies::<&Learner>(learner) {
+        return;
+    }
     // A followed style trains along with any use that follows it.
     let mut skills = skills.to_vec();
     let book = state.blueprints.skills();
@@ -450,9 +474,6 @@ pub(crate) fn train(
         gains.push((attunement, base / ATTUNE_SHARE));
     }
     gain(state, learner, &gains);
-    // Only uses with stakes reach here, so only they can invent or inspire.
-    crate::style::invent(state, learner);
-    crate::discovery::inspire(state, learner);
 }
 
 /// Adds each `(skill, xp)` to `learner`'s skills and logs every level
@@ -612,6 +633,7 @@ pub(crate) mod tests {
             def("Bloodletting", Domain::Magic, 1),
             def("Scroll lore", Domain::Magic, 1),
             def("Arcana", Domain::Lore, 1),
+            def("Scavenging", Domain::Craft, 1),
         ])
         .unwrap()
     }

@@ -114,13 +114,17 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   the new tile; a new tile is a drawing change, the one reason to touch the fixtures besides a format
   change.
 
-### 4. Growing by it — open
+### 4. Growing by it — done
 - `Craft` domain; `Scavenging`, `Fletching`, `Smithing` in `data/skills.ron`; recipes name theirs.
 - A craft trains through `skill::train` with the material as subject; Scavenging trains on each yield
   and raises yield chances; `Quality` from the craft level against `difficulty` on the `craft` stream.
 - Rare materials can inspire (`discovery::inspire` after a craft that used one).
 - Tests: a new material trains more than a repeated one; low level makes crude more often than high
   (over seeds); a rare material's craft can inspire and a common one never does.
+- Done. `skill::train` split: `grow` is the use without its moment of inspiration, which a craft
+  calls per material (each its own kind, so a new one teaches); a rare material then calls
+  `discovery::inspire`. Quality edits the product's numbers by one and prefixes its name. Scavenging
+  is a core skill (`Core::scavenging`), so the frozen fixtures gained the craft skills.
 
 ### 5. Crafting from the keyboard — open
 - `add-ui` skill: a recipe list mode (what you can make now first, then the rest with what each lacks,

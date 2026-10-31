@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::blueprint::{BlueprintError, ron_options};
 use crate::entity::{
-    DamageType, Found, Material, Position, Projectile, Recipes, SpawnSeq, Weapon, Yields,
+    DamageType, Found, Material, Position, Projectile, Quality, Recipes, SpawnSeq, Weapon, Yields,
 };
 use crate::grammar::Subject;
 use crate::holding;
@@ -55,6 +55,27 @@ pub struct RecipeDef {
     #[serde(default)]
     pub field: bool,
     pub slots: Vec<Slot>,
+    /// The skills it uses, by name: trained by it, and their level against
+    /// `difficulty` decides how well it turns out.
+    #[serde(default)]
+    pub skills: Vec<String>,
+    /// The level at which it comes out plain most of the time.
+    #[serde(default)]
+    pub difficulty: u32,
+}
+
+/// In percent, from the craft's level less the recipe's difficulty: crude
+/// below it more often, fine above it sometimes.
+fn quality(over: i64, roll: i64) -> Quality {
+    let crude = (30 - 10 * over).clamp(0, 90);
+    let fine = (5 * over).clamp(0, 50);
+    if roll < crude {
+        Quality::Crude
+    } else if roll >= 100 - fine {
+        Quality::Fine
+    } else {
+        Quality::Plain
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -239,6 +260,17 @@ pub(crate) fn craft(
         .collect();
     properties.sort();
     properties.dedup();
+    let book = state.blueprints.skills().clone();
+    let skills: Vec<_> = def.skills.iter().filter_map(|name| book.id(name)).collect();
+    let level = crate::skill::effective(&state.world, &book, actor, &skills);
+    let over = i64::from(level) - i64::from(def.difficulty);
+    let made = quality(over, state.rngs.craft.random_range(0..100));
+    // Each material trains as its own kind of thing, so a new one teaches
+    // and the hundredth of the same does not (ADR 0017).
+    let share = (crate::skill::BASE_XP / u32::try_from(ready.inputs.len()).unwrap_or(1)).max(1);
+    for &input in &ready.inputs {
+        crate::skill::grow(state, actor, &skills, input, share);
+    }
     for &input in &ready.inputs {
         holding::unstow(&mut state.world, actor, input);
         crate::command::despawn_with_holdings(state, input);
@@ -246,6 +278,7 @@ pub(crate) fn craft(
     let Ok(product) = state.spawn(Spawn::blueprint(&def.makes).carried_by(actor)) else {
         return;
     };
+    set_quality(state, product, made);
     let gives: Vec<Give> = properties
         .iter()
         .filter_map(|name| {
@@ -260,9 +293,44 @@ pub(crate) fn craft(
     for give in gives {
         apply(state, product, give);
     }
-    let made = Subject::of(&state.world, product);
-    let line = Subject::of(&state.world, actor).sentence("make", made.noun());
+    let thing = Subject::of(&state.world, product);
+    let line = Subject::of(&state.world, actor).sentence("make", thing.noun());
     state.log.push(line);
+    // Working something rare can inspire; common materials never do.
+    if properties.iter().any(|property| property == "rare") {
+        crate::discovery::inspire(state, actor);
+    }
+}
+
+/// Marks `product` with how it turned out: one off its damage or armor, and
+/// its name says so unless it is plain.
+fn set_quality(state: &mut GameState, product: Entity, made: Quality) {
+    let (shift, word) = match made {
+        Quality::Crude => (-1, Some("crude")),
+        Quality::Plain => (0, None),
+        Quality::Fine => (1, Some("fine")),
+    };
+    let world = &mut state.world;
+    if let Ok(mut weapon) = world.get::<&mut Weapon>(product) {
+        weapon.max = (weapon.max + shift).max(1);
+        weapon.min = (weapon.min + shift).clamp(0, weapon.max);
+    }
+    if let Ok(mut missile) = world.get::<&mut Projectile>(product) {
+        missile.max = (missile.max + shift).max(1);
+        missile.min = (missile.min + shift).clamp(0, missile.max);
+    }
+    if let Ok(mut armor) = world.get::<&mut crate::entity::Armor>(product) {
+        let armor = &mut *armor;
+        for value in [&mut armor.slashing, &mut armor.blunt, &mut armor.piercing] {
+            if *value > 0 {
+                *value = (*value + shift).max(0);
+            }
+        }
+    }
+    if let (Some(word), Ok(mut name)) = (word, world.get::<&mut crate::entity::Name>(product)) {
+        name.0 = format!("{word} {}", name.0);
+    }
+    let _ = world.insert_one(product, made);
 }
 
 fn apply(state: &mut GameState, product: Entity, give: Give) {
@@ -308,8 +376,14 @@ pub(crate) fn leave_yields(state: &mut GameState, dead: Entity) {
         return;
     };
     let seen = state.visible.get(at.x, at.y) == Some(&true);
+    let player = state.player;
+    let scavenging = state.blueprints.skills().core().map(|core| core.scavenging);
+    let level = scavenging.map_or(0, |skill| {
+        crate::skill::level(crate::skill::xp(&state.world, player, skill))
+    });
     for entry in yields {
-        if state.rngs.craft.random_range(0..CERTAIN_BP) >= entry.chance_bp {
+        let chance = entry.chance_bp + level * SCAVENGING_BP_PER_LEVEL;
+        if state.rngs.craft.random_range(0..CERTAIN_BP) >= chance {
             continue;
         }
         let Ok(thing) = state.spawn(Spawn::blueprint(&entry.blueprint).at(at.x, at.y)) else {
@@ -321,9 +395,17 @@ pub(crate) fn leave_yields(state: &mut GameState, dead: Entity) {
             let left = Subject::of(&state.world, thing);
             let line = Subject::of(&state.world, dead).sentence("leave", left.noun());
             state.log.push(line);
+            // Picking over what a fight left trains Scavenging, by the kind
+            // of creature (ADR 0017).
+            if let Some(skill) = scavenging {
+                crate::skill::train(state, player, &[skill], dead, crate::skill::BASE_XP / 2);
+            }
         }
     }
 }
+
+/// What a level of Scavenging adds to every yield's chance.
+const SCAVENGING_BP_PER_LEVEL: u32 = 250;
 
 #[cfg(test)]
 mod tests {
@@ -372,6 +454,32 @@ mod tests {
             .map(|(entity, _)| entity)
             .unwrap();
         assert!(state.world.satisfies::<&Item>(bone));
+    }
+
+    #[test]
+    fn scavenging_grows_on_what_kills_leave_and_makes_them_leave_more() {
+        let left = |level: u32| {
+            let mut total = 0;
+            for seed in 0..100 {
+                let mut state = bare_state();
+                crate::testkit::see_everything(&mut state);
+                state.rngs.craft = rand_pcg::Pcg64::new(seed, crate::rng::stream::CRAFT);
+                let core = state.blueprints.skills().core().unwrap();
+                let mut skills = crate::entity::Skills::default();
+                skills.set(core.scavenging, crate::skill::xp_for(level));
+                let player = state.player;
+                let _ = state.world.insert(player, (crate::entity::Learner, skills));
+                let goblin = yielder(&mut state, 2500);
+                state.run(Command::Die { entity: goblin });
+                total += bones_at(&state, (2, 1));
+                if total > 0 && level == 0 && bones_at(&state, (2, 1)) > 0 {
+                    let xp = crate::skill::xp(&state.world, player, core.scavenging);
+                    assert!(xp > 0, "a yield seen trains Scavenging");
+                }
+            }
+            total
+        };
+        assert!(left(10) > left(0));
     }
 
     #[test]
@@ -477,6 +585,8 @@ mod tests {
                     needs: vec!["flexible".into()],
                 },
             ],
+            skills: Vec::new(),
+            difficulty: 0,
         }
     }
 
@@ -509,10 +619,143 @@ mod tests {
             "the first that fit"
         );
         assert!(carried.contains(&held[2]), "the rest is kept");
+        let made = holding::carried(&state.world, state.player)
+            .into_iter()
+            .find(|&thing| state.world.satisfies::<&Weapon>(thing))
+            .unwrap();
+        let shift = match *state.world.get::<&Quality>(made).unwrap() {
+            Quality::Crude => -1,
+            Quality::Plain => 0,
+            Quality::Fine => 1,
+        };
         let shiv = weapon_carried(&state).unwrap();
-        assert_eq!((shiv.min, shiv.max), (2, 3), "hard: one more damage");
+        // The shiv is 1-2; hard adds one, then the quality shifts it.
+        assert_eq!(
+            (shiv.min, shiv.max),
+            (2 + shift, 3 + shift),
+            "hard: one more damage"
+        );
         assert!(shiv.types.contains(DamageType::Cold), "a cold edge");
-        assert_eq!(crate::testkit::last_log(&state), "You make the shiv.");
+        assert!(crate::testkit::last_log(&state).starts_with("You make the "));
+    }
+
+    #[test]
+    fn a_skilled_hand_makes_crude_things_less_often_and_fine_ones_more() {
+        let count = |level: u32| {
+            let mut crude_fine = (0, 0);
+            for seed in 0..200 {
+                let mut recipe = shiv();
+                recipe.skills = vec!["Dagger".into()];
+                recipe.difficulty = 3;
+                let (mut state, _) = crafter(vec![recipe], &[&["hard"], &["flexible"]]);
+                state.rngs.craft = rand_pcg::Pcg64::new(seed, crate::rng::stream::CRAFT);
+                let dagger = state.blueprints.skills().id("Dagger").unwrap();
+                let mut skills = crate::entity::Skills::default();
+                skills.set(dagger, crate::skill::xp_for(level));
+                let player = state.player;
+                let _ = state.world.insert_one(player, skills);
+                assert!(craft_now(&mut state, [None; MAX_SLOTS]));
+                let made = holding::carried(&state.world, player)
+                    .into_iter()
+                    .find_map(|thing| state.world.get::<&Quality>(thing).ok().map(|q| *q))
+                    .unwrap();
+                match made {
+                    Quality::Crude => crude_fine.0 += 1,
+                    Quality::Fine => crude_fine.1 += 1,
+                    Quality::Plain => {}
+                }
+            }
+            crude_fine
+        };
+        let (novice, master) = (count(0), count(9));
+        assert!(novice.0 > master.0, "crude: {novice:?} against {master:?}");
+        assert!(novice.1 < master.1, "fine: {novice:?} against {master:?}");
+    }
+
+    #[test]
+    fn a_new_material_teaches_more_than_a_known_one() {
+        let mut recipe = shiv();
+        recipe.skills = vec!["Dagger".into()];
+        let materials: &[&[&str]] = &[&["hard"], &["flexible"], &["hard"], &["flexible"]];
+        let (mut state, held) = crafter(vec![recipe], materials);
+        let player = state.player;
+        let _ = state.world.insert_one(player, crate::entity::Learner);
+        let dagger = state.blueprints.skills().id("Dagger").unwrap();
+        let xp = |state: &GameState| crate::skill::xp(&state.world, player, dagger);
+        // The second pair is named differently: new kinds of material.
+        for &thing in &held[2..] {
+            let _ = state.world.insert_one(thing, Name("rag".into()));
+        }
+        assert!(craft_now(&mut state, [Some(held[0]), Some(held[1]), None]));
+        let first = xp(&state);
+        assert!(craft_now(&mut state, [None; MAX_SLOTS]));
+        let fresh = xp(&state) - first;
+        let (mut again, held) = crafter(
+            vec![RecipeDef {
+                skills: vec!["Dagger".into()],
+                ..shiv()
+            }],
+            materials,
+        );
+        let _ = again.world.insert_one(player, crate::entity::Learner);
+        assert!(craft_now(&mut again, [Some(held[0]), Some(held[1]), None]));
+        let first_again = xp(&again);
+        assert!(craft_now(&mut again, [None; MAX_SLOTS]));
+        let repeated = xp(&again) - first_again;
+        assert!(
+            fresh > repeated,
+            "new material {fresh}, the same again {repeated}"
+        );
+    }
+
+    #[test]
+    fn working_a_rare_material_can_inspire_and_a_common_one_never_does() {
+        // A discovery from the real data whose skill requirements are met.
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
+        let Some(discovery) = data.discoveries().iter().find(|d| d.phase.is_none()) else {
+            return;
+        };
+        let (name, requires) = (discovery.name.clone(), discovery.requires.clone());
+        let ready_to_be_inspired = |rare: bool| {
+            let mut state = crate::state::tests::bare_state_with(data.clone());
+            let player = state.player;
+            let mut skills = crate::entity::Skills::default();
+            for &(skill, level) in &requires {
+                skills.set(skill, crate::skill::xp_for(level));
+            }
+            let _ = state.world.insert(player, (crate::entity::Learner, skills));
+            let recipe = RecipeDef {
+                makes: "Knife".into(),
+                ..shiv()
+            };
+            let properties = ["hard", "flexible", "rare"]
+                .map(|name| PropertyDef {
+                    name: name.into(),
+                    note: String::new(),
+                    gives: Vec::new(),
+                })
+                .to_vec();
+            state.blueprints = state.blueprints.clone().with_crafting_unchecked(Crafting {
+                properties,
+                recipes: vec![recipe],
+            });
+            let _ = state.world.insert_one(player, Recipes(vec!["Shiv".into()]));
+            let edge: &[&str] = if rare { &["hard", "rare"] } else { &["hard"] };
+            for props in [edge, &["flexible"][..]] {
+                thing("scrap")
+                    .item()
+                    .with(Material(props.iter().map(|p| p.to_string()).collect()))
+                    .carried_by(player)
+                    .make(&mut state);
+            }
+            assert!(craft_now(&mut state, [None; MAX_SLOTS]));
+            crate::discovery::made(&state, player).contains(&name)
+        };
+        assert!(
+            !ready_to_be_inspired(false),
+            "common materials never inspire"
+        );
+        assert!(ready_to_be_inspired(true), "a rare one can");
     }
 
     #[test]

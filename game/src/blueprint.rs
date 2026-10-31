@@ -662,6 +662,12 @@ impl Blueprints {
                     crate::craft::MAX_SLOTS
                 ));
             }
+            if let Some(skill) = recipe.skills.iter().find(|s| self.skills.id(s).is_none()) {
+                return bad(format!(
+                    "recipe {:?} uses unknown skill {skill:?}",
+                    recipe.name
+                ));
+            }
             if let Some(need) = recipe
                 .slots
                 .iter()

@@ -135,7 +135,7 @@ fn in_phase(state: &GameState, key: &str) -> bool {
     crate::phase::on_dive(state).is_some_and(|phase| phase.key == key)
 }
 
-fn made(state: &GameState, learner: Entity) -> Vec<String> {
+pub(crate) fn made(state: &GameState, learner: Entity) -> Vec<String> {
     state
         .world
         .get::<&Discovered>(learner)

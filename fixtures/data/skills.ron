@@ -64,4 +64,9 @@
     (name: "Rime attunement", domain: Attunement, weight: 1),
     (name: "Tempest attunement", domain: Attunement, weight: 1),
     (name: "Mire attunement", domain: Attunement, weight: 1),
+
+    // Craft (docs/plans/crafting.md).
+    (name: "Scavenging", domain: Craft, weight: 1),
+    (name: "Fletching", domain: Craft, weight: 2),
+    (name: "Smithing", domain: Craft, weight: 2),
 ]
