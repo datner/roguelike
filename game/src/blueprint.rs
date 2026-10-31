@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
     Ability, Hardiness, Keepsake, Made, Material, Natural, Note, OffBalance, Recipes, Roams,
-    Skirmish, SprintAi, Teaches, TechniqueAi, Verb, WindUp, Yields,
+    Salvage, Skirmish, SprintAi, Teaches, TechniqueAi, Verb, WindUp, Yields,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -680,9 +680,32 @@ impl Blueprints {
                 ));
             }
         }
+        let recipe_known =
+            |name: &String| crafting.recipes.iter().any(|recipe| &recipe.name == name);
+        for discovery in &self.discoveries {
+            if let crate::discovery::Granted::Recipe(name) = &discovery.grants
+                && !recipe_known(name)
+            {
+                return bad(format!(
+                    "discovery {:?} grants unknown recipe {name:?}",
+                    discovery.name
+                ));
+            }
+        }
         for blueprint in &self.resolved {
             for def in &blueprint.components {
                 match def {
+                    ComponentDef::Salvage(salvage) => {
+                        if !recipe_known(&salvage.recipe) {
+                            return bad(format!(
+                                "{:?} teaches unknown recipe {:?}",
+                                blueprint.name, salvage.recipe
+                            ));
+                        }
+                        if let Some(part) = salvage.returns.iter().find(|p| self.id(p).is_none()) {
+                            return bad(format!("{:?} returns unknown {part:?}", blueprint.name));
+                        }
+                    }
                     ComponentDef::Recipes(known) => {
                         for name in &known.0 {
                             if !crafting.recipes.iter().any(|recipe| &recipe.name == name) {

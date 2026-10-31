@@ -703,7 +703,8 @@ fn sources(blueprints: &Blueprints, name: &str) -> Vec<String> {
         }
     }
     for discovery in blueprints.discoveries() {
-        if discovery.grants == id {
+        if matches!(discovery.grants, crate::discovery::Granted::Blueprint { id: granted, .. } if granted == id)
+        {
             let needs: Vec<String> = discovery
                 .requires
                 .iter()

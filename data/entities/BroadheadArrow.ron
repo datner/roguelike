@@ -1,0 +1,12 @@
+// A broad-headed arrow (docs/plans/crafting.md): discovered by a fletcher who
+// shoots, never found. Cuts deeper, and the wide head breaks less often.
+(
+    components: [
+        Name("broadhead arrow"),
+        Appearance(glyph: '-', fg: (220, 200, 150), bg: (0, 0, 0)),
+        Item,
+        Keepsake,
+        Ammo(Arrow),
+        Projectile(min: 3, max: 5, types: [Piercing, Slashing], break_bp: 1500),
+    ],
+)

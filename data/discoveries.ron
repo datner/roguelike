@@ -2,7 +2,8 @@
 // each use with stakes; a discovery is made once, and grants a proficiency
 // (a blueprint with `Proficiency`, attached to the learner), a style (a
 // blueprint with `Style`, known until followed; ADR 0019) or a technique
-// (a blueprint with `Technique`, attached; ADR 0024). `Phase(key)` means the
+// (a blueprint with `Technique`, attached; ADR 0024) or a recipe (by name
+// from data/recipes.ron, known from then on; docs/plans/crafting.md). `Phase(key)` means the
 // use must happen on a dive in that phase (docs/plans/phases.md).
 [
     (
@@ -39,5 +40,10 @@
         name: "Ember-hardened",
         requires: [Skill("Toughness", 3), Skill("Embers attunement", 2), Phase("Embers")],
         grants: Proficiency("EmberHardened"),
+    ),
+    (
+        name: "the broadhead",
+        requires: [Skill("Fletching", 5), Skill("Bow", 5)],
+        grants: Recipe("BroadheadArrow"),
     ),
 ]

@@ -138,12 +138,16 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   a `testing` feature only their dev-dependencies turn on. Left over: the inventory still lists
   materials one row each, since a row acts on one item; grouping them is its own change.
 
-### 6. Taking apart and new recipes — open
+### 6. Taking apart and new recipes — done
 - `Disassemble` (a lesson): once per kind, returns some materials and teaches the recipe its `Salvage`
   names; the goblin archer's crude bow teaches `ShortBow`, a rusty knife `Blade`.
 - `discovery` grants recipes (`Grant::Recipe`); a first one: Fletching 5 + Bow 5 inspires
   `BroadheadArrow`.
 - Tests: once per kind; the grant lands; a save keeps known recipes.
+- Done, through study rather than a new action: `game/CLAUDE.md` makes a new way to learn from a
+  studied thing a part `study` reads, so `Salvage { recipe, returns }` is one, and studying it takes
+  the thing apart (`r` in the inventory, five turns). The crude bow teaches `ShortBow` (a recipe
+  added for it), the rusty knife `Knife`; `the broadhead` discovery grants `BroadheadArrow`.
 
 ### 7. The bench and the vision — open
 - The floor bot picks up materials and the Floors report counts them per floor (materials a dive banks);

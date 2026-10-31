@@ -11,7 +11,8 @@ use serde::Deserialize;
 
 use crate::blueprint::{BlueprintError, ron_options};
 use crate::entity::{
-    DamageType, Found, Material, Position, Projectile, Quality, Recipes, SpawnSeq, Weapon, Yields,
+    DamageType, Found, Material, Position, Projectile, Quality, Recipes, Salvage, SpawnSeq, Weapon,
+    Yields,
 };
 use crate::grammar::Subject;
 use crate::holding;
@@ -321,6 +322,42 @@ pub fn recipe(
     })
 }
 
+/// `learner` comes to know `recipe`, by name, unless it already does.
+pub(crate) fn learn(state: &mut GameState, learner: Entity, recipe: &str) {
+    let mut known = state
+        .world
+        .get::<&Recipes>(learner)
+        .map(|known| (*known).clone())
+        .unwrap_or_default();
+    if known.0.iter().any(|name| name == recipe) {
+        return;
+    }
+    known.0.push(recipe.to_string());
+    let _ = state.world.insert_one(learner, known);
+    let message = Subject::of(&state.world, learner)
+        .sentence("learn", &format!("to make {}", recipe.to_lowercase()));
+    state.log.push(message);
+}
+
+/// Taking `item` apart (a lesson, `training::study`): it is gone, what it
+/// returns is in `actor`'s pack, and its recipe is known.
+pub(crate) fn salvage(state: &mut GameState, actor: Entity, item: Entity) {
+    let Some(salvage) = state.world.get::<&Salvage>(item).ok().map(|s| (*s).clone()) else {
+        return;
+    };
+    let message = Subject::of(&state.world, actor).sentence(
+        "take",
+        &format!("{} apart", Subject::of(&state.world, item).noun()),
+    );
+    state.log.push(message);
+    holding::unstow(&mut state.world, actor, item);
+    crate::command::despawn_with_holdings(state, item);
+    for part in &salvage.returns {
+        let _ = state.spawn(Spawn::blueprint(part).carried_by(actor));
+    }
+    learn(state, actor, &salvage.recipe);
+}
+
 /// On or beside a workbench.
 fn at_workbench(state: &GameState, actor: Entity) -> bool {
     let Ok(at) = state.world.get::<&Position>(actor).map(|at| *at) else {
@@ -587,6 +624,111 @@ mod tests {
             total
         };
         assert!(left(10) > left(0));
+    }
+
+    /// The real data, the player a learner in the bare room.
+    fn learner() -> GameState {
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
+        let mut state = crate::state::tests::bare_state_with(data);
+        let player = state.player;
+        let _ = state.world.insert_one(player, crate::entity::Learner);
+        state
+    }
+
+    fn knows(state: &GameState, recipe: &str) -> bool {
+        state
+            .world
+            .get::<&Recipes>(state.player)
+            .is_ok_and(|known| known.0.iter().any(|name| name == recipe))
+    }
+
+    #[test]
+    fn taking_a_thing_apart_teaches_its_recipe_once_per_kind_and_returns_its_parts() {
+        let mut state = learner();
+        // Whatever in the data can be taken apart, and what it gives.
+        let (name, salvage) = state
+            .blueprints
+            .items()
+            .into_iter()
+            .find_map(|id| {
+                let bp = state.blueprints.by_id(id)?;
+                bp.components.iter().find_map(|def| match def {
+                    ComponentDef::Salvage(s) => Some((bp.name.clone(), s.clone())),
+                    _ => None,
+                })
+            })
+            .expect("something in the data can be taken apart");
+        let player = state.player;
+        let study = |state: &mut GameState| {
+            let thing = state
+                .spawn(Spawn::blueprint(&name).carried_by(player))
+                .unwrap();
+            crate::time::take_turn(
+                state,
+                crate::input::PlayerAction::Study(ItemRef::of(&state.world, thing).unwrap()),
+            );
+            thing
+        };
+        let first = study(&mut state);
+        assert!(!state.world.contains(first), "taken apart");
+        assert!(knows(&state, &salvage.recipe));
+        let made = |state: &GameState| {
+            holding::carried(&state.world, player)
+                .into_iter()
+                .filter_map(|thing| {
+                    state
+                        .world
+                        .get::<&crate::entity::Made>(thing)
+                        .ok()
+                        .map(|m| m.0.clone())
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(made(&state), salvage.returns);
+        let second = study(&mut state);
+        assert!(
+            state.world.contains(second),
+            "once per kind: the second is kept"
+        );
+    }
+
+    #[test]
+    fn a_discovery_can_grant_a_recipe() {
+        let mut state = learner();
+        let Some(discovery) = state
+            .blueprints
+            .discoveries()
+            .iter()
+            .find_map(|d| match &d.grants {
+                crate::discovery::Granted::Recipe(recipe) => {
+                    Some((d.requires.clone(), recipe.clone()))
+                }
+                _ => None,
+            })
+        else {
+            return;
+        };
+        let (requires, recipe) = discovery;
+        let player = state.player;
+        let mut skills = crate::entity::Skills::default();
+        for &(skill, level) in &requires {
+            skills.set(skill, crate::skill::xp_for(level));
+        }
+        let _ = state.world.insert_one(player, skills);
+        crate::discovery::inspire(&mut state, player);
+        assert!(knows(&state, &recipe));
+        assert!(crate::testkit::last_log(&state).starts_with("Inspiration!"));
+    }
+
+    #[test]
+    fn a_save_keeps_the_recipes_known() {
+        let mut state = learner();
+        let player = state.player;
+        learn(&mut state, player, "Knife");
+        let blueprints = state.blueprints.clone();
+        let saved = crate::save::to_ron(&state).unwrap();
+        let loaded = crate::save::from_ron(&saved, blueprints).unwrap();
+        assert!(knows(&loaded, "Knife"));
     }
 
     #[test]

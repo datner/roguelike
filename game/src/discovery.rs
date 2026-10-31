@@ -34,6 +34,8 @@ pub enum Grant {
     Style(String),
     /// A technique (ADR 0024): this blueprint, attached to the learner.
     Technique(String),
+    /// A recipe (docs/plans/crafting.md), by name: known from then on.
+    Recipe(String),
 }
 
 /// One entry of `data/discoveries.ron`.
@@ -51,10 +53,17 @@ pub(crate) struct Discovery {
     pub requires: Vec<(SkillId, u32)>,
     /// The phase it must happen in, by key, if any.
     pub phase: Option<String>,
-    pub grants: BlueprintId,
+    pub grants: Granted,
+}
+
+/// What a discovery gives, resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Granted {
     /// A style, carried until followed; else a proficiency or a technique,
     /// attached.
-    pub carried: bool,
+    Blueprint { id: BlueprintId, carried: bool },
+    /// A recipe by name; `Blueprints::with_crafting` checks it exists.
+    Recipe(String),
 }
 
 /// Reads `data/discoveries.ron`: a list of `DiscoveryDef`s.
@@ -99,17 +108,27 @@ pub(crate) fn resolve(
             let (granted, carried) = match &def.grants {
                 Grant::Proficiency(name) | Grant::Technique(name) => (name, false),
                 Grant::Style(name) => (name, true),
+                // Recipes load after discoveries; `with_crafting` checks it.
+                Grant::Recipe(name) => {
+                    return Ok(Discovery {
+                        name: def.name.clone(),
+                        requires,
+                        phase,
+                        grants: Granted::Recipe(name.clone()),
+                    });
+                }
             };
             let fits = |bp: &crate::blueprint::ResolvedBlueprint| match def.grants {
                 Grant::Proficiency(_) => bp.components.contains(&ComponentDef::Proficiency),
                 Grant::Style(_) => bp.style.is_some(),
                 Grant::Technique(_) => bp.technique.is_some(),
+                Grant::Recipe(_) => false,
             };
-            let grants = blueprints
+            let id = blueprints
                 .id(granted)
                 .filter(|&id| blueprints.by_id(id).is_some_and(fits))
                 .ok_or_else(|| unknown(granted.clone()))?;
-            if blueprints.by_id(grants).is_some_and(|bp| bp.is_ability()) {
+            if blueprints.by_id(id).is_some_and(|bp| bp.is_ability()) {
                 return Err(BlueprintError::AbilityHandedOut {
                     by: format!("discovery {:?}", def.name),
                     ability: granted.clone(),
@@ -119,8 +138,7 @@ pub(crate) fn resolve(
                 name: def.name,
                 requires,
                 phase,
-                grants,
-                carried,
+                grants: Granted::Blueprint { id, carried },
             })
         })
         .collect()
@@ -149,16 +167,26 @@ pub(crate) fn made(state: &GameState, learner: Entity) -> Vec<String> {
 /// stakes.
 pub(crate) fn inspire(state: &mut GameState, learner: Entity) {
     let mut discovered = made(state, learner);
-    let new: Vec<(String, BlueprintId, bool)> = state
+    let new: Vec<(String, Granted)> = state
         .blueprints
         .discoveries()
         .iter()
         .filter(|d| !discovered.contains(&d.name))
         .filter(|d| d.requires.iter().all(|&req| met(state, learner, req)))
         .filter(|d| d.phase.as_ref().is_none_or(|key| in_phase(state, key)))
-        .map(|d| (d.name.clone(), d.grants, d.carried))
+        .map(|d| (d.name.clone(), d.grants.clone()))
         .collect();
-    for (name, grants, carried) in new {
+    for (name, granted) in new {
+        let (grants, carried) = match granted {
+            Granted::Blueprint { id, carried } => (id, carried),
+            Granted::Recipe(recipe) => {
+                crate::craft::learn(state, learner, &recipe);
+                let message = Subject::of(&state.world, learner).sentence("discover", &name);
+                state.log.push(format!("Inspiration! {message}"));
+                discovered.push(name);
+                continue;
+            }
+        };
         // A technique may already be known, from a manual.
         let noun = state.blueprints.by_id(grants).and_then(|bp| bp.noun());
         if noun.is_some_and(|noun| crate::technique::knows(&state.world, learner, noun)) {

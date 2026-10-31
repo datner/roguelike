@@ -10,5 +10,7 @@
         Launcher(range: 7, ammo: Arrow, stat: Agility, steady: 2),
         Weapon(min: 1, max: 2, stat: Strength, types: [Blunt]),
         Trains(["Bow", "Short bow"]),
+        // Taken apart, it shows how a bow is made (docs/plans/crafting.md).
+        Salvage(recipe: "ShortBow", returns: ["Sapling"]),
     ],
 )

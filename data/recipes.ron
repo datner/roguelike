@@ -28,4 +28,19 @@
         difficulty: 2,
         slots: [(role: "front", needs: ["flexible"]), (role: "back", needs: ["flexible"])],
     ),
+    (
+        name: "ShortBow",
+        makes: "ShortBow",
+        skills: ["Fletching"],
+        difficulty: 3,
+        slots: [(role: "stave", needs: ["flexible"]), (role: "string", needs: ["flexible"])],
+    ),
+    (
+        name: "BroadheadArrow",
+        makes: "BroadheadArrow",
+        field: true,
+        skills: ["Fletching"],
+        difficulty: 4,
+        slots: [(role: "shaft", needs: ["flexible"]), (role: "head", needs: ["hard"])],
+    ),
 ]

@@ -29,7 +29,8 @@ pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     let teaches = state.world.get::<&Teaches>(item).ok().map(|t| t.0.clone());
     let memoir = state.world.get::<&Memoir>(item).ok().map(|m| m.0.clone());
     let reveals = state.world.get::<&Reveals>(item).ok().map(|r| r.0.clone());
-    if lesson.is_none() && teaches.is_none() && memoir.is_none() && reveals.is_none() {
+    let salvage = state.world.satisfies::<&crate::entity::Salvage>(item);
+    if lesson.is_none() && teaches.is_none() && memoir.is_none() && reveals.is_none() && !salvage {
         state
             .log
             .push(who.sentence("find", &format!("nothing to learn in {}", what.noun())));
@@ -73,6 +74,10 @@ pub(crate) fn study(state: &mut GameState, actor: Entity, item: Entity) {
     }
     for discovery in reveals.into_iter().flatten() {
         reveal(state, actor, discovery);
+    }
+    // Last: taking it apart uses it up (docs/plans/crafting.md).
+    if salvage {
+        crate::craft::salvage(state, actor, item);
     }
 }
 
