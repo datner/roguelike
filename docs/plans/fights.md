@@ -1,8 +1,10 @@
 # Plan: fights that are decisions
 
-Handoff document. Read `docs/vision.md` (Fights, Legibility), ADR 0002 (commands), ADR 0005
+Summary: Fights where the obvious bump is sometimes wrong and you see why: numbers, morale, doors, chasms, grass, sprinting, telegraphs, archers, swarms.
+
+Read first: `docs/vision.md` (Fights, Legibility), ADR 0002 (commands), ADR 0005
 (randomness), ADR 0006 (time), ADR 0007 (FOV), ADR 0015 (sides), ADR 0024 (techniques) and
-`game/CLAUDE.md` first.
+`game/CLAUDE.md`.
 
 ## Goal
 
@@ -12,7 +14,7 @@ at once and a starting character can only bump. This plan adds, one slice at a t
 the content that ask questions: being outnumbered, foes that remember, flee and roam, doors, chasms and
 tall grass, sprinting, a brute's telegraphed blow, a skirmisher and a swarm.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Outnumbered is one rule for everyone**: each enemy adjacent to the defender beyond the first adds
   `OUTNUMBERED_BP` (1000, +10%) to the attacker's hit chance. It lives in `combat::odds`, so previews and
@@ -189,7 +191,7 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   20–40) and give more XP (1100–1300 on the first floor, from 600–900), since the foes are varied.
   The archer looks strong for its depth; tuning is the owner's call.
 
-### Afterwards: archers that can be closed on
+### 12. Archers that can be closed on — done
 The owner's tuning after the bench reading above (the archer at equal speed was untouchable):
 - **Range costs accuracy.** A launcher holds steady `steady` tiles (a short bow 4; the goblins'
   crude bow 2, range 7); each tile beyond takes 5% off. Named in the reasons ("range, 3 past steady").

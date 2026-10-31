@@ -4,6 +4,33 @@ Build plans, one per file, each a handoff: goal, decisions, slices marked done a
 scope. A game system earns its place by reaching into the others and being read back (`docs/vision.md`,
 "Interconnection"); this page holds the rule that makes every plan say how.
 
+## Reading them
+
+`scripts/plans.sh` lists every plan with its status and summary, and the open slices under it.
+`scripts/plans.sh NAME` outlines one (header, sections with their sizes, slices);
+`scripts/plans.sh NAME PART...` prints only those parts: a section by its heading's first word
+(`decisions`, `out`), a slice by its number (`3`, `1b`). Read a whole plan only to edit most of it.
+
+## Format
+
+```markdown
+# Plan: <title>
+
+Summary: <one sentence: what exists once it is built>
+Read first: <docs, ADRs and code a builder needs, optional>.
+
+## Goal
+## Decisions
+## Slices
+### <n>. <title> — open        (`— done` once committed; `— done (ADR 0022)` may name what it added)
+## Out of scope
+## Connections                  (or an `Exempt:` line, see the rule)
+```
+
+Other `##` sections (follow-ups, as built, open questions) go after these; `###` is only for slices.
+`scripts/plans.sh --lint`, run by `scripts/check.sh`, checks the title, `Summary:`, `## Goal`,
+`## Slices` and every slice heading.
+
 ## The rule
 
 Every game-system plan ends with a `## Connections` section of two lists:
@@ -43,32 +70,7 @@ Systems: skills, styles, discovery, techniques, spells, combat, lore, training, 
 - <system>: …
 ```
 
-## Plans
+## Candidates
 
-| Plan | Status | Connects |
-| --- | --- | --- |
-| `agent-tooling.md` | done | exempt: tooling |
-| `balance.md` | done | exempt: tooling |
-| `bench-cli.md` | done | exempt: tooling |
-| `bow-dancing.md` | done | styles, techniques, combat → discovery, origins, ai, training |
-| `calibration.md` | done | exempt: tooling |
-| `cleanup.md` | done | exempt: refactor |
-| `depth.md` | done | exempt: extends dives |
-| `dives.md` | done | phases, spells → health, phases, legacy |
-| `fights.md` | done | techniques, health, dives → combat, ai, lore, techniques |
-| `fights-2.md` | done | exempt: extends fights |
-| `floor-bot.md` | done | exempt: tooling |
-| `gui.md` | done | exempt: frontend |
-| `interconnection.md` | done | exempt: docs and a check |
-| `legacy.md` | done | origins, skills, techniques, discovery, dives, combat → dives, training, techniques, discovery |
-| `legibility.md` | done | exempt: text only |
-| `origins.md` | done | skills, styles, techniques → health, legacy |
-| `phases.md` | done | dives, skills → combat, skills, styles, discovery, dives, legacy |
-| `rest.md` | done | exempt: extends health (sturdiness) |
-| `skills.md` | done | combat, training, lore, health → combat, spells, techniques, styles, discovery, health, lore |
-| `spells.md` | done | skills, combat → lore, ai, techniques, phases |
-| `sturdiness.md` | done | skills, origins, combat, dives → skills, ai |
-| `techniques.md` | done | combat, skills, styles, spells → ai, styles, training, origins, discovery |
-
-Reads → read by. Candidates the audit found worth building, none needed to pass: an origin's starting
-lore (origins → lore), fletching (crafting → bow dancing), legacy weathering by phase.
+Connections the audit found worth building, none needed to pass: an origin's starting lore (origins →
+lore), fletching (crafting → bow dancing), legacy weathering by phase.

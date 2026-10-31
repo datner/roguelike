@@ -1,8 +1,10 @@
 # Plan: origins
 
-Handoff document. Read `docs/vision.md` ("The shape of the game", "The character", abilities),
+Summary: Characters start from an origin (kit, skills, styles, abilities) instead of a class.
+
+Read first: `docs/vision.md` ("The shape of the game", "The character", abilities),
 `docs/plans/dives.md` (where origins were deferred), ADR 0004 (content is data), ADR 0017 (skills),
-ADR 0019 (styles), ADR 0024 (techniques) and `game/CLAUDE.md` first.
+ADR 0019 (styles), ADR 0024 (techniques) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -13,7 +15,7 @@ blueprint; after this plan a new game asks which origin, and the origin decides 
 also what legacy will build on (a new character is never stronger for its predecessor; its origin is
 its whole head start).
 
-## Decisions taken for this plan
+## Decisions
 
 - **An origin is data**, listed in `data/origins.ron` in the order the menu shows them: a key, the name
   the player reads, a one-line summary, and the blueprint the character is made from. Each origin's

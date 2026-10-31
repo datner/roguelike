@@ -1,7 +1,9 @@
 # Plan: depth (way-landings and a bottom)
 
-Handoff document. Read `docs/vision.md` (Runs and endings; Pacing), `docs/plans/dives.md`, ADR 0009
-(zones) and `game/CLAUDE.md` (`dive.rs`, `dungeon.rs`, `zone.rs`) first.
+Summary: Way-landings back to camp every few floors, and a bottom to each dungeon.
+
+Read first: `docs/vision.md` (Runs and endings; Pacing), `docs/plans/dives.md`, ADR 0009
+(zones) and `game/CLAUDE.md` (`dive.rs`, `dungeon.rs`, `zone.rs`).
 
 ## Goal
 
@@ -11,7 +13,7 @@ each landing is a point to bank or push on." And: "Every dungeon has a bottom." 
 stairs up to camp where you arrive, and no dungeon ends. This plan gives each dungeon a depth and its
 landings, and makes both visible.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Data**: a dungeon gains `floors` (its bottom: Caves 9, Castle 12, inside the Pacing target of
   9–12) and `landing_every` (3). A floor is a **landing** when its number is a multiple of

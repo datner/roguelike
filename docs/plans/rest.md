@@ -1,7 +1,9 @@
 # Plan: rest
 
-Handoff document. Read `docs/vision.md` (Fights: attrition; Pacing), ADR 0006 (time), ADR 0008
-(saves), `docs/plans/floor-bot.md` and `game/CLAUDE.md` first.
+Summary: Health comes back from a rest budget per floor; camp heals in full.
+
+Read first: `docs/vision.md` (Fights: attrition; Pacing), ADR 0006 (time), ADR 0008
+(saves), `docs/plans/floor-bot.md` and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -10,7 +12,7 @@ careful play can heal between fights, but only so much per floor, so a floor is 
 health never comes back, and the floor bot shows it: every melee start dies by floor 2. This plan
 adds the regeneration, the budget, one key to rest, and the bot resting the way a person would.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Regeneration is a part with a periodic tick, like bleeding.** `Regeneration { interval, per_floor }`
   (data, on `Player`): every `interval` ticks a `Timer::Regenerate(entity)` fires; its applier heals

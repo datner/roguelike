@@ -1,7 +1,9 @@
 # Plan: bow dancing
 
-Handoff document. Read `docs/plans/techniques.md`, ADR 0013 (ranged), ADR 0017 (skills), ADR 0019
-(styles), ADR 0024 (techniques) and `game/CLAUDE.md` first.
+Summary: A close-quarters short-bow style: kicks that push and trip, point-blank shots, techniques that shoot.
+
+Read first: `docs/plans/techniques.md`, ADR 0013 (ranged), ADR 0017 (skills), ADR 0019
+(styles), ADR 0024 (techniques) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -13,7 +15,7 @@ has no weakness up close, so such a style would fix nothing; first, shooting nex
 harder for everyone, then the style answers that. A longbow, warbow or crossbow is too big to dance
 with; only a short bow qualifies.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Point blank is hard for everyone.** Firing a launcher while an enemy stands next to the shooter
   costs `POINT_BLANK` accuracy (start at 4, the size of a few skill levels). It is worked out in

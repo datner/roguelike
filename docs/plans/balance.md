@@ -1,7 +1,9 @@
 # Plan: balance bench
 
-Handoff document. Read ADR 0005 (determinism), ADR 0006 (time), ADR 0017 (skills), ADR 0024
-(techniques) and `game/CLAUDE.md` first.
+Summary: A balance bench: builds set before training dolls through the real game systems, and a report comparing them.
+
+Read first: ADR 0005 (determinism), ADR 0006 (time), ADR 0017 (skills), ADR 0024
+(techniques) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -12,7 +14,7 @@ reach, what it needs to find, and how much it spends doing it. Numbers alone mis
 twice the damage may need ten times the XP); the report puts them side by side so an outlier stands out
 in its context. It is a tool for the owner and for agents changing content, not part of the game.
 
-## Decisions taken for this plan
+## Decisions
 
 - **The simulation lives in `game`, the program outside it.** `game/src/balance.rs` turns a build and
   a scenario into a report through the real systems (`GameState`, `take_turn`, commands, events), so it

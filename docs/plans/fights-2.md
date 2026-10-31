@@ -1,7 +1,9 @@
 # Plan: fights 2 — a warning, rubble and deep water
 
-Handoff document. Read `docs/vision.md` (Fights, Legibility), `docs/plans/fights.md` (what this builds
-on: telegraphs, chasms, tall grass), ADR 0002 (commands), ADR 0006 (time) and `game/CLAUDE.md` first.
+Summary: A warning before stepping into a telegraphed tile, rubble, and deep water.
+
+Read first: `docs/vision.md` (Fights, Legibility), `docs/plans/fights.md` (what this builds
+on: telegraphs, chasms, tall grass), ADR 0002 (commands), ADR 0006 (time) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -11,7 +13,7 @@ cheap ones, each reusing what exists: the telegraph's marked tiles, the chasm's 
 the terrain patches `dive::build` already digs. Darkness (it needs non-uniform light in FOV, ADR 0007)
 and the smarter bot are their own plans.
 
-## Decisions taken for this plan
+## Decisions
 
 - **The warning is a keyboard flow, the danger is the game's.** `game::step_warning(state, dir)` says
   whether the player's step in `dir` would end on a tile a wind-up in view will strike (a bump at a

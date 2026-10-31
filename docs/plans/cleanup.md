@@ -1,6 +1,8 @@
 # Plan: cleanup — one answer per question, no stale pointers
 
-Handoff document. Read `game/CLAUDE.md` (Patterns) first.
+Summary: One answer per question ("who stands there") and no stale pointers in the docs.
+
+Read first: `game/CLAUDE.md` (Patterns).
 
 ## Goal
 

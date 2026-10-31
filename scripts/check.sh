@@ -72,6 +72,8 @@ map # Prints only when it rewrote the map.
 run boundary boundary
 # docs/plans/README.md: every game-system plan says what it reads and what reads it.
 run connections bash -c 'scripts/connections.sh --test && scripts/connections.sh'
+# docs/plans/README.md (Format): plans stay readable a part at a time.
+run plans    bash -c 'scripts/plans.sh --lint --test && scripts/plans.sh --lint'
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
 run test     cargo test --workspace --quiet
 exit "$failed"

@@ -1,8 +1,10 @@
 # Plan: skills, discovery and styles
 
-Handoff document. Read `CLAUDE.md`, `game/CLAUDE.md`, `docs/vision.md` (the why: pillars, how the
+Summary: Progression by use: skills, discovery, proficiencies, styles, lessons and lore.
+
+Read first: `CLAUDE.md`, `game/CLAUDE.md`, `docs/vision.md` (the why: pillars, how the
 character systems link), `docs/decisions/0004-data-driven-blueprints.md`, `0011-stats-and-weapons.md` and
-`0013-ranged-attacks.md` first. This plan is self-contained beyond those.
+`0013-ranged-attacks.md`.
 
 ## Goal
 
@@ -34,7 +36,7 @@ origins and legacy are separate plans; this one stops where they start.
 - Hands: `Equippable(part: Hand)` only. No two-handed weapons; only one weapon strikes.
 - `DamageType`: Slashing, Blunt, Piercing, Fire, Cold, Shock.
 
-## Design (decided)
+## Decisions
 
 1. **Skills are flat, data-defined tags.** `data/skills.ron` lists every skill with its domain and
    weight: `(name: "Dagger", domain: Martial, weight: 3)`. Load assigns each a `SkillId` (index in file
@@ -101,7 +103,7 @@ weapon says otherwise; a miss or graze teaches half; a hit teaches `base × (1 +
 Each slice: tests first where practical, then code, then docs (ADR, `README` if user-visible,
 `scripts/map.sh`), then `scripts/check.sh`.
 
-### 1. Melee skills, end to end in `game`
+### 1. Melee skills, end to end in `game` — done
 - `data/skills.ron`: Melee, Unarmed, Dagger, Pierce, Slash, Blunt. Loaded with the blueprints into a
   `SkillBook` (names, domains, weights) held by `GameState`.
 - New module `skill.rs`: `SkillId`, `SkillSet`, `Domain`, `level`, `effective`, `used(.., Action::Melee)`.
@@ -116,7 +118,7 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   skill name fails load.
 - ADR 0017 (skills): flat tags, weighted average, XP-only storage, deterministic gain, decay.
 
-### 1b. Melee can miss, graze, be deflected or be perfectly dodged
+### 1b. Melee can miss, graze, be deflected or be perfectly dodged — done
 - `AttackOdds` event and `combat::odds(world, attacker, defender) -> Odds { hit_bp, perfect_bp, graze_bp,
   deflect_bp }`, pure; `prio.rs` priorities for its handlers. Base hit chance from skills and stats as in
   decision 7.
@@ -139,17 +141,17 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   is named; preview equals the rolled odds. ADR 0013 gets a note (melee now
   resolves to four outcomes; ranged in slice 4).
 
-### 2. Seeing skills
+### 2. Seeing skills — done
 - `view::skills(state) -> Vec<SkillView { name, domain, level, xp, next }>`, skills with XP or a level.
 - `term`: a Skills view in the overlay (beside inventory and equipment), grouped by domain; item
   inspection lists what an item trains. Follow `add-ui`. README Controls if a key is added.
 
-### 3. Circumstance skills
+### 3. Circumstance skills — done
 - `used` adds One-handed when one hand holds the striking weapon, Empty offhand when every other hand is
   empty, from `equipment::equipped`. Two-handed and dual wielding wait for a grip model and the
   dual-wielding proficiency; note it in ADR 0017.
 
-### 4. Ranged and thrown
+### 4. Ranged and thrown — done
 - `Action::Thrown` (Thrown + the missile's `Trains` and damage types) and `Action::Fired` (Archery + the
   launcher's `Trains`; `ShortBow`: Bow). Bonus into `fire_strike` / `throw_strike`.
 - Missiles resolve with the same `odds` / `resolve` from 1b. The flight path stays RNG-free; only the
@@ -157,7 +159,7 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   ADR 0013 whether a miss or perfect dodge flies on to the next creature or comes to rest; `aim` shows
   the chances.
 
-### 5. Magic
+### 5. Magic — done
 - `Action::Cast`: Magic + the school + the shape (Bolt, Burst, Cone, Beam, Nova, Chain, Rune) + any
   `Trains` on the spell. Discipline skills (Channeling, Hemomancy, Scroll lore) are trained by paying for a
   cast that counts.
@@ -165,7 +167,7 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   `spell::cast` does not learn about skills. Disciplines → cost or regen, in their own handlers.
 - XP when the cast catches an enemy. A scroll trains what the spell it holds would.
 
-### 6. Discovery and proficiencies
+### 6. Discovery and proficiencies — done
 - `data/discoveries.ron`: `(name, requires: [Skill("Archery", 8), ...], grants: Proficiency("..."))`.
   Requirements over skills now; over styles from slice 7.
 - After a `Train` that counted (stakes), check the learner's unmet discoveries in file order; a met one
@@ -176,7 +178,7 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   half their requirements met, showing the met ones.
 - ADR 0018 (discovery).
 
-### 7. Styles
+### 7. Styles — done
 - A style is a blueprint entity held by the creature: known styles inert (`Inventory`-like list), the
   active one in `Attachments` so its handlers fire (`holding.rs`). `Style { domains: [Martial, ..] }`;
   one active per domain, a hybrid fills all its domains. `Command::AdoptStyle` costs an action.
@@ -188,13 +190,13 @@ Each slice: tests first where practical, then code, then docs (ADR, `README` if 
   action, not just a number. Discovery requirements may now name styles.
 - ADR 0019 (styles). Inventions (techniques) wait for the techniques plan.
 
-### 8. Lessons and practice
+### 8. Lessons and practice — done
 - `Lesson { action, grants: [(skill, xp)] }` part on things; taking one is recorded per kind in the same
   list as novelty, so it pays once. First content needs no new system (a manual item; studying a rune).
 - `PlayerAction::Practice`: repeats like resting until the ceiling or an interruption; the ceiling is a
   fraction of the skill's best level reached through counted use, or a low fixed number if never used.
 
-### 9. Lore
+### 9. Lore — done
 - Beast lore and Arcana trained by novelty (first sight, first use). Thresholds unlock lines in an inspect
   view (creature HP and resistances, spell numbers). Needs an inspect view if `term` has none.
 

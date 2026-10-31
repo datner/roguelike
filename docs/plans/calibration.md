@@ -1,7 +1,9 @@
 # Plan: play-time calibration
 
-Handoff document. Read `docs/vision.md` (Pacing), `docs/plans/floor-bot.md`, `front/CLAUDE.md` and
-`gui/CLAUDE.md` first.
+Summary: Real play recorded as keypresses an hour, so the bench's pacing targets convert to real time.
+
+Read first: `docs/vision.md` (Pacing), `docs/plans/floor-bot.md`, `front/CLAUDE.md` and
+`gui/CLAUDE.md`.
 
 ## Goal
 
@@ -10,7 +12,7 @@ The pacing targets are counted in keypresses and converted to time at an assumed
 save, outside `game`, so determinism holds. It only tunes the actions-per-hour figure and is never
 shown as a score." This plan records it and lets the bench read it back.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Keypresses are counted by the session**, the same way the floor bot counts them: every input
   that becomes a turn or starts a run is one; a run's steps are not; menus and panels are not.

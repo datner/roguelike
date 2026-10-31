@@ -1,5 +1,9 @@
 # Plan: tooling for working on the gui without opening it
 
+Summary: An agent sees the gui without opening it: headless screenshots, animation strips and visual regression checks.
+
+## Goal
+
 From the gui cycle's postmortem. The agent can't run the window; it renders
 screens headlessly (`egui_kittest` + wgpu) and reads the PNGs. Each image read
 costs about width × height / 750 tokens, so the tools aim at reading less.

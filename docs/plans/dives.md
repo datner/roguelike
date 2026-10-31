@@ -1,7 +1,9 @@
 # Plan: camp and dives
 
-Handoff document. Read `docs/vision.md` ("The shape of the game"), ADR 0005 (RNG streams), ADR 0008
-(saves), ADR 0009 (zones and seeds) and `game/CLAUDE.md` first.
+Summary: The outer loop: camp, a chosen phase, and themed dungeons dived floor after floor.
+
+Read first: `docs/vision.md` ("The shape of the game"), ADR 0005 (RNG streams), ADR 0008
+(saves), ADR 0009 (zones and seeds) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -9,7 +11,7 @@ The game's outer loop: a character starts at a **camp**, chooses a **phase** to 
 into a themed dungeon, floor after floor, until they come back up to camp or die. Today a game is one
 generated cave whose exit leads nowhere.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Dungeons reroll every dive** (the vision's first open question). A floor's seed mixes the world seed,
   the dungeon, the phase, the dive number and the floor; dropping the dive number from the mix would make

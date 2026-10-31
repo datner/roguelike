@@ -1,7 +1,9 @@
 # Plan: the floor bot
 
-Handoff document. Read `docs/vision.md` (Fights, Pacing), `docs/plans/balance.md` (the bench as it is),
-ADR 0005 (determinism), ADR 0009 (zones), ADR 0017 (skills) and `game/CLAUDE.md` first.
+Summary: A bot that plays builds through real floors, so the bench measures pacing against the vision's targets.
+
+Read first: `docs/vision.md` (Fights, Pacing), `docs/plans/balance.md` (the bench as it is),
+ADR 0005 (determinism), ADR 0009 (zones), ADR 0017 (skills) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -13,7 +15,7 @@ reaches the depth asked for. Over many seeds it reports what a floor costs and y
 the targets are from what the game does. It is the naive player of Fights: it never retreats, kites or
 heals on purpose, so it reads as "what bumping gets you".
 
-## Decisions taken for this plan
+## Decisions
 
 - **Same home as the doll bench.** The simulation is in `game/src/balance.rs` (a `dive` beside `run`),
   the program in `bench`. It drives the player through `take_turn`/`time::submit` and the real

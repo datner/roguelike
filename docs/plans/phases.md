@@ -1,9 +1,11 @@
 # Plan: phases
 
-Handoff document. Read `docs/vision.md` ("Interconnection", "Phases", "The character"),
+Summary: Each phase leans the whole world: elements, skills, styles and what spawns.
+
+Read first: `docs/vision.md` ("Interconnection", "Phases", "The character"),
 `docs/plans/dives.md` (where phases began), ADR 0004 (content is data), ADR 0012 (armor and typed
 damage), ADR 0014 (spells), ADR 0016 (elements, proposed), ADR 0017 (skills), ADR 0018 (discovery),
-ADR 0019 (styles) and `game/CLAUDE.md` first.
+ADR 0019 (styles) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -13,7 +15,7 @@ bends one rule, it has its own natives and finds, and the character systems read
 phase attunes you to it, a style can thrive in one, and a discovery can need stakes in one. There are
 five phases: the Stillness, which looks neutral, and two opposed pairs.
 
-## Decisions taken for this plan
+## Decisions
 
 - **The five phases** (`data/phases.ron`, in wheel order; the first is where a world starts):
 

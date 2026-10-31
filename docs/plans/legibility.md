@@ -1,7 +1,9 @@
 # Plan: legibility
 
-Handoff document. Read `docs/vision.md` (pillar 7, Legibility, Interconnection), ADR 0013 (aim
-previews), ADR 0017 (skills), `docs/plans/fights.md` and `game/CLAUDE.md` first.
+Summary: Every "why?" answered on screen: odds with reasons, the log's why, previews, a death that names its chain.
+
+Read first: `docs/vision.md` (pillar 7, Legibility, Interconnection), ADR 0013 (aim
+previews), ADR 0017 (skills), `docs/plans/fights.md` and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -11,7 +13,7 @@ names its chain. The fights plan added rules (outnumbered, telegraphs, grass, sp
 effects are only partly shown. This plan makes the fight's numbers and outcomes explain themselves,
 starting where a player asks most: "why did I miss?", "why did that hit so hard?", "how did I die?".
 
-## Decisions taken for this plan
+## Decisions
 
 - **Odds carry their reasons.** `combat::odds` already builds the hit chance in one place: its base
   (accuracy against dodge) and the outnumbered rule are named as they are added, and whatever the

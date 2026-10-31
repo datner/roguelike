@@ -1,7 +1,9 @@
 # Plan: the bench as its own command
 
-Handoff document. Read `docs/plans/balance.md`, `docs/plans/floor-bot.md` and `bench/src/main.rs`
-first.
+Summary: `cargo balance`: the bench on every core, with progress, narrowed runs and what moved since the committed report.
+
+Read first: `docs/plans/balance.md`, `docs/plans/floor-bot.md` and `bench/src/main.rs`
+first..
 
 ## Goal
 
@@ -12,7 +14,7 @@ just what a question needs, and say what it found. The `bench` binary is already
 script around it only adds a nix fallback, the `--check` diff and the page's git lookup. Those move
 into the binary and the script goes, replaced by a cargo alias: `cargo balance [...]`.
 
-## Decisions taken for this plan
+## Decisions
 
 - **No new dependencies.** Threads are `std::thread::scope`, the progress line is a rewritten stderr
   line, arguments stay hand-parsed: a handful of flags, a tool for the owner and the agent.

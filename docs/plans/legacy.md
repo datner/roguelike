@@ -1,9 +1,11 @@
 # Plan: legacy
 
-Handoff document. Read `docs/vision.md` ("The shape of the game", "Runs and endings", "Legacy",
+Summary: Death ends a character for good and leaves a legacy the next of the lineage starts from.
+
+Read first: `docs/vision.md` ("The shape of the game", "Runs and endings", "Legacy",
 "Camp"), `docs/plans/origins.md` (origins are the head start; legacy reads `Origin`),
 `docs/plans/dives.md` (camp, its follow-ups), ADR 0005 (RNG streams), ADR 0008 (saves), ADR 0017
-(skills, lessons), ADR 0018 (discovery), ADR 0025 (origins) and `game/CLAUDE.md` first.
+(skills, lessons), ADR 0018 (discovery), ADR 0025 (origins) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -19,7 +21,7 @@ The vision's later stages (judgement, perception and tellers, retiring and mento
 places) all need the first retirement, so they are out of scope here. This plan must not close doors
 on them; the decisions below say where each one will attach.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Death is final.** On death the character's save file is deleted and a record is appended to the
   lineage. Today the last save stays and can be continued, which undoes permadeath. `saves.rs`'s rule

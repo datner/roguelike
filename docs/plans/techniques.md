@@ -1,7 +1,9 @@
 # Plan: techniques
 
-Handoff document. Read `docs/vision.md` ("The character", especially Styles and "Techniques and
-abilities"), ADR 0014 (spells), ADR 0017 (skills), ADR 0019 (styles) and `game/CLAUDE.md` first.
+Summary: Special actions with body and blade (lunge, cleave, shove, sword forms) costing a turn, a recharge and stamina.
+
+Read first: `docs/vision.md` ("The character", especially Styles and "Techniques and
+abilities"), ADR 0014 (spells), ADR 0017 (skills), ADR 0019 (styles) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -11,7 +13,7 @@ new to *do*. Techniques are that missing link: `skills → styles ──invent�
 learned from a manual, invented by a followed style, or, for a creature, simply known from its blueprint
 (an ability).
 
-## Decisions taken for this plan
+## Decisions
 
 - **A technique is a blueprint entity attached to its holder**, like a spell (ADR 0014): in use, saved
   and despawned with them. `Technique { domain, reach, recharge, stamina, requires }` says how it is

@@ -1,7 +1,9 @@
 # Plan: spells and magic systems
 
-Handoff document. Read `CLAUDE.md`, `game/CLAUDE.md`, `docs/decisions/0014-spells-and-disciplines.md`,
-and `docs/decisions/0006-time-model.md` first. This plan is self-contained beyond those.
+Summary: Spells paid for in different ways through disciplines, with areas, allegiance and summons.
+
+Read first: `CLAUDE.md`, `game/CLAUDE.md`, `docs/decisions/0014-spells-and-disciplines.md`,
+and `docs/decisions/0006-time-model.md`.
 
 ## Goal
 
@@ -26,7 +28,7 @@ reagents, HP). Spells must support single-target bolts, areas, cones, lines and 
 - Skills in `.claude/skills/`: `add-command` and `add-part` are recipes for the usual steps
   (variant, handler, cost, input, save, blueprint, tests).
 
-## Design (decided)
+## Decisions
 
 **Separate what a spell does from how it is paid for.**
 
@@ -106,7 +108,7 @@ Not done: any terminal UI. The player cannot cast in the real game yet.
 Each slice: tests first where practical, then code, then docs (ADR update or new ADR if a decision
 changes, `README` Controls if user-visible, `scripts/map.sh`), then `scripts/check.sh`.
 
-### 1b. Cast from the terminal
+### 1b. Cast from the terminal — done
 - `game::view`: `SpellView { spell: ItemRef, name, school, range, ready: Result<(), String> }` and
   `spells(state)` listing known spells (plain data, no hecs types). Include a generic
   `CastPreview { costs: Vec<CostLine>, blocked: Option<String> }` shape now, even though only
@@ -118,7 +120,7 @@ changes, `README` Controls if user-visible, `scripts/map.sh`), then `scripts/che
 - Tests: `TestBackend` rendering of the list and aim; `game` tests that `aim` for `Shot::Cast` agrees with `cast`.
 - README Controls: add `c`.
 
-### 2. Mana, the second discipline (the real test of the seam)
+### 2. Mana, the second discipline (the real test of the seam) — done
 - New parts: `Mana { value, max, as_of, regen }` (or similar) on the caster and `ManaCasting { school, mana_per_power }`.
   Register `CheckCast` (veto "Not enough mana.") and `PayCost` (emit a `Command` that spends mana and
   updates `as_of`). Pick a priority in `prio.rs`.
@@ -132,7 +134,7 @@ changes, `README` Controls if user-visible, `scripts/map.sh`), then `scripts/che
   Note `SAVE_VERSION` bumps and `Stat`/`Stats` ripple (`view::character_sheet`, blueprint, save).
 - Status line / side panel shows mana. ADR 0014 gets a paragraph.
 
-### 3. Areas and shapes
+### 3. Areas and shapes — done
 - New module `area.rs`: `area(shape, caster, aim, &Map) -> Vec<(i32, i32)>`, pure and ordered row-major.
   Shapes: single, burst (radius around a point, line-of-sight from the centre), cone (angle + range, shadowcast
   from the caster), beam (line that passes through creatures). Walls block.
@@ -142,7 +144,7 @@ changes, `README` Controls if user-visible, `scripts/map.sh`), then `scripts/che
 - `aim::Aim` returns the affected tiles so the UI highlights exactly what will be hit.
 - Write the pure-function tests first: wall blocking, cone edge tiles, ordering, friendly-fire policy.
 
-### 4. Allegiance, then summons
+### 4. Allegiance, then summons — done
 - Minimal `Faction` (or owner-based allies). `ai.rs` target selection and the `hits:` policy read it. Today the
   AI is player-relative; this is a prerequisite and a slice of its own with tests (AI ignores allies).
 - `Summon { blueprint, count, placement, lifetime }` payload: spawn through `GameState::spawn` (the only way),
@@ -150,14 +152,14 @@ changes, `README` Controls if user-visible, `scripts/map.sh`), then `scripts/che
 - Lifetime as a `Timed` effect on the summon; expiry via `effect::expire_effect`; `ModifyDuration` extends it.
 - `Summoned { owner }` component, saved; despawn with the owner. A summon cap is a `CheckCast` veto from a discipline.
 
-### 5. More disciplines and costs (pick by what the game needs)
+### 5. More disciplines and costs (pick by what the game needs) — done
 - Fizzle risk: a roll from a new `spell` RNG stream, affected by stats and armor weight.
 - Materials: scrolls (single-use items), wands (charges that recharge by timestamp), reagents consumed from
   `Inventory`, focus items in equipment slots that hook `ModifyCast`.
 - Heat/overload: casting adds Heat that decays by timestamp; over a threshold gives backfire or a debuff.
   Variant: spells cost HP.
 
-### 6. Complex spells
+### 6. Complex spells — done
 - Chain (repeatedly pick the nearest unhit creature in sight, fixed tie-break), delayed blast / trap
   (a Timed pending entity that resolves at `start + duration`), terrain-making walls (needs a temporary
   tile-overlay layer on the map), projectile spells reusing `ranged` flight.

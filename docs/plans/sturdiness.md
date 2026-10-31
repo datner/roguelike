@@ -1,7 +1,9 @@
 # Plan: sturdiness (health growth and recovery)
 
-Handoff document. Read `docs/vision.md` (pillars 1, 2 and 4, Skills, Fights: attrition),
-`docs/plans/rest.md`, ADR 0017 (skills) and `game/CLAUDE.md` first.
+Summary: Health that grows with Toughness and Recovery, so staying power is composite.
+
+Read first: `docs/vision.md` (pillars 1, 2 and 4, Skills, Fights: attrition),
+`docs/plans/rest.md`, ADR 0017 (skills) and `game/CLAUDE.md`.
 
 ## Goal
 
@@ -11,7 +13,7 @@ layers that grow from different places, so builds differ in how they last: healt
 resistances, and avoidance (Dodge, Poise, Deflection). Armor, resistances and avoidance exist; this
 plan adds the health layers and the recovery that refills them.
 
-## Decisions taken for this plan
+## Decisions
 
 - **Origins start at different health**, written in each origin's blueprint (the pit fighter 26, the
   duelist 20, the wanderer 20, the hedge mage 16). Data, not a formula: stats are the same for every

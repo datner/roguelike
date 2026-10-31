@@ -1,7 +1,9 @@
 # Plan: interconnection audit
 
-Handoff document. Read `docs/vision.md` ("Interconnection" first, then the whole of it), every plan in
-`docs/plans/`, and `docs/decisions/README.md` first.
+Summary: The rule that every system plan names what it reads and what reads it, and the check enforcing it.
+
+Read first: `docs/vision.md` ("Interconnection" first, then the whole of it), every plan in
+`docs/plans/`, and `docs/decisions/README.md`.
 
 ## Goal
 
@@ -12,7 +14,7 @@ one fixed section, which systems it reads and which read it, each through a name
 with fewer than two connections in either direction gets slices that add them. A check keeps new plans
 honest.
 
-## Decisions taken for this plan
+## Decisions
 
 - **A connection is a mechanism, not a mention**: a function, a data field, an event or a condition
   through which one system changes what another does. "Phases affect styles" is not one; "`Style.thrives`

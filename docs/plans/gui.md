@@ -1,8 +1,10 @@
 # Plan: a windowed frontend (`gui`)
 
-Handoff document. Read `CLAUDE.md`, `game/CLAUDE.md`, `front/CLAUDE.md`, `term/CLAUDE.md`, ADR 0001
+Summary: The eframe/egui windowed frontend, keyboard first, over the shared `front` crate.
+
+Read first: `CLAUDE.md`, `game/CLAUDE.md`, `front/CLAUDE.md`, `term/CLAUDE.md`, ADR 0001
 (the seam), ADR 0013 (aiming previews), ADR 0020 (this frontend, keyboard first, and when to move to
-Bevy) and ADR 0021 (the shared `front` crate) first.
+Bevy) and ADR 0021 (the shared `front` crate).
 
 ## Goal
 
