@@ -162,7 +162,7 @@ impl Overlay {
                         move_selection(&mut self.selected, input, contents.skills.len());
                         None
                     }
-                    (Tab::Styles, _) => self.handle_styles(input, contents.styles),
+                    (Tab::Styles, _) => self.handle_styles(input, contents),
                 };
             }
         }
@@ -202,14 +202,11 @@ impl Overlay {
         }
     }
 
-    /// The skills view's only choice: which style to follow.
-    fn handle_styles(
-        &mut self,
-        input: OverlayInput,
-        styles: &[StyleView],
-    ) -> Option<OverlayAction> {
-        move_selection(&mut self.selected, input, styles.len());
-        let style = styles.get(self.selected)?;
+    /// Every row can be focused to read it; the only choice is which style
+    /// to follow, and styles are the first rows.
+    fn handle_styles(&mut self, input: OverlayInput, contents: &Contents) -> Option<OverlayAction> {
+        move_selection(&mut self.selected, input, way_count(contents));
+        let style = contents.styles.get(self.selected)?;
         (input == OverlayInput::Select)
             .then_some(OverlayAction::Act(PlayerAction::FollowStyle(style.style)))
     }
@@ -419,15 +416,15 @@ impl Overlay {
                 )
             }
             (Tab::Styles, _, _) => {
-                let (lines, focus) = way_lines(contents, self.selected);
+                let ways = way_lines(contents, self.selected);
                 (
                     Title::Tabs(Tab::Styles),
-                    lines,
-                    focus,
-                    if contents.styles.is_empty() {
-                        "Tab inventory  Esc close"
-                    } else {
+                    ways.lines,
+                    ways.focus,
+                    if self.selected < contents.styles.len() {
                         "Enter follow / set aside  Tab inventory  Esc close"
+                    } else {
+                        "j/k move  Tab inventory  Esc close"
                     },
                 )
             }
@@ -480,11 +477,7 @@ impl Overlay {
                 .get(self.selected)
                 .map(item_details)
                 .unwrap_or_default(),
-            (Tab::Styles, _, _) => contents
-                .styles
-                .get(self.selected)
-                .map(style_details)
-                .unwrap_or_default(),
+            (Tab::Styles, _, _) => way_lines(contents, self.selected).details,
             (Tab::Skills, _, _) => Vec::new(),
         }
     }
@@ -583,54 +576,59 @@ fn skill_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<
 /// What the player has made of their skills: styles (the selected one
 /// focused), proficiencies, abilities (if any), techniques and half-formed
 /// ideas.
-fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<usize>) {
+fn way_lines(contents: &Contents, selected: usize) -> Ways {
     let none = |text: &str| PanelLine::plain(vec![quiet(format!("  {text}"))]);
-    let mut lines = vec![PanelLine::heading("Styles")];
-    let mut focus = None;
+    let mut ways = Ways {
+        lines: vec![PanelLine::heading("Styles")],
+        focus: None,
+        details: Vec::new(),
+        selected: selected.min(way_count(contents).saturating_sub(1)),
+        next: 0,
+    };
     if contents.styles.is_empty() {
-        lines.push(none("None discovered yet."));
+        ways.lines.push(none("None discovered yet."));
     }
-    let selected = selected.min(contents.styles.len().saturating_sub(1));
-    for (i, style) in contents.styles.iter().enumerate() {
+    for style in contents.styles {
         let following = if style.followed { "  following" } else { "" };
         let row = vec![
             Seg::Plain(format!("  {}  {:>2}", style.name, style.level)),
             quiet(following),
         ];
-        if i == selected {
-            focus = Some(lines.len());
-        }
-        lines.push(PanelLine::row(row, i, selected));
+        ways.add(row, || style_details(style));
     }
-    lines.push(PanelLine::heading("Proficiencies"));
+    ways.lines.push(PanelLine::heading("Proficiencies"));
     if contents.proficiencies.is_empty() {
-        lines.push(none("None attained yet."));
+        ways.lines.push(none("None attained yet."));
     }
-    lines.extend(
-        contents
-            .proficiencies
-            .iter()
-            .map(|p| PanelLine::plain(vec![Seg::Plain(format!("  {p}"))])),
-    );
-    let technique_line = |technique: &TechniqueView| {
-        let (main, notes) = crate::targeting::technique_row(technique);
-        let mut row = vec![Seg::Plain(format!("  {main}"))];
-        row.extend(notes.into_iter().map(|note| quiet(format!("  {note}"))));
-        PanelLine::plain(row)
-    };
+    for p in contents.proficiencies {
+        ways.add(vec![Seg::Plain(format!("  {p}"))], || {
+            vec![
+                vec![Seg::Plain(p.clone())],
+                vec![quiet("A proficiency: it is always part of what you do.")],
+            ]
+        });
+    }
     let (abilities, learned): (Vec<&TechniqueView>, Vec<&TechniqueView>) =
         contents.techniques.iter().partition(|t| t.ability);
+    let techniques = |ways: &mut Ways, list: Vec<&TechniqueView>| {
+        for technique in list {
+            let (main, notes) = crate::targeting::technique_row(technique);
+            let mut row = vec![Seg::Plain(format!("  {main}"))];
+            row.extend(notes.iter().map(|note| quiet(format!("  {note}"))));
+            ways.add(row, || technique_details(technique, &notes));
+        }
+    };
     if !abilities.is_empty() {
-        lines.push(PanelLine::heading("Abilities"));
-        lines.extend(abilities.into_iter().map(technique_line));
+        ways.lines.push(PanelLine::heading("Abilities"));
+        techniques(&mut ways, abilities);
     }
-    lines.push(PanelLine::heading("Techniques"));
+    ways.lines.push(PanelLine::heading("Techniques"));
     if learned.is_empty() {
-        lines.push(none("None known yet."));
+        ways.lines.push(none("None known yet."));
     }
-    lines.extend(learned.into_iter().map(technique_line));
+    techniques(&mut ways, learned);
     if !contents.ideas.is_empty() {
-        lines.push(PanelLine::heading("Ideas"));
+        ways.lines.push(PanelLine::heading("Ideas"));
         for idea in contents.ideas {
             let met: Vec<String> = idea
                 .met
@@ -658,13 +656,61 @@ fn way_lines(contents: &Contents, selected: usize) -> (Vec<PanelLine>, Option<us
                 Some((phase, false)) => format!("{text}; only in {phase}"),
                 None => text,
             };
-            lines.push(PanelLine::plain(vec![
-                Seg::Plain("  ? ".to_string()),
-                quiet(text),
-            ]));
+            let row = vec![Seg::Plain("  ? ".to_string()), quiet(text.clone())];
+            ways.add(row, || {
+                vec![
+                    vec![Seg::Plain("An idea, half-formed".to_string())],
+                    vec![quiet(text)],
+                ]
+            });
         }
     }
-    (lines, focus)
+    ways
+}
+
+/// The Styles tab: every entry is a row to focus, numbered in the order
+/// shown, so any of them can be read in the details.
+struct Ways {
+    lines: Vec<PanelLine>,
+    focus: Option<usize>,
+    details: Vec<Row>,
+    selected: usize,
+    next: usize,
+}
+
+impl Ways {
+    fn add(&mut self, row: Row, details: impl FnOnce() -> Vec<Row>) {
+        if self.next == self.selected {
+            self.focus = Some(self.lines.len());
+            self.details = details();
+        }
+        self.lines
+            .push(PanelLine::row(row, self.next, self.selected));
+        self.next += 1;
+    }
+}
+
+/// How many rows the Styles tab has to move between.
+fn way_count(contents: &Contents) -> usize {
+    contents.styles.len()
+        + contents.proficiencies.len()
+        + contents.techniques.len()
+        + contents.ideas.len()
+}
+
+fn technique_details(technique: &TechniqueView, notes: &[String]) -> Vec<Row> {
+    let (low, high) = technique.damage;
+    let mut rows = vec![
+        vec![Seg::Plain(technique.name.clone())],
+        vec![
+            quiet("reach "),
+            Seg::Plain(technique.reach.to_string()),
+            quiet("  damage "),
+            Seg::Plain(format!("{low}-{high}")),
+        ],
+    ];
+    rows.extend(notes.iter().map(|note| vec![Seg::Plain(note.clone())]));
+    rows
 }
 
 fn domain_name(domain: Domain) -> &'static str {
@@ -715,7 +761,7 @@ mod tests {
         let trip = views.techniques.first().unwrap().name.clone();
         let text = |views: &Views| -> Vec<String> {
             way_lines(&views.contents(), 0)
-                .0
+                .lines
                 .iter()
                 .map(|line| {
                     line.row
@@ -771,6 +817,28 @@ mod tests {
         let indices: Vec<usize> = view.lines.iter().filter_map(|line| line.index).collect();
         assert_eq!(indices, (0..contents.equipment.len()).collect::<Vec<_>>());
         assert_eq!(view.lines[0].kind, LineKind::Selected);
+    }
+
+    #[test]
+    fn every_way_can_be_focused_and_read() {
+        let views = Views::of(&state());
+        let contents = views.contents();
+        let mut overlay = Overlay::new(Tab::Styles);
+        let rows = way_count(&contents);
+        assert!(rows > contents.styles.len(), "techniques count as rows");
+        for _ in 0..rows {
+            overlay.handle(OverlayInput::Down, &contents);
+        }
+        assert_eq!(overlay.selected(), rows - 1);
+        let view = overlay.view(&contents);
+        let focused = view
+            .lines
+            .iter()
+            .filter(|line| line.kind == LineKind::Selected);
+        assert_eq!(focused.count(), 1);
+        assert!(!view.details.is_empty());
+        // Only a style can be followed.
+        assert_eq!(overlay.handle(OverlayInput::Select, &contents), None);
     }
 
     #[test]
