@@ -42,9 +42,13 @@ found or started with. After this plan:
 - **One check** (`craft::ready`), shared by the command, refused input, the recipe list and the bench,
   as `aim`/`technique::inspect` are: what the recipe needs, which carried materials fill each slot,
   where (workbench or field), and the odds.
-- **`Command::Craft { actor, recipe }`** consumes the inputs and spawns the product. The inputs are
-  picked by `ready`: the first carried material, by `SpawnSeq`, that fills each slot, so the choice is
-  deterministic and needs no input of its own. One craft costs `cost::CRAFT`; a batch is a run like
+- **`Command::Craft { actor, recipe, inputs }`** consumes the inputs and spawns the product. `inputs`
+  is one choice per slot, each optional: a chosen material fills its slot, an empty one is filled by
+  `ready` with the first carried material, by `SpawnSeq`, that fits. So crafting is automatic by
+  default and manual when it matters (the cold shard for the edge, the common bone for the grip), and
+  either way deterministic. `ready` refuses a chosen material that does not fit its slot, with the
+  reason. Across the seam, a choice is an `ItemRef`. A batch reuses the slots chosen by hand and fills
+  the rest anew each craft, stopping when a chosen kind runs out. One craft costs `cost::CRAFT`; a batch is a run like
   practice (`front::Session` auto), one craft a turn until the materials run out or something
   interrupts.
 - **Quality**: the craft's level (weighted average of its skills, as for any use) against the recipe's
@@ -88,7 +92,8 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   knife: edge hard, grip flexible), `Jerkin` (armor: two of anything flexible).
 - The wanderer starts knowing `Arrow`; nobody else knows a recipe yet.
 - Tests: a recipe with every slot filled makes its product and consumes exactly its inputs; a cold edge
-  makes a cold blade; a missing material, the wrong place or an unknown recipe is refused with its
+  makes a cold blade; a chosen material fills its slot and the rest fill themselves; a chosen material
+  that does not fit, a missing material, the wrong place or an unknown recipe is refused with its
   reason and costs no time; `ready` and the command agree (a property in `properties.rs`).
 
 ### 3. The workbench — open
@@ -106,7 +111,9 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 
 ### 5. Crafting from the keyboard — open
 - `add-ui` skill: a recipe list mode (what you can make now first, then the rest with what each lacks,
-  from `craft::ready`), Enter crafts one, a count crafts a batch as a run. A key not yet bound.
+  from `craft::ready`), Enter crafts one with the materials filled in, a count crafts a batch as a run.
+  Tab opens the recipe's slots, each showing the material `ready` picked: choose another for a slot
+  (only what fits is listed), then Enter. A key not yet bound.
 - The inventory groups materials by kind with a count; looking shows properties.
 - Tests by driving a `Session`; shots for the list.
 
