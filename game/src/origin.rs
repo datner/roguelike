@@ -328,10 +328,19 @@ mod tests {
         let views = origins(&with_bare());
         let wanderer = &views[0];
         assert_eq!(wanderer.name, "Wanderer");
+        // What the wanderer carries, in the blueprint's order, by noun.
+        let blueprints = with_bare();
+        let kit: Vec<&str> = blueprints
+            .get("Wanderer")
+            .unwrap()
+            .equipment
+            .iter()
+            .map(|&id| blueprints.by_id(id).unwrap().noun().unwrap())
+            .collect();
         assert!(
             wanderer
                 .starts_with
-                .contains(&"Carries: short bow, quiver, torch, leather armor".to_string()),
+                .contains(&format!("Carries: {}", kit.join(", "))),
             "{:?}",
             wanderer.starts_with
         );
@@ -376,51 +385,64 @@ mod tests {
         nouns(state, items.into_iter().map(|(item, _)| item).collect())
     }
 
-    fn level(state: &GameState, skill: &str) -> u32 {
-        let id = state.blueprints.skills().id(skill).unwrap();
-        crate::skill::level(crate::skill::xp(&state.world, state.player, id))
-    }
-
     #[test]
+    /// Every origin starts with exactly what its blueprint and its entry in
+    /// `origins.ron` declare: compared with the data, so content can change.
     fn each_origin_starts_as_described() {
-        let wanderer = room_as("Wanderer");
-        assert_eq!(
-            equipped(&wanderer),
-            [
-                "the short bow",
-                "the quiver",
-                "the torch",
-                "the leather armor"
-            ]
-        );
-        assert_eq!(level(&wanderer, "Archery"), 1);
-        assert!(crate::view::known_spells(&wanderer).is_empty());
-
-        let duelist = room_as("Duelist");
-        assert_eq!(equipped(&duelist), ["the rapier"]);
-        assert_eq!(
-            (level(&duelist, "Pierce"), level(&duelist, "Fencing")),
-            (2, 1)
-        );
-        let followed = crate::style::followed(&duelist.world, duelist.player);
-        assert_eq!(nouns(&duelist, followed), ["the fencing"]);
-
-        let mage = room_as("HedgeMage");
-        assert_eq!(equipped(&mage), ["the torch"]);
-        assert_eq!(
-            nouns(&mage, crate::view::known_spells(&mage)),
-            ["the firebolt", "the magic missile", "the arcane lance"]
-        );
-
-        let fighter = room_as("PitFighter");
-        assert_eq!(equipped(&fighter), ["the leather armor", "the torch"]);
-        assert_eq!(level(&fighter, "Unarmed"), 2);
-        let player = fighter.player;
-        assert_eq!(
-            nouns(&fighter, crate::style::known(&fighter.world, player)),
-            ["the brawling"]
-        );
-        assert!(crate::style::followed(&fighter.world, player).is_empty());
+        let blueprints = Blueprints::load(&data()).unwrap();
+        let the = |name: &str| {
+            let noun = blueprints.get(name).and_then(|b| b.noun()).unwrap();
+            format!("the {noun}")
+        };
+        let the_id = |id| {
+            let noun = blueprints.by_id(id).and_then(|b| b.noun()).unwrap();
+            format!("the {noun}")
+        };
+        let sorted = |mut list: Vec<String>| {
+            list.sort();
+            list
+        };
+        for origin in blueprints.origins() {
+            let state = room_as(&origin.key);
+            let declared = blueprints.get(&origin.blueprint).unwrap();
+            let key = &origin.key;
+            assert_eq!(
+                sorted(equipped(&state)),
+                sorted(declared.equipment.iter().map(|&id| the_id(id)).collect()),
+                "{key}'s kit"
+            );
+            for &(skill, xp) in declared.skills.iter().flat_map(|skills| &skills.0) {
+                assert_eq!(
+                    crate::skill::xp(&state.world, state.player, skill),
+                    xp,
+                    "{key}'s skills"
+                );
+            }
+            assert_eq!(
+                nouns(&state, crate::view::known_spells(&state)),
+                declared
+                    .spells
+                    .iter()
+                    .map(|&id| the_id(id))
+                    .collect::<Vec<_>>(),
+                "{key}'s spells"
+            );
+            let player = state.player;
+            assert_eq!(
+                sorted(nouns(&state, crate::style::known(&state.world, player))),
+                sorted(origin.styles.iter().map(|style| the(style)).collect()),
+                "{key}'s known styles"
+            );
+            assert_eq!(
+                nouns(&state, crate::style::followed(&state.world, player)),
+                origin
+                    .follow
+                    .iter()
+                    .map(|style| the(style))
+                    .collect::<Vec<_>>(),
+                "{key}'s followed style"
+            );
+        }
     }
 
     #[test]

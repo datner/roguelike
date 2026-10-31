@@ -81,3 +81,4 @@ assert_eq!(*state.world.get::<&Position>(state.player).unwrap(), Position { x: 2
 - Every new `Command` gets tests for its success path and each blocked/failure path (including the log message).
 - New generation code gets a same-seed-same-result test. Tests not about generation use `bare_state` / `map::tests::room`, never a generated zone.
 - Build blueprints inline in tests unless the test is specifically about loading `data/`.
+- A test never pins what the content says. Give it values of its own, or compare with the data it loaded (`testkit::data()`, the only way in): "the kit is what the blueprint lists", not "a bow, a quiver and a torch"; "max is base + per_level × level", not "28". Design claims ("rats come in packs") are the bench's. `scripts/nudge.sh` (in `check.sh`) reruns the tests with the data's numbers moved.

@@ -97,9 +97,20 @@ mod tests {
 
     #[test]
     fn origins_start_at_their_own_health() {
-        for (origin, max) in [("PitFighter", 26), ("HedgeMage", 16), ("Wanderer", 22)] {
-            let state = GameState::new_as(1, data(), Some(origin)).unwrap();
-            assert_eq!(health(&state), (max, max), "{origin}");
+        let blueprints = data();
+        for origin in blueprints.origins() {
+            let declared = blueprints
+                .get(&origin.blueprint)
+                .unwrap()
+                .components
+                .iter()
+                .find_map(|def| match def {
+                    crate::blueprint::ComponentDef::Health(h) => Some(h.max),
+                    _ => None,
+                })
+                .unwrap();
+            let state = GameState::new_as(1, data(), Some(&origin.key)).unwrap();
+            assert_eq!(health(&state), (declared, declared), "{}", origin.key);
         }
     }
 
@@ -138,16 +149,26 @@ mod tests {
         let mut state = bare_state_with(data());
         let player = state.player;
         state.world.get::<&mut Health>(player).unwrap().current = 10;
+        let base = state.world.get::<&BaseHealth>(player).unwrap().0;
+        let per_level = state.world.get::<&Hardiness>(player).unwrap().per_level;
         let core = state.blueprints.skills().core().unwrap();
         let mut skills = Skills::default();
         skills.set(core.toughness, skill::xp_for(3));
         state.world.insert_one(player, skills).unwrap();
         refresh(&mut state, player);
-        assert_eq!(health(&state), (16, 28));
+        assert_eq!(
+            health(&state),
+            (10 + 3 * per_level, base + 3 * per_level),
+            "the gain is added to both"
+        );
         let mut skills = Skills::default();
         skills.set(core.toughness, skill::xp_for(10));
         state.world.insert_one(player, skills).unwrap();
         refresh(&mut state, player);
-        assert_eq!(health(&state).1, 42, "a veteran at Toughness 10");
+        assert_eq!(
+            health(&state).1,
+            base + 10 * per_level,
+            "a veteran at Toughness 10"
+        );
     }
 }

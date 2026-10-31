@@ -2438,9 +2438,10 @@ mod tests {
         let (ready, blocked) = inspect(&state, player, kick).unwrap();
         assert_eq!(blocked, None);
         assert_eq!(ready.strike.weapon, None);
+        let own = *state.world.get::<&crate::entity::Melee>(player).unwrap();
         assert_eq!(
             (ready.strike.min, ready.strike.max),
-            (2, 4),
+            (own.min, own.max),
             "the player's own"
         );
 

@@ -983,25 +983,43 @@ mod tests {
         let (state, done) = simulate(&data(), &duelist, &one("Doll"), 3000, 1).unwrap();
         assert!(done.dealt > 0);
         let player = state.player;
+        // What the origin declares, read from the data so its numbers can move.
+        let blueprints = data();
+        let origin = blueprints.get("Duelist").unwrap();
+        let declared = |name| {
+            let id = blueprints.skills().id(name).unwrap();
+            origin
+                .skills
+                .iter()
+                .flat_map(|skills| &skills.0)
+                .find(|&&(skill, _)| skill == id)
+                .map_or(0, |&(_, xp)| xp)
+        };
+        assert!(
+            declared("Pierce") < skill::xp_for(5),
+            "the build adds to it"
+        );
         let held: Vec<String> = equipment::equipped(&state.world, player)
             .into_iter()
             .map(|(item, _)| state.world.get::<&Name>(item).unwrap().0.clone())
             .collect();
-        assert_eq!(held, ["rapier"], "the origin's kit");
+        let kit: Vec<&str> = origin
+            .equipment
+            .iter()
+            .map(|&id| blueprints.by_id(id).unwrap().noun().unwrap())
+            .collect();
+        assert_eq!(held, kit, "the origin's kit");
         assert_eq!(style::known(&state.world, player).len(), 1, "fencing once");
-        let level = |name| {
+        let xp = |name| {
             let id = state.blueprints.skills().id(name).unwrap();
-            skill::level(skill::xp(&state.world, player, id))
+            skill::xp(&state.world, player, id)
         };
-        assert_eq!(
-            (level("Pierce"), level("Sword")),
-            (5, 1),
-            "over the origin's"
-        );
+        assert_eq!(skill::level(xp("Pierce")), 5, "the build's level");
+        assert_eq!(xp("Sword"), declared("Sword"), "the origin's, untouched");
 
-        // Pierce 2 came with the origin; only the rest is paid for.
+        // What the origin gave is not paid for; only the rest is.
         let cost = cost(&data(), &duelist);
-        assert_eq!(cost.xp, skill::xp_for(5) - skill::xp_for(2));
+        assert_eq!(cost.xp, skill::xp_for(5) - declared("Pierce"));
         assert_eq!(cost.needs[0].from[0], "origin: Duelist");
 
         duelist.origin = Some("Nobody".into());

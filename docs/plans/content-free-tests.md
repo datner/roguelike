@@ -50,10 +50,13 @@ wanderer carries a bow, a quiver and a torch") instead of what the code does. Af
 - `fixtures/data/` and `scripts/fixtures.sh`; `front` tests, `gui` tests and shots load it. Taken from
   today's `data/`, so no reference moved.
 
-### 3. Game tests check mechanisms — open
+### 3. Game tests check mechanisms — done
 - Every test `nudge.sh` lists: values of its own (inline blueprints, `bare_state`), or a relation to the
   data it loaded. Content claims move to `bench/targets.ron` or go.
 - `nudge.sh` and the `../data` check join `check.sh`.
+- Done: the five, plus `origin::an_origin_says_what_it_starts_with` (a kit, not a number, so the nudge
+  missed it; the leather broke it). `ai::a_rat_outpaces_you_and_comes_in_a_pack` went: both its claims
+  are content's, and the dungeon tests already check spawn counts against the data.
 
 ### 4. Properties — open
 - Generator: seed + action sequence through `time::submit`.

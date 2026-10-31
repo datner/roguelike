@@ -76,6 +76,20 @@ run connections bash -c 'scripts/connections.sh --test && scripts/connections.sh
 run plans    bash -c 'scripts/plans.sh --lint --test && scripts/plans.sh --lint'
 # Skills are followed blindly, so a renamed file or function must not leave one pointing at nothing.
 run skills   scripts/skills.sh
+# Tests reach the shipped data only through `testkit::data()`, which the nudge can redirect
+# (docs/plans/content-free-tests.md); front and gui tests use fixtures/data.
+test_data() {
+  local stray
+  stray=$(rg -n '\.\./data\b' game/src front/src gui/src -g '!game/src/testkit.rs' -g '!gui/src/main.rs' || true)
+  if [[ -n $stray ]]; then
+    echo "load test content through testkit::data() (game) or fixtures/data (front, gui):"
+    echo "$stray"
+    return 1
+  fi
+}
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
+run test-data test_data
 run test     cargo test --workspace --quiet
+# Game tests may not pin the shipped numbers: they run again on a copy with the numbers moved.
+run nudge    scripts/nudge.sh
 exit "$failed"
