@@ -261,16 +261,14 @@ The floor bot (`docs/plans/floor-bot.md`) plays each build from camp through rea
 - hedge mage in Caves in the Embers: floors to Magic 10 ~53 (target 12–48)
 - hedge mage in Caves in the Embers: floors to Magic 15 ~127 (target 36–90)
 - wanderer in Caves in the Embers: keypresses per floor 66 (target 150–300)
-- pit fighter in Castle: fight length 9.6 (target 3–8)
-- pit fighter in Castle: keypresses per floor 102 (target 150–300)
-- duelist in Castle: keypresses per floor 63 (target 150–300)
-- hedge mage in Castle: fight length 2.4 (target 3–8)
-- hedge mage in Castle: keypresses per floor 43 (target 150–300)
-- hedge mage in Castle: floors to Magic 5 ~16 (target 3–12)
-- hedge mage in Castle: floors to Magic 10 ~83 (target 12–48)
-- hedge mage in Castle: floors to Magic 15 ~195 (target 36–90)
-- wanderer in Castle: fight length 8.2 (target 3–8)
-- wanderer in Castle: keypresses per floor 49 (target 150–300)
+- pit fighter in Castle: keypresses per floor 103 (target 150–300)
+- duelist in Castle: keypresses per floor 43 (target 150–300)
+- hedge mage in Castle: fight length 2.1 (target 3–8)
+- hedge mage in Castle: keypresses per floor 41 (target 150–300)
+- hedge mage in Castle: floors to Magic 5 ~15 (target 3–12)
+- hedge mage in Castle: floors to Magic 10 ~80 (target 12–48)
+- hedge mage in Castle: floors to Magic 15 ~188 (target 36–90)
+- wanderer in Castle: keypresses per floor 51 (target 150–300)
 - sabre (10) in Caves: keypresses per floor 101 (target 150–300)
 - sabre (10) in Caves: floors to Toughness 5 ~14 (target 3–12)
 - sabre (10) in Caves: floors to Toughness 10 ~63 (target 12–48)
@@ -391,29 +389,29 @@ Castle, the starting phase, 6 floors.
 
 | build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length |
 |---|---|---|---|---|---|---|---|---|---|
-| pit fighter | 1 | 20/20 | 100 (87–119) | 1176 | 1780 (Blunt 271) | 16.8 | 4 | 9.2 | 9.7 (1.0–17.0) |
-| pit fighter | 2 | 16/20 | 83 (52–121) | 871 | 714 (Toughness 136) | 8.1 | 37 | 7.6 | 9.7 (3.0–15.0) |
-| pit fighter | 3 | 5/20 | 101 (52–118) | 1043 | 581 (Toughness 113) | 6.2 | 54 | 9.6 | 9.4 (4.0–14.0) |
-| pit fighter | 4 | 3/20 | 103 (77–134) | 1099 | 332 (Toughness 90) | 6.0 | 67 | 11.0 | 8.2 (1.0–15.0) |
-| pit fighter | 5 | 1/20 | 124 (124–124) | 715 | 209 (Toughness 71) | 2.0 | 75 | 9.0 | 12.7 (6.0–22.0) |
-| duelist | 1 | 20/20 | 63 (38–83) | 779 | 1750 (Toughness 213) | 20.0 | 12 | 7.2 | 7.7 (2.0–12.0) |
-| hedge mage | 1 | 20/20 | 34 (31–37) | 1163 | 916 (Beast lore 150) | 0.0 | 0 | 9.6 | 2.4 (1.0–4.0) |
-| hedge mage | 2 | 20/20 | 37 (32–43) | 1151 | 540 (Magic 103) | 0.0 | 3 | 10.1 | 2.5 (1.0–4.0) |
-| hedge mage | 3 | 20/20 | 40 (36–46) | 1186 | 462 (Magic 79) | 0.0 | 2 | 11.1 | 2.5 (1.0–4.0) |
-| hedge mage | 4 | 20/20 | 43 (38–47) | 1224 | 429 (Magic 69) | 0.0 | 2 | 12.7 | 2.3 (1.0–4.0) |
-| hedge mage | 5 | 20/20 | 49 (43–55) | 1175 | 400 (Magic 57) | 0.0 | 6 | 13.4 | 2.4 (1.0–4.0) |
-| hedge mage | 6 | 20/20 | 52 (45–60) | 1225 | 357 (Magic 56) | 0.0 | 1 | 14.6 | 2.5 (1.0–4.0) |
-| wanderer | 1 | 20/20 | 66 (44–102) | 671 | 1688 (Bow 206) | 19.6 | 16 | 7.2 | 8.2 (2.0–13.0) |
-| wanderer | 2 | 2/20 | 32 (31–32) | 406 | 728 (Toughness 124) | 4.0 | 43 | 3.0 | 9.2 (5.0–14.0) |
+| pit fighter | 1 | 20/20 | 83 (77–97) | 802 | 1781 (Blunt 265) | 22.1 | 12 | 9.8 | 7.3 (1.0–13.0) |
+| pit fighter | 2 | 7/20 | 75 (58–92) | 710 | 747 (Toughness 131) | 7.1 | 47 | 8.3 | 7.8 (3.0–13.0) |
+| pit fighter | 3 | 3/20 | 107 (93–119) | 927 | 709 (Toughness 119) | 6.0 | 37 | 11.7 | 8.1 (1.0–15.0) |
+| pit fighter | 4 | 1/20 | 138 (138–138) | 1042 | 475 (Toughness 114) | 22.0 | 0 | 18.0 | 6.6 (1.0–10.0) |
+| pit fighter | 5 | 1/20 | 110 (110–110) | 890 | 337 (Toughness 81) | 3.0 | 72 | 15.0 | 6.3 (1.0–12.0) |
+| duelist | 1 | 20/20 | 51 (36–65) | 633 | 1731 (Toughness 208) | 19.8 | 18 | 7.7 | 5.5 (1.0–10.0) |
+| duelist | 2 | 1/20 | 35 (35–35) | 428 | 799 (Toughness 131) | 5.0 | 64 | 4.0 | 7.2 (2.0–15.0) |
+| hedge mage | 1 | 20/20 | 34 (24–40) | 877 | 907 (Beast lore 146) | 2.4 | 4 | 9.9 | 2.2 (1.0–4.0) |
+| hedge mage | 2 | 17/20 | 36 (32–39) | 958 | 585 (Magic 105) | 0.0 | 2 | 10.9 | 2.1 (1.0–4.0) |
+| hedge mage | 3 | 17/20 | 39 (35–43) | 929 | 500 (Magic 81) | 0.2 | 4 | 12.0 | 2.1 (1.0–3.0) |
+| hedge mage | 4 | 17/20 | 43 (39–48) | 920 | 450 (Magic 68) | 0.1 | 6 | 13.2 | 2.1 (1.0–4.0) |
+| hedge mage | 5 | 17/20 | 44 (42–52) | 917 | 423 (Magic 55) | 1.1 | 2 | 13.2 | 2.2 (1.0–3.0) |
+| hedge mage | 6 | 16/20 | 51 (47–58) | 980 | 386 (Magic 58) | 0.1 | 5 | 15.5 | 2.2 (1.0–4.0) |
+| wanderer | 1 | 20/20 | 51 (29–64) | 514 | 1638 (Toughness 201) | 20.0 | 18 | 7.3 | 5.9 (1.0–12.0) |
 
-- **pit fighter**: 0 reached floor 6, 19 died (goblin 8, goblin archer 4, goblin brute 3, goblin shaman 2, goblin scout 1, unseen 1), 1 stuck.
-- **duelist**: 0 reached floor 6, 20 died (goblin 7, goblin shaman 5, goblin archer 4, goblin brute 2, goblin scout 2), 0 stuck.
-- **hedge mage**: 20 reached floor 6, 0 died, 0 stuck.
-- **wanderer**: 0 reached floor 6, 20 died (goblin 10, goblin shaman 4, goblin brute 3, goblin archer 2, goblin scout 1), 0 stuck.
+- **pit fighter**: 0 reached floor 6, 20 died (goblin shaman 6, goblin archer 5, goblin 3, goblin brute 2, goblin scout 2, unseen 2), 0 stuck.
+- **duelist**: 0 reached floor 6, 20 died (goblin 5, goblin shaman 5, goblin archer 4, goblin scout 4, goblin brute 2), 0 stuck.
+- **hedge mage**: 16 reached floor 6, 4 died (unseen 3, goblin archer 1), 0 stuck.
+- **wanderer**: 0 reached floor 6, 20 died (goblin 6, goblin archer 5, goblin brute 4, unseen 3, goblin scout 2), 0 stuck.
 
 | build | most trained | floors to 5 | floors to 10 | floors to 15 | minutes per floor |
 |---|---|---|---|---|---|
-| pit fighter | Toughness | ~8 | ~36 | ~82 | 6.1 |
-| duelist | Toughness | ~6 | ~24 | ~53 | 3.8 |
-| hedge mage | Magic | ~16 | ~83 | ~195 | 2.6 |
-| wanderer | Toughness | ~6 | ~25 | ~56 | 2.9 |
+| pit fighter | Toughness | ~5 | ~20 | ~44 | 6.2 |
+| duelist | Toughness | ~6 | ~24 | ~54 | 2.6 |
+| hedge mage | Magic | ~15 | ~80 | ~188 | 2.5 |
+| wanderer | Toughness | ~6 | ~25 | ~56 | 3.1 |

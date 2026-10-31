@@ -1,4 +1,4 @@
-//! Rooms and corridors: a floor of rectangular rooms, each joined to the one placed before it by an L-shaped corridor, so every room is reachable. Built halls (a castle) beside the caves' grown ones (`zone::generate_cave`); a dungeon's data picks which (`dungeon::Generator`).
+//! Rooms and corridors: a floor of rectangular rooms, each joined by a short L-shaped corridor to the nearest room already joined, so every room is reachable. Built halls (a castle) beside the caves' grown ones (`zone::generate_cave`); a dungeon's data picks which (`dungeon::Generator`).
 
 use rand::RngExt;
 use rand_pcg::Pcg64;
@@ -92,26 +92,9 @@ pub fn generate_rooms(zone_seed: u64, params: &RoomsParams) -> (Map, Pcg64, (i32
                 carve(&mut map, (rx, ry));
             }
         }
-        if let Some(previous) = rooms.last() {
-            // Horizontal first or vertical first, so corridors vary.
-            let ((ax, ay), (bx, by)) = (previous.centre(), room.centre());
-            let corner = if rng.random_bool(0.5) {
-                (bx, ay)
-            } else {
-                (ax, by)
-            };
-            for (from, to) in [((ax, ay), corner), (corner, (bx, by))] {
-                let (mut x, mut y) = from;
-                carve(&mut map, (x, y));
-                while (x, y) != to {
-                    x += (to.0 - x).signum();
-                    y += (to.1 - y).signum();
-                    carve(&mut map, (x, y));
-                }
-            }
-        }
         rooms.push(room);
     }
+    connect(&mut map, &rooms, &mut rng);
     if params.doors > 0 {
         hang_doors(&mut map, &rooms, params.doors, &mut rng);
     }
@@ -132,8 +115,62 @@ pub fn generate_rooms(zone_seed: u64, params: &RoomsParams) -> (Map, Pcg64, (i32
     (map, rng, arrival)
 }
 
+/// Joins every room to the rest, nearest first (a spanning tree grown from
+/// the first room): each time, the unjoined room nearest a joined one digs
+/// an L-shaped corridor toward it, and stops at the first joined floor it
+/// reaches. So corridors stay short and never run beside one another to the
+/// same place.
+fn connect(map: &mut Map, rooms: &[Room], rng: &mut Pcg64) {
+    let mut joined = Grid::new(map.width, map.height, false);
+    let mut done = vec![false; rooms.len()];
+    let join = |joined: &mut Grid<bool>, room: Room| {
+        for y in room.y..room.y + room.h {
+            for x in room.x..room.x + room.w {
+                joined.set(x, y, true);
+            }
+        }
+    };
+    let Some(&first) = rooms.first() else {
+        return;
+    };
+    join(&mut joined, first);
+    done[0] = true;
+    let distance = |a: Room, b: Room| {
+        let ((ax, ay), (bx, by)) = (a.centre(), b.centre());
+        (ax - bx).pow(2) + (ay - by).pow(2)
+    };
+    while let Some((next, to)) = (0..rooms.len())
+        .filter(|&i| !done[i])
+        .flat_map(|i| (0..rooms.len()).filter(|&j| done[j]).map(move |j| (i, j)))
+        .min_by_key(|&(i, j)| (distance(rooms[i], rooms[j]), i, j))
+    {
+        let ((ax, ay), (bx, by)) = (rooms[next].centre(), rooms[to].centre());
+        // Horizontal first or vertical first, so corridors vary.
+        let corner = if rng.random_bool(0.5) {
+            (bx, ay)
+        } else {
+            (ax, by)
+        };
+        let (mut x, mut y) = (ax, ay);
+        'dig: for target in [corner, (bx, by)] {
+            while (x, y) != target {
+                x += (target.0 - x).signum();
+                y += (target.1 - y).signum();
+                if joined.get(x, y) == Some(&true) {
+                    break 'dig;
+                }
+                carve(map, (x, y));
+                joined.set(x, y, true);
+            }
+        }
+        join(&mut joined, rooms[next]);
+        done[next] = true;
+    }
+}
+
 /// A door, at `percent` chance each, in every doorway: a one-tile gap in a
-/// room's surrounding wall, with wall on both sides along it. Rooms in the
+/// room's surrounding wall, with wall on both sides along it, and no door
+/// already within two tiles. Rooms in the
 /// order placed, each ring clockwise from its top-left corner.
 fn hang_doors(map: &mut Map, rooms: &[Room], percent: u32, rng: &mut Pcg64) {
     let wall = |map: &Map, x, y| map.get(x, y) == Some(&Tile::Wall);
@@ -151,7 +188,11 @@ fn hang_doors(map: &mut Map, rooms: &[Room], percent: u32, rng: &mut Pcg64) {
                 } else {
                     wall(map, x, y - 1) && wall(map, x, y + 1)
                 };
-            if doorway && rng.random_range(0..100) < percent {
+            // One door to a passage: two rooms a step apart would hang one each.
+            let near_door = (-2..=2)
+                .flat_map(|dy| (-2..=2).map(move |dx| (x + dx, y + dy)))
+                .any(|(nx, ny)| map.get(nx, ny) == Some(&Tile::Door));
+            if doorway && !near_door && rng.random_range(0..100) < percent {
                 map.set(x, y, Tile::Door);
             }
         }
@@ -237,6 +278,30 @@ pub(crate) mod tests {
             for x in 0..map.width {
                 assert_eq!(map.get(x, 0), Some(&Tile::Wall));
                 assert_eq!(map.get(x, map.height - 1), Some(&Tile::Wall));
+            }
+        }
+    }
+
+    #[test]
+    fn no_door_stands_just_behind_another() {
+        for seed in 0..10 {
+            let params = RoomsParams {
+                doors: 100,
+                ..test_rooms()
+            };
+            let (map, ..) = generate_rooms(seed, &params);
+            let doors: Vec<(i32, i32)> = (0..map.height)
+                .flat_map(|y| (0..map.width).map(move |x| (x, y)))
+                .filter(|&(x, y)| map.get(x, y) == Some(&Tile::Door))
+                .collect();
+            for &(ax, ay) in &doors {
+                for &(bx, by) in &doors {
+                    let apart = (ax - bx).abs().max((ay - by).abs());
+                    assert!(
+                        apart == 0 || apart > 2,
+                        "seed {seed}: ({ax}, {ay}) and ({bx}, {by})"
+                    );
+                }
             }
         }
     }

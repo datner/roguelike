@@ -879,8 +879,8 @@ mod tests {
         take_turn(state, action);
     }
 
-    /// Breadth-first over floor from `from` until a goblin tile; the first
-    /// step of that path.
+    /// Breadth-first over walkable ground (doors too) from `from` until a
+    /// goblin tile; the first step of that path.
     fn first_step(from: (i32, i32), state: &GameState, goblins: &[Position]) -> Option<Dir> {
         let map = &state.map;
         let mut first: Grid<Option<Dir>> = Grid::new(map.width, map.height, None);
@@ -888,7 +888,7 @@ mod tests {
         for dir in Dir::ALL {
             let (dx, dy) = dir.delta();
             let next = (from.0 + dx, from.1 + dy);
-            if map.get(next.0, next.1) == Some(&Tile::Floor) {
+            if Tile::is_way(map.get(next.0, next.1)) {
                 first.set(next.0, next.1, Some(dir));
                 queue.push_back(next);
             }
@@ -902,7 +902,7 @@ mod tests {
                 let (dx, dy) = next_dir.delta();
                 let next = (x + dx, y + dy);
                 if next != from
-                    && map.get(next.0, next.1) == Some(&Tile::Floor)
+                    && Tile::is_way(map.get(next.0, next.1))
                     && first.get(next.0, next.1) == Some(&None)
                 {
                     first.set(next.0, next.1, Some(dir));
