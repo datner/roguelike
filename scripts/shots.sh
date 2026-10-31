@@ -11,13 +11,11 @@
 #   scripts/shots.sh --update [shot...]
 #       Rewrites the references that changed (commit them with the change).
 #
-# shots: menu origins play inventory look spells techniques aim effects sprites fx
-# phases floor castle (default all);
+# shots: `SHOTS` in gui/src/app/shots.rs, the one list (default all);
 # fx is the effects animating, 100 ms a frame, left to right. Reading an image
 # costs about width × height / 750 tokens: render only what a change touches,
 # cropped to the region it touched.
 set -euo pipefail
-all=(menu origins play inventory look spells techniques aim effects sprites fx phases floor castle)
 usage="usage: scripts/shots.sh <dir>|--check|--update [shot...] [--crop map|side|bottom]"
 case ${1:?$usage} in
 --check | --update)
@@ -44,7 +42,6 @@ while (($#)); do
     ;;
   esac
 done
-((${#shots[@]})) || shots=("${all[@]}")
 mkdir -p "$dir"
 env=(GUI_SCREENSHOTS="$dir" GUI_CROP="$crop" GUI_SHOTS="$(
   IFS=,
@@ -60,6 +57,6 @@ if ! out=$(env "${env[@]}" cargo test -q -p gui screenshots -- --ignored 2>&1); 
   exit 1
 fi
 case $mode in
-render) for shot in "${shots[@]}"; do echo "$dir/$shot.png"; done ;;
-*) echo "ok: ${shots[*]}" ;;
+render) for shot in "${shots[@]:-*}"; do printf '%s\n' "$dir"/$shot.png; done ;;
+*) echo "ok: ${shots[*]:-all}" ;;
 esac

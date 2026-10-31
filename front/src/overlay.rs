@@ -290,6 +290,8 @@ pub struct PanelView {
     pub lines: Vec<PanelLine>,
     pub focus: Option<usize>,
     pub hint: &'static str,
+    /// About the focused row, shown apart from the list.
+    pub details: Vec<Row>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -456,12 +458,70 @@ impl Overlay {
             lines,
             focus,
             hint,
+            details: self.details(contents, picking_part),
+        }
+    }
+
+    fn details(&self, contents: &Contents, picking_part: Option<&PartView>) -> Vec<Row> {
+        match (self.tab, self.picking, picking_part) {
+            (Tab::Equipment, Some(picking), Some(part)) => fitting(contents.inventory, part)
+                .nth(picking.selected)
+                .map(item_details)
+                .unwrap_or_default(),
+            (Tab::Equipment, _, _) => match contents.equipment.get(self.selected) {
+                Some(PartView {
+                    item: Some(item), ..
+                }) => item_details(item),
+                Some(part) => vec![vec![quiet(format!("Nothing on your {}.", part.name))]],
+                None => Vec::new(),
+            },
+            (Tab::Inventory, _, _) => contents
+                .inventory
+                .get(self.selected)
+                .map(item_details)
+                .unwrap_or_default(),
+            (Tab::Styles, _, _) => contents
+                .styles
+                .get(self.selected)
+                .map(style_details)
+                .unwrap_or_default(),
+            (Tab::Skills, _, _) => Vec::new(),
         }
     }
 }
 
 fn quiet(text: impl Into<String>) -> Seg {
     Seg::Quiet(text.into())
+}
+
+/// The focused item: its name, what it does, where it goes, what it trains.
+fn item_details(item: &ItemView) -> Vec<Row> {
+    let mut rows = vec![text::item(item)];
+    rows.extend(item.facts.iter().map(|fact| vec![Seg::Plain(fact.clone())]));
+    if let Some(kind) = item.fits {
+        rows.push(vec![quiet("worn on "), Seg::Plain(kind.noun().to_string())]);
+    }
+    if !item.trains.is_empty() {
+        let trains = item.trains.join(", ").to_lowercase();
+        rows.push(vec![quiet("trains "), Seg::Plain(trains)]);
+    }
+    rows
+}
+
+/// The focused style's principles, each from the level it switches on at.
+fn style_details(style: &StyleView) -> Vec<Row> {
+    let mut rows = vec![vec![Seg::Plain(style.name.clone())]];
+    if style.principles.is_empty() {
+        rows.push(vec![quiet("No principles yet.")]);
+    }
+    rows.extend(style.principles.iter().map(|&(level, says)| {
+        let state = if style.level >= level { "on" } else { "off" };
+        vec![
+            quiet(format!("level {level:>2} ({state})  ")),
+            Seg::Plain(says.to_string()),
+        ]
+    }));
+    rows
 }
 
 fn item_lines(items: &[ItemView], selected: usize) -> Vec<PanelLine> {
@@ -474,19 +534,7 @@ fn item_lines(items: &[ItemView], selected: usize) -> Vec<PanelLine> {
     items
         .iter()
         .enumerate()
-        .map(|(i, item)| {
-            let mut row = text::item(item);
-            if let Some(kind) = item.fits {
-                row.push(quiet(format!("  ({})", kind.noun())));
-            }
-            if !item.trains.is_empty() {
-                row.push(quiet(format!(
-                    "  trains {}",
-                    item.trains.join(", ").to_lowercase()
-                )));
-            }
-            PanelLine::row(row, i, selected)
-        })
+        .map(|(i, item)| PanelLine::row(text::item(item), i, selected))
         .collect()
 }
 
@@ -723,5 +771,37 @@ mod tests {
         let indices: Vec<usize> = view.lines.iter().filter_map(|line| line.index).collect();
         assert_eq!(indices, (0..contents.equipment.len()).collect::<Vec<_>>());
         assert_eq!(view.lines[0].kind, LineKind::Selected);
+    }
+
+    #[test]
+    fn details_describe_the_focused_row() {
+        let views = Views::of(&state());
+        let contents = views.contents();
+        let mut overlay = Overlay::new(Tab::Equipment);
+        let bow = contents
+            .equipment
+            .iter()
+            .position(|part| part.item.as_ref().is_some_and(|i| i.name == "short bow"))
+            .unwrap();
+        overlay.handle(OverlayInput::Focus(bow), &contents);
+        let details: Vec<String> = overlay
+            .view(&contents)
+            .details
+            .iter()
+            .map(|row| text::flat(row))
+            .collect();
+        assert!(details[0].ends_with("short bow"), "{details:?}");
+        assert!(
+            details
+                .iter()
+                .any(|line| line.starts_with("shoots arrows up to"))
+        );
+        let empty = contents
+            .equipment
+            .iter()
+            .position(|p| p.item.is_none())
+            .unwrap();
+        overlay.handle(OverlayInput::Focus(empty), &contents);
+        assert!(text::flat(&overlay.view(&contents).details[0]).starts_with("Nothing on your"));
     }
 }

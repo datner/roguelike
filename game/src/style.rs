@@ -347,6 +347,16 @@ pub struct StyleView {
     pub name: String,
     pub level: u32,
     pub followed: bool,
+    /// Its principles: the level each switches on at, and what it does.
+    pub principles: Vec<(u32, &'static str)>,
+}
+
+fn says(does: Does) -> &'static str {
+    match does {
+        Does::Riposte => "after a perfect dodge, strike back once, free",
+        Does::SteadyClose => "shooting with a foe alongside costs no accuracy",
+        Does::Gather => "arrows on or next to your tile go back in the quiver",
+    }
 }
 
 /// The styles the player knows: followed ones first.
@@ -365,6 +375,11 @@ pub fn styles(state: &GameState) -> Vec<StyleView> {
                     .to_string(),
                 level: skill::level(skill::xp(world, state.player, style.skill)),
                 followed: followed.contains(&thing),
+                principles: style
+                    .principles
+                    .iter()
+                    .map(|p| (p.from_level, says(p.does)))
+                    .collect(),
             })
         })
         .collect()

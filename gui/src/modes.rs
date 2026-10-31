@@ -11,7 +11,7 @@ use front::text::{self, Seg};
 use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, techniques, throwables};
 
 use crate::map_view::{Layout, screen_tile};
-use crate::panels::{SIDE_WIDTH, job};
+use crate::panels::{BOTTOM_HEIGHT, SIDE_WIDTH, job};
 use crate::theme::{self, BG, BRIGHT, CELL, DIM, FG, boxed};
 
 const PATH: Rgb = Rgb(110, 90, 20);
@@ -234,8 +234,12 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
             };
             centred_window(ui, "panel", |ui| {
                 boxed(ui, title, Some(view.hint), |ui| {
+                    // A steady height, so the panel doesn't jump as tabs and lists change.
+                    let list = ui.ctx().content_rect().height() * 0.3;
                     ScrollArea::vertical()
-                        .max_height(ui.ctx().content_rect().height() * 0.6)
+                        .min_scrolled_height(list)
+                        .max_height(list)
+                        .auto_shrink([false, false])
                         .show(ui, |ui| {
                             for line in &view.lines {
                                 let Some(index) = line.index else {
@@ -272,6 +276,14 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                                 }
                             }
                         });
+                    ui.separator();
+                    ui.allocate_ui(vec2(ui.available_width(), DETAILS * CELL.y), |ui| {
+                        ui.set_min_height(DETAILS * CELL.y);
+                        for (i, row) in view.details.iter().enumerate() {
+                            let base = if i == 0 { BRIGHT } else { FG };
+                            ui.label(job(row.clone(), base));
+                        }
+                    });
                 });
             });
             tab_inputs.extend(inputs);
@@ -306,15 +318,20 @@ fn row(segs: Vec<Seg>, selected: bool) -> LayoutJob {
     job
 }
 
-/// A box in the middle of the map: at least 46 cells
-/// wide.
+/// Lines the panel keeps for the focused row's details.
+const DETAILS: f32 = 6.0;
+
+/// A box in the middle of the map, 56 cells wide.
 fn centred_window(ui: &egui::Ui, id: &str, contents: impl FnOnce(&mut egui::Ui)) {
     egui::Window::new(id)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)
         .frame(Frame::new().fill(BG))
-        .anchor(Align2::CENTER_CENTER, vec2(-SIDE_WIDTH / 2.0, 0.0))
+        .anchor(
+            Align2::CENTER_CENTER,
+            vec2(-SIDE_WIDTH / 2.0, -BOTTOM_HEIGHT / 2.0),
+        )
         .fixed_size([56.0 * CELL.x, 0.0])
         .show(ui.ctx(), contents);
 }

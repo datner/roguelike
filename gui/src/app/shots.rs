@@ -12,11 +12,12 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 17] = [
+const SHOTS: [&str; 18] = [
     "menu",
     "origins",
     "play",
     "inventory",
+    "equipment",
     "look",
     "spells",
     "techniques",
@@ -153,6 +154,12 @@ fn scene(name: &str) -> Harness<'static, App> {
     harness.state_mut().started = start;
     match name {
         "inventory" => type_text(&mut harness, "i"),
+        // The bow in the right hand, its details under the list.
+        "equipment" => {
+            type_text(&mut harness, "i");
+            press_key(&mut harness, egui::Key::Tab);
+            type_text(&mut harness, "jjj");
+        }
         "look" => type_text(&mut harness, ";"),
         "spells" => type_text(&mut harness, "c"),
         "techniques" => type_text(&mut harness, "a"),

@@ -7,8 +7,9 @@ use crate::blueprint::ResolvedBlueprint;
 use crate::cell::Rgb;
 use crate::combat::{Strike, strike};
 use crate::entity::{
-    Ammo, Appearance, Armor, Body, DamageTypes, Equippable, Health, Launcher, Lesson, Name,
-    PartKind, Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell, Stats, Style, Throwable,
+    Ammo, Appearance, Armor, Body, DamageType, DamageTypes, Equippable, Health, Launcher, Lesson,
+    Light, Name, Note, PartKind, Projectile, Quiver, Scroll, Shape, Skills, SpawnSeq, Speed, Spell,
+    Stat, Stats, Style, Throwable, Weapon,
 };
 use crate::equipment::equipped;
 use crate::holding;
@@ -54,6 +55,75 @@ pub struct ItemView {
     pub trains: Vec<String>,
     /// It holds a lesson or a technique to study.
     pub lesson: bool,
+    /// What it does, a line per part, for a panel's details.
+    pub facts: Vec<String>,
+}
+
+/// The stat a roll adds, as the character sheet names it.
+fn stat_name(stat: Stat) -> &'static str {
+    match stat {
+        Stat::Strength => "STR",
+        Stat::Agility => "AGI",
+        Stat::Intelligence => "INT",
+        Stat::Willpower => "WIL",
+    }
+}
+
+fn kinds(types: DamageTypes) -> String {
+    types
+        .iter()
+        .map(DamageType::noun)
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+/// What `item` does, read from its parts: dice, reach, armor, light, notes.
+fn facts(world: &World, item: Entity) -> Vec<String> {
+    let mut facts = Vec::new();
+    if let Ok(w) = world.get::<&Weapon>(item) {
+        let (min, max, kinds, stat) = (w.min, w.max, kinds(w.types), stat_name(w.stat));
+        facts.push(format!("melee {min}-{max} {kinds}, +{stat}"));
+    }
+    if let Ok(t) = world.get::<&Throwable>(item) {
+        let (min, max, kinds, stat) = (t.min, t.max, kinds(t.types), stat_name(t.stat));
+        let range = t.range;
+        facts.push(format!(
+            "thrown {min}-{max} {kinds} up to {range} tiles, +{stat}"
+        ));
+    }
+    if let Ok(l) = world.get::<&Launcher>(item) {
+        let (range, steady, stat) = (l.range, l.steady, stat_name(l.stat));
+        facts.push(format!(
+            "shoots arrows up to {range} tiles, steady to {steady}, +{stat}"
+        ));
+    }
+    if let Ok(p) = world.get::<&Projectile>(item) {
+        let (min, max, kinds) = (p.min, p.max, kinds(p.types));
+        let breaks = p.break_bp / 100;
+        facts.push(format!("hits for {min}-{max} {kinds}, {breaks}% to break"));
+    }
+    if let Ok(q) = world.get::<&Quiver>(item) {
+        facts.push(format!("holds {} arrows", q.capacity));
+    }
+    if let Ok(armor) = world.get::<&Armor>(item) {
+        let values: Vec<String> = DamageType::ALL
+            .iter()
+            .filter_map(|&kind| {
+                let value = armor.of(kind);
+                (value != 0).then(|| format!("{} {value}", kind.noun()))
+            })
+            .collect();
+        if !values.is_empty() {
+            facts.push(format!("armor: {}", values.join(", ")));
+        }
+    }
+    if let Ok(light) = world.get::<&Light>(item) {
+        facts.push(format!("lights {} tiles around", light.radius));
+    }
+    if let Ok(note) = world.get::<&Note>(item) {
+        facts.push(note.0.clone());
+    }
+    facts
 }
 
 /// A quiver's load or a launcher's nocked arrow, for display.
@@ -97,6 +167,7 @@ impl ItemView {
                 .into_iter()
                 .filter_map(|id| book.get(id).map(|def| def.name.clone()))
                 .collect(),
+            facts: facts(world, item),
         })
     }
 }
