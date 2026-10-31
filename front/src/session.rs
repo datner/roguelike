@@ -101,6 +101,12 @@ impl Session {
         &self.state
     }
 
+    /// A line in the game's log from outside the game, such as a save that
+    /// failed.
+    pub(crate) fn log(&mut self, message: String) {
+        self.state.log.push(message);
+    }
+
     pub fn character(&self) -> &str {
         &self.character
     }

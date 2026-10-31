@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use game::{Blueprints, GameState, OriginView, random_seed};
+use game::{Blueprints, GameState, OriginView, Place, random_seed};
 
 use crate::menu::{Action, Menu};
 use crate::saves::{self, Loaded};
@@ -112,6 +112,8 @@ pub fn origins(setup: &Setup) -> Vec<OriginView> {
 pub struct Game {
     pub session: Session,
     path: PathBuf,
+    /// Where the player was at the last save, so a change of place saves.
+    saved_at: Place,
 }
 
 /// The character's saved game, or a new one as `origin` if it has no save
@@ -120,9 +122,25 @@ pub fn start(setup: &Setup, character: &str, origin: Option<&str>) -> Result<Gam
     let path = saves::path(&setup.saves_dir, character)?;
     let state = load_or_new(setup, character, origin, &path)?;
     Ok(Game {
+        saved_at: state.place.clone(),
         session: Session::new(state, character),
         path,
     })
+}
+
+/// Saves when the player has changed place (into a dive, down the stairs,
+/// back to camp) since the last save, so a crash or a killed window loses
+/// one floor at most, and a death can't be undone past it. A failure is
+/// said in the log; play goes on.
+pub fn checkpoint(game: &mut Game) {
+    let place = &game.session.state().place;
+    if *place == game.saved_at {
+        return;
+    }
+    game.saved_at = place.clone();
+    if let Err(err) = saves::save_on_quit(&game.path, game.session.state()) {
+        game.session.log(err);
+    }
 }
 
 fn load_or_new(
@@ -211,6 +229,25 @@ mod tests {
     }
 
     #[test]
+    fn changing_place_saves_and_staying_does_not() {
+        let setup = setup("checkpoint");
+        let mut game = start(&setup, "hero", None).unwrap();
+        checkpoint(&mut game);
+        assert!(!game.path.exists(), "still where it started");
+        // As if the last save was on a floor and the player is back at camp.
+        game.saved_at = Place::Floor {
+            dungeon: "Caves".into(),
+            phase: "stillness".into(),
+            dive: 1,
+            floor: 1,
+        };
+        checkpoint(&mut game);
+        assert!(game.path.exists());
+        assert_eq!(game.saved_at, game.session.state().place);
+        let _ = std::fs::remove_dir_all(&setup.saves_dir);
+    }
+
+    #[test]
     fn a_death_buries_the_character() {
         let setup = setup("death");
         let game = start(&setup, "hero", None).unwrap();
@@ -223,6 +260,7 @@ mod tests {
         // What the frontend reads of a death; how dying works is `game`'s.
         state.game_over = true;
         let dead = Game {
+            saved_at: state.place.clone(),
             session: Session::new(*state, "hero"),
             path: game.path.clone(),
         };

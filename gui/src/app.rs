@@ -105,15 +105,21 @@ impl App {
         }
     }
 
-    /// Saves and returns to the menu with what happened.
-    fn leave_game(&mut self) {
+    /// Saves and returns to the menu with what happened. Returns a failure,
+    /// for a closing window to say where it can still be seen.
+    fn leave_game(&mut self) -> Option<String> {
+        let mut failed = None;
         if let Some(game) = self.game.take() {
-            let (Ok(message) | Err(message)) = title::finish(&game, self.played.as_secs());
+            let message = match title::finish(&game, self.played.as_secs()) {
+                Ok(message) => message,
+                Err(message) => failed.insert(message).clone(),
+            };
             self.menu.show(message);
             title::refresh(&mut self.menu, &self.setup);
         }
         self.next_step = None;
         self.effects.finish();
+        failed
     }
 
     /// Feeds this frame's key presses to the menu or the game, then takes an
@@ -149,6 +155,7 @@ impl App {
                 self.next_step = None;
             }
             self.effects.add(session.take_fx(), now);
+            title::checkpoint(game);
         }
         Flow::Continue
     }
@@ -282,9 +289,12 @@ impl eframe::App for App {
         }
     }
 
-    /// Closing the window mid-game saves it, like quitting.
+    /// Closing the window mid-game saves it, like quitting. The menu that
+    /// would show a failure is closing too, so it goes to stderr.
     fn on_exit(&mut self) {
-        self.leave_game();
+        if let Some(failed) = self.leave_game() {
+            eprintln!("{failed}");
+        }
     }
 }
 
