@@ -4,6 +4,7 @@
 
 pub mod calibrate;
 mod floors;
+mod jobs;
 mod targets;
 
 use std::fmt::Write as _;
@@ -13,7 +14,7 @@ pub use floors::{DiveRow, DiveSet, Dives};
 pub use targets::{LevelTarget, Reach, Targets};
 
 use game::Blueprints;
-use game::balance::{self, Build, Cost, Run, Scenario, Summary};
+use game::balance::{self, Build, Cost, Scenario, Summary};
 
 /// The start of a fight: everything off recharge, every pool full.
 pub const BURST: u64 = 1000;
@@ -86,23 +87,44 @@ pub struct Row {
 
 /// Every build against every scenario, over seeds `0..seeds`.
 pub fn measure(blueprints: &Blueprints, bench: &Bench, seeds: u64) -> Result<Vec<Row>, String> {
-    let mut rows = Vec::new();
-    for scenario in &bench.scenarios {
-        for build in &bench.builds {
-            let window = |ticks| -> Result<Summary, String> {
-                let runs = (0..seeds)
-                    .map(|seed| balance::run(blueprints, build, scenario, ticks, seed))
-                    .collect::<Result<Vec<Run>, String>>()?;
-                Ok(balance::summarize(&runs))
-            };
-            rows.push(Row {
-                build: build.name.clone(),
-                scenario: scenario.name.clone(),
-                burst: window(BURST)?,
-                sustained: window(SUSTAINED)?,
-            });
-        }
-    }
+    let cells: Vec<(&Scenario, &Build)> = bench
+        .scenarios
+        .iter()
+        .flat_map(|scenario| bench.builds.iter().map(move |build| (scenario, build)))
+        .collect();
+    // Every cell's burst seeds, then its sustained ones: one run a job.
+    let jobs: Vec<(&Scenario, &Build, u64, u64)> = cells
+        .iter()
+        .flat_map(|&(scenario, build)| {
+            [BURST, SUSTAINED]
+                .into_iter()
+                .flat_map(move |ticks| (0..seeds).map(move |seed| (scenario, build, ticks, seed)))
+        })
+        .collect();
+    let runs = jobs::run_all(
+        "dolls",
+        &jobs,
+        |&(scenario, build, ticks, seed)| {
+            format!(
+                "{} vs {} ({ticks} ticks) seed {seed}",
+                build.name, scenario.name
+            )
+        },
+        |&(scenario, build, ticks, seed)| balance::run(blueprints, build, scenario, ticks, seed),
+    )?;
+    // Cell `i`'s burst runs are window `2i`, its sustained ones `2i + 1`.
+    let per = runs.len() / (2 * cells.len()).max(1);
+    let window = |w: usize| balance::summarize(&runs[w * per..(w + 1) * per]);
+    let rows = cells
+        .iter()
+        .enumerate()
+        .map(|(i, &(scenario, build))| Row {
+            build: build.name.clone(),
+            scenario: scenario.name.clone(),
+            burst: window(2 * i),
+            sustained: window(2 * i + 1),
+        })
+        .collect();
     Ok(rows)
 }
 

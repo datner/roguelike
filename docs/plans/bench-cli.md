@@ -35,16 +35,20 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `nix develop --command` advice; `.claude/settings.json` loses the permissions only it needed.
 - As built: the README keeps its `nix develop` lines, the setup for someone without direnv.
 
-### 2. Parallel runs
+### 2. Parallel runs — done
 - `bench::measure` and `floors::measure` build their job lists and run them on
   `std::thread::available_parallelism()` workers, results back in job order.
 - Tests: a parallel measure equals a sequential one over the same seeds; `scripts/balance.sh
   --check` still matches the committed report.
+- As built: `bench/src/jobs.rs` (`run_all`), one job per run (a seed of one window or one dive).
+  Tested by order and first-error; the full report came out byte-identical to the committed one.
+  On 10 cores: 154 s to 21 s; the dolls take under a second, the dives the rest.
 
-### 3. Progress
+### 3. Progress — done
 - While a run is going and stderr is a terminal: one line, rewritten, with the part (dolls or
   dives), jobs done of all, the job just finished and the time so far; cleared at the end, then a
   last line with each part's time.
+- As built: inside `run_all`; the closing line (`dives: 320 runs in 0:20`) prints either way.
 
 ### 4. Narrowed runs
 - `--build NAME` (repeatable), `--scenario NAME`, `--dive NAME`: only matching rows run and print.

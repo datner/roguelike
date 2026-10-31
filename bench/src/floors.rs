@@ -43,7 +43,7 @@ pub fn measure(
     dives: &Dives,
     seeds: u64,
 ) -> Result<Vec<DiveRow>, String> {
-    let mut rows = Vec::new();
+    let mut cells = Vec::new();
     for set in &dives.sets {
         for dive in &set.dives {
             for name in &set.builds {
@@ -51,18 +51,30 @@ pub fn measure(
                     .iter()
                     .find(|build| &build.name == name)
                     .ok_or_else(|| format!("dives.ron: no build named {name:?}"))?;
-                let runs = (0..seeds)
-                    .map(|seed| balance::dive(blueprints, build, dive, seed))
-                    .collect::<Result<_, _>>()?;
-                rows.push(DiveRow {
-                    build: name.clone(),
-                    dive: dive.clone(),
-                    runs,
-                });
+                cells.push((build, dive));
             }
         }
     }
-    Ok(rows)
+    let jobs: Vec<(&Build, &Dive, u64)> = cells
+        .iter()
+        .flat_map(|&(build, dive)| (0..seeds).map(move |seed| (build, dive, seed)))
+        .collect();
+    let mut runs = crate::jobs::run_all(
+        "dives",
+        &jobs,
+        |&(build, dive, seed)| format!("{} in {} seed {seed}", build.name, dive.name),
+        |&(build, dive, seed)| balance::dive(blueprints, build, dive, seed),
+    )?
+    .into_iter();
+    let per = usize::try_from(seeds).map_err(|err| err.to_string())?;
+    Ok(cells
+        .into_iter()
+        .map(|(build, dive)| DiveRow {
+            build: build.name.clone(),
+            dive: dive.clone(),
+            runs: runs.by_ref().take(per).collect(),
+        })
+        .collect())
 }
 
 /// One floor over the runs that reached it.
