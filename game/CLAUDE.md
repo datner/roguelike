@@ -26,8 +26,8 @@ can't show at a glance.
 - `prio.rs` — every handler priority, as a named constant (never inline). Unique per event type (`on` panics on a duplicate).
 - `combat.rs` — armor resists typed (melee) damage per kind, summed over worn pieces; untyped effect damage passes (ADR 0012). Damage previews run on a cloned combat stream. A blow resolves through `combat::odds` (the `AttackOdds` event, side-effect free) then `combat::resolve` (ADR 0017); tests about what a hit does use `testkit::sure_hits`.
 - `fov.rs` — refreshed once per player turn, never per actor; AI sight reuses it (ADR 0007).
-- `save.rs` — a new component goes on one list in `components!` (`plain`, `markers`, or `custom` with a `CustomSaved` variant and its arms in `save_custom`/`load_custom`, remapping any `Entity`/`BlueprintId` both ways); any format change bumps `SAVE_VERSION` (ADR 0008).
-- `blueprint.rs` — a component a blueprint can declare goes on one list in `component_defs!` (`plain`, `markers`, or `resolved` when it holds names spawned from `ResolvedBlueprint`).
+- `entity.rs` `with_components!` — a new component goes on one of its lists, which say both whether blueprints can declare it and how saves keep it; `blueprint.rs` and `save.rs` build their types from it. A `resolved` or `custom` one also needs a `CustomSaved` variant and its arms in `save_custom`/`load_custom`, remapping any `Entity`/`BlueprintId` both ways.
+- `save.rs` — any format change bumps `SAVE_VERSION` (ADR 0008).
 - `explore.rs` — judges only from what the player knows (seen tiles, remembered items). `ExploreItems` is game state and saved.
 - `ammo.rs` — a nocked arrow is the launcher's own `Inventory`, a quiver's arrows are the quiver's: never add a new holder list for them. `Fire` takes the nocked arrow first, then an *equipped* quiver.
 - `tiles.rs` — sprites are names in content and saves, `SpriteId`s at runtime (never saved); `Cell.sprite` is set only on tiles in view (ADR 0023). Frames turn on the frontend's clock (`Sprite::frame`).

@@ -50,19 +50,20 @@ use crate::technique::{Missing, Names, TechniqueDef};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlueprintId(u32);
 
-/// Every component a blueprint can declare, in three kinds. A new one goes on
-/// one list:
-/// - `plain`: written as itself and added as itself;
-/// - `markers`: a unit struct, written by name;
-/// - `resolved`: holds names (skills, blueprints) that loading resolves to
-///   ids, so it is spawned from `ResolvedBlueprint`, never added here.
+/// Every component a blueprint can declare: the `plain`, `markers` and
+/// `resolved` lists of `entity::with_components!`. A `resolved` one holds
+/// names that loading resolves to ids, so it is spawned from
+/// `ResolvedBlueprint`, never added here.
 ///
 /// A child's entry overrides the parent's entry of the same variant.
 macro_rules! component_defs {
     (
         plain: [$($(#[$plain_doc:meta])* $plain:ident),* $(,)?],
+        state: [$($_state:tt)*],
         markers: [$($(#[$marker_doc:meta])* $marker:ident),* $(,)?],
-        resolved: [$($(#[$resolved_doc:meta])* $resolved:ident($ty:ty)),* $(,)?] $(,)?
+        state_markers: [$($_state_marker:tt)*],
+        resolved: [$($(#[$resolved_doc:meta])* $resolved:ident($ty:ty)),* $(,)?],
+        custom: [$($_custom:tt)*] $(,)?
     ) => {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub enum ComponentDef {
@@ -87,47 +88,7 @@ macro_rules! component_defs {
     };
 }
 
-component_defs! {
-    plain: [
-        Name, Appearance, Health, Armor, Melee, Speed, Body, Equippable, Stats, Weapon, Throwable,
-        Ammo, Projectile, Launcher, Quiver, Spell, SpellDamage, Area, SummonLimit, BloodCasting,
-        Focus, Fizzle, Chain, Delay, Blast, CooldownCasting, ManaCasting, Mana, Bleeding,
-        Regeneration, Morale, Hardiness, WindUp, Duration, Graze, Deflect, Light,
-        /// The verb its use is logged with (a language part, like `Name`).
-        Verb,
-        /// What looking at it reads (a language part).
-        Note,
-        /// What its own blows carry.
-        Natural,
-        Footwork, Blow, Dash, Loose, Stamina, OffBalance,
-    ],
-    markers: [
-        BlocksMovement, Player, Hostile, Item, Binding, Scroll, SpellAi, TechniqueAi, Roams,
-        SprintAi, Skirmish, Learner, Proficiency,
-        /// From what the holder is, never learned (ADR 0025).
-        Ability,
-        /// Made for one place, never found lying about.
-        Keepsake,
-    ],
-    resolved: [
-        /// The creature by blueprint name; spawned from `ResolvedBlueprint::summon`.
-        Summon(SummonDef),
-        /// Effects by blueprint name; spawned from `ResolvedBlueprint::on_hit`.
-        OnHit(Vec<OnHitDef>),
-        /// Fixed skill levels by name (ADR 0017); spawned as XP.
-        Skills(BTreeMap<String, u32>),
-        /// Skills by name that using this trains.
-        Trains(Vec<String>),
-        /// Skills by name; spawned from `ResolvedBlueprint::style`.
-        Style(StyleDef),
-        /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
-        Lesson(BTreeMap<String, u32>),
-        /// Skills by name; spawned from `ResolvedBlueprint::technique`.
-        Technique(TechniqueDef),
-        /// Technique blueprints by name; spawned from `ResolvedBlueprint::teaches`.
-        Teaches(Vec<String>),
-    ],
-}
+crate::entity::with_components!(component_defs);
 
 /// A `Summon` as written in RON: the creature by blueprint name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

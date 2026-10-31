@@ -184,21 +184,30 @@ enum SavedTimerKind {
     Regenerate(Option<u32>),
 }
 
-/// Every component the save knows, in three kinds, and the code that saves
-/// and loads them. A new component goes on one list:
-/// - `plain`: saved as itself (`Clone` + `Serialize`, no `Entity` inside,
-///   no runtime id);
-/// - `markers`: a unit struct, saved by name;
-/// - `custom`: an `Entity` to remap or an id to name: a `CustomSaved`
-///   variant and its arms in `save_custom` and `load_custom`.
-///
-/// Saving walks the lists in this order; an entity with a component none of
-/// them covers fails to save rather than losing it.
-macro_rules! components {
+/// The code that saves and loads every component of
+/// `entity::with_components!`: `plain` and `state` as themselves, both marker
+/// lists by name, `resolved` and `custom` through `save_custom`/`load_custom`.
+macro_rules! saved_components {
     (
-        plain: [$($plain:ident),* $(,)?],
-        markers: [$($marker:ident),* $(,)?],
+        plain: [$($(#[$_plain_doc:meta])* $plain:ident),* $(,)?],
+        state: [$($state:ident),* $(,)?],
+        markers: [$($(#[$_marker_doc:meta])* $marker:ident),* $(,)?],
+        state_markers: [$($state_marker:ident),* $(,)?],
+        resolved: [$($(#[$_resolved_doc:meta])* $resolved:ident($_def:ty)),* $(,)?],
         custom: [$($custom:ident),* $(,)?] $(,)?
+    ) => {
+        saved_components! {
+            @kinds
+            plain: [$($plain,)* $($state,)*],
+            markers: [$($marker,)* $($state_marker,)*],
+            custom: [$($resolved,)* $($custom,)*],
+        }
+    };
+    (
+        @kinds
+        plain: [$($plain:ident,)*],
+        markers: [$($marker:ident,)*],
+        custom: [$($custom:ident,)*] $(,)?
     ) => {
         #[derive(Debug, Clone, Copy)]
         enum ComponentKind {
@@ -264,25 +273,7 @@ macro_rules! components {
     };
 }
 
-components! {
-    plain: [
-        Position, Appearance, Name, Health, Armor, Melee, Speed, Energy, SpawnSeq, Body,
-        Equippable, EquippedOn, Stats, Weapon, Throwable, Ammo, Projectile, Launcher, Quiver,
-        Spell, SpellDamage, Area, Recharging, CooldownCasting, ManaCasting, Mana, Duration,
-        Timed, SummonLimit, BloodCasting, Focus, Fizzle, Chain, Delay, Blast, Bleeding,
-        Regeneration, RestBudget, Quarry, Morale, Route, WindUp, Strode, Loosed, Hardiness,
-        BaseHealth, Wounds, Graze, Deflect, Light, Verb, Footwork, Discovered, Origin, Studied,
-        Sighted, Attuned, Blow, Dash, Loose, Stamina, OffBalance, Performed, Made, Stashed, Note, Memoir, Reveals, Revealed, Natural,
-    ],
-    markers: [
-        BlocksMovement, Player, Dead, Hostile, Item, Found, Binding, Scroll, SpellAi, Roams,
-        Sprinting, SprintAi, Skirmish, Learner, Proficiency, Ability, TechniqueAi, Keepsake,
-    ],
-    custom: [
-        Attachments, Inventory, EffectTarget, Summoned, Summon, Telegraph, OnHit, Skills, Trains,
-        Familiarity, Lesson, Style, Technique, Teaches,
-    ],
-}
+crate::entity::with_components!(saved_components);
 
 /// The components that can't be saved as themselves.
 #[derive(Debug, Serialize, Deserialize)]

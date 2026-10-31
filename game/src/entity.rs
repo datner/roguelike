@@ -9,6 +9,76 @@ use crate::cell::Rgb;
 use crate::skill::SkillId;
 use crate::time::Tick;
 
+/// Every component, once: whether a blueprint can declare it and how a save
+/// keeps it. `blueprint.rs` (`component_defs!`) and `save.rs`
+/// (`saved_components!`) each build their own types from this list, so a new
+/// component is one line here, never one per module. The lists:
+/// - `plain`: declared in blueprints, saved as itself (`Clone` + `Serialize`,
+///   no `Entity` inside, no runtime id);
+/// - `state`: saved as itself, never declared (what play sets);
+/// - `markers` / `state_markers`: unit structs, saved by name, the same split;
+/// - `resolved`: declared by name, as the type in parentheses, which loading
+///   resolves to ids (spawned from `ResolvedBlueprint`); saved as `custom`;
+/// - `custom`: never declared; saved through a `CustomSaved` variant and its
+///   arms in `save_custom`/`load_custom` (an `Entity` to remap, an id to name).
+///
+/// A save walks them in this order; an entity with a component none of them
+/// covers fails to save rather than losing it.
+macro_rules! with_components {
+    ($callback:ident) => {
+        $callback! {
+            plain: [
+                Name, Appearance, Health, Armor, Melee, Speed, Body, Equippable, Stats, Weapon,
+                Throwable, Ammo, Projectile, Launcher, Quiver, Spell, SpellDamage, Area,
+                SummonLimit, BloodCasting, Focus, Fizzle, Chain, Delay, Blast, CooldownCasting,
+                ManaCasting, Mana, Bleeding, Regeneration, Morale, Hardiness, WindUp, Duration,
+                Graze, Deflect, Light,
+                /// The verb its use is logged with (a language part, like `Name`).
+                Verb,
+                /// What looking at it reads (a language part).
+                Note,
+                /// What its own blows carry.
+                Natural,
+                Footwork, Blow, Dash, Loose, Stamina, OffBalance,
+            ],
+            state: [
+                Position, Energy, SpawnSeq, EquippedOn, Recharging, Timed, RestBudget, Quarry,
+                Route, Strode, Loosed, BaseHealth, Wounds, Discovered, Origin, Studied, Sighted,
+                Attuned, Performed, Made, Stashed, Memoir, Reveals, Revealed,
+            ],
+            markers: [
+                BlocksMovement, Player, Hostile, Item, Binding, Scroll, SpellAi, TechniqueAi,
+                Roams, SprintAi, Skirmish, Learner, Proficiency,
+                /// From what the holder is, never learned (ADR 0025).
+                Ability,
+                /// Made for one place, never found lying about.
+                Keepsake,
+            ],
+            state_markers: [Dead, Found, Sprinting],
+            resolved: [
+                /// The creature by blueprint name; spawned from `ResolvedBlueprint::summon`.
+                Summon(SummonDef),
+                /// Effects by blueprint name; spawned from `ResolvedBlueprint::on_hit`.
+                OnHit(Vec<OnHitDef>),
+                /// Fixed skill levels by name (ADR 0017); spawned as XP.
+                Skills(BTreeMap<String, u32>),
+                /// Skills by name that using this trains.
+                Trains(Vec<String>),
+                /// Skills by name; spawned from `ResolvedBlueprint::style`.
+                Style(StyleDef),
+                /// XP by skill name; spawned from `ResolvedBlueprint::lesson`.
+                Lesson(BTreeMap<String, u32>),
+                /// Skills by name; spawned from `ResolvedBlueprint::technique`.
+                Technique(TechniqueDef),
+                /// Technique blueprints by name; spawned from `ResolvedBlueprint::teaches`.
+                Teaches(Vec<String>),
+            ],
+            custom: [Attachments, Inventory, EffectTarget, Summoned, Telegraph, Familiarity],
+        }
+    };
+}
+pub(crate) use with_components;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Position {
     pub x: i32,
