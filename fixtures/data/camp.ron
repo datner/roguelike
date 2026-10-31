@@ -1,7 +1,8 @@
 // Camp (game::camp): where a new game starts and every dive ends. `#` wall,
-// `.` floor, `@` where you arrive, `x` where a past life's ruins go (at least
-// `keep` in data/legacy.ron); any other character is an entrance, stairs down
-// into the dungeon `entrances` names for it.
+// `.` floor, `=` a workbench (docs/plans/crafting.md), `@` where you arrive,
+// `x` where a past life's ruins go (at least `keep` in data/legacy.ron); any
+// other character is an entrance, stairs down into the dungeon `entrances`
+// names for it.
 (
     arrival: "You are at camp. Two ways lead down: the caves to the east, the castle to the west.",
     layout: [
@@ -9,7 +10,7 @@
         "#............................#",
         "#..####..............####....#",
         "#..####....x...x.....####....#",
-        "#2.####......@.......####..1.#",
+        "#2.####......@.=.....####..1.#",
         "#..####.......x......####....#",
         "#............................#",
         "##############################",

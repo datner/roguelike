@@ -1,4 +1,4 @@
-//! Camp (docs/plans/dives.md): the safe place between dives, drawn in `data/camp.ron` as rows of characters. Each entrance is stairs down into a dungeon. Nothing hostile and nothing left there persists yet.
+//! Camp (docs/plans/dives.md): the safe place between dives, drawn in `data/camp.ron` as rows of characters. Each entrance is stairs down into a dungeon; a workbench is where things are made (docs/plans/crafting.md). Nothing hostile and nothing left there persists yet.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -13,7 +13,7 @@ use crate::map::{Grid, Map, Tile};
 struct CampDef {
     arrival: String,
     /// `#` wall, `.` floor, `@` where you stand on arriving, `x` a ruin spot
-    /// (floor), and an entrance's character for its stairs.
+    /// (floor), `=` a workbench, and an entrance's character for its stairs.
     layout: Vec<String>,
     /// Entrance characters, each to the dungeon (`data/dungeons/<Key>.ron`)
     /// it leads into.
@@ -90,6 +90,7 @@ fn parse(def: CampDef, blueprints: &Blueprints) -> Result<Camp, BlueprintError> 
             let tile = match ch {
                 '#' => Tile::Wall,
                 '.' => Tile::Floor,
+                '=' => Tile::Workbench,
                 'x' => {
                     ruins.push((x, y));
                     Tile::Floor

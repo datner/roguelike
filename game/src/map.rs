@@ -31,6 +31,9 @@ pub enum Tile {
     /// forced into it drowns; the player hauls out, a turn lost
     /// (docs/plans/fights-2.md).
     DeepWater,
+    /// A workbench (`=`), at camp: stood at or beside to craft what is not
+    /// a field recipe (docs/plans/crafting.md). Walked and seen across.
+    Workbench,
 }
 
 impl Tile {
@@ -46,6 +49,7 @@ impl Tile {
                     | Tile::DoorOpen
                     | Tile::Grass
                     | Tile::Rubble
+                    | Tile::Workbench
             )
         )
     }

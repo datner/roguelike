@@ -106,10 +106,13 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   (named inputs) come with the first one, in slice 6. Generated play rarely carries two fitting
   materials, so the property mostly checks refusals; the unit tests check the crafts.
 
-### 3. The workbench — open
+### 3. The workbench — done
 - `Tile::Workbench` in camp; `ready` refuses a non-field recipe away from it ("You need a workbench.").
 - Camp's stash keeps materials like anything left there (`Stashed`); nothing new.
 - Shots: camp with the workbench.
+- Done. The fixture camp (`fixtures/data/camp.ron`) took the workbench too, so the shots at camp show
+  the new tile; a new tile is a drawing change, the one reason to touch the fixtures besides a format
+  change.
 
 ### 4. Growing by it — open
 - `Craft` domain; `Scavenging`, `Fletching`, `Smithing` in `data/skills.ron`; recipes name theirs.

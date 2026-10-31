@@ -139,6 +139,9 @@ pub(crate) fn ready(
             def.name.to_lowercase()
         ));
     }
+    if !def.field && !at_workbench(state, actor) {
+        return Err("You need a workbench for that.".into());
+    }
     let mut carried: Vec<(SpawnSeq, Entity)> = holding::carried(world, actor)
         .into_iter()
         .filter_map(|thing| Some((*world.get::<&SpawnSeq>(thing).ok()?, thing)))
@@ -188,6 +191,16 @@ pub(crate) fn ready(
         inputs.push(input);
     }
     Ok(Ready { recipe, inputs })
+}
+
+/// On or beside a workbench.
+fn at_workbench(state: &GameState, actor: Entity) -> bool {
+    let Ok(at) = state.world.get::<&Position>(actor).map(|at| *at) else {
+        return false;
+    };
+    (-1..=1).any(|dy| {
+        (-1..=1).any(|dx| state.map.get(at.x + dx, at.y + dy) == Some(&crate::map::Tile::Workbench))
+    })
 }
 
 /// `Command::Craft` applier: uses up the inputs and makes the product,
@@ -515,6 +528,23 @@ mod tests {
                 .types
                 .contains(DamageType::Cold)
         );
+    }
+
+    #[test]
+    fn only_a_field_recipe_is_made_away_from_a_workbench() {
+        let bench = RecipeDef {
+            field: false,
+            ..shiv()
+        };
+        let (mut state, _) = crafter(vec![bench], &[&["hard"], &["flexible"]]);
+        assert!(!craft_now(&mut state, [None; MAX_SLOTS]));
+        assert_eq!(
+            crate::testkit::last_log(&state),
+            "You need a workbench for that."
+        );
+        // The player stands at (1, 1); a bench beside them will do.
+        state.map.set(2, 2, crate::map::Tile::Workbench);
+        assert!(craft_now(&mut state, [None; MAX_SLOTS]));
     }
 
     #[test]

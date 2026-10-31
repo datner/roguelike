@@ -31,6 +31,12 @@ This is a Cargo workspace with four crates:
     into a dungeon. Taking one starts a dive; climbing any floor's stairs
     up comes back to camp and ends it. What you leave on camp's floor is
     still there when you come back.
+  - Crafting (`data/properties.ron`, `data/recipes.ron`): creatures leave
+    materials (goblin bone, rat hide) and floors hold more (flint, saplings,
+    each phase's own); a recipe makes a thing from materials with the
+    properties its slots need, and the product takes their properties (a
+    cold edge cuts cold). Camp's workbench (`=`) is where most things are
+    made; field recipes, like the wanderer's arrows, work anywhere.
   - Death is final: the save is removed and the life joins the lineage
     (`legacy.ron` beside the saves); deleting a living character counts too.
     The next character finds the last lives' camps in ruins, with what

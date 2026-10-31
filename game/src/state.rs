@@ -549,6 +549,7 @@ pub(crate) fn render_unlit(state: &GameState, width: i32, height: i32) -> Grid<C
                 Tile::Chasm => (':', Rgb(70, 70, 120)),
                 Tile::Grass => ('"', Rgb(70, 150, 60)),
                 Tile::Rubble => (',', Rgb(150, 130, 100)),
+                Tile::Workbench => ('=', Rgb(170, 130, 80)),
                 Tile::DeepWater => ('~', Rgb(60, 110, 200)),
             };
             let remembered = state
