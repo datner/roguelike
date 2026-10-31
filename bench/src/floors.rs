@@ -94,6 +94,8 @@ pub struct FloorSummary {
     /// Fights per run, and every fight's length.
     pub fights: f64,
     pub fight: Spread,
+    /// Materials carried out of the floor (docs/plans/crafting.md).
+    pub materials: f64,
 }
 
 /// A mean with its 10th and 90th percentiles.
@@ -151,6 +153,7 @@ pub fn floors(runs: &[DiveRun]) -> Vec<FloorSummary> {
                 hp_lost: mean(&|f| f64::from(f.hp_lost)),
                 rested: mean(&|f| f64::from(f.rested)),
                 fights: mean(&|f| f.fights.len() as f64),
+                materials: mean(&|f| f64::from(f.materials)),
                 fight: Spread::of(
                     reached
                         .iter()
@@ -237,9 +240,9 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64, targets: &Targets)
         );
         let _ = writeln!(
             out,
-            "| build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length |"
+            "| build | floor | reached | keypresses | turns | XP (most to) | HP lost | rested | fights | fight length | materials |"
         );
-        let _ = writeln!(out, "|---|---|---|---|---|---|---|---|---|---|");
+        let _ = writeln!(out, "|---|---|---|---|---|---|---|---|---|---|---|");
         let mine: Vec<&DiveRow> = rows.iter().filter(|row| &row.dive == dive).collect();
         for row in &mine {
             for (index, floor) in floors(&row.runs).iter().enumerate() {
@@ -249,7 +252,7 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64, targets: &Targets)
                     .map_or_else(String::new, |(skill, xp)| format!(" ({skill} {xp:.0})"));
                 let _ = writeln!(
                     out,
-                    "| {} | {} | {}/{} | {} | {:.0} | {:.0}{top} | {:.1} | {:.0} | {:.1} | {} |",
+                    "| {} | {} | {}/{} | {} | {:.0} | {:.0}{top} | {:.1} | {:.0} | {:.1} | {} | {:.1} |",
                     row.build,
                     index + 1,
                     floor.reached,
@@ -261,6 +264,7 @@ pub fn report(out: &mut String, rows: &[DiveRow], seeds: u64, targets: &Targets)
                     floor.rested,
                     floor.fights,
                     spread(&floor.fight, 1),
+                    floor.materials,
                 );
             }
         }
@@ -365,7 +369,7 @@ pub fn json(rows: &[DiveRow], targets: &Targets) -> String {
                     );
                     format!(
                         "{{\"reached\":{},\"keypresses\":{},\"turns\":{},\"xp\":{},\"top_skill\":{top},\
-                         \"hp_lost\":{},\"rested\":{},\"fights\":{},\"fight\":{}}}",
+                         \"hp_lost\":{},\"rested\":{},\"fights\":{},\"fight\":{},\"materials\":{}}}",
                         floor.reached,
                         spread(&floor.keypresses),
                         number(floor.turns),
@@ -373,7 +377,8 @@ pub fn json(rows: &[DiveRow], targets: &Targets) -> String {
                         number(floor.hp_lost),
                         number(floor.rested),
                         number(floor.fights),
-                        spread(&floor.fight)
+                        spread(&floor.fight),
+                        number(floor.materials)
                     )
                 })
                 .collect();
@@ -479,6 +484,7 @@ mod tests {
             died_to: None,
             rested: 0,
             fights,
+            materials: 2,
         }
     }
 
@@ -516,8 +522,8 @@ mod tests {
         let lines: Vec<&str> = out.lines().collect();
         for expected in [
             "### Caves",
-            "| bumper | 1 | 2/2 | 40 (30–50) | 400 | 40 (Melee 30) | 4.0 | 0 | 1.5 | 5.0 (3.0–8.0) |",
-            "| bumper | 2 | 2/2 | 30 (20–40) | 300 | 40 (Melee 30) | 4.0 | 0 | 0.5 | 6.0 (6.0–6.0) |",
+            "| bumper | 1 | 2/2 | 40 (30–50) | 400 | 40 (Melee 30) | 4.0 | 0 | 1.5 | 5.0 (3.0–8.0) | 2.0 |",
+            "| bumper | 2 | 2/2 | 30 (20–40) | 300 | 40 (Melee 30) | 4.0 | 0 | 0.5 | 6.0 (6.0–6.0) | 2.0 |",
             "- **bumper**: 1 reached floor 2, 1 died (goblin 1), 0 stuck.",
         ] {
             assert!(lines.contains(&expected), "{expected:?} not in\n{out}");

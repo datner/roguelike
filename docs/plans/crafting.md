@@ -149,10 +149,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   the thing apart (`r` in the inventory, five turns). The crude bow teaches `ShortBow` (a recipe
   added for it), the rusty knife `Knife`; `the broadhead` discovery grants `BroadheadArrow`.
 
-### 7. The bench and the vision — open
+### 7. The bench and the vision — done
 - The floor bot picks up materials and the Floors report counts them per floor (materials a dive banks);
   a `fletcher` build crafts arrows at camp between dives in the dive runs.
 - The vision's Crafting section gets "Built so far" and what moved to later plans.
+- Done. A bench dive is one dive from camp, so there is no between: a build's `crafts` names field
+  recipes the floor bot makes whenever no fight is on, and the `fletcher` (a wanderer making arrows)
+  joins the starting builds. The Floors tables gained a materials column: what a floor leaves carried.
+  The fletcher's numbers sit with the wanderer's, since arrows rarely run out yet.
 
 ## Out of scope
 
@@ -165,15 +169,15 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
 ## Connections
 
 **Reads**
-- phases: a dungeon's `items` scatter limits a material to its phase (`Scatter.phases`), so each phase's material exists only in its dives *(planned: crafting slice 1)*
-- dives: materials come only from floors (`Yields` on death, the dungeon's scatter) and are banked by bringing them to camp's stash *(planned: crafting slice 1)*
-- skills: the craft level from the recipe's skills sets `Quality` in `craft::ready`; Scavenging raises yield chances *(planned: crafting slice 4)*
-- training: taking apart is a lesson in `training::study`, teaching a recipe once per kind *(planned: crafting slice 6)*
-- discovery: `Grant::Recipe` teaches a recipe at a moment of inspiration *(planned: crafting slice 6)*
+- phases: a dungeon's `items` scatter limits a material to its phase (`Scatter.phases`), so each phase's material exists only in its dives
+- dives: materials come only from floors (`Yields` on death, the dungeon's scatter) and are banked by bringing them to camp's stash
+- skills: the craft level from the recipe's skills sets `Quality` in `craft::craft`; Scavenging raises yield chances in `craft::leave_yields`
+- training: taking apart is a lesson in `training::study` (a `Salvage` part), teaching a recipe once per kind
+- discovery: `Grant::Recipe` teaches a recipe at a moment of inspiration
 
 **Read by**
-- combat: a crafted thing is an ordinary `Weapon`/`Armor`/`Ammo` whose numbers and damage types come from its materials' properties, read by `combat::strike` and armor resistance like any other *(planned: crafting slice 2)*
-- skills: crafting trains its recipe's skills through `skill::train`, the material as subject *(planned: crafting slice 4)*
-- discovery: a craft with a rare material calls `discovery::inspire` *(planned: crafting slice 4)*
-- origins: an origin's blueprint lists the recipes it starts knowing in `Recipes` *(planned: crafting slice 2)*
+- combat: a crafted thing is an ordinary `Weapon`/`Armor`/`Ammo` whose numbers and damage types come from its materials' properties, read by `combat::strike` and armor resistance like any other
+- skills: crafting trains its recipe's skills through `skill::grow`, each material as its own subject
+- discovery: a craft with a rare material calls `discovery::inspire`
+- origins: an origin's blueprint lists the recipes it starts knowing in `Recipes`
 - legacy: `MadeBy` stays on a crafted thing in the ruins, so a predecessor's work says whose it was *(planned: crafting, once the game knows the character's name)*

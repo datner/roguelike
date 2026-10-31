@@ -322,6 +322,14 @@ what the creature is.
 
 ## Crafting and life skills
 
+Built so far (`docs/plans/crafting.md`): materials with properties from kills (goblin bone, rat hide)
+and floors (flint, saplings, each phase's own); recipes over properties whose product takes what went
+in, made at camp's workbench or, for field recipes, anywhere, with materials filled in or picked by
+hand; Scavenging, Fletching and Smithing grown by it, quality from skill, rare materials inspiring;
+recipes learned from origins, by taking a thing apart, and from discovery. Not yet: the maker's mark
+(the game does not know the character's name), cooking, scribing, alchemy and tinkering, specialist
+places, and materials banked at camp as anything but what is carried home.
+
 - **Crafting is options, never upkeep.** Time is neutral: no hunger, no wear clock. Crafting makes
   things you could not otherwise have, from what the dives gave you, and every build may ignore it.
 - **Materials have properties** (hard, light, flexible, conductive, cold, holy, rotten, …). Creatures,

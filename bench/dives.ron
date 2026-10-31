@@ -6,7 +6,7 @@
         // Each origin as it starts, bumping, shooting or casting with what it
         // has: the naive player of the vision's Fights.
         (
-            builds: ["pit fighter", "duelist", "hedge mage", "wanderer"],
+            builds: ["pit fighter", "duelist", "hedge mage", "wanderer", "fletcher"],
             dives: [
                 (name: "Caves", dungeon: "Caves"),
                 (name: "Caves in the Embers", dungeon: "Caves", phase: "Embers"),

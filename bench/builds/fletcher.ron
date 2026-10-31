@@ -1,0 +1,10 @@
+// A wanderer who makes arrows from what the floors give, whenever no fight is
+// on (docs/plans/crafting.md): the bench's first crafter, against the plain
+// wanderer who only shoots.
+(
+    name: "fletcher",
+    note: "a new wanderer who makes arrows from what it finds",
+    origin: "Wanderer",
+    policy: [Fire, Bump],
+    crafts: ["Arrow"],
+)

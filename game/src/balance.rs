@@ -61,6 +61,10 @@ pub struct Build {
     pub style: Option<String>,
     /// What it does each turn: the first entry it can, else it waits.
     pub policy: Vec<Act>,
+    /// Recipes, by name, the floor bot makes whenever no fight is on and the
+    /// materials are there (docs/plans/crafting.md); none by default.
+    #[serde(default)]
+    pub crafts: Vec<String>,
 }
 
 /// One entry of a build's policy, tried every turn in order. One the game
@@ -738,6 +742,7 @@ mod tests {
             spells: vec![],
             style: None,
             policy: vec![Act::Bump],
+            crafts: Vec::new(),
         }
     }
 

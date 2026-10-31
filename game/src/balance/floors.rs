@@ -92,6 +92,8 @@ pub struct FloorRun {
     /// Each fight's length in keypresses: from an enemy coming into view to
     /// none being in view.
     pub fights: Vec<u32>,
+    /// Materials carried on leaving: what the dive would bank so far.
+    pub materials: u32,
 }
 
 impl FloorRun {
@@ -243,6 +245,12 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
                 continue;
             }
             resting = false;
+            if craft(state, build) {
+                (exploring, resting) = (false, false);
+                run.keypresses += 1;
+                run.turns += 1;
+                continue;
+            }
             if !exploring {
                 run.keypresses += 1;
                 exploring = true;
@@ -283,7 +291,41 @@ fn floor(state: &mut GameState, build: &Build) -> (FloorRun, Option<End>) {
         health(state, player)
     };
     run.hp_lost = hp_before.saturating_sub(run.hp_left);
+    run.materials = materials(state);
     (run, end)
+}
+
+/// Makes the first of the build's recipes the player can now; whether it did.
+fn craft(state: &mut GameState, build: &Build) -> bool {
+    let player = state.player;
+    let recipes = state.blueprints.recipes();
+    let wanted: Vec<u32> = (0..)
+        .zip(recipes)
+        .filter(|(_, recipe)| build.crafts.contains(&recipe.name))
+        .map(|(index, _)| index)
+        .collect();
+    wanted.into_iter().any(|recipe| {
+        let inputs = [None; crate::craft::MAX_SLOTS];
+        crate::craft::ready(state, player, recipe, inputs).is_ok()
+            && time::submit(
+                state,
+                Command::Craft {
+                    actor: player,
+                    recipe,
+                    inputs,
+                },
+            )
+    })
+}
+
+/// Materials the player carries.
+fn materials(state: &GameState) -> u32 {
+    let carried = crate::holding::carried(&state.world, state.player);
+    let count = carried
+        .into_iter()
+        .filter(|&thing| state.world.satisfies::<&crate::entity::Material>(thing))
+        .count();
+    u32::try_from(count).unwrap_or(u32::MAX)
 }
 
 /// The first entry of the policy the game takes, at `target`.
@@ -401,6 +443,7 @@ mod tests {
             spells: vec![],
             style: None,
             policy: vec![Act::Bump],
+            crafts: Vec::new(),
         }
     }
 
