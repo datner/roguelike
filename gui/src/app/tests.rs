@@ -78,6 +78,21 @@ fn the_window_plays_from_typed_keys() {
 }
 
 #[test]
+fn shift_tab_goes_back_a_tab_and_never_focuses_a_row() {
+    let mut harness = window("back-tab");
+    type_text(&mut harness, "i");
+    for _ in 0..2 {
+        crate::testing::press_key_with(&mut harness, egui::Key::Tab, egui::Modifiers::SHIFT);
+    }
+    let front::session::Mode::Overlay(panel) = harness.state().game().unwrap().session.mode()
+    else {
+        panic!("the panel is open");
+    };
+    assert_eq!(panel.tab(), front::overlay::Tab::Skills);
+    assert_eq!(harness.ctx.memory(|m| m.focused()), None);
+}
+
+#[test]
 fn every_mode_draws_over_the_map() {
     let mut harness = window("modes");
     for (open, shown) in [

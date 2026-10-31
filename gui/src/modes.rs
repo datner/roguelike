@@ -223,7 +223,7 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                         let shown = tab == *active;
                         let colour = if shown { PLACEHOLDER } else { DIM };
                         let label = theme::line(&format!(" {name} "), colour);
-                        if ui.selectable_label(shown, label).clicked() && !shown {
+                        if theme::pick(ui, shown, label).clicked() && !shown {
                             tab_inputs.push(Input::List(tab_input(tab)));
                         }
                     }
@@ -253,7 +253,7 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                                 };
                                 let selected = line.kind == LineKind::Selected;
                                 let response =
-                                    ui.selectable_label(selected, row(line.row.clone(), selected));
+                                    theme::pick(ui, selected, row(line.row.clone(), selected));
                                 if selected && *scrolled != Some(index) {
                                     response.scroll_to_me(None);
                                     *scrolled = Some(index);
@@ -357,8 +357,7 @@ fn chooser_with_details(
             Some("↑↓ choose  Enter pick  Esc cancel"),
             |ui| {
                 for (index, row) in rows.into_iter().enumerate() {
-                    if ui
-                        .selectable_label(index == selected, self::row(row, index == selected))
+                    if theme::pick(ui, index == selected, self::row(row, index == selected))
                         .clicked()
                     {
                         inputs.push(Input::List(OverlayInput::Focus(index)));

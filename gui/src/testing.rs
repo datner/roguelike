@@ -87,12 +87,20 @@ pub fn type_text(harness: &mut Harness<'static, App>, text: &str) {
 
 /// A named key pressed and handled, as eframe sends it.
 pub fn press_key(harness: &mut Harness<'static, App>, key: egui::Key) {
+    press_key_with(harness, key, egui::Modifiers::NONE);
+}
+
+pub fn press_key_with(
+    harness: &mut Harness<'static, App>,
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+) {
     harness.event(Event::Key {
         key,
         physical_key: None,
         pressed: true,
         repeat: false,
-        modifiers: egui::Modifiers::NONE,
+        modifiers,
     });
     harness.run();
 }

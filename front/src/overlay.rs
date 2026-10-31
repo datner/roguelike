@@ -145,12 +145,8 @@ impl Overlay {
             OverlayInput::Equipment => self.show(Tab::Equipment),
             OverlayInput::Skills => self.show(Tab::Skills),
             OverlayInput::Styles => self.show(Tab::Styles),
-            OverlayInput::SwitchTab => self.show(match self.tab {
-                Tab::Inventory => Tab::Equipment,
-                Tab::Equipment => Tab::Skills,
-                Tab::Skills => Tab::Styles,
-                Tab::Styles => Tab::Inventory,
-            }),
+            OverlayInput::SwitchTab => self.show(self.tab_after(1)),
+            OverlayInput::PreviousTab => self.show(self.tab_after(TABS.len() - 1)),
             _ => {
                 return match (self.tab, self.picking) {
                     (Tab::Inventory, _) => self.handle_inventory(input, contents.inventory),
@@ -171,6 +167,15 @@ impl Overlay {
 
     fn show(&mut self, tab: Tab) {
         *self = Self::new(tab);
+    }
+
+    /// The tab `steps` along `TABS` from this one, wrapping.
+    fn tab_after(&self, steps: usize) -> Tab {
+        let at = TABS
+            .iter()
+            .position(|&(tab, _)| tab == self.tab)
+            .unwrap_or(0);
+        TABS[(at + steps) % TABS.len()].0
     }
 
     fn handle_inventory(

@@ -109,6 +109,7 @@ pub fn map_list(press: Press) -> Option<OverlayInput> {
         Press::Char('s') => Some(OverlayInput::Skills),
         Press::Char('S') => Some(OverlayInput::Styles),
         Press::Tab => Some(OverlayInput::SwitchTab),
+        Press::BackTab => Some(OverlayInput::PreviousTab),
         _ => None,
     }
 }
@@ -214,6 +215,7 @@ mod tests {
     fn list_and_cursor_keys_match_the_terminal() {
         assert_eq!(map_list(Press::Enter), Some(OverlayInput::Select));
         assert_eq!(map_list(Press::Tab), Some(OverlayInput::SwitchTab));
+        assert_eq!(map_list(Press::BackTab), Some(OverlayInput::PreviousTab));
         assert_eq!(map_list(Press::Char('v')), Some(OverlayInput::Quiver));
         assert_eq!(map_cursor(Press::BackTab), Some(AimInput::Previous));
         assert_eq!(map_cursor(Press::Char(' ')), Some(AimInput::Confirm));

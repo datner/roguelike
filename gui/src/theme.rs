@@ -165,6 +165,13 @@ fn label_on(ui: &mut Ui, corner: egui::Pos2, width: f32, contents: impl FnOnce(&
         .set(clear, Shape::rect_filled(child.min_rect(), 0.0, BG));
 }
 
+/// A row the pointer can pick. Never focusable: egui would move its own
+/// focus on Tab and the arrows and click it on Enter, a second selection
+/// beside the one `front` keeps.
+pub fn pick(ui: &mut Ui, selected: bool, text: LayoutJob) -> egui::Response {
+    ui.add(egui::Button::selectable(selected, text).sense(egui::Sense::CLICK))
+}
+
 /// One line in reverse video, the selected row's mark.
 pub fn reversed(text: &str) -> LayoutJob {
     let mut job = line(text, BG);

@@ -25,6 +25,8 @@ pub enum OverlayInput {
     /// Show the styles view, or close if it is showing.
     Styles,
     SwitchTab,
+    /// The tab before this one.
+    PreviousTab,
     /// Focus this row of the list: a pointer on it.
     Focus(usize),
 }

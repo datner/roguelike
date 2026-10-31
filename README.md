@@ -246,7 +246,7 @@ In game:
   line's `Rest:`) or an enemy comes into view; any key interrupts it. Camp
   heals in full.
 - `i` / `e` / `s` / `S`: the inventory / equipment / skills / styles panel
-  over the map. `Tab` cycles views, `j`/`k` or arrows select (long lists
+  over the map. `Tab`/`Shift-Tab` cycle views, `j`/`k` or arrows select (long lists
   scroll), `Esc`/`q` closes (pressing the open view's key again also
   closes).
   - Inventory: `Enter` equips on the first part that fits, `d` drops.

@@ -230,7 +230,7 @@ impl App {
             .frame(egui::Frame::new().fill(BG))
             .show(ui, |ui| {
                 let rect = ui.max_rect();
-                let response = ui.interact(rect, ui.scope_id().with("map"), Sense::click());
+                let response = ui.interact(rect, ui.scope_id().with("map"), Sense::CLICK);
                 let layout = Layout::new(rect).shifted(effects.shake(now));
                 let state = session.state();
                 let (mut grid, light) = render_layers(state, layout.width, layout.height);
