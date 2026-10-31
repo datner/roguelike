@@ -59,9 +59,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   unchanged. Naming a scenario and no dive runs only the dolls, and the other way round. A
   narrowed run refuses `--out`, `--json` and `--page` (`--check` comes in slice 6).
 
-### 5. Findings
+### 5. Findings — done
 - After a full run, on stderr: the numbers outside `bench/targets.ron`'s ranges, and, against the
   committed `bench/report.json`, which rows moved and by how much (the page's comparison, shared).
+- As built: the page compares in its own JavaScript, so nothing was shared. `bench/src/moved.rs`
+  compares against the committed `bench/report.md` instead: rows matched by heading (`##` or a
+  dive's `###`), first cell (a bullet's name) and place, shown as was and now; the first 20, then
+  a count. The off-target numbers are a count; the report lists them. Only after a full run at
+  the default seeds, since any other differs everywhere.
 
 ### 6. One command
 - `--check` in the binary (regenerate, compare with `bench/report.md`, print the diff's rows, exit

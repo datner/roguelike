@@ -5,13 +5,14 @@
 pub mod calibrate;
 mod floors;
 mod jobs;
+pub mod moved;
 mod targets;
 
 use std::fmt::Write as _;
 use std::path::Path;
 
 pub use floors::{DiveRow, DiveSet, Dives};
-pub use targets::{LevelTarget, Reach, Targets};
+pub use targets::{LevelTarget, Reach, Targets, misses};
 
 use game::Blueprints;
 use game::balance::{self, Build, Cost, Scenario, Summary};

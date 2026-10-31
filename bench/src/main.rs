@@ -61,6 +61,8 @@ fn run() -> Result<(), String> {
     let blueprints =
         game::Blueprints::load(&root.join("../data")).map_err(|err| err.to_string())?;
     let bench = bench::narrow(bench::load(root)?, &only)?;
+    // Only a run like the committed one can be compared with it.
+    let comparable = only.is_full() && seeds.is_none();
     // `--seeds` sets both, for a quick look; else each its own default.
     let dive_seeds = seeds.unwrap_or(bench.dives.seeds);
     let seeds = seeds.unwrap_or(bench::SEEDS);
@@ -84,6 +86,17 @@ fn run() -> Result<(), String> {
         write(path, &bench::page(&template, &numbers, previous.as_deref()))?;
     }
     let report = bench::report(&blueprints, &bench, &rows, &dives, (seeds, dive_seeds));
+    if comparable {
+        let off = bench::misses(&dives, &bench.targets).len();
+        eprintln!("{off} numbers off target (the report's Off target)");
+        // No committed report yet: nothing to compare with.
+        if let Ok(committed) = read(&root.join("report.md")) {
+            eprint!(
+                "{}",
+                bench::moved::summary(&bench::moved::moved(&committed, &report))
+            );
+        }
+    }
     match out {
         Some(path) => write(&path, &report),
         None if page.is_some() || json.is_some() => Ok(()),
