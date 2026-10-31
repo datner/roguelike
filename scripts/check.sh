@@ -74,6 +74,8 @@ run boundary boundary
 run connections bash -c 'scripts/connections.sh --test && scripts/connections.sh'
 # docs/plans/README.md (Format): plans stay readable a part at a time.
 run plans    bash -c 'scripts/plans.sh --lint --test && scripts/plans.sh --lint'
+# Skills are followed blindly, so a renamed file or function must not leave one pointing at nothing.
+run skills   scripts/skills.sh
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
 run test     cargo test --workspace --quiet
 exit "$failed"

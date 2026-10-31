@@ -26,7 +26,7 @@ Then:
 
 5. **Data:** add or update the RON files that use the part.
 6. **Tests:** the RON parses; spawning attaches the component (through `inherits` and `equipment` where relevant); the behaviour works end to end through `fire` + `apply_commands` on `bare_state()`. If more than one test builds the part ad hoc, add a `testkit` shortcut.
-7. If `term` should show it, expose it through a plain view in `view.rs` (the `add-term-ui` skill draws it).
+7. If the player should see it, expose it through a plain view in `view.rs` (the `add-ui` skill draws it).
 8. `scripts/check.sh` passes.
 
 A generic "properties" map, scripting, or a new dispatch mechanism needs an ADR first: propose it instead of building it.

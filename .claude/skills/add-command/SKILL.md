@@ -15,8 +15,8 @@ Every state change goes through `game::Command` and `apply_commands` (ADR 0002).
    - Follow-ups (damage → death): `state.commands.push_back(..)`.
 3. **Checks shared with previews.** If the action can be refused, write one `check_*`/`ready_*` fn returning `Result<_, String>` and call it from the handler, from `reject_input` (so refused input costs no time), and from any `aim`/`view` preview. Done when no refusal message is written in two places.
 4. **Cost.** An action an actor chooses gets a constant in `cost.rs` and a `cost::of` arm. Consequences (damage from a hit) cost nothing.
-5. **Player input (only if the player triggers it).** Add a `PlayerAction` variant in `game/src/input.rs` (items cross the seam as `ItemRef`) and translate it to the command in `time::take_turn`, resolving each `ItemRef` against the list the player may use. The key and any chooser/aim UI is the `add-term-ui` skill.
-6. **Re-export** from `game/src/lib.rs` what `term` needs.
+5. **Player input (only if the player triggers it).** Add a `PlayerAction` variant in `game/src/input.rs` (items cross the seam as `ItemRef`) and translate it to the command in `time::take_turn`, resolving each `ItemRef` against the list the player may use. The key and any chooser/aim UI is the `add-ui` skill.
+6. **Re-export** from `game/src/lib.rs` what `front` and `gui` need.
 7. **Tests** next to the handler: the success path, and each refusal asserting unchanged state and the exact log line (`testkit::last_log`). Use `bare_state()` and `state.run(command)`. A player action also gets one test through `take_turn`.
 8. `scripts/check.sh` passes.
 

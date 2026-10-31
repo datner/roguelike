@@ -24,7 +24,7 @@ Pick the branch; a task may take more than one.
 3. **Content:** give the discipline to a caster and a spell of its school.
 4. **Tests:** claimed and paid; blocked with the exact reason and nothing spent; an unclaimed school is refused; save round-trip of a part-spent pool.
 5. **Seam check:** `git diff` shows no change to `spell::cast`, `ready_cast` or `Spell`. If one was needed, stop and fix the seam (ADR 0014 update) before continuing.
-6. Show the pool to the player through a `view.rs` function (the `add-term-ui` skill draws it).
+6. Show the pool to the player through a `view.rs` function (the `add-ui` skill draws it).
 
 ## C. New payload or shape
 
