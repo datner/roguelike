@@ -38,6 +38,8 @@
           fileset = lib.fileset.unions [
             (craneLib.fileset.commonCargoSources ./.)
             ./data
+            # The frozen content front and gui tests run on.
+            ./fixtures
             ./gui/assets
             # Bench builds and scenarios, read by its tests.
             ./bench

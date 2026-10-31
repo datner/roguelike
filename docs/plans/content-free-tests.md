@@ -58,12 +58,17 @@ wanderer carries a bow, a quiver and a torch") instead of what the code does. Af
   missed it; the leather broke it). `ai::a_rat_outpaces_you_and_comes_in_a_pack` went: both its claims
   are content's, and the dungeon tests already check spawn counts against the data.
 
-### 4. Properties — open
-- Generator: seed + action sequence through `time::submit`.
-- Determinism (same seed and actions, same save string); save → load → save is identity; a throw's,
-  cast's and technique's preview matches what it does; invariants after every step (health within its
-  max, nobody inside a wall, rest budget never negative, an effect active exactly while its timestamps
-  say so).
+### 4. Properties — done
+- Generator: seed + `Act`s through `time::take_turn` (`game/src/properties.rs`); an `Act` picks by
+  index among what the state offers (a direction, a target in range, a known spell).
+- Determinism (same seed and acts, same save string); save → load → save is identity, and a loaded
+  game plays on like the unsaved one; a fire's, throw's, cast's and technique's preview with no problem
+  takes a turn and one with a problem is refused, a missile flies the previewed path and deals no more
+  than the previewed damage; after every turn, health within its max, no creature inside a wall, no two
+  on a tile.
+- Proven on a planted bug (a component dropped from `with_components!`): caught and shrunk to seed 0.
+- Not done: "an effect is active exactly while its timestamps say so" has no observable to compare
+  with beyond what `effect.rs`'s tests do; the rest budget is unsigned, so it can't go negative.
 
 ## Out of scope
 

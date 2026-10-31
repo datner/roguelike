@@ -17,3 +17,6 @@ eframe = "0.37.0"
 egui_kittest = "0.37.0"
 # Decodes the sprite atlas (ADR 0023); already built for eframe, PNG only.
 image = { version = "0.25.10", default-features = false, features = ["png"] }
+# Property tests over generated play (docs/plans/content-free-tests.md); a dev-dependency of
+# `game` only, so the game's own randomness rules are untouched. No forking or timeouts.
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }

@@ -70,6 +70,8 @@ pub mod training;
 pub mod view;
 
 #[cfg(test)]
+mod properties;
+#[cfg(test)]
 mod testkit;
 
 pub use aim::{Aim, Chances, FireStep, Shot, aim, aim_range, aim_targets, fire_step};
