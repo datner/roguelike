@@ -1,0 +1,9 @@
+// A green shoot from the cave floor: a shaft, a grip, a bow-stave.
+(
+    components: [
+        Name("sapling"),
+        Appearance(glyph: '|', fg: (90, 160, 70), bg: (0, 0, 0)),
+        Item,
+        Material(["flexible"]),
+    ],
+)

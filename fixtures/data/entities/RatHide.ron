@@ -1,0 +1,9 @@
+// A rat's skin: soft enough to wrap a grip or stitch a jerkin.
+(
+    components: [
+        Name("rat hide"),
+        Appearance(glyph: '~', fg: (150, 120, 90), bg: (0, 0, 0)),
+        Item,
+        Material(["flexible", "light"]),
+    ],
+)

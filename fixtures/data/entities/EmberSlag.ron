@@ -1,0 +1,9 @@
+// Slag that never cools, found only in the Embers (docs/plans/crafting.md).
+(
+    components: [
+        Name("ember slag"),
+        Appearance(glyph: '*', fg: (230, 110, 40), bg: (0, 0, 0)),
+        Item,
+        Material(["hard", "hot", "rare"]),
+    ],
+)

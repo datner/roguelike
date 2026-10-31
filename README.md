@@ -227,6 +227,11 @@ In game:
   dive ends there.
 - `W` (at camp, in the window): choose the phase to wait for; the next dive
   is in it. Under the list, what the selected phase leans and bends.
+- `m`: the recipes you know, what you can make now first. `Enter` makes one
+  from the first materials that fit (two turns); `a` makes as many as the
+  materials allow (any key stops it); `Tab` opens the recipe's parts, where
+  `↑↓` picks a part, `←→` (or `h`/`l`) the material for it, and `Enter` or
+  `a` make with those. Most recipes need camp's workbench (`=`).
 - In the window (`gui`), the mouse is a shortcut onto the same keys:
   hovering the map moves the look or aim cursor, a click goes there
   (travel), fires, or picks a list row, a right click cancels aiming,

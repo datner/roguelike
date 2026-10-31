@@ -1,0 +1,9 @@
+// Knapped stone: a point or an edge.
+(
+    components: [
+        Name("flint"),
+        Appearance(glyph: '*', fg: (140, 140, 150), bg: (0, 0, 0)),
+        Item,
+        Material(["hard"]),
+    ],
+)

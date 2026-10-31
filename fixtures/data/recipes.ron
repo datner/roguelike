@@ -1,0 +1,31 @@
+// Recipes (docs/plans/crafting.md): rules over properties. Each slot is
+// filled by any carried material with every property it `needs`; the product
+// (`makes`, a blueprint) then takes the `gives` of every property that went
+// in. `field` recipes can be made anywhere; the rest need a workbench.
+// `skills` train by it, and their level against `difficulty` decides crude,
+// plain or fine. At most three slots. A craft names a recipe by its place
+// in this list.
+[
+    (
+        name: "Arrow",
+        makes: "Arrow",
+        field: true,
+        skills: ["Fletching"],
+        difficulty: 1,
+        slots: [(role: "shaft", needs: ["flexible"]), (role: "head", needs: ["hard"])],
+    ),
+    (
+        name: "Knife",
+        makes: "Knife",
+        skills: ["Smithing"],
+        difficulty: 2,
+        slots: [(role: "edge", needs: ["hard"]), (role: "grip", needs: ["flexible"])],
+    ),
+    (
+        name: "Jerkin",
+        makes: "HideJerkin",
+        skills: ["Smithing"],
+        difficulty: 2,
+        slots: [(role: "front", needs: ["flexible"]), (role: "back", needs: ["flexible"])],
+    ),
+]

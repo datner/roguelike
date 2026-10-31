@@ -5,3 +5,6 @@ edition.workspace = true
 [dependencies]
 game = { path = "../game" }
 directories.workspace = true
+
+[dev-dependencies]
+game = { path = "../game", features = ["testing"] }

@@ -3,12 +3,15 @@
 use eframe::egui::{self, Align2, Color32, Frame, ScrollArea, text::LayoutJob, vec2};
 
 const PLACEHOLDER: Color32 = Color32::PLACEHOLDER;
+use front::crafting::{recipe_text, slot_rows};
 use front::input::{AimInput, Input, OverlayInput};
 use front::overlay::{LineKind, TABS, Title, Views};
 use front::session::{Mode, Session};
 use front::targeting::{spell_text, technique_text};
 use front::text::{self, Seg};
-use game::{Cell, GameState, Grid, Rgb, aim, camera, phases, spells, techniques, throwables};
+use game::{
+    Cell, GameState, Grid, Rgb, aim, camera, phases, recipes, spells, techniques, throwables,
+};
 
 use crate::map_view::{Layout, screen_tile};
 use crate::panels::{BOTTOM_HEIGHT, SIDE_WIDTH, job};
@@ -207,6 +210,38 @@ pub fn windows(ui: &egui::Ui, session: &Session, scrolled: &mut Option<usize>) -
                 &details,
             )
         }
+        Mode::ChooseRecipe(list) => {
+            let rows = recipes(state)
+                .iter()
+                .map(|view| text_row(recipe_text(view)))
+                .collect();
+            list_window(
+                ui,
+                "Make what?",
+                rows,
+                list.selected(),
+                &[],
+                "↑↓ choose  Enter make  a all  Tab materials  Esc cancel",
+            )
+        }
+        Mode::Making(making) => {
+            let Some(view) = making.view(state) else {
+                return Vec::new();
+            };
+            let rows = slot_rows(&view, &making.picked(state))
+                .into_iter()
+                .map(text_row)
+                .collect();
+            let details: Vec<String> = view.blocked.iter().cloned().collect();
+            list_window(
+                ui,
+                &format!("{} from", game::capitalize(&view.makes)),
+                rows,
+                making.slot(),
+                &details,
+                "↑↓ part  ←→ material  Enter make  a all  Esc back",
+            )
+        }
         Mode::Overlay(overlay) => {
             let views = Views::of(state);
             let contents = views.contents();
@@ -306,6 +341,17 @@ fn tab_input(tab: front::overlay::Tab) -> OverlayInput {
     }
 }
 
+/// A main text and quieter notes after it, as one row.
+fn text_row((main, notes): (String, Vec<String>)) -> Vec<Seg> {
+    let mut row = vec![Seg::Plain(main)];
+    row.extend(
+        notes
+            .into_iter()
+            .map(|note| Seg::Quiet(format!("  {note}"))),
+    );
+    row
+}
+
 /// A row to pick: in the widget's text colour, so hovering brightens it,
 /// and all of it in reverse video when selected.
 fn row(segs: Vec<Seg>, selected: bool) -> LayoutJob {
@@ -349,29 +395,41 @@ fn chooser_with_details(
     selected: usize,
     details: &[String],
 ) -> Vec<Input> {
+    list_window(
+        ui,
+        title,
+        rows,
+        selected,
+        details,
+        "↑↓ choose  Enter pick  Esc cancel",
+    )
+}
+
+/// A list of rows to pick from, `details` under it and `hint` on its border.
+fn list_window(
+    ui: &egui::Ui,
+    title: &str,
+    rows: Vec<Vec<Seg>>,
+    selected: usize,
+    details: &[String],
+    hint: &str,
+) -> Vec<Input> {
     let mut inputs = Vec::new();
     centred_window(ui, title, |ui| {
-        boxed(
-            ui,
-            theme::title(title),
-            Some("↑↓ choose  Enter pick  Esc cancel"),
-            |ui| {
-                for (index, row) in rows.into_iter().enumerate() {
-                    if theme::pick(ui, index == selected, self::row(row, index == selected))
-                        .clicked()
-                    {
-                        inputs.push(Input::List(OverlayInput::Focus(index)));
-                        inputs.push(Input::List(OverlayInput::Select));
-                    }
+        boxed(ui, theme::title(title), Some(hint), |ui| {
+            for (index, row) in rows.into_iter().enumerate() {
+                if theme::pick(ui, index == selected, self::row(row, index == selected)).clicked() {
+                    inputs.push(Input::List(OverlayInput::Focus(index)));
+                    inputs.push(Input::List(OverlayInput::Select));
                 }
-                if !details.is_empty() {
-                    ui.label(theme::line("", DIM));
-                    for line in details {
-                        ui.label(theme::line(line, DIM));
-                    }
+            }
+            if !details.is_empty() {
+                ui.label(theme::line("", DIM));
+                for line in details {
+                    ui.label(theme::line(line, DIM));
                 }
-            },
-        );
+            }
+        });
     });
     inputs
 }

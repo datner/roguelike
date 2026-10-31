@@ -17,6 +17,7 @@ use crate::grammar::Subject;
 use crate::holding;
 use crate::spawn::Spawn;
 use crate::state::GameState;
+use crate::view::ItemRef;
 
 /// The most slots a recipe has, so a craft's choices fit in a `Command`.
 pub const MAX_SLOTS: usize = 3;
@@ -212,6 +213,112 @@ pub(crate) fn ready(
         inputs.push(input);
     }
     Ok(Ready { recipe, inputs })
+}
+
+/// A recipe as a frontend shows it: what it makes, and for each slot what
+/// fits and what would be used.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeView {
+    /// What `PlayerAction::Craft` names it by.
+    pub recipe: u32,
+    pub name: String,
+    /// The product's noun ("arrow").
+    pub makes: String,
+    /// Made anywhere, not only at a workbench.
+    pub field: bool,
+    pub slots: Vec<SlotView>,
+    /// Why it can't be made now, as `craft::ready` says; `None` if it can.
+    pub blocked: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotView {
+    pub role: String,
+    pub needs: Vec<String>,
+    /// Every carried material that fits, oldest first, with its noun.
+    pub fits: Vec<(ItemRef, String)>,
+    /// What would fill it, if the craft can go ahead.
+    pub uses: Option<String>,
+}
+
+/// Every known recipe, those that can be made now first (then in list
+/// order), each with nothing chosen by hand.
+pub fn recipes(state: &GameState) -> Vec<RecipeView> {
+    let known = state
+        .world
+        .get::<&Recipes>(state.player)
+        .map(|known| known.0.clone())
+        .unwrap_or_default();
+    let mut views: Vec<RecipeView> = (0..)
+        .zip(state.blueprints.recipes())
+        .filter(|(_, def)| known.contains(&def.name))
+        .filter_map(|(index, _)| recipe(state, index, [None; MAX_SLOTS]))
+        .collect();
+    views.sort_by_key(|view| view.blocked.is_some());
+    views
+}
+
+/// Recipe `index` with `chosen` materials for its slots, as it would go.
+pub fn recipe(
+    state: &GameState,
+    index: u32,
+    chosen: [Option<ItemRef>; MAX_SLOTS],
+) -> Option<RecipeView> {
+    let def = state
+        .blueprints
+        .recipes()
+        .get(usize::try_from(index).ok()?)?;
+    let world = &state.world;
+    let player = state.player;
+    let carried = holding::carried(world, player);
+    let mut found = [None; MAX_SLOTS];
+    for (slot, choice) in found.iter_mut().zip(chosen) {
+        *slot = choice.and_then(|choice| choice.find(world, &carried));
+    }
+    let ready = ready(state, player, index, found);
+    let noun = |thing: Entity| Subject::of(world, thing).noun().to_string();
+    let mut materials: Vec<(SpawnSeq, Entity)> = carried
+        .iter()
+        .filter_map(|&thing| Some((*world.get::<&SpawnSeq>(thing).ok()?, thing)))
+        .collect();
+    materials.sort();
+    let slots = def
+        .slots
+        .iter()
+        .enumerate()
+        .map(|(i, slot)| SlotView {
+            role: slot.role.clone(),
+            needs: slot.needs.clone(),
+            fits: materials
+                .iter()
+                .filter(|&&(_, thing)| {
+                    world
+                        .get::<&Material>(thing)
+                        .is_ok_and(|m| slot.needs.iter().all(|need| m.0.contains(need)))
+                })
+                .map(|&(seq, thing)| (ItemRef(seq), noun(thing)))
+                .collect(),
+            uses: ready
+                .as_ref()
+                .ok()
+                .and_then(|r| r.inputs.get(i))
+                .map(|&t| noun(t)),
+        })
+        .collect();
+    let makes = state
+        .blueprints
+        .get(&def.makes)
+        .and_then(|b| b.noun())
+        .unwrap_or(&def.makes)
+        .to_string();
+    Some(RecipeView {
+        recipe: index,
+        name: def.name.clone(),
+        makes,
+        field: def.field,
+        slots,
+        blocked: ready.err(),
+    })
 }
 
 /// On or beside a workbench.

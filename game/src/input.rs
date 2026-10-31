@@ -84,6 +84,9 @@ pub enum InputEvent {
     /// Frontend only: pick a known technique and aim it. Performing it is
     /// `PlayerAction::Perform`.
     Techniques,
+    /// Frontend only: the recipe list (docs/plans/crafting.md). Making one is
+    /// `PlayerAction::Craft`.
+    Craft,
     /// Take the stairs down: `PlayerAction::Descend`.
     Descend,
     /// Take the stairs up: `PlayerAction::Ascend`.

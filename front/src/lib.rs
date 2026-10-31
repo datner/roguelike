@@ -1,5 +1,6 @@
 //! What every frontend shares: the keyboard flows (a `Session` and its modes), the title menu, and save files. No drawing and no key bindings, so a terminal and a window behave the same and only differ in how they look.
 
+pub mod crafting;
 pub mod input;
 pub mod menu;
 pub mod overlay;

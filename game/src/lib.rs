@@ -72,6 +72,8 @@ pub mod view;
 
 #[cfg(test)]
 mod properties;
+#[cfg(feature = "testing")]
+pub mod testing;
 #[cfg(test)]
 mod testkit;
 
@@ -79,6 +81,7 @@ pub use aim::{Aim, Chances, FireStep, Shot, aim, aim_range, aim_targets, fire_st
 pub use camera::{Camera, camera};
 pub use camp::Camp;
 pub use command::MAX_COMMANDS_PER_STEP;
+pub use craft::{MAX_SLOTS, RecipeView, SlotView, recipe, recipes};
 pub use discovery::{DiscoveryDef, Grant, IdeaView, Requirement, ideas, proficiencies};
 pub use dive::{Place, PlaceView, place_view};
 pub use dungeon::{Dungeon, Generator, Inhabitant, Scatter};

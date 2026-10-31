@@ -9,4 +9,5 @@ eframe.workspace = true
 image.workspace = true
 
 [dev-dependencies]
+game = { path = "../game", features = ["testing"] }
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }

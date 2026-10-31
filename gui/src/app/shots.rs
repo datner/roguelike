@@ -12,7 +12,7 @@ use crate::testing::{WINDOW, harness, press_key, set_clock, setup, type_text, wi
 use super::*;
 
 /// Every shot, in the order they render.
-const SHOTS: [&str; 19] = [
+const SHOTS: [&str; 21] = [
     "menu",
     "origins",
     "play",
@@ -27,6 +27,8 @@ const SHOTS: [&str; 19] = [
     "sprites",
     "fx",
     "phases",
+    "craft",
+    "making",
     "floor",
     "castle",
     "death",
@@ -127,6 +129,32 @@ fn legacy_scene(name: &str) -> Option<Harness<'static, App>> {
     Some(harness)
 }
 
+/// The crafting shots (docs/plans/crafting.md): a hero with materials in the
+/// pack, saved and opened, then the recipe list or its parts.
+fn craft_scene(name: &str) -> Option<Harness<'static, App>> {
+    if !matches!(name, "craft" | "making") {
+        return None;
+    }
+    let setup = setup(&format!("shot-{name}"));
+    let blueprints = game::Blueprints::load(&setup.data_dir).unwrap();
+    let mut state = game::GameState::new(3, blueprints).unwrap();
+    for thing in ["Sapling", "Flint", "GoblinBone", "RimeShard"] {
+        game::testing::give(&mut state, thing).unwrap();
+    }
+    std::fs::create_dir_all(&setup.saves_dir).unwrap();
+    let save = front::saves::path(&setup.saves_dir, "hero").unwrap();
+    std::fs::write(save, game::save::to_ron(&state).unwrap()).unwrap();
+    let mut harness = harness(App::new(setup, Some("hero".into())));
+    type_text(&mut harness, "m");
+    if name == "making" {
+        // The arrow's parts, the head turned past the flint to the goblin bone by
+        // hand.
+        press_key(&mut harness, egui::Key::Tab);
+        type_text(&mut harness, "jll");
+    }
+    Some(harness)
+}
+
 /// The window showing `name`, from a fresh game (or the title menu), on a
 /// stopped clock: animation shows its first moment, so a shot is the same
 /// every run and can be compared with its reference.
@@ -137,6 +165,9 @@ fn scene(name: &str) -> Harness<'static, App> {
         return harness(App::new(setup("shot-menu"), None));
     }
     if let Some(harness) = legacy_scene(name) {
+        return harness;
+    }
+    if let Some(harness) = craft_scene(name) {
         return harness;
     }
     if name == "origins" {

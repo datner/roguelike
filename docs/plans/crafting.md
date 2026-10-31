@@ -126,13 +126,17 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `discovery::inspire`. Quality edits the product's numbers by one and prefixes its name. Scavenging
   is a core skill (`Core::scavenging`), so the frozen fixtures gained the craft skills.
 
-### 5. Crafting from the keyboard — open
+### 5. Crafting from the keyboard — done
 - `add-ui` skill: a recipe list mode (what you can make now first, then the rest with what each lacks,
   from `craft::ready`), Enter crafts one with the materials filled in, a count crafts a batch as a run.
   Tab opens the recipe's slots, each showing the material `ready` picked: choose another for a slot
   (only what fits is listed), then Enter. A key not yet bound.
 - The inventory groups materials by kind with a count; looking shows properties.
 - Tests by driving a `Session`; shots for the list.
+- Done: `m` lists the recipes (`front::crafting`), Enter makes one, `a` a batch run, Tab the parts with
+  `←→` choosing each part's material. Front and gui tests set up packs through `game::testing`, behind
+  a `testing` feature only their dev-dependencies turn on. Left over: the inventory still lists
+  materials one row each, since a row acts on one item; grouping them is its own change.
 
 ### 6. Taking apart and new recipes — open
 - `Disassemble` (a lesson): once per kind, returns some materials and teaches the recipe its `Salvage`

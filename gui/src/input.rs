@@ -89,6 +89,7 @@ pub fn map_game(press: Press) -> Option<InputEvent> {
         Press::Char('f') => Some(InputEvent::Fire),
         Press::Char('c') => Some(InputEvent::Cast),
         Press::Char('a') => Some(InputEvent::Techniques),
+        Press::Char('m') => Some(InputEvent::Craft),
         Press::Char('q') | Press::Esc => Some(InputEvent::Quit),
         _ => None,
     }
@@ -110,6 +111,9 @@ pub fn map_list(press: Press) -> Option<OverlayInput> {
         Press::Char('S') => Some(OverlayInput::Styles),
         Press::Tab => Some(OverlayInput::SwitchTab),
         Press::BackTab => Some(OverlayInput::PreviousTab),
+        Press::Left | Press::Char('h') => Some(OverlayInput::Left),
+        Press::Right | Press::Char('l') => Some(OverlayInput::Right),
+        Press::Char('a') => Some(OverlayInput::Batch),
         _ => None,
     }
 }

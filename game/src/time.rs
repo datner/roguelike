@@ -648,6 +648,7 @@ mod tests {
                 | InputEvent::Fire
                 | InputEvent::Cast
                 | InputEvent::Techniques
+                | InputEvent::Craft
                 | InputEvent::WaitForPhase => continue,
                 InputEvent::CycleExploreItems => {
                     crate::explore::cycle_explore_items(&mut state);

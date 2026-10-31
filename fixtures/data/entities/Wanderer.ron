@@ -3,6 +3,7 @@
     inherits: "Player",
     components: [
         Skills({"Archery": 1}),
+        Recipes(["Arrow"]),
     ],
     // The bow takes the right hand, so the torch goes in the left. Leather
     // for the road: the default origin should usually make the first landing.

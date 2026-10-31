@@ -1,0 +1,12 @@
+// A jerkin stitched from hides (data/recipes.ron).
+(
+    components: [
+        Name("hide jerkin"),
+        Appearance(glyph: '[', fg: (150, 120, 90), bg: (0, 0, 0)),
+        Item,
+        // Only ever made, never found lying about.
+        Keepsake,
+        Equippable(part: Body),
+        Armor(slashing: 1),
+    ],
+)

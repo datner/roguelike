@@ -11,3 +11,7 @@ rand_pcg.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+
+[features]
+# Helpers for other crates' tests (`game::testing`); never on in play.
+testing = []

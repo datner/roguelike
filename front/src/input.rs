@@ -29,6 +29,11 @@ pub enum OverlayInput {
     PreviousTab,
     /// Focus this row of the list: a pointer on it.
     Focus(usize),
+    /// The previous or next choice for the selected row (a slot's material).
+    Left,
+    Right,
+    /// Make as many as the materials allow, as a run.
+    Batch,
 }
 
 /// Input while a cursor is on the map: aiming or looking.

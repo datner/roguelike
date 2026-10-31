@@ -6,6 +6,7 @@ use game::{
     take_turn, techniques, throwables, travel_step, wait_refusal,
 };
 
+use crate::crafting::{Batch, CraftAction, Making, Recipes, batch_action};
 use crate::input::Input;
 use crate::overlay::{Overlay, OverlayAction, Tab, Views};
 use crate::targeting::{self, AimAction, Aiming, Chooser, ChooserAction, LookAction, Looking};
@@ -23,6 +24,10 @@ pub enum Mode {
     ChooseTechnique(Chooser),
     /// At camp: picking the phase to wait for.
     ChoosePhase(Chooser),
+    /// The recipe list (`m`).
+    ChooseRecipe(Recipes),
+    /// One recipe's slots, materials picked by hand.
+    Making(Making),
     Aim(Aiming),
     /// Looking around (`;`).
     Look(Looking),
@@ -56,6 +61,8 @@ pub enum Auto {
     Rest,
     /// Walking to a known tile.
     Travel((i32, i32)),
+    /// Making one a turn while the materials last (`Session::batch`).
+    Craft,
 }
 
 pub struct Session {
@@ -70,6 +77,8 @@ pub struct Session {
     /// The step just refused with a warning (`game::step_warning`): pressed
     /// again next, it goes.
     warned: Option<Dir>,
+    /// The batch `Auto::Craft` makes.
+    batch: Option<Batch>,
 }
 
 impl Session {
@@ -82,6 +91,7 @@ impl Session {
             why: false,
             keypresses: 0,
             warned: None,
+            batch: None,
         }
     }
 
@@ -140,7 +150,9 @@ impl Session {
             | Mode::Choose(_)
             | Mode::ChooseSpell(_)
             | Mode::ChooseTechnique(_)
-            | Mode::ChoosePhase(_) => Keys::List,
+            | Mode::ChoosePhase(_)
+            | Mode::ChooseRecipe(_)
+            | Mode::Making(_) => Keys::List,
             Mode::Aim(_) | Mode::Look(_) => Keys::Cursor,
         }
     }
@@ -158,6 +170,7 @@ impl Session {
             Some(Auto::Practice) => practice_step(&mut self.state),
             Some(Auto::Rest) => rest_step(&mut self.state),
             Some(Auto::Travel(to)) => travel_step(&mut self.state, to),
+            Some(Auto::Craft) => self.batch_step(),
             None => false,
         };
         if !going || self.state.game_over {
@@ -257,6 +270,7 @@ impl Session {
             InputEvent::Cast => self.mode = start_cast(state),
             InputEvent::Techniques => self.mode = start_techniques(state),
             InputEvent::WaitForPhase => self.mode = start_waiting(state),
+            InputEvent::Craft => self.mode = start_crafting(state),
         }
         Outcome::Continue
     }
@@ -345,8 +359,48 @@ impl Session {
                     None => {}
                 }
             }
+            Mode::ChooseRecipe(list) => {
+                let action = list.handle(input, state);
+                self.craft(action);
+            }
+            Mode::Making(making) => {
+                let action = making.handle(input, state);
+                self.craft(action);
+            }
             Mode::Play | Mode::Aim(_) | Mode::Look(_) => {}
         }
+    }
+
+    /// Does what the recipe list or a recipe's slots asked. A craft that
+    /// can't go ahead keeps them up, the reason in the log.
+    fn craft(&mut self, action: Option<CraftAction>) {
+        match action {
+            None => {}
+            Some(CraftAction::Close) => self.mode = Mode::Play,
+            Some(CraftAction::Back) => self.mode = Mode::ChooseRecipe(Recipes::default()),
+            Some(CraftAction::Open(making)) => self.mode = Mode::Making(making),
+            Some(CraftAction::Make(action)) => take_turn(&mut self.state, action),
+            Some(CraftAction::Batch(batch)) => {
+                self.batch = Some(batch);
+                self.auto = Some(Auto::Craft);
+                self.mode = Mode::Play;
+            }
+        }
+    }
+
+    /// One craft of the batch; false once it can't go on (a kept kind ran
+    /// out, or the craft was refused, its reason in the log).
+    fn batch_step(&mut self) -> bool {
+        let Some(batch) = &self.batch else {
+            return false;
+        };
+        let Some(action) = batch_action(&self.state, batch) else {
+            self.state.log.push("You have run out of what you picked.");
+            return false;
+        };
+        let before = self.state.now;
+        take_turn(&mut self.state, action);
+        self.state.now != before
     }
 
     fn handle_cursor(&mut self, input: crate::input::AimInput) {
@@ -378,7 +432,9 @@ impl Session {
             | Mode::Choose(_)
             | Mode::ChooseSpell(_)
             | Mode::ChooseTechnique(_)
-            | Mode::ChoosePhase(_) => {}
+            | Mode::ChoosePhase(_)
+            | Mode::ChooseRecipe(_)
+            | Mode::Making(_) => {}
         }
     }
 
@@ -465,6 +521,15 @@ fn start_techniques(state: &mut GameState) -> Mode {
     Mode::ChooseTechnique(Chooser::default())
 }
 
+/// The recipe list; a log line if the player knows none.
+fn start_crafting(state: &mut GameState) -> Mode {
+    if game::recipes(state).is_empty() {
+        state.log.push("You know no recipes.");
+        return Mode::Play;
+    }
+    Mode::ChooseRecipe(Recipes::default())
+}
+
 /// The phase list at camp, starting on the phase already chosen; elsewhere
 /// a log line saying why not.
 fn start_waiting(state: &mut GameState) -> Mode {
@@ -502,6 +567,104 @@ mod tests {
             .next()
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// The wanderer (who knows the arrow) carrying these, by blueprint.
+    fn carrying(things: &[&str]) -> Session {
+        let mut state = state();
+        for thing in things {
+            game::testing::give(&mut state, thing).unwrap();
+        }
+        Session::new(state, "hero")
+    }
+
+    fn carried(session: &Session, noun: &str) -> usize {
+        game::inventory_view(session.state())
+            .iter()
+            .filter(|item| item.name == noun)
+            .count()
+    }
+
+    #[test]
+    fn m_lists_the_recipes_and_enter_makes_one_with_what_fits() {
+        let mut session = carrying(&["Sapling", "Flint"]);
+        session.handle(Input::Game(InputEvent::Craft));
+        assert!(matches!(session.mode(), Mode::ChooseRecipe(_)));
+        let before = session.state().now;
+        session.handle(Input::List(OverlayInput::Select));
+        assert!(session.state().now > before, "making takes time");
+        assert!(
+            last_log(&session).starts_with("You make "),
+            "{}",
+            last_log(&session)
+        );
+        assert_eq!(
+            (carried(&session, "sapling"), carried(&session, "flint")),
+            (0, 0)
+        );
+        assert!(
+            matches!(session.mode(), Mode::ChooseRecipe(_)),
+            "the list stays up"
+        );
+        // Nothing left to make it from: refused, the reason logged, no time.
+        let before = session.state().now;
+        session.handle(Input::List(OverlayInput::Select));
+        assert_eq!(session.state().now, before);
+        assert_eq!(
+            last_log(&session),
+            "You have nothing flexible for the shaft."
+        );
+    }
+
+    #[test]
+    fn a_slot_takes_the_material_picked_for_it() {
+        let mut session = carrying(&["Sapling", "Flint", "GoblinBone"]);
+        session.handle(Input::Game(InputEvent::Craft));
+        session.handle(Input::List(OverlayInput::SwitchTab));
+        assert!(matches!(session.mode(), Mode::Making(_)));
+        // The head, then past "the first that fits" (flint) to the bone.
+        session.handle(Input::List(OverlayInput::Down));
+        session.handle(Input::List(OverlayInput::Right));
+        session.handle(Input::List(OverlayInput::Right));
+        let Mode::Making(making) = session.mode() else {
+            panic!("the slots are up");
+        };
+        assert_eq!(
+            making.picked(session.state())[1].as_deref(),
+            Some("the goblin bone")
+        );
+        session.handle(Input::List(OverlayInput::Select));
+        assert_eq!(
+            (carried(&session, "flint"), carried(&session, "goblin bone")),
+            (1, 0)
+        );
+        session.handle(Input::List(OverlayInput::Close));
+        assert!(
+            matches!(session.mode(), Mode::ChooseRecipe(_)),
+            "back to the list"
+        );
+    }
+
+    #[test]
+    fn a_batch_makes_one_a_turn_until_the_materials_run_out() {
+        let mut session = carrying(&["Sapling", "Sapling", "Sapling", "Flint", "Flint"]);
+        session.handle(Input::Game(InputEvent::Craft));
+        session.handle(Input::List(OverlayInput::Batch));
+        assert_eq!(session.auto(), Some(Auto::Craft));
+        while session.auto_step() {}
+        assert_eq!(
+            (carried(&session, "sapling"), carried(&session, "flint")),
+            (1, 0)
+        );
+        assert_eq!(session.auto(), None);
+    }
+
+    #[test]
+    fn m_knowing_no_recipe_says_so() {
+        let mut session = Session::new(crate::tests::state_as("Duelist"), "hero");
+        session.handle(Input::Game(InputEvent::Craft));
+        assert!(matches!(session.mode(), Mode::Play));
+        assert_eq!(last_log(&session), "You know no recipes.");
     }
 
     #[test]
