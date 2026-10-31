@@ -5,10 +5,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v cargo >/dev/null 2>&1; then
-  exec nix develop --command "$0" "$@"
-fi
-
 MAX_LINES=${CHECK_MAX_LINES:-120}
 
 run() {

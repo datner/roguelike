@@ -17,10 +17,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v cargo >/dev/null 2>&1; then
-  exec nix develop --command "$0" "$@"
-fi
-
 mode=write
 page=
 case ${1:-} in

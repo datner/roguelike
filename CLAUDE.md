@@ -2,8 +2,8 @@
 
 ## Commands
 
-Tooling comes from the nix flake (direnv loads it). If `cargo` is not on PATH,
-prefix commands with `nix develop --command`.
+Tooling comes from the nix flake's dev shell, which direnv loads; the session
+already runs in it, so commands need no `nix develop` prefix.
 
 - **Before saying you're done:** `scripts/check.sh` — fmt, code-map freshness,
   crate-boundary check, clippy `-D warnings`, tests. Quiet on success, prints

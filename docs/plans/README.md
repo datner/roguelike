@@ -49,6 +49,7 @@ Systems: skills, styles, discovery, techniques, spells, combat, lore, training, 
 | --- | --- | --- |
 | `agent-tooling.md` | done | exempt: tooling |
 | `balance.md` | done | exempt: tooling |
+| `bench-cli.md` | building | exempt: tooling |
 | `bow-dancing.md` | done | styles, techniques, combat → discovery, origins, ai, training |
 | `calibration.md` | done | exempt: tooling |
 | `cleanup.md` | done | exempt: refactor |
