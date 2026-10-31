@@ -14,9 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::blueprint::{BlueprintId, Blueprints, OnHitDef, SummonDef};
 use crate::entity::{
-    Ability, Attuned, Blow, Dash, Keepsake, Lesson, Loose, Made, Memoir, Natural, Note, OffBalance,
-    Origin, Performed, Revealed, Reveals, Sighted, Stamina, Stashed, Studied, Teaches, Technique,
-    TechniqueAi, Verb,
+    Ability, Attuned, Blow, Dash, Keepsake, Lesson, Loose, Made, Material, Memoir, Natural, Note,
+    OffBalance, Origin, Performed, Revealed, Reveals, Sighted, Stamina, Stashed, Studied, Teaches,
+    Technique, TechniqueAi, Verb, Yields,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Attachments, Binding, Blast, Bleeding, BlocksMovement,
@@ -32,7 +32,6 @@ use crate::entity::{
     WindUp, Wounds,
 };
 use crate::explore::ExploreItems;
-use crate::fov;
 use crate::map::Grid;
 use crate::rng::Rngs;
 use crate::skill::{SkillBook, SkillId};
@@ -42,7 +41,7 @@ use crate::technique::{Missing, Names, TechniqueDef};
 use crate::time::{Tick, Timer, Timers};
 
 /// Bumped on any change to the format. Older saves are refused, not migrated.
-pub const SAVE_VERSION: u32 = 64;
+pub const SAVE_VERSION: u32 = 65;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -148,6 +147,10 @@ struct Save {
     rngs: Rngs,
     map: SavedGrid<crate::map::Tile>,
     seen: SavedGrid<bool>,
+    /// What the player sees, as of their last turn: saved, not recomputed,
+    /// since the map may have changed since (grass burned away) and a loaded
+    /// game must see what the saved one did.
+    visible: SavedGrid<bool>,
     remembered_items: SavedGrid<Option<Appearance>>,
     log: MessageLog,
     timers: SavedTimers,
@@ -362,6 +365,7 @@ pub fn to_ron(state: &GameState) -> Result<String, SaveError> {
         rngs: state.rngs.clone(),
         map: saved_grid(&state.map),
         seen: saved_grid(&state.seen),
+        visible: saved_grid(&state.visible),
         remembered_items: saved_grid(&state.remembered_items),
         log: state.log.clone(),
         timers: SavedTimers {
@@ -449,9 +453,11 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
     let remembered_items = load_grid(save.remembered_items)
         .filter(|grid| (grid.width, grid.height) == (map.width, map.height))
         .ok_or(LoadError::BadGrid("remembered_items"))?;
-    let visible = Grid::new(map.width, map.height, false);
+    let visible = load_grid(save.visible)
+        .filter(|grid| (grid.width, grid.height) == (map.width, map.height))
+        .ok_or(LoadError::BadGrid("visible"))?;
 
-    let mut state = GameState {
+    Ok(GameState {
         fx: Vec::new(),
         world,
         map,
@@ -478,9 +484,7 @@ pub fn from_ron(text: &str, blueprints: Blueprints) -> Result<GameState, LoadErr
         place: save.place,
         dives: save.dives,
         phase: save.phase,
-    };
-    fov::update(&mut state);
-    Ok(state)
+    })
 }
 
 /// Entities in `SpawnSeq` order, each followed depth-first by what it

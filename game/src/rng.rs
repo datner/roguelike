@@ -16,6 +16,7 @@ pub mod stream {
     /// Ruins, built once from the lineage when a game starts
     /// (`legacy::build_ruins`), so it has no `Rngs` field.
     pub const LEGACY: u128 = 5;
+    pub const CRAFT: u128 = 6;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +30,8 @@ pub struct Rngs {
     pub combat: Pcg64,
     /// Spell outcomes that are not damage: where summons appear, fizzles.
     pub spell: Pcg64,
+    /// What a kill yields and how a craft turns out (docs/plans/crafting.md).
+    pub craft: Pcg64,
 }
 
 impl Rngs {
@@ -39,6 +42,7 @@ impl Rngs {
             spawn: Pcg64::new(zone, stream::SPAWN),
             combat: Pcg64::new(world, stream::COMBAT),
             spell: Pcg64::new(world, stream::SPELL),
+            craft: Pcg64::new(world, stream::CRAFT),
         }
     }
 }

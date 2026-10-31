@@ -56,5 +56,11 @@
         (count: 1, phases: ["Rime"], blueprint: "RimeCharm"),
         (count: 1, phases: ["Tempest"], blueprint: "StormJavelin"),
         (count: 1, phases: ["Mire"], blueprint: "BogWaders"),
+        // Materials (docs/plans/crafting.md): the caves' own, and each
+        // phase's, never in another.
+        (count: 2, blueprint: "Flint"),
+        (count: 2, blueprint: "Sapling"),
+        (count: 1, phases: ["Embers"], blueprint: "EmberSlag"),
+        (count: 1, phases: ["Rime"], blueprint: "RimeShard"),
     ],
 )

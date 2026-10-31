@@ -700,6 +700,17 @@ pub(crate) mod tests {
                     ),
                 ),
                 (
+                    "Bone".to_string(),
+                    blueprint(
+                        vec![
+                            name("bone"),
+                            ComponentDef::Item,
+                            ComponentDef::Material(crate::entity::Material(vec!["hard".into()])),
+                        ],
+                        &[],
+                    ),
+                ),
+                (
                     "Rubble".to_string(),
                     blueprint(
                         vec![name("rubble"), look('%'), ComponentDef::BlocksMovement],

@@ -961,6 +961,7 @@ fn die(state: &mut GameState, entity: Entity) {
         let _ = state.world.insert_one(entity, Dead);
         return;
     }
+    crate::craft::leave_yields(state, entity);
     despawn_with_holdings(state, entity);
 }
 

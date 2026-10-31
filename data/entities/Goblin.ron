@@ -13,6 +13,8 @@
         Skills({"Melee": 2, "Dagger": 2, "Slash": 2}),
         // Its free hand shoves you back now and then (ADR 0024).
         TechniqueAi,
+        // What it leaves (docs/plans/crafting.md); its kin inherit it.
+        Yields([(blueprint: "GoblinBone", chance_bp: 5000)]),
     ],
     equipment: ["LeatherArmor", "RustyKnife"],
     techniques: ["Shove"],

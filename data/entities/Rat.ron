@@ -11,5 +11,6 @@
         Speed(150),
         Hostile,
         Morale(flee_below: 50),
+        Yields([(blueprint: "RatHide", chance_bp: 4000)]),
     ],
 )

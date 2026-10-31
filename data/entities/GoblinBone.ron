@@ -1,0 +1,9 @@
+// What a goblin leaves of itself (docs/plans/crafting.md).
+(
+    components: [
+        Name("goblin bone"),
+        Appearance(glyph: '~', fg: (220, 215, 190), bg: (0, 0, 0)),
+        Item,
+        Material(["hard", "light", "brittle"]),
+    ],
+)

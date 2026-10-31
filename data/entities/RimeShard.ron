@@ -1,0 +1,9 @@
+// Ice that does not melt, found only in the Rime.
+(
+    components: [
+        Name("rime shard"),
+        Appearance(glyph: '*', fg: (160, 210, 240), bg: (0, 0, 0)),
+        Item,
+        Material(["hard", "cold", "rare"]),
+    ],
+)

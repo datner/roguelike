@@ -32,6 +32,7 @@ pub mod camp;
 pub mod combat;
 pub mod command;
 pub mod cost;
+pub mod craft;
 pub mod discovery;
 pub mod dive;
 pub mod dungeon;

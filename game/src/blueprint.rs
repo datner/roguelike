@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery::{self, Discovery, DiscoveryDef};
 use crate::entity::{
-    Ability, Hardiness, Keepsake, Made, Natural, Note, OffBalance, Roams, Skirmish, SprintAi,
-    Teaches, TechniqueAi, Verb, WindUp,
+    Ability, Hardiness, Keepsake, Made, Material, Natural, Note, OffBalance, Roams, Skirmish,
+    SprintAi, Teaches, TechniqueAi, Verb, WindUp, Yields,
 };
 use crate::entity::{
     Ammo, Appearance, Area, Armor, Binding, Blast, Bleeding, BlocksMovement, BloodCasting, Blow,
@@ -219,6 +219,8 @@ pub struct Blueprints {
     /// How many lives a lineage keeps and what time leaves of them
     /// (`data/legacy.ron`).
     legacy: crate::legacy::Legacy,
+    /// What materials can be (`data/properties.ron`, docs/plans/crafting.md).
+    properties: Vec<crate::craft::PropertyDef>,
 }
 
 #[derive(Debug)]
@@ -298,6 +300,8 @@ pub enum BlueprintError {
     BadPhases(String),
     BadOrigins(String),
     BadLegacy(String),
+    /// A material, a yield or a property that doesn't add up.
+    BadCraft(String),
     /// A technique without the `Verb` its log needs.
     TechniqueWithoutVerb(String),
     /// A manual, a style's inventions or a discovery (`by`) hands out an
@@ -327,6 +331,7 @@ impl std::fmt::Display for BlueprintError {
             Self::BadPhases(why) => write!(f, "data/phases.ron: {why}"),
             Self::BadOrigins(why) => write!(f, "data/origins.ron: {why}"),
             Self::BadLegacy(why) => write!(f, "data/legacy.ron: {why}"),
+            Self::BadCraft(why) => write!(f, "crafting: {why}"),
             Self::UnknownOrigin(key) => write!(f, "no origin {key:?}"),
             Self::TechniqueWithoutVerb(name) => {
                 write!(f, "technique {name:?} has no Verb to be logged with")
@@ -408,7 +413,8 @@ impl Blueprints {
             .with_origins(crate::origin::read(data)?)?
             .with_phases(phase::read(data)?)?
             .with_dungeons(dungeon::read_dir(&data.join("dungeons"))?)?
-            .with_legacy(crate::legacy::read(data)?)
+            .with_legacy(crate::legacy::read(data)?)?
+            .with_properties(crate::craft::read(data)?)
             .and_then(|blueprints| {
                 let camp = camp::load(data, &blueprints)?;
                 Ok(blueprints.with_camp(camp))
@@ -624,7 +630,56 @@ impl Blueprints {
             phases: Vec::new(),
             origins: Vec::new(),
             legacy: crate::legacy::Legacy::default(),
+            properties: Vec::new(),
         })
+    }
+
+    /// Every material names known properties, and every yield a blueprint
+    /// at a chance no more than certain, so neither fails during play.
+    pub fn with_properties(
+        mut self,
+        properties: Vec<crate::craft::PropertyDef>,
+    ) -> Result<Self, BlueprintError> {
+        let bad = |why: String| Err(BlueprintError::BadCraft(why));
+        for blueprint in &self.resolved {
+            for def in &blueprint.components {
+                match def {
+                    ComponentDef::Material(material) => {
+                        for property in &material.0 {
+                            if !properties.iter().any(|known| &known.name == property) {
+                                return bad(format!(
+                                    "{:?} has unknown property {property:?}",
+                                    blueprint.name
+                                ));
+                            }
+                        }
+                    }
+                    ComponentDef::Yields(yields) => {
+                        for entry in &yields.0 {
+                            if self.id(&entry.blueprint).is_none() {
+                                return bad(format!(
+                                    "{:?} yields unknown {:?}",
+                                    blueprint.name, entry.blueprint
+                                ));
+                            }
+                            if entry.chance_bp > 10_000 {
+                                return bad(format!(
+                                    "{:?} yields {:?} at over 10000 bp",
+                                    blueprint.name, entry.blueprint
+                                ));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.properties = properties;
+        Ok(self)
+    }
+
+    pub fn properties(&self) -> &[crate::craft::PropertyDef] {
+        &self.properties
     }
 
     /// Ruins are built from `AbandonedCamp`, so keeping lives needs it.
@@ -797,13 +852,19 @@ impl Blueprints {
 
     /// Every item that can be found lying about (an `Item`, not a
     /// `Keepsake`), in id (name) order so picking from it by index is
-    /// deterministic.
+    /// deterministic. Materials are left out: they come from yields and a
+    /// dungeon's named scatters only, so a phase's material stays in its
+    /// phase (docs/plans/crafting.md).
     pub fn items(&self) -> Vec<BlueprintId> {
         (0..)
             .zip(&self.resolved)
             .filter(|(_, blueprint)| {
                 blueprint.components.contains(&ComponentDef::Item)
                     && !blueprint.components.contains(&ComponentDef::Keepsake)
+                    && !blueprint
+                        .components
+                        .iter()
+                        .any(|def| matches!(def, ComponentDef::Material(_)))
             })
             .map(|(id, _)| BlueprintId(id))
             .collect()

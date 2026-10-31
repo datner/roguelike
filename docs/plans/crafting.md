@@ -74,7 +74,7 @@ found or started with. After this plan:
 
 Each slice ends with `scripts/check.sh` green and a commit, and is marked done here first.
 
-### 1. Materials and yields — open
+### 1. Materials and yields — done
 - `data/properties.ron` (`hard`, `flexible`, `light`, `brittle`, `cold`, `hot`, `rare` to start),
   loaded and checked with the blueprints; `Material` and `Yields` parts on `with_components!`.
 - Materials: `GoblinBone` (hard, light, brittle), `RatHide` (flexible, light), `Sapling` (flexible),
@@ -84,6 +84,10 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   `inspect`).
 - Tests: a death drops what `Yields` lists at its chance (`sure` chances in tests); the phase's
   material only in its phase; save round-trip of a dropped material.
+- Done. Materials are left out of the random-find pool (`Blueprints::items`), so a phase's material
+  comes only from its named scatter. The save property found a real bug on the way: loading
+  recomputed the view, so a game saved after the map changed (grass burned) remembered more once
+  loaded. The view is now saved (`SAVE_VERSION` 65).
 
 ### 2. Recipes and the craft command — open
 - `data/recipes.ron`, loaded and checked; `Recipes` part; `craft::ready` and `Command::Craft`

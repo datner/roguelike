@@ -39,7 +39,7 @@ macro_rules! with_components {
                 Note,
                 /// What its own blows carry.
                 Natural,
-                Footwork, Blow, Dash, Loose, Stamina, OffBalance,
+                Footwork, Blow, Dash, Loose, Stamina, OffBalance, Material, Yields,
             ],
             state: [
                 Position, Energy, SpawnSeq, EquippedOn, Recharging, Timed, RestBudget, Quarry,
@@ -1069,6 +1069,23 @@ pub struct Made(pub String);
 /// abandoned camp, left years ago.").
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note(pub String);
+
+/// A material for crafting (docs/plans/crafting.md): its properties, by
+/// name from `data/properties.ron`, which decide what it can fill in a
+/// recipe and what it gives the product.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Material(pub Vec<String>);
+
+/// What a creature leaves when it dies: each entry a blueprint by name and
+/// its chance in basis points, drawn on the `craft` stream.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Yields(pub Vec<Yield>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Yield {
+    pub blueprint: String,
+    pub chance_bp: u32,
+}
 
 /// Marker: an item made for one place, such as a predecessor's writings in
 /// their ruins (docs/plans/legacy.md), so it is never found lying about on

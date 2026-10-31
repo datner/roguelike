@@ -188,10 +188,14 @@ pub fn inspect(state: &GameState, at: (i32, i32)) -> Option<Inspection> {
             .find(|(_, pos, _)| here(pos))
             .map(|(entity, ..)| entity)
     })?;
-    let lines = world
+    let mut lines = world
         .get::<&Note>(thing)
         .map(|note| vec![note.0.clone()])
         .unwrap_or_default();
+    // A material says what it is (docs/plans/crafting.md).
+    if let Ok(material) = world.get::<&crate::entity::Material>(thing) {
+        lines.push(material.0.join(", "));
+    }
     Some(Inspection {
         name: noun(world, thing),
         lines,
