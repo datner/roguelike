@@ -76,6 +76,87 @@ pub fn load(dir: &Path) -> Result<Bench, String> {
     })
 }
 
+/// What a run is narrowed to (docs/plans/bench-cli.md); empty lists keep everything.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Narrow {
+    pub builds: Vec<String>,
+    pub scenarios: Vec<String>,
+    pub dives: Vec<String>,
+    /// Only the dolls (`--dolls`) or only the dives (`--dives`).
+    pub part: Option<Part>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Part {
+    Dolls,
+    Dives,
+}
+
+impl Narrow {
+    /// Nothing narrowed: the full run the committed report is.
+    pub fn is_full(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// `bench` with only what `narrow` names. Naming a scenario and no dive runs only the dolls, and
+/// the other way round. An unknown name is an error listing the known ones.
+pub fn narrow(mut bench: Bench, narrow: &Narrow) -> Result<Bench, String> {
+    let known = |kind: &str, wanted: &[String], names: Vec<&str>| match wanted
+        .iter()
+        .find(|name| !names.contains(&name.as_str()))
+    {
+        Some(name) => Err(format!("no {kind} {name:?}; known: {}", names.join(", "))),
+        None => Ok(()),
+    };
+    known(
+        "build",
+        &narrow.builds,
+        bench.builds.iter().map(|b| b.name.as_str()).collect(),
+    )?;
+    known(
+        "scenario",
+        &narrow.scenarios,
+        bench.scenarios.iter().map(|s| s.name.as_str()).collect(),
+    )?;
+    let mut dive_names: Vec<&str> = bench
+        .dives
+        .sets
+        .iter()
+        .flat_map(|set| set.dives.iter().map(|dive| dive.name.as_str()))
+        .collect();
+    dive_names.sort_unstable();
+    dive_names.dedup();
+    known("dive", &narrow.dives, dive_names)?;
+    let keep =
+        |wanted: &[String], name: &str| wanted.is_empty() || wanted.iter().any(|w| w == name);
+    bench
+        .builds
+        .retain(|build| keep(&narrow.builds, &build.name));
+    bench
+        .scenarios
+        .retain(|scenario| keep(&narrow.scenarios, &scenario.name));
+    for set in &mut bench.dives.sets {
+        set.builds.retain(|build| keep(&narrow.builds, build));
+        set.dives.retain(|dive| keep(&narrow.dives, &dive.name));
+    }
+    bench
+        .dives
+        .sets
+        .retain(|set| !set.builds.is_empty() && !set.dives.is_empty());
+    let dolls_only = narrow.part == Some(Part::Dolls)
+        || (!narrow.scenarios.is_empty() && narrow.dives.is_empty());
+    let dives_only = narrow.part == Some(Part::Dives)
+        || (!narrow.dives.is_empty() && narrow.scenarios.is_empty());
+    if dolls_only {
+        bench.dives.sets.clear();
+    }
+    if dives_only {
+        bench.scenarios.clear();
+    }
+    Ok(bench)
+}
+
 /// One build against one scenario, both windows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
@@ -498,6 +579,59 @@ mod tests {
         assert_eq!(rows.len(), bench.builds.len() * bench.scenarios.len());
         // No seeds: only that every dive names a build that exists.
         assert!(!measure_dives(&data(), &bench, 0).unwrap().is_empty());
+    }
+
+    #[test]
+    fn narrowing_keeps_only_what_is_named() {
+        let full = load(&dir()).unwrap();
+        let build = full.builds[0].name.clone();
+        let dive = full.dives.sets[0].dives[0].name.clone();
+        let only = |narrowed: Narrow| narrow(full.clone(), &narrowed).unwrap();
+
+        let one = only(Narrow {
+            builds: vec![build.clone()],
+            ..Narrow::default()
+        });
+        assert_eq!(one.builds.len(), 1);
+        assert_eq!(one.scenarios.len(), full.scenarios.len());
+        assert!(
+            one.dives
+                .sets
+                .iter()
+                .all(|set| set.builds == [build.clone()])
+        );
+
+        // A dive named and no scenario: only the dives, only that one.
+        let dives = only(Narrow {
+            dives: vec![dive.clone()],
+            ..Narrow::default()
+        });
+        assert!(dives.scenarios.is_empty());
+        assert!(
+            dives
+                .dives
+                .sets
+                .iter()
+                .flat_map(|set| &set.dives)
+                .all(|d| d.name == dive)
+        );
+
+        let dolls = only(Narrow {
+            part: Some(Part::Dolls),
+            ..Narrow::default()
+        });
+        assert!(dolls.dives.sets.is_empty());
+        assert!(Narrow::default().is_full());
+
+        let err = narrow(
+            full,
+            &Narrow {
+                builds: vec!["nobody".into()],
+                ..Narrow::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.starts_with("no build \"nobody\"; known: "), "{err}");
     }
 
     /// The report's shape, pinned without running the bench.

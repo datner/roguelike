@@ -50,11 +50,14 @@ Each slice ends with `scripts/check.sh` green and a commit, and is marked done h
   last line with each part's time.
 - As built: inside `run_all`; the closing line (`dives: 320 runs in 0:20`) prints either way.
 
-### 4. Narrowed runs
+### 4. Narrowed runs — done
 - `--build NAME` (repeatable), `--scenario NAME`, `--dive NAME`: only matching rows run and print.
   `--dolls` / `--dives` run one part only. An unknown name is an error naming the known ones.
 - Tests: a filter keeps only matching rows; an unknown name is refused; a narrowed run with
   `--out` or `--check` is refused.
+- As built: `bench::narrow` filters the loaded bench before anything runs, so the report code is
+  unchanged. Naming a scenario and no dive runs only the dolls, and the other way round. A
+  narrowed run refuses `--out`, `--json` and `--page` (`--check` comes in slice 6).
 
 ### 5. Findings
 - After a full run, on stderr: the numbers outside `bench/targets.ron`'s ranges, and, against the

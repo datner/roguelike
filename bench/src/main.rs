@@ -2,7 +2,8 @@
 //! [--previous FILE]]`. Prints the report, or writes it to `FILE`; `--json` also writes every
 //! number as JSON, `--page` the readable page (`bench/page.html` filled in, with what moved since
 //! `--previous`, a report's JSON). `--calibrate FILE` reads a `playtime.csv` instead and prints
-//! keypresses an hour. Run through `scripts/balance.sh`.
+//! keypresses an hour. `--build`, `--scenario`, `--dive` (each repeatable), `--dolls` and `--dives`
+//! narrow a run, which then only prints. Run through `scripts/balance.sh`.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -20,10 +21,16 @@ fn main() -> ExitCode {
 fn run() -> Result<(), String> {
     let mut seeds = None;
     let (mut out, mut json, mut page, mut previous) = (None, None, None, None);
+    let mut only = bench::Narrow::default();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
-        let mut file = || args.next().ok_or(format!("{arg} takes a file"));
+        let mut value = || args.next().ok_or(format!("{arg} takes a value"));
         match arg.as_str() {
+            "--build" => only.builds.push(value()?),
+            "--scenario" => only.scenarios.push(value()?),
+            "--dive" => only.dives.push(value()?),
+            "--dolls" => only.part = Some(bench::Part::Dolls),
+            "--dives" => only.part = Some(bench::Part::Dives),
             "--seeds" => {
                 seeds = Some(
                     args.next()
@@ -31,13 +38,13 @@ fn run() -> Result<(), String> {
                         .ok_or("--seeds takes a number")?,
                 );
             }
-            "--out" => out = Some(file()?),
-            "--json" => json = Some(file()?),
-            "--page" => page = Some(file()?),
-            "--previous" => previous = Some(file()?),
+            "--out" => out = Some(value()?),
+            "--json" => json = Some(value()?),
+            "--page" => page = Some(value()?),
+            "--previous" => previous = Some(value()?),
             // Reads play time instead of running the bench.
             "--calibrate" => {
-                let path = file()?;
+                let path = value()?;
                 let text =
                     std::fs::read_to_string(&path).map_err(|err| format!("{path}: {err}"))?;
                 print!("{}", bench::calibrate::calibrate(&text));
@@ -46,10 +53,14 @@ fn run() -> Result<(), String> {
             other => return Err(format!("unknown argument {other:?}")),
         }
     }
+    // A narrowed run answers a question; only a full one may stand for the report.
+    if !only.is_full() && (out.is_some() || json.is_some() || page.is_some()) {
+        return Err("a narrowed run only prints: drop --out, --json and --page".into());
+    }
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let blueprints =
         game::Blueprints::load(&root.join("../data")).map_err(|err| err.to_string())?;
-    let bench = bench::load(root)?;
+    let bench = bench::narrow(bench::load(root)?, &only)?;
     // `--seeds` sets both, for a quick look; else each its own default.
     let dive_seeds = seeds.unwrap_or(bench.dives.seeds);
     let seeds = seeds.unwrap_or(bench::SEEDS);
