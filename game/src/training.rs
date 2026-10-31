@@ -200,7 +200,6 @@ pub fn practice_step(state: &mut GameState) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::blueprint::Blueprints;
@@ -211,7 +210,7 @@ mod tests {
     use crate::view::{ItemRef, inventory_view};
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     fn learner(levels: &[(&str, u32)]) -> GameState {

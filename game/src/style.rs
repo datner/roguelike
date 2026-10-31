@@ -387,7 +387,6 @@ pub fn styles(state: &GameState) -> Vec<StyleView> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::blueprint::Blueprints;
@@ -401,7 +400,7 @@ mod tests {
     use crate::view::inventory_view;
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     /// The player as a learner at these levels, with a rapier in hand and the

@@ -304,7 +304,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_shipped_dungeons_load() {
-        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         let blueprints = Blueprints::load(&data).unwrap();
         let caves = blueprints.dungeon("Caves").expect("the caves ship");
         assert_eq!(caves.name, "the caves");
@@ -335,10 +335,7 @@ pub(crate) mod tests {
     /// The first floor of the caves in `phase`, from camp, by its stairs.
     fn caves_in(phase: &str) -> crate::state::GameState {
         use crate::entity::Position;
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::GameState::new(5, data).unwrap();
         state.phase = phase.into();
         let camp = state.blueprints.camp().unwrap();
@@ -388,10 +385,7 @@ pub(crate) mod tests {
     #[test]
     fn natives_resist_and_deal_their_element() {
         use crate::entity::{Armor, DamageType, DamageTypes, Natural};
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::GameState::new(5, data).unwrap();
         for (native, element) in [
             ("EmberImp", DamageType::Fire),

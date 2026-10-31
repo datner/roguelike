@@ -341,7 +341,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_shipped_phases_load() {
-        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         let phases = read(&data).unwrap();
         let keys: Vec<&str> = phases.iter().map(|p| p.key.as_str()).collect();
         assert_eq!(keys, ["Stillness", "Embers", "Rime", "Tempest", "Mire"]);
@@ -459,10 +459,7 @@ pub(crate) mod tests {
 
     /// A learner on a floor of the shipped data in `phase`, and a goblin.
     fn attuning_in(phase: &str) -> (GameState, Entity) {
-        let data = crate::blueprint::Blueprints::load(
-            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::tests::bare_state_with(data);
         set_floor_phase(&mut state, phase);
         let player = state.player;

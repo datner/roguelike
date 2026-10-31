@@ -832,7 +832,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_data_file_loads() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/skills.ron");
+        let path = crate::testkit::data().join("skills.ron");
         let book = SkillBook::load(&path).unwrap();
         assert!(book.core.is_some());
         assert!(book.id("Dagger").is_some());

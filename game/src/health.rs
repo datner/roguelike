@@ -74,7 +74,6 @@ pub(crate) fn hurt(state: &mut GameState, target: Entity, cause: DamageCause, de
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::blueprint::Blueprints;
@@ -83,7 +82,7 @@ mod tests {
     use crate::state::tests::bare_state_with;
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     fn health(state: &GameState) -> (i32, i32) {

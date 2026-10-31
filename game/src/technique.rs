@@ -1322,10 +1322,7 @@ mod tests {
 
     /// The real brute and a player beside it, from the data.
     fn brute_beside_player() -> (GameState, Entity) {
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::tests::bare_state_with(data);
         let brute = state
             .spawn(crate::spawn::Spawn::blueprint("GoblinBrute").at(2, 1))
@@ -1949,7 +1946,7 @@ mod tests {
 
     #[test]
     fn a_trip_leaves_the_target_reeling_until_its_time_runs_out() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
         let mut state = crate::state::tests::bare_state_with(blueprints);
         see_everything(&mut state);
@@ -2322,7 +2319,7 @@ mod tests {
 
     /// A bare room with the real content: the real player, who learns.
     fn real() -> GameState {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         let blueprints = crate::blueprint::Blueprints::load(&data).unwrap();
         let mut state = crate::state::tests::bare_state_with(blueprints);
         see_everything(&mut state);

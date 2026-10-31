@@ -381,13 +381,12 @@ fn gained(state: &GameState, before: &BTreeMap<String, u32>) -> BTreeMap<String,
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::entity::Health;
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     fn bumper() -> Build {

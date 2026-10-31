@@ -395,7 +395,7 @@ mod tests {
         assert_eq!(place(&camp), "Camp");
         assert_eq!(flat(&whereabouts(&camp)[1]), "Next dive  the stillness");
 
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::tests::data();
         let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
         let floor = GameState::new(3, blueprints).unwrap();
         assert_eq!(place(&floor), "The castle, floor 1 of 12 (the stillness)");

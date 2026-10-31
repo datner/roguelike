@@ -236,7 +236,7 @@ mod tests {
     use super::*;
 
     fn blueprints() -> Blueprints {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let dir = crate::tests::data();
         Blueprints::load(&dir).unwrap()
     }
 

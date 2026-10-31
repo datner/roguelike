@@ -807,7 +807,6 @@ fn load_grid<T>(saved: SavedGrid<T>) -> Option<Grid<T>> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::command::Command;
@@ -820,7 +819,7 @@ mod tests {
     use crate::time::{Step, step, take_turn};
 
     fn data_blueprints() -> Blueprints {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let dir = crate::testkit::data();
         Blueprints::load(&dir).unwrap()
     }
 

@@ -415,15 +415,13 @@ pub fn from_ron(text: &str) -> Result<Vec<Record>, LineageError> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::blueprint::Blueprints;
     use crate::command::{Command, DamageCause};
 
     fn pit_fighter() -> GameState {
-        let data =
-            Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap();
+        let data = Blueprints::load(&crate::testkit::data()).unwrap();
         GameState::new_as(1, data, Some("PitFighter")).unwrap()
     }
 
@@ -592,7 +590,7 @@ mod tests {
     }
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     /// A life that left `stash` at camp and died on a floor with `gear`.

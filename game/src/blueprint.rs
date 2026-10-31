@@ -1192,7 +1192,7 @@ mod tests {
     use super::*;
 
     fn data_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")
+        crate::testkit::data()
     }
 
     fn bp(inherits: Option<&str>, components: Vec<ComponentDef>) -> Blueprint {

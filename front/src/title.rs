@@ -202,7 +202,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let setup = Setup {
-            data_dir: std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+            data_dir: crate::tests::data(),
             saves_dir: dir.clone(),
             seed: Some(3),
         };
@@ -222,7 +222,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         Setup {
-            data_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+            data_dir: crate::tests::data(),
             saves_dir: dir,
             seed: Some(3),
         }

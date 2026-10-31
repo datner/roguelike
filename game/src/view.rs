@@ -479,7 +479,7 @@ mod tests {
     use crate::input::PlayerAction;
 
     fn data_state() -> GameState {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         crate::state::tests::bare_state_with(crate::Blueprints::load(&data).unwrap())
     }
 

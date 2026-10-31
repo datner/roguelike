@@ -544,11 +544,9 @@ mod tests {
 
     #[test]
     fn w_away_from_camp_says_why_not() {
-        let blueprints = game::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap()
-        .with_camp(None);
+        let blueprints = game::Blueprints::load(&crate::tests::data())
+            .unwrap()
+            .with_camp(None);
         let mut session = Session::new(GameState::new(3, blueprints).unwrap(), "hero");
         session.handle(Input::Game(InputEvent::WaitForPhase));
         assert!(matches!(session.mode(), Mode::Play));
@@ -737,7 +735,7 @@ mod tests {
 
     #[test]
     fn on_a_floor_the_status_shows_the_rest_budget() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::tests::data();
         let blueprints = game::Blueprints::load(&data).unwrap().with_camp(None);
         let state = GameState::new(3, blueprints).unwrap();
         // 125% of the player's 22 health.

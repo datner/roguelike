@@ -284,7 +284,7 @@ mod tests {
     use crate::testkit::{last_log, thing};
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     /// The player as a learner at these levels.

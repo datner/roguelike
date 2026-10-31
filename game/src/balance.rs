@@ -717,13 +717,12 @@ fn sources(blueprints: &Blueprints, name: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::entity::{Energy, Name};
 
     fn data() -> Blueprints {
-        Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap()
+        Blueprints::load(&crate::testkit::data()).unwrap()
     }
 
     fn build(equipment: &[&str], skills: &[(&str, u32)]) -> Build {

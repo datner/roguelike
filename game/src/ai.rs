@@ -597,10 +597,7 @@ mod tests {
     }
 
     fn archer_at(at: Position) -> (GameState, Entity) {
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::tests::bare_state_with(data);
         let archer = state
             .spawn(Spawn::blueprint("GoblinArcher").with(at))
@@ -668,11 +665,9 @@ mod tests {
 
     #[test]
     fn a_placed_archer_has_arrows() {
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap()
-        .with_camp(None);
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data())
+            .unwrap()
+            .with_camp(None);
         let state = GameState::new(3, data).unwrap();
         let archer = state
             .world
@@ -696,11 +691,9 @@ mod tests {
 
     #[test]
     fn a_rat_outpaces_you_and_comes_in_a_pack() {
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap()
-        .with_camp(None);
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data())
+            .unwrap()
+            .with_camp(None);
         let state = GameState::new(3, data.clone()).unwrap();
         let rats: Vec<Entity> = state
             .world

@@ -201,7 +201,7 @@ mod tests {
     use crate::state::tests::test_blueprints;
 
     fn data() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")
+        crate::testkit::data()
     }
 
     fn origin(key: &str, blueprint: &str) -> OriginDef {

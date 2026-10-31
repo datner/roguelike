@@ -1519,10 +1519,7 @@ mod odds_tests {
 
     #[test]
     fn a_part_that_moves_the_odds_is_named() {
-        let data = crate::blueprint::Blueprints::load(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
-        )
-        .unwrap();
+        let data = crate::blueprint::Blueprints::load(&crate::testkit::data()).unwrap();
         let mut state = crate::state::tests::bare_state_with(data);
         let goblin = state
             .spawn(crate::spawn::Spawn::blueprint("Goblin").at(2, 1))

@@ -183,8 +183,7 @@ pub(crate) mod tests {
 
     #[test]
     fn ruin_spots_come_nearest_the_arrival_first_and_must_cover_the_kept_lives() {
-        let data =
-            Blueprints::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")).unwrap();
+        let data = Blueprints::load(&crate::testkit::data()).unwrap();
         let def = |layout: &[&str]| CampDef {
             arrival: String::new(),
             layout: layout.iter().map(|row| row.to_string()).collect(),
@@ -201,7 +200,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_shipped_camp_loads() {
-        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
+        let data = crate::testkit::data();
         let blueprints = Blueprints::load(&data).unwrap();
         let camp = blueprints.camp().expect("a camp ships");
         assert!(camp.entrances.iter().any(|(_, dungeon)| dungeon == "Caves"));

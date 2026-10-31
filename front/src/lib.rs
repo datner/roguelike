@@ -11,19 +11,23 @@ pub mod title;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use game::{Blueprints, GameState};
 
-    /// A new game from the real data, seed 3.
+    /// The content every `front` test loads.
+    pub fn data() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../data")
+    }
+
+    /// A new game from the test content, seed 3.
     pub fn state() -> GameState {
         state_as("Wanderer")
     }
 
     /// `state`, starting as another origin (`data/origins.ron`).
     pub fn state_as(origin: &str) -> GameState {
-        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data");
-        let blueprints = Blueprints::load(&data).unwrap();
+        let blueprints = Blueprints::load(&data()).unwrap();
         GameState::new_as(3, blueprints, Some(origin)).unwrap()
     }
 }

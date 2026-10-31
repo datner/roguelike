@@ -19,6 +19,16 @@ use crate::prio;
 use crate::spawn::{Held, Spawn};
 use crate::state::GameState;
 
+/// The content tests load: the shipped `data/`, or `ROGUELIKE_TEST_DATA`
+/// when set, so `scripts/nudge.sh` can run every test on a copy with its
+/// numbers moved and catch a test that pins them.
+pub(crate) fn data() -> std::path::PathBuf {
+    std::env::var_os("ROGUELIKE_TEST_DATA").map_or_else(
+        || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data"),
+        std::path::PathBuf::from,
+    )
+}
+
 /// An entity named `name` (the bare noun, as `Name` holds it).
 pub(crate) fn thing(name: &str) -> Spawn {
     Spawn::blank().with(Name(name.to_string()))
