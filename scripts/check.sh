@@ -16,9 +16,11 @@ run() {
   else
     echo "FAIL $name"
     echo "$out" | head -n "$MAX_LINES"
-    exit 1
+    failed=1
   fi
 }
+# Every step runs, so one run shows every problem.
+failed=0
 
 # ADR 0001: game (and front, ADR 0020) must not depend on terminal/graphics crates.
 boundary() {
@@ -51,23 +53,25 @@ boundary() {
   done
 }
 
-# docs/MAP.md is what sessions orient from, so a stale one misleads.
+# docs/MAP.md is what sessions orient from, so a stale one misleads. It is
+# generated, so a stale one is rewritten (commit it with the change), not failed.
 map() {
   local tmp
   tmp=$(mktemp)
   trap 'rm -f "$tmp"' RETURN
   scripts/map.sh "$tmp"
   if ! cmp -s "$tmp" docs/MAP.md; then
-    echo "docs/MAP.md is stale: run scripts/map.sh"
-    return 1
+    cp "$tmp" docs/MAP.md
+    echo "note docs/MAP.md was stale: rewritten, commit it with the change"
   fi
 }
 
 # File names only; `cargo fmt` fixes them, so the diff is noise.
 run fmt      cargo fmt --all --check -- -l
-run map      map
+map # Prints only when it rewrote the map.
 run boundary boundary
 # docs/plans/README.md: every game-system plan says what it reads and what reads it.
 run connections bash -c 'scripts/connections.sh --test && scripts/connections.sh'
 run clippy   cargo clippy --workspace --all-targets --quiet -- -D warnings
 run test     cargo test --workspace --quiet
+exit "$failed"

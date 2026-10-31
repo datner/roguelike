@@ -6,12 +6,11 @@ Tooling comes from the nix flake's dev shell, which direnv loads; the session
 already runs in it, so commands need no `nix develop` prefix.
 
 - **Before saying you're done:** `scripts/check.sh` — fmt, code-map freshness,
-  crate-boundary check, clippy `-D warnings`, tests. Quiet on success, prints
-  only the failing step on failure.
-- Code map: `scripts/map.sh` regenerates the module index `docs/MAP.md`; run
-  it after adding or removing a file, changing a module's first `//!`
-  paragraph, or when `check.sh` says it is stale (sizes are rounded to 100
-  lines). `scripts/map.sh --sigs <file or dir>...` prints `pub` signatures.
+  crate-boundary check, clippy `-D warnings`, tests. Quiet on success; runs every
+  step and prints the output of each that failed.
+- Code map: `scripts/map.sh` regenerates the module index `docs/MAP.md`;
+  `check.sh` rewrites a stale one itself and says so (commit it with the
+  change). `scripts/map.sh --sigs <file or dir>...` prints `pub` signatures.
 - One test: `cargo test -p game <test_name>`
 - Look at the gui (needs the GPU; not in `check.sh`):
   `scripts/shots.sh <scratch dir> [shot...] [--crop map|side|bottom]` renders
